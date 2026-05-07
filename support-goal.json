@@ -1,12 +1,12 @@
 {
   "enabled": true,
-  "title": "键盘基金",
+  "title": "作者想买骚气索尼小键盘",
   "description": "这个工具会继续免费。赞助不是必须的，但会让作者吃顿好的，买点好玩意。",
   "current": 0,
-  "target": 699,
+  "target": 200,
   "currency": "CNY",
   "kofiUrl": "https://ko-fi.com/nekonekomeowmeow",
-  "imageUrl": "",
+  "imageUrl": "https://raw.githubusercontent.com/TanChuping/chatgpt-voyager/main/support-assets/1778158576749-image.png",
   "wechatQrUrl": "",
   "updatedAt": "2026-05-07"
 }
