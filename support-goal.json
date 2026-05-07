@@ -1,11 +1,12 @@
 {
   "enabled": true,
-  "title": "\u952e\u76d8\u57fa\u91d1",
-  "description": "\u8fd9\u4e2a\u5de5\u5177\u4f1a\u7ee7\u7eed\u514d\u8d39\u3002\u8d5e\u52a9\u4e0d\u662f\u5fc5\u987b\u7684\uff0c\u4f46\u4f1a\u8ba9\u4f5c\u8005\u5403\u987f\u597d\u7684\uff0c\u4e70\u70b9\u597d\u73a9\u610f\u3002",
+  "title": "键盘基金",
+  "description": "这个工具会继续免费。赞助不是必须的，但会让作者吃顿好的，买点好玩意。",
   "current": 0,
   "target": 699,
   "currency": "CNY",
   "kofiUrl": "https://ko-fi.com/nekonekomeowmeow",
+  "imageUrl": "",
   "wechatQrUrl": "",
   "updatedAt": "2026-05-07"
 }
