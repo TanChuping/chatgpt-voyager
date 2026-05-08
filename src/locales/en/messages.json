@@ -1,0 +1,1367 @@
+{
+  "extName": {
+    "message": "GPT-Voyager"
+  },
+  "extDescription": {
+    "message": "GPT-Voyager: timeline, folders, prompt vault, and chat export for ChatGPT."
+  },
+  "scrollMode": {
+    "message": "Timeline scroll mode"
+  },
+  "flow": {
+    "message": "Flow"
+  },
+  "jump": {
+    "message": "Jump"
+  },
+  "hideOuterContainer": {
+    "message": "Hide timeline container"
+  },
+  "draggableTimeline": {
+    "message": "Draggable timeline"
+  },
+  "pinTimelinePreview": {
+    "message": "Pin timeline preview"
+  },
+  "pinTimelinePreviewHint": {
+    "message": "Keep the timeline preview open while browsing headings."
+  },
+  "enableMarkerLevel": {
+    "message": "Heading levels"
+  },
+  "enableMarkerLevelHint": {
+    "message": "Show nested heading levels in the conversation timeline."
+  },
+  "experimentalLabel": {
+    "message": "Experimental"
+  },
+  "resetPosition": {
+    "message": "Reset position"
+  },
+  "resetTimelinePosition": {
+    "message": "Reset timeline position"
+  },
+  "language": {
+    "message": "Language"
+  },
+  "pm_title": {
+    "message": "Prompt Manager"
+  },
+  "pm_add": {
+    "message": "Add"
+  },
+  "pm_search_placeholder": {
+    "message": "Search prompts, tags, or content"
+  },
+  "pm_import": {
+    "message": "Import"
+  },
+  "pm_export": {
+    "message": "Export"
+  },
+  "pm_prompt_placeholder": {
+    "message": "Prompt text"
+  },
+  "pm_tags_placeholder": {
+    "message": "Tags, separated by commas"
+  },
+  "pm_save": {
+    "message": "Save"
+  },
+  "pm_cancel": {
+    "message": "Cancel"
+  },
+  "pm_all_tags": {
+    "message": "All tags"
+  },
+  "pm_empty": {
+    "message": "No prompts yet"
+  },
+  "pm_copy": {
+    "message": "Copy"
+  },
+  "pm_copied": {
+    "message": "Copied"
+  },
+  "pm_inserted": {
+    "message": "Inserted"
+  },
+  "pm_delete": {
+    "message": "Delete"
+  },
+  "pm_delete_confirm": {
+    "message": "Delete this prompt?"
+  },
+  "pm_lock": {
+    "message": "Lock"
+  },
+  "pm_unlock": {
+    "message": "Unlock"
+  },
+  "pm_import_invalid": {
+    "message": "Invalid import file"
+  },
+  "pm_import_empty": {
+    "message": "No prompts found in import file"
+  },
+  "pm_import_success": {
+    "message": "Imported {count} prompts"
+  },
+  "pm_duplicate": {
+    "message": "Duplicate prompt"
+  },
+  "pm_deleted": {
+    "message": "Deleted"
+  },
+  "pm_edit": {
+    "message": "Edit"
+  },
+  "pm_expand": {
+    "message": "Expand"
+  },
+  "pm_collapse": {
+    "message": "Collapse"
+  },
+  "pm_saved": {
+    "message": "Saved"
+  },
+  "pm_settings": {
+    "message": "Settings"
+  },
+  "pm_settings_tooltip": {
+    "message": "Open Prompt Manager settings"
+  },
+  "pm_settings_fallback": {
+    "message": "Open extension settings to configure Prompt Manager."
+  },
+  "pm_backup": {
+    "message": "Backup"
+  },
+  "pm_backup_tooltip": {
+    "message": "Export a local backup of prompts and settings."
+  },
+  "pm_backup_cancelled": {
+    "message": "Backup cancelled"
+  },
+  "pm_backup_error": {
+    "message": "Backup failed"
+  },
+  "pm_backup_hint_options": {
+    "message": "Export or import local Prompt Manager data."
+  },
+  "pm_backup_step1": {
+    "message": "Open ChatGPT."
+  },
+  "pm_backup_step2": {
+    "message": "Open Prompt Manager."
+  },
+  "pm_backup_note": {
+    "message": "Local backups stay on this device unless you export them."
+  },
+  "pm_theme_light": {
+    "message": "Light"
+  },
+  "pm_view_compact": {
+    "message": "Compact"
+  },
+  "pm_view_comfortable": {
+    "message": "Comfortable"
+  },
+  "pm_name_placeholder": {
+    "message": "Prompt name"
+  },
+  "pm_theme_dark": {
+    "message": "Dark"
+  },
+  "extensionVersion": {
+    "message": "Version"
+  },
+  "newVersionAvailable": {
+    "message": "New version available"
+  },
+  "currentVersionLabel": {
+    "message": "Current version"
+  },
+  "latestVersionLabel": {
+    "message": "Latest version"
+  },
+  "updateNow": {
+    "message": "Update now"
+  },
+  "safariUpdateNotSynced": {
+    "message": "Safari update status is not synced."
+  },
+  "officialDocs": {
+    "message": "Documentation"
+  },
+  "exportChatJson": {
+    "message": "Export chat"
+  },
+  "folder_title": {
+    "message": "Folders"
+  },
+  "folder_create": {
+    "message": "New folder"
+  },
+  "folder_name_prompt": {
+    "message": "Folder name:"
+  },
+  "folder_rename_prompt": {
+    "message": "Rename folder:"
+  },
+  "folder_delete_confirm": {
+    "message": "Delete this folder and remove its saved conversations?"
+  },
+  "folder_create_subfolder": {
+    "message": "New subfolder"
+  },
+  "folder_rename": {
+    "message": "Rename"
+  },
+  "folder_change_color": {
+    "message": "Change color"
+  },
+  "folder_delete": {
+    "message": "Delete"
+  },
+  "folder_color_default": {
+    "message": "Default"
+  },
+  "folder_color_red": {
+    "message": "Red"
+  },
+  "folder_color_orange": {
+    "message": "Orange"
+  },
+  "folder_color_yellow": {
+    "message": "Yellow"
+  },
+  "folder_color_green": {
+    "message": "Green"
+  },
+  "folder_color_blue": {
+    "message": "Blue"
+  },
+  "folder_color_purple": {
+    "message": "Purple"
+  },
+  "folder_color_pink": {
+    "message": "Pink"
+  },
+  "folder_color_custom": {
+    "message": "Custom"
+  },
+  "folder_empty": {
+    "message": "No folders yet"
+  },
+  "folder_pin": {
+    "message": "Pin folder"
+  },
+  "folder_unpin": {
+    "message": "Unpin folder"
+  },
+  "folder_remove_conversation": {
+    "message": "Remove from folder"
+  },
+  "conversation_more": {
+    "message": "More actions"
+  },
+  "conversation_move_to_folder": {
+    "message": "Move to folder"
+  },
+  "conversation_move_to_folder_title": {
+    "message": "Move to folder"
+  },
+  "chatWidth": {
+    "message": "Chat width"
+  },
+  "chatWidthNarrow": {
+    "message": "Narrow"
+  },
+  "chatWidthWide": {
+    "message": "Wide"
+  },
+  "chatFontSize": {
+    "message": "Chat font size"
+  },
+  "chatFontSizeSmall": {
+    "message": "Small"
+  },
+  "chatFontSizeLarge": {
+    "message": "Large"
+  },
+  "sidebarWidth": {
+    "message": "Sidebar width"
+  },
+  "sidebarWidthNarrow": {
+    "message": "Narrow"
+  },
+  "sidebarWidthWide": {
+    "message": "Wide"
+  },
+  "formula_copied": {
+    "message": "Formula copied."
+  },
+  "formula_copy_failed": {
+    "message": "Could not copy formula."
+  },
+  "formulaCopyFormat": {
+    "message": "Formula copy format"
+  },
+  "formulaCopyFormatLatex": {
+    "message": "LaTeX"
+  },
+  "formulaCopyFormatUnicodeMath": {
+    "message": "MathML / Word"
+  },
+  "formulaCopyFormatHint": {
+    "message": "Choose how formulas are copied."
+  },
+  "formulaCopyFormatNoDollar": {
+    "message": "LaTeX without dollar signs"
+  },
+  "formulaCopyFormatNotion": {
+    "message": "Notion ($$)"
+  },
+  "folder_filter_current_user": {
+    "message": "Filter current user"
+  },
+  "folder_export": {
+    "message": "Export folders"
+  },
+  "folder_import_export": {
+    "message": "Import / export folders"
+  },
+  "folder_cloud_upload": {
+    "message": "Folder cloud upload"
+  },
+  "folder_cloud_sync": {
+    "message": "Folder cloud sync"
+  },
+  "folder_manage_in_library": {
+    "message": "Manage in library"
+  },
+  "folder_import": {
+    "message": "Import folders"
+  },
+  "folder_import_title": {
+    "message": "Import folders"
+  },
+  "folder_import_strategy": {
+    "message": "Import strategy"
+  },
+  "folder_import_merge": {
+    "message": "Merge with existing folders"
+  },
+  "folder_import_overwrite": {
+    "message": "Overwrite existing folders"
+  },
+  "folder_import_select_file": {
+    "message": "Select JSON file"
+  },
+  "folder_import_success": {
+    "message": "Imported {folders} folders and {conversations} conversations."
+  },
+  "folder_import_success_skipped": {
+    "message": "Imported {folders} folders and {conversations} conversations. Skipped {skipped}."
+  },
+  "folder_import_error": {
+    "message": "Import failed: {error}"
+  },
+  "folder_export_success": {
+    "message": "Folders exported."
+  },
+  "folder_import_invalid_format": {
+    "message": "Invalid folder backup file."
+  },
+  "folder_import_confirm_overwrite": {
+    "message": "This will overwrite existing folders. Continue?"
+  },
+  "folder_import_paste_json": {
+    "message": "Paste JSON"
+  },
+  "folder_import_paste_placeholder": {
+    "message": "Paste JSON here..."
+  },
+  "export_dialog_title": {
+    "message": "Export chat"
+  },
+  "export_dialog_select": {
+    "message": "Choose export format"
+  },
+  "export_dialog_warning": {
+    "message": "Some content may not export exactly as shown."
+  },
+  "export_dialog_safari_cmdp_hint": {
+    "message": "Use Command+P to print to PDF in Safari."
+  },
+  "export_toast_safari_pdf_ready": {
+    "message": "Print dialog is ready."
+  },
+  "export_dialog_safari_markdown_hint": {
+    "message": "Markdown export is available from the export dialog."
+  },
+  "export_format_json_description": {
+    "message": "Structured JSON export"
+  },
+  "export_format_markdown_description": {
+    "message": "Readable Markdown export"
+  },
+  "export_format_pdf_description": {
+    "message": "Print-ready PDF export"
+  },
+  "editInputWidth": {
+    "message": "Composer width"
+  },
+  "editInputWidthNarrow": {
+    "message": "Edit Input Width Narrow"
+  },
+  "editInputWidthWide": {
+    "message": "Edit Input Width Wide"
+  },
+  "timelineOptions": {
+    "message": "Timeline"
+  },
+  "folderOptions": {
+    "message": "Folder Options"
+  },
+  "enableFolderFeature": {
+    "message": "Enable folders"
+  },
+  "enableFolderFloatingMode": {
+    "message": "Floating folder panel"
+  },
+  "enableFolderFloatingModeHint": {
+    "message": "Show folders in a floating panel instead of the sidebar."
+  },
+  "hideArchivedConversations": {
+    "message": "Hide archived conversations"
+  },
+  "hideArchivedNudgeTitle": {
+    "message": "Hide archived conversations"
+  },
+  "hideArchivedNudgeBody": {
+    "message": "Keep archived conversations out of the folder list."
+  },
+  "hideArchivedNudgeEnable": {
+    "message": "Enable"
+  },
+  "hideArchivedNudgeDismiss": {
+    "message": "Dismiss"
+  },
+  "hideArchivedNudgeFootnote": {
+    "message": "You can change this later in settings."
+  },
+  "floatingModeNudgeTitle": {
+    "message": "Floating folder panel"
+  },
+  "floatingModeNudgeBody": {
+    "message": "Open folders from a floating panel."
+  },
+  "floatingModeNudgeEnable": {
+    "message": "Enable"
+  },
+  "floatingModeNudgeDismiss": {
+    "message": "Dismiss"
+  },
+  "floatingPanelTitle": {
+    "message": "Folders"
+  },
+  "floatingPanelClose": {
+    "message": "Close"
+  },
+  "floatingPanelEmpty": {
+    "message": "No folders yet"
+  },
+  "floatingPanelUntitled": {
+    "message": "Untitled"
+  },
+  "floatingFabLabel": {
+    "message": "Open folders"
+  },
+  "conversation_star": {
+    "message": "Star conversation"
+  },
+  "conversation_unstar": {
+    "message": "Unstar conversation"
+  },
+  "conversation_untitled": {
+    "message": "Conversation untitled"
+  },
+  "folderManager_dataLossWarning": {
+    "message": "Folder Manager data Loss Warning"
+  },
+  "backupOptions": {
+    "message": "Backup Options"
+  },
+  "backupEnabled": {
+    "message": "Backup Enabled"
+  },
+  "backupNow": {
+    "message": "Backup Now"
+  },
+  "backupSelectFolder": {
+    "message": "Backup Select Folder"
+  },
+  "backupFolderSelected": {
+    "message": "Backup Folder Selected"
+  },
+  "backupIncludePrompts": {
+    "message": "Backup Include Prompts"
+  },
+  "backupIncludeFolders": {
+    "message": "Backup Include Folders"
+  },
+  "backupIntervalLabel": {
+    "message": "Backup Interval Label"
+  },
+  "backupIntervalManual": {
+    "message": "Backup Interval Manual"
+  },
+  "backupIntervalDaily": {
+    "message": "Backup Interval Daily"
+  },
+  "backupIntervalWeekly": {
+    "message": "Backup Interval Weekly"
+  },
+  "backupLastBackup": {
+    "message": "Backup Last Backup"
+  },
+  "backupNever": {
+    "message": "Backup Never"
+  },
+  "backupSuccess": {
+    "message": "Backup Success"
+  },
+  "backupError": {
+    "message": "Backup Error"
+  },
+  "backupNotSupported": {
+    "message": "Backup Not Supported"
+  },
+  "backupSelectFolderFirst": {
+    "message": "Backup Select Folder First"
+  },
+  "backupUserCancelled": {
+    "message": "Backup User Cancelled"
+  },
+  "backupConfigSaved": {
+    "message": "Backup Config Saved"
+  },
+  "backupPermissionDenied": {
+    "message": "Backup Permission Denied"
+  },
+  "backupConfigureInOptions": {
+    "message": "Backup Configure In Options"
+  },
+  "openOptionsPage": {
+    "message": "Open Options Page"
+  },
+  "optionsPageSubtitle": {
+    "message": "Options Page Subtitle"
+  },
+  "optionsComingSoon": {
+    "message": "Options Coming Soon"
+  },
+  "backupDataAccessNotice": {
+    "message": "Backup Data Access Notice"
+  },
+  "backupDataAccessHint": {
+    "message": "Backup Data Access Hint"
+  },
+  "promptManagerOptions": {
+    "message": "Prompt Manager"
+  },
+  "hidePromptManager": {
+    "message": "Hide Prompt Manager"
+  },
+  "hidePromptManagerHint": {
+    "message": "Hide the Prompt Manager entry on ChatGPT."
+  },
+  "promptInsertOnClick": {
+    "message": "Insert prompt on click"
+  },
+  "promptInsertOnClickHint": {
+    "message": "Insert a prompt immediately when selected."
+  },
+  "customWebsites": {
+    "message": "Custom websites"
+  },
+  "customWebsitesPlaceholder": {
+    "message": "Custom Websites Placeholder"
+  },
+  "customWebsitesHint": {
+    "message": "Custom Websites Hint"
+  },
+  "addWebsite": {
+    "message": "Add Website"
+  },
+  "removeWebsite": {
+    "message": "Remove Website"
+  },
+  "invalidUrl": {
+    "message": "Invalid Url"
+  },
+  "websiteAdded": {
+    "message": "Website Added"
+  },
+  "websiteRemoved": {
+    "message": "Website Removed"
+  },
+  "permissionDenied": {
+    "message": "Permission Denied"
+  },
+  "permissionRequestFailed": {
+    "message": "Permission Request Failed"
+  },
+  "customWebsitesNote": {
+    "message": "Custom Websites Note"
+  },
+  "starredHistory": {
+    "message": "Starred History"
+  },
+  "viewStarredHistory": {
+    "message": "Starred messages"
+  },
+  "noStarredMessages": {
+    "message": "No Starred Messages"
+  },
+  "removeFromStarred": {
+    "message": "Remove From Starred"
+  },
+  "justNow": {
+    "message": "Just Now"
+  },
+  "hoursAgo": {
+    "message": "Hours Ago"
+  },
+  "yesterday": {
+    "message": "Yesterday"
+  },
+  "daysAgo": {
+    "message": "Days Ago"
+  },
+  "loading": {
+    "message": "Loading"
+  },
+  "keyboardShortcuts": {
+    "message": "Keyboard Shortcuts"
+  },
+  "enableShortcuts": {
+    "message": "Enable Shortcuts"
+  },
+  "previousNode": {
+    "message": "Previous Node"
+  },
+  "nextNode": {
+    "message": "Next Node"
+  },
+  "firstNode": {
+    "message": "First Node"
+  },
+  "lastNode": {
+    "message": "Last Node"
+  },
+  "shortcutKey": {
+    "message": "Shortcut Key"
+  },
+  "shortcutModifiers": {
+    "message": "Shortcut Modifiers"
+  },
+  "resetShortcuts": {
+    "message": "Reset Shortcuts"
+  },
+  "shortcutsResetSuccess": {
+    "message": "Shortcuts Reset Success"
+  },
+  "shortcutsDescription": {
+    "message": "Shortcuts Description"
+  },
+  "modifierNone": {
+    "message": "Modifier None"
+  },
+  "modifierAlt": {
+    "message": "Modifier Alt"
+  },
+  "modifierCtrl": {
+    "message": "Modifier Ctrl"
+  },
+  "modifierShift": {
+    "message": "Modifier Shift"
+  },
+  "modifierMeta": {
+    "message": "Modifier Meta"
+  },
+  "preventAutoScroll": {
+    "message": "Prevent auto-scroll"
+  },
+  "preventAutoScrollHint": {
+    "message": "Keep your current reading position when new content appears."
+  },
+  "cloudSync": {
+    "message": "Cloud Sync"
+  },
+  "cloudSyncDescription": {
+    "message": "Cloud Sync Description"
+  },
+  "syncModeDisabled": {
+    "message": "Sync Mode Disabled"
+  },
+  "syncModeManual": {
+    "message": "Sync Mode Manual"
+  },
+  "syncServerPort": {
+    "message": "Sync Server Port"
+  },
+  "syncNow": {
+    "message": "Sync Now"
+  },
+  "lastSynced": {
+    "message": "Last Synced"
+  },
+  "neverSynced": {
+    "message": "Never Synced"
+  },
+  "lastUploaded": {
+    "message": "Last Uploaded"
+  },
+  "neverUploaded": {
+    "message": "Never Uploaded"
+  },
+  "syncSuccess": {
+    "message": "Sync Success"
+  },
+  "syncError": {
+    "message": "Sync Error"
+  },
+  "syncInProgress": {
+    "message": "Sync In Progress"
+  },
+  "uploadInProgress": {
+    "message": "Upload In Progress"
+  },
+  "uploadSuccess": {
+    "message": "Upload Success"
+  },
+  "downloadInProgress": {
+    "message": "Download In Progress"
+  },
+  "downloadMergeSuccess": {
+    "message": "Download Merge Success"
+  },
+  "syncUpload": {
+    "message": "Sync Upload"
+  },
+  "syncMerge": {
+    "message": "Sync Merge"
+  },
+  "syncMode": {
+    "message": "Sync Mode"
+  },
+  "minutesAgo": {
+    "message": "Minutes Ago"
+  },
+  "syncNoData": {
+    "message": "Sync No Data"
+  },
+  "syncUploadFailed": {
+    "message": "Sync Upload Failed"
+  },
+  "syncDownloadFailed": {
+    "message": "Sync Download Failed"
+  },
+  "syncAuthFailed": {
+    "message": "Sync Auth Failed"
+  },
+  "signOut": {
+    "message": "Sign Out"
+  },
+  "signInWithGoogle": {
+    "message": "Sign In With Google"
+  },
+  "nanobananaOptions": {
+    "message": "Nanobanana Options"
+  },
+  "nanobananaDownloadLabel": {
+    "message": "Nanobanana Download Label"
+  },
+  "nanobananaDownloadHint": {
+    "message": "Nanobanana Download Hint"
+  },
+  "nanobananaPreviewLabel": {
+    "message": "Nanobanana Preview Label"
+  },
+  "nanobananaPreviewHint": {
+    "message": "Nanobanana Preview Hint"
+  },
+  "nanobananaDownloadTooltip": {
+    "message": "Nanobanana Download Tooltip"
+  },
+  "deepResearchDownload": {
+    "message": "Deep Research Download"
+  },
+  "deepResearchDownloadTooltip": {
+    "message": "Deep Research Download Tooltip"
+  },
+  "folder_uncategorized": {
+    "message": "Folder uncategorized"
+  },
+  "timelineLevelTitle": {
+    "message": "Timeline levels"
+  },
+  "timelineLevel1": {
+    "message": "Level 1"
+  },
+  "timelineLevel2": {
+    "message": "Level 2"
+  },
+  "timelineLevel3": {
+    "message": "Level 3"
+  },
+  "timelineCollapse": {
+    "message": "Collapse"
+  },
+  "timelineExpand": {
+    "message": "Expand"
+  },
+  "timelinePreviewSearch": {
+    "message": "Search messages..."
+  },
+  "timelinePreviewNoResults": {
+    "message": "No results"
+  },
+  "timelinePreviewNoMessages": {
+    "message": "No messages"
+  },
+  "quoteReply": {
+    "message": "Quote reply"
+  },
+  "inputCollapseOptions": {
+    "message": "Composer"
+  },
+  "enableInputCollapse": {
+    "message": "Collapse composer"
+  },
+  "enableInputCollapseHint": {
+    "message": "Collapse the composer into a compact bar when it is not focused."
+  },
+  "inputCollapseShortcutHint": {
+    "message": "{modifier}+I toggles composer collapse."
+  },
+  "inputCollapsePlaceholder": {
+    "message": "Message ChatGPT"
+  },
+  "allowCollapseWhenNotEmpty": {
+    "message": "Collapse when filled"
+  },
+  "allowCollapseWhenNotEmptyHint": {
+    "message": "Allow the composer to collapse even when it contains text."
+  },
+  "inputVimMode": {
+    "message": "Vim mode for composer"
+  },
+  "inputVimModeHint": {
+    "message": "Use i and Escape to switch insert/normal mode in the composer."
+  },
+  "ctrlEnterSend": {
+    "message": "{modifier}+Enter to send"
+  },
+  "ctrlEnterSendHint": {
+    "message": "Use {modifier}+Enter to send and Enter for a new line."
+  },
+  "safariEnterFix": {
+    "message": "Safari Enter fix"
+  },
+  "safariEnterFixHint": {
+    "message": "Compatibility mode for Safari Enter behavior."
+  },
+  "draftAutoSave": {
+    "message": "Auto-save drafts"
+  },
+  "draftAutoSaveHint": {
+    "message": "Restore unsent text when returning to a chat."
+  },
+  "batch_delete_confirm": {
+    "message": "Delete {count} conversations?"
+  },
+  "batch_delete_in_progress": {
+    "message": "Deleting... ({current}/{total})"
+  },
+  "batch_delete_success": {
+    "message": "Deleted {count} conversations."
+  },
+  "batch_delete_partial": {
+    "message": "Deleted {success}; failed {failed}."
+  },
+  "batch_delete_limit_reached": {
+    "message": "Selection limit reached: {max}."
+  },
+  "batch_delete_button": {
+    "message": "Delete selected"
+  },
+  "batch_delete_match_patterns": {
+    "message": "delete,confirm,yes,ok,remove"
+  },
+  "generalOptions": {
+    "message": "General"
+  },
+  "enableTabTitleUpdate": {
+    "message": "Enable Tab Title Update"
+  },
+  "enableTabTitleUpdateHint": {
+    "message": "Enable Tab Title Update Hint"
+  },
+  "enableMermaidRendering": {
+    "message": "Mermaid diagrams"
+  },
+  "enableMermaidRenderingHint": {
+    "message": "Render Mermaid code blocks as diagrams."
+  },
+  "enableQuoteReply": {
+    "message": "Quote reply"
+  },
+  "enableQuoteReplyHint": {
+    "message": "Reply with selected text as quoted context."
+  },
+  "contextSync": {
+    "message": "Context sync"
+  },
+  "contextSyncDescription": {
+    "message": "Sync context with an IDE."
+  },
+  "syncToIDE": {
+    "message": "Sync to IDE"
+  },
+  "ideOnline": {
+    "message": "IDE online"
+  },
+  "ideOffline": {
+    "message": "IDE offline"
+  },
+  "syncing": {
+    "message": "Syncing..."
+  },
+  "checkServer": {
+    "message": "Check server"
+  },
+  "capturing": {
+    "message": "Capturing..."
+  },
+  "syncedSuccess": {
+    "message": "Synced."
+  },
+  "downloadingOriginal": {
+    "message": "Downloading original..."
+  },
+  "downloadingOriginalLarge": {
+    "message": "Downloading large original..."
+  },
+  "downloadLargeWarning": {
+    "message": "Large download"
+  },
+  "downloadProcessing": {
+    "message": "Processing download..."
+  },
+  "downloadSuccess": {
+    "message": "Download started..."
+  },
+  "downloadError": {
+    "message": "Download failed"
+  },
+  "recentsHide": {
+    "message": "Hide recents"
+  },
+  "recentsShow": {
+    "message": "Show recents"
+  },
+  "gemsHide": {
+    "message": "Hide GPTs"
+  },
+  "gemsShow": {
+    "message": "Show GPTs"
+  },
+  "notebooksHide": {
+    "message": "Hide notebooks"
+  },
+  "notebooksShow": {
+    "message": "Show notebooks"
+  },
+  "setAsDefaultModel": {
+    "message": "Set as default model"
+  },
+  "cancelDefaultModel": {
+    "message": "Cancel default model"
+  },
+  "defaultModelSet": {
+    "message": "Default model set: $1"
+  },
+  "defaultModelCleared": {
+    "message": "Default model cleared"
+  },
+  "sidebarAutoHide": {
+    "message": "Auto-hide sidebar"
+  },
+  "sidebarAutoHideHint": {
+    "message": "Collapse the sidebar until you move the pointer to the left edge."
+  },
+  "sidebarFullHide": {
+    "message": "Fully hide sidebar"
+  },
+  "sidebarFullHideHint": {
+    "message": "Hide the sidebar completely when auto-hide is enabled."
+  },
+  "folderSpacing": {
+    "message": "Folder spacing"
+  },
+  "folderSpacingCompact": {
+    "message": "Compact"
+  },
+  "folderSpacingSpacious": {
+    "message": "Spacious"
+  },
+  "folderTreeIndent": {
+    "message": "Folder tree indent"
+  },
+  "folderTreeIndentCompact": {
+    "message": "Compact"
+  },
+  "folderTreeIndentSpacious": {
+    "message": "Spacious"
+  },
+  "export_select_mode_select_all": {
+    "message": "Select all"
+  },
+  "export_select_mode_count": {
+    "message": "{count} selected"
+  },
+  "export_select_mode_toggle": {
+    "message": "Select message"
+  },
+  "export_select_mode_select_below": {
+    "message": "Select messages below"
+  },
+  "export_select_mode_empty": {
+    "message": "Please select at least one message to export."
+  },
+  "export_format_image_description": {
+    "message": "PNG image export"
+  },
+  "export_image_progress": {
+    "message": "Generating image..."
+  },
+  "deepResearchSaveReport": {
+    "message": "Save report"
+  },
+  "deepResearchSaveReportTooltip": {
+    "message": "Export this research report"
+  },
+  "export_fontsize_label": {
+    "message": "Font size"
+  },
+  "export_fontsize_preview": {
+    "message": "Preview text"
+  },
+  "export_image_width_label": {
+    "message": "Image width"
+  },
+  "export_image_width_narrow": {
+    "message": "Narrow"
+  },
+  "export_image_width_medium": {
+    "message": "Medium"
+  },
+  "export_image_width_wide": {
+    "message": "Wide"
+  },
+  "export_error_generic": {
+    "message": "Export failed: {error}"
+  },
+  "export_error_refresh_retry": {
+    "message": "Export failed. Refresh the page and try again."
+  },
+  "export_md_include_source_confirm": {
+    "message": "Include source Markdown?"
+  },
+  "deepResearch_exportedAt": {
+    "message": "Exported at"
+  },
+  "deepResearch_totalPhases": {
+    "message": "Total phases"
+  },
+  "deepResearch_thinkingPhase": {
+    "message": "Thinking phase"
+  },
+  "deepResearch_researchedWebsites": {
+    "message": "Researched websites"
+  },
+  "visualEffect": {
+    "message": "Visual effect"
+  },
+  "visualEffectHint": {
+    "message": "Choose a lightweight page effect."
+  },
+  "visualEffectOff": {
+    "message": "Off"
+  },
+  "visualEffectSnow": {
+    "message": "Snow"
+  },
+  "visualEffectSakura": {
+    "message": "Sakura"
+  },
+  "visualEffectRain": {
+    "message": "Rain"
+  },
+  "forkConversation": {
+    "message": "Fork"
+  },
+  "forkConfirm": {
+    "message": "Fork conversation from this point?"
+  },
+  "forkConfirmBtn": {
+    "message": "Fork"
+  },
+  "forkCancel": {
+    "message": "Cancel"
+  },
+  "forkBranch": {
+    "message": "Branch"
+  },
+  "forkOriginal": {
+    "message": "Original"
+  },
+  "forkCurrent": {
+    "message": "Current"
+  },
+  "forkPreparing": {
+    "message": "Preparing fork..."
+  },
+  "forkPasteHint": {
+    "message": "Press Enter to send and create the fork"
+  },
+  "forkDeleteData": {
+    "message": "Delete fork data"
+  },
+  "forkDeleteDataConfirm": {
+    "message": "Delete all stored fork data?"
+  },
+  "enableForkFeature": {
+    "message": "Fork conversations"
+  },
+  "enableForkFeatureHint": {
+    "message": "Create a new branch from a selected point in a conversation."
+  },
+  "enableAccountIsolation": {
+    "message": "Enable hard isolation"
+  },
+  "enableAccountIsolationHint": {
+    "message": "Isolate data by account."
+  },
+  "currentPlatform": {
+    "message": "Current platform"
+  },
+  "export_select_mode_only_user": {
+    "message": "User messages only"
+  },
+  "export_select_mode_only_ai": {
+    "message": "Assistant messages only"
+  },
+  "aiOrgCopyButton": {
+    "message": "Copy AI organization"
+  },
+  "aiOrgCopied": {
+    "message": "Copied"
+  },
+  "aiOrgError": {
+    "message": "Could not copy organization data."
+  },
+  "aiOrgCopyHint": {
+    "message": "Copy folder organization as context."
+  },
+  "aiOrgCurrentFolders": {
+    "message": "Current folders"
+  },
+  "aiOrgUnfiledConversations": {
+    "message": "Unfiled conversations"
+  },
+  "aiOrgEmpty": {
+    "message": "Empty"
+  },
+  "aiOrgInstructions": {
+    "message": "Instructions"
+  },
+  "showMessageTimestamps": {
+    "message": "Show message timestamps"
+  },
+  "showMessageTimestampsHint": {
+    "message": "Show timestamps beside messages."
+  },
+  "moveSectionUp": {
+    "message": "Move up"
+  },
+  "moveSectionDown": {
+    "message": "Move down"
+  },
+  "folderAsProject_enable": {
+    "message": "Folder instructions"
+  },
+  "folderAsProject_description": {
+    "message": "Attach reusable instructions to a folder and insert them into chats."
+  },
+  "folderAsProject_noFolder": {
+    "message": "No folder"
+  },
+  "folderAsProject_setInstructions": {
+    "message": "Set instructions"
+  },
+  "folderAsProject_editInstructions": {
+    "message": "Edit instructions"
+  },
+  "folderAsProject_expand": {
+    "message": "Expand"
+  },
+  "folderAsProject_collapse": {
+    "message": "Collapse"
+  },
+  "canvasExportCopyMarkdown": {
+    "message": "Copy Canvas Markdown"
+  },
+  "canvasExportCopyMarkdownTooltip": {
+    "message": "Copy the current Canvas as Markdown."
+  },
+  "canvasExportCopied": {
+    "message": "Canvas Markdown copied."
+  },
+  "canvasExportEmpty": {
+    "message": "No Canvas content found."
+  },
+  "canvasExportFailed": {
+    "message": "Could not copy Canvas Markdown."
+  },
+  "floatingPanelCreateFolder": {
+    "message": "New folder"
+  },
+  "floatingPanelCreateSubfolder": {
+    "message": "New subfolder"
+  },
+  "floatingPanelFolderNamePlaceholder": {
+    "message": "Folder name"
+  },
+  "floatingPanelRenameFolder": {
+    "message": "Rename folder"
+  },
+  "floatingPanelDeleteFolder": {
+    "message": "Delete"
+  },
+  "floatingPanelDeleteConfirm": {
+    "message": "Delete this folder?"
+  },
+  "floatingPanelCancel": {
+    "message": "Cancel"
+  },
+  "floatingPanelSave": {
+    "message": "Save"
+  },
+  "floatingPanelPinFolder": {
+    "message": "Pin"
+  },
+  "floatingPanelUnpinFolder": {
+    "message": "Unpin"
+  },
+  "floatingPanelRemoveConversation": {
+    "message": "Remove conversation"
+  },
+  "floatingPanelStarConversation": {
+    "message": "Star"
+  },
+  "floatingPanelUnstarConversation": {
+    "message": "Unstar"
+  },
+  "floatingPanelColor": {
+    "message": "Color"
+  },
+  "floatingPanelExpandFolder": {
+    "message": "Expand"
+  },
+  "floatingPanelCollapseFolder": {
+    "message": "Collapse"
+  },
+  "floatingPanelCloudUpload": {
+    "message": "Floating panel Cloud Upload"
+  },
+  "floatingPanelCloudSync": {
+    "message": "Floating panel Cloud Sync"
+  },
+  "floatingPanelGestureHint": {
+    "message": "Floating panel Gesture Hint"
+  },
+  "folder_new_chat_in_folder": {
+    "message": "New chat in folder"
+  },
+  "pm_backup_step3": {
+    "message": "Use import or export."
+  },
+  "starProject": {
+    "message": "Star project"
+  },
+  "supportMysteryButton": {
+    "message": "Mystery button"
+  },
+  "folder_remove_conversation_confirm": {
+    "message": "Remove this conversation from the folder?"
+  },
+  "aiOrgInstructionsBody": {
+    "message": "Use the current folder structure as context."
+  },
+  "folderAsProject_selectFolder": {
+    "message": "Select folder"
+  },
+  "floatingPanelMoveHint": {
+    "message": "Drag to move"
+  },
+  "conversation_saved_to_root": {
+    "message": "Saved to root"
+  },
+  "folder_default_name": {
+    "message": "New folder"
+  },
+  "conversation_added_to_folder": {
+    "message": "Added to folder"
+  },
+  "folder_export_in_progress": {
+    "message": "Exporting folders..."
+  },
+  "folder_import_in_progress": {
+    "message": "Importing folders..."
+  },
+  "mermaidRendering": {
+    "message": "Mermaid diagrams"
+  },
+  "mermaidRenderingHint": {
+    "message": "Render Mermaid code blocks as diagrams."
+  },
+  "quoteReplyHint": {
+    "message": "Reply with selected text as quoted context."
+  },
+  "inputCollapseWhenNotEmpty": {
+    "message": "Collapse filled input"
+  },
+  "inputCollapseWhenNotEmptyHint": {
+    "message": "Allow the composer to collapse even when it contains text."
+  },
+  "enableFloatingFolderPanel": {
+    "message": "Floating folder panel"
+  },
+  "enableFolders": {
+    "message": "Folders"
+  },
+  "layoutOptions": {
+    "message": "Layout"
+  },
+  "inputOptions": {
+    "message": "Input"
+  },
+  "markdownOptions": {
+    "message": "Markdown"
+  }
+}

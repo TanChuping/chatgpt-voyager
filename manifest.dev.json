@@ -1,0 +1,56 @@
+{
+  "action": {
+    "default_icon": {
+      "16": "public/dev-icon-16.png",
+      "32": "public/dev-icon-32.png",
+      "48": "public/dev-icon-48.png",
+      "128": "public/dev-icon-128.png"
+    },
+    "default_popup": "src/pages/popup/index.html"
+  },
+  "icons": {
+    "16": "public/dev-icon-16.png",
+    "32": "public/dev-icon-32.png",
+    "48": "public/dev-icon-48.png",
+    "128": "public/dev-icon-128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "contentStyle.css",
+        "dev-icon-16.png",
+        "dev-icon-32.png",
+        "dev-icon-48.png",
+        "dev-icon-128.png",
+        "icon-16.png",
+        "icon-32.png",
+        "icon-48.png",
+        "icon-128.png",
+        "prevent-auto-scroll.js",
+        "assets/*.js",
+        "assets/*.png"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+      "js": ["src/pages/content/index.tsx"],
+      "css": ["contentStyle.css"]
+    }
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://*.openai.com/*",
+    "https://*.oaistatic.com/*",
+    "https://*.oaiusercontent.com/*"
+  ],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "background": {
+    "service_worker": "src/pages/background/index.ts",
+    "type": "module"
+  },
+  "version": "1.4.2"
+}

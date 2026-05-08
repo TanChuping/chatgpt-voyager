@@ -1,0 +1,71 @@
+{
+  "manifest_version": 3,
+  "default_locale": "en",
+  "name": "__MSG_extName__",
+  "description": "__MSG_extDescription__",
+  "version": "1.4.2",
+  "action": {
+    "default_popup": "src/pages/popup/index.html",
+    "default_icon": {
+      "16": "icon-16.png",
+      "32": "icon-32.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "gpt-voyager@local",
+      "strict_min_version": "109.0"
+    }
+  },
+  "options_ui": {
+    "page": "src/pages/options/index.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
+  "permissions": ["storage", "scripting"],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://*.openai.com/*",
+    "https://*.oaistatic.com/*",
+    "https://*.oaiusercontent.com/*"
+  ],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; worker-src 'self'"
+  },
+  "background": {
+    "service_worker": "src/pages/background/index.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+      "js": ["src/pages/content/index.tsx"],
+      "css": ["contentStyle.css"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "contentStyle.css",
+        "icon-16.png",
+        "icon-32.png",
+        "icon-48.png",
+        "icon-128.png",
+        "katex-config.js",
+        "prevent-auto-scroll.js",
+        "assets/*.js",
+        "assets/*.png"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

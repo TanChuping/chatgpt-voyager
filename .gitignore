@@ -1,0 +1,71 @@
+node_modules/
+/dist_chrome/
+/dist_firefox/
+/dist_safari/
+voyager-edge-v*.zip
+.entire/
+.npm-cache/
+
+# Vitest
+coverage/
+.vitest/
+
+# Generated Xcode projects (users generate these locally)
+/Gemini Voyager/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+safari/Models/Gemini*
+*.dmg
+
+.git-commit-message.txt
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+.vscode/
+.idea/
+.claude/settings.local.json
+.claude/worktrees/
+.DS_Store
+
+*.local
+.env*
+
+*.mov
+*.mp4
+!docs/public/assets/*.mov
+!docs/public/assets/*.mp4
+*.xpi
+*.srt
+
+
+# VitePress
+docs/.vitepress/dist
+docs/.vitepress/cache
+
+# Sync Service (Commercial - Private)
+SYNC_SERVICE_ARCHITECTURE.md
+.env.sync
+.chrome-dev-data/
+chrome-debug/
+
+# Dev Tools
+scripts/chrome-profile/
+manage-support-goal.cmd
+scripts/support-goal-gui.mjs
+scripts/support-goal-manager.mjs
+
+# Git worktrees (local dev only)
+.worktrees/
+
+# Local agent outputs
+.agent/
+docs/plans/
+output/
+GPT-Voyager/diagnostics/
+diagnostics/
+src/pages/content/printBridge/
+
+gemini-voyager-formal/

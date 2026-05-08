@@ -1,0 +1,137 @@
+/**
+ * Browser detection utilities
+ * Provides reliable browser detection for Safari-specific handling
+ */
+
+/**
+ * Detect if the current browser is Safari
+ *
+ * Detection strategy:
+ * 1. Check for Safari-specific vendor string (Apple Inc.)
+ * 2. Ensure 'safari' is in user agent
+ * 3. Ensure it's not Chrome/Chromium (which also uses webkit)
+ *
+ * Note: Do not rely on global objects (browser/chrome) for detection,
+ * as webextension-polyfill makes browser available in all browsers,
+ * and Firefox provides both browser and chrome objects.
+ *
+ * @returns true if running in Safari
+ */
+export function isSafari(): boolean {
+  // Reliable detection using user agent and vendor
+  const ua = navigator.userAgent.toLowerCase();
+  const vendor = navigator.vendor.toLowerCase();
+
+  // Safari has 'Apple' vendor and 'safari' in UA, but not 'chrome'
+  const isAppleVendor = vendor.includes('apple');
+  const hasSafariUA = ua.includes('safari');
+  const notChrome = !ua.includes('chrome') && !ua.includes('chromium');
+
+  return isAppleVendor && hasSafariUA && notChrome;
+}
+
+/**
+ * Check if update reminders should be shown on Safari
+ * This is controlled by the ENABLE_SAFARI_UPDATE_CHECK environment variable at build time
+ *
+ * @returns true if Safari update reminders are enabled
+ */
+export function shouldShowSafariUpdateReminder(): boolean {
+  if (!isSafari()) return false;
+
+  // Check build-time flag (injected via vite config)
+  // Default: false (disabled)
+  try {
+    return import.meta.env.ENABLE_SAFARI_UPDATE_CHECK === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Detect if the current browser is Brave.
+ * Brave adds navigator.brave in all contexts including service workers.
+ * Used to skip chrome.identity.getAuthToken which shows an error popup on Brave.
+ */
+export function isBrave(): boolean {
+  return 'brave' in navigator;
+}
+
+/**
+ * Detect if the current browser is Chrome (not Edge, Firefox, or Safari).
+ * Used to conditionally show Chrome Web Store rating prompts.
+ */
+export function isChrome(): boolean {
+  if (isSafari()) return false;
+  const ua = navigator.userAgent.toLowerCase();
+  return (
+    (ua.includes('chrome') || ua.includes('chromium')) &&
+    !ua.includes('edg') &&
+    !ua.includes('firefox')
+  );
+}
+
+/**
+ * Detect if the current browser is Firefox.
+ */
+export function isFirefox(): boolean {
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.includes('firefox');
+}
+
+/**
+ * Detect if the current browser is Microsoft Edge.
+ * Edge is Chromium-based and includes 'edg' in the user agent.
+ */
+export function isEdge(): boolean {
+  if (isSafari()) return false;
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.includes('edg');
+}
+
+/**
+ * Detect if the current platform is macOS
+ *
+ * @returns true if running on macOS
+ */
+export function isMac(): boolean {
+  // navigator.platform is deprecated but still widely supported and reliable
+  // Use it first, then fall back to userAgent
+  if (typeof navigator !== 'undefined') {
+    if (navigator.platform) {
+      return navigator.platform.toUpperCase().includes('MAC');
+    }
+    return /macintosh|mac os x/i.test(navigator.userAgent);
+  }
+  return false;
+}
+
+/**
+ * Get the platform-appropriate modifier key label
+ * macOS: ⌘ (Cmd), others: Ctrl
+ *
+ * @returns '⌘' on macOS, 'Ctrl' on other platforms
+ */
+export function getModifierKey(): string {
+  return isMac() ? '⌘' : 'Ctrl';
+}
+
+/**
+ * Get browser name for debugging
+ * Uses user agent detection for reliability
+ */
+export function getBrowserName(): string {
+  if (isSafari()) return 'Safari';
+
+  if (isFirefox()) return 'Firefox';
+
+  const ua = navigator.userAgent.toLowerCase();
+
+  // Chrome/Edge/Brave have 'chrome' or 'chromium' in UA
+  if (ua.includes('chrome') || ua.includes('chromium')) {
+    if (ua.includes('edg')) return 'Edge';
+    return 'Chrome/Chromium';
+  }
+
+  return 'Unknown';
+}

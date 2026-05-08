@@ -1,7 +1,11 @@
 {
   "enabled": true,
   "title": "作者想买骚气索尼小键盘",
+  "titleZh": "作者想买骚气索尼小键盘",
+  "titleEn": "Keyboard fund",
   "description": "这个工具会继续免费。赞助不是必须的，但会让作者吃顿好的，买点好玩意。",
+  "descriptionZh": "这个工具会继续免费。赞助不是必须的，但会让作者吃顿好的，买点好玩意。",
+  "descriptionEn": "This tool will stay free. Sponsorship is optional, but it helps the author eat something nice and buy fun gear.",
   "current": 0,
   "target": 200,
   "currency": "CNY",

@@ -1,0 +1,515 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { getBrowserName } from '@/core/utils/browser';
+
+import { expandInputCollapseIfNeeded } from '../../inputCollapse/index';
+import { startQuoteReply } from '../index';
+
+vi.mock('../../inputCollapse/index', () => ({
+  expandInputCollapseIfNeeded: vi.fn(),
+}));
+
+vi.mock('@/core/utils/browser', () => ({
+  getBrowserName: vi.fn(() => 'Chrome/Chromium'),
+}));
+
+let activeElement: Element | null = null;
+let inputFocusMock: ReturnType<typeof vi.fn>;
+let inputBlurMock: ReturnType<typeof vi.fn>;
+
+function installFocusTracking(element: HTMLElement | HTMLTextAreaElement) {
+  const focusMock = vi.fn((_options?: FocusOptions) => {
+    activeElement = element;
+  });
+  const blurMock = vi.fn(() => {
+    if (activeElement === element) {
+      activeElement = document.body;
+    }
+  });
+
+  Object.defineProperty(element, 'focus', {
+    value: focusMock,
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(element, 'blur', {
+    value: blurMock,
+    configurable: true,
+    writable: true,
+  });
+
+  return { focusMock, blurMock };
+}
+
+function selectSourceText(start = 0, end = 5) {
+  const selection = window.getSelection();
+  const textNode = document.getElementById('source')?.firstChild;
+  if (!(textNode instanceof Text)) {
+    throw new Error('Expected a Text node for quote selection.');
+  }
+
+  const range = document.createRange();
+  range.setStart(textNode, start);
+  range.setEnd(textNode, end);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
+function triggerQuoteReply() {
+  selectSourceText();
+  document.dispatchEvent(new MouseEvent('mouseup'));
+  vi.runAllTimers();
+
+  const quoteButton = document.querySelector<HTMLElement>('.gv-quote-btn');
+  if (!(quoteButton instanceof HTMLElement)) {
+    throw new Error('Expected quote button to be present.');
+  }
+
+  quoteButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+  vi.runAllTimers();
+}
+
+describe('quote reply', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.mocked(getBrowserName).mockReturnValue('Chrome/Chromium');
+    activeElement = document.body;
+
+    Object.defineProperty(document, 'activeElement', {
+      configurable: true,
+      get: () => activeElement ?? document.body,
+    });
+
+    document.body.innerHTML = `
+      <main>
+        <p id="source">Hello world</p>
+      </main>
+      <div id="input-container">
+        <rich-textarea>
+          <div id="input" contenteditable="true"></div>
+        </rich-textarea>
+      </div>
+    `;
+
+    const input = document.getElementById('input') as HTMLElement;
+    input.getBoundingClientRect = () =>
+      ({
+        height: 20,
+        width: 100,
+        top: 0,
+        left: 0,
+        bottom: 20,
+        right: 100,
+        x: 0,
+        y: 0,
+        toJSON: () => {},
+      }) as DOMRect;
+    ({ focusMock: inputFocusMock, blurMock: inputBlurMock } = installFocusTracking(input));
+    input.scrollIntoView = vi.fn();
+
+    Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+      value: vi.fn(
+        () =>
+          ({
+            height: 10,
+            width: 10,
+            top: 0,
+            left: 0,
+            bottom: 10,
+            right: 10,
+            x: 0,
+            y: 0,
+            toJSON: () => {},
+          }) as DOMRect,
+      ),
+      configurable: true,
+    });
+
+    Object.defineProperty(document, 'execCommand', {
+      value: vi.fn((command: string, _showUI?: boolean, value?: string) => {
+        if (command !== 'insertText' || typeof value !== 'string') {
+          return false;
+        }
+        const input = document.getElementById('input');
+        if (!(input instanceof HTMLElement)) {
+          return false;
+        }
+        input.textContent = (input.textContent ?? '') + value;
+        return true;
+      }),
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    document.body.innerHTML = '';
+  });
+
+  it('expands input collapse when using quote reply', () => {
+    const cleanup = startQuoteReply();
+    triggerQuoteReply();
+
+    expect(expandInputCollapseIfNeeded).toHaveBeenCalledTimes(1);
+
+    cleanup();
+  });
+
+  it('does not blur or refocus the contenteditable input after quote insertion', () => {
+    const cleanup = startQuoteReply();
+    const input = document.getElementById('input');
+    if (!(input instanceof HTMLElement)) {
+      throw new Error('Expected quote input element.');
+    }
+
+    triggerQuoteReply();
+
+    expect(inputBlurMock).not.toHaveBeenCalled();
+    expect(inputFocusMock).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(input);
+
+    cleanup();
+  });
+
+  it('treats ql-blank editor as empty even if placeholder text exists', () => {
+    const cleanup = startQuoteReply();
+    const input = document.getElementById('input');
+    if (!(input instanceof HTMLElement)) {
+      throw new Error('Expected quote input element.');
+    }
+
+    input.classList.add('ql-blank');
+    input.setAttribute('data-placeholder', 'Message Gemini');
+    input.textContent = 'Message Gemini';
+
+    triggerQuoteReply();
+
+    expect(input.textContent).toBe('Message Gemini> Hello\n');
+
+    cleanup();
+  });
+
+  it('treats stale ql-blank with real user text as non-empty', () => {
+    const cleanup = startQuoteReply();
+    const input = document.getElementById('input');
+    if (!(input instanceof HTMLElement)) {
+      throw new Error('Expected quote input element.');
+    }
+
+    input.classList.add('ql-blank');
+    input.setAttribute('data-placeholder', 'Message Gemini');
+    input.textContent = '宸叉湁鍐呭';
+
+    triggerQuoteReply();
+
+    expect(input.textContent).toBe('宸叉湁鍐呭\n\n> Hello\n');
+
+    cleanup();
+  });
+
+  it('adds a blank line when input has visible text', () => {
+    const cleanup = startQuoteReply();
+    const input = document.getElementById('input');
+    if (!(input instanceof HTMLElement)) {
+      throw new Error('Expected quote input element.');
+    }
+
+    input.textContent = 'Existing';
+
+    triggerQuoteReply();
+
+    expect(input.textContent).toBe('Existing\n\n> Hello\n');
+
+    cleanup();
+  });
+
+  it('uses single-line separator for Firefox contenteditable', () => {
+    const cleanup = startQuoteReply();
+    const input = document.getElementById('input');
+    if (!(input instanceof HTMLElement)) {
+      throw new Error('Expected quote input element.');
+    }
+
+    vi.mocked(getBrowserName).mockReturnValue('Firefox');
+
+    const execCommandMock = vi.spyOn(document, 'execCommand');
+    input.textContent = 'Existing';
+
+    triggerQuoteReply();
+
+    expect(execCommandMock).toHaveBeenCalledWith('insertText', false, '\n');
+    expect(execCommandMock).not.toHaveBeenCalledWith('insertText', false, '\n\n');
+    expect(input.textContent).toBe('Existing\n> Hello\n');
+
+    cleanup();
+  });
+
+  it('prepends two newlines for non-empty textarea input', () => {
+    const cleanup = startQuoteReply();
+    const inputContainer = document.getElementById('input-container');
+    if (!(inputContainer instanceof HTMLElement)) {
+      throw new Error('Expected input container element.');
+    }
+
+    inputContainer.innerHTML = '<textarea id="input" placeholder="Ask Gemini"></textarea>';
+    const textarea = document.getElementById('input');
+    if (!(textarea instanceof HTMLTextAreaElement)) {
+      throw new Error('Expected textarea input element.');
+    }
+
+    textarea.getBoundingClientRect = () =>
+      ({
+        height: 20,
+        width: 100,
+        top: 0,
+        left: 0,
+        bottom: 20,
+        right: 100,
+        x: 0,
+        y: 0,
+        toJSON: () => {},
+      }) as DOMRect;
+    installFocusTracking(textarea);
+    textarea.scrollIntoView = vi.fn();
+    textarea.value = 'Existing';
+
+    triggerQuoteReply();
+
+    expect(textarea.value).toBe('Existing\n\n> Hello\n');
+
+    cleanup();
+  });
+
+  it('falls back to Range insertion when execCommand is unavailable', () => {
+    const cleanup = startQuoteReply();
+    const input = document.getElementById('input');
+    if (!(input instanceof HTMLElement)) {
+      throw new Error('Expected quote input element.');
+    }
+
+    const execCommandMock = vi.spyOn(document, 'execCommand').mockReturnValue(false);
+    input.textContent = 'Existing';
+
+    triggerQuoteReply();
+
+    expect(execCommandMock).toHaveBeenCalledWith('insertText', false, '\n\n> Hello\n');
+    expect(input.textContent).toBe('Existing\n\n> Hello\n');
+
+    cleanup();
+  });
+
+  it('avoids full fallback separator when separator insertion partially mutates content', () => {
+    const cleanup = startQuoteReply();
+    const input = document.getElementById('input');
+    if (!(input instanceof HTMLElement)) {
+      throw new Error('Expected quote input element.');
+    }
+
+    input.textContent = 'Existing';
+    const execCommandMock = vi
+      .spyOn(document, 'execCommand')
+      .mockImplementation((command: string, _showUI?: boolean, value?: string) => {
+        if (command === 'insertText' && typeof value === 'string') {
+          const stripped = value.startsWith('\n') ? value.slice(1) : value;
+          input.textContent = `${input.textContent ?? ''}${stripped}`;
+          return true;
+        }
+        return false;
+      });
+
+    triggerQuoteReply();
+
+    expect(execCommandMock.mock.calls).toEqual(
+      expect.arrayContaining([['insertText', false, '\n\n']]),
+    );
+    expect(execCommandMock).not.toHaveBeenCalledWith('insertText', false, '\n\n> Hello\n');
+    expect(input.textContent).toBe('Existing\n\n> Hello\n');
+
+    cleanup();
+  });
+
+  it('keeps leading newline fallback when separator command does not change content', () => {
+    const cleanup = startQuoteReply();
+    const input = document.getElementById('input');
+    if (!(input instanceof HTMLElement)) {
+      throw new Error('Expected quote input element.');
+    }
+
+    input.textContent = 'Existing';
+    const execCommandMock = vi
+      .spyOn(document, 'execCommand')
+      .mockImplementation((command: string, _showUI?: boolean, value?: string) => {
+        if (command === 'insertText' && typeof value === 'string') {
+          if (value === '\n\n') {
+            return true; // Pretend success but do not mutate content
+          }
+          input.textContent = `${input.textContent ?? ''}${value}`;
+          return true;
+        }
+        return false;
+      });
+
+    triggerQuoteReply();
+
+    expect(execCommandMock.mock.calls).toEqual(
+      expect.arrayContaining([
+        ['insertText', false, '\n\n'],
+        ['insertText', false, '\n\n> Hello\n'],
+      ]),
+    );
+    expect(input.textContent).toBe('Existing\n\n> Hello\n');
+
+    cleanup();
+  });
+
+  it('treats separator as inserted when only innerText reflects line breaks', () => {
+    const cleanup = startQuoteReply();
+    const input = document.getElementById('input');
+    if (!(input instanceof HTMLElement)) {
+      throw new Error('Expected quote input element.');
+    }
+
+    const state = {
+      visible: 'Existing',
+      raw: 'Existing',
+    };
+
+    Object.defineProperty(input, 'innerText', {
+      configurable: true,
+      get: () => state.visible,
+      set: (value: string) => {
+        state.visible = value;
+      },
+    });
+
+    Object.defineProperty(input, 'textContent', {
+      configurable: true,
+      get: () => state.raw,
+      set: (value: string | null) => {
+        state.raw = value ?? '';
+      },
+    });
+
+    const execCommandMock = vi
+      .spyOn(document, 'execCommand')
+      .mockImplementation((command: string, _showUI?: boolean, value?: string) => {
+        if (command !== 'insertText' || typeof value !== 'string') {
+          return false;
+        }
+
+        if (value === '\n\n') {
+          // Simulate Quill: visual line breaks changed, raw textContent unchanged.
+          state.visible = `${state.visible}\n\n`;
+          return true;
+        }
+
+        state.visible = `${state.visible}${value}`;
+        state.raw = `${state.raw}${value.replace(/\n/g, '')}`;
+        return true;
+      });
+
+    triggerQuoteReply();
+
+    expect(execCommandMock.mock.calls).toEqual(
+      expect.arrayContaining([
+        ['insertText', false, '\n\n'],
+        ['insertText', false, '> Hello\n'],
+      ]),
+    );
+    expect(execCommandMock).not.toHaveBeenCalledWith('insertText', false, '\n\n> Hello\n');
+    expect(state.visible).toBe('Existing\n\n> Hello\n');
+
+    cleanup();
+  });
+
+  it('preserves inline math LaTeX syntax in quoted text', () => {
+    const cleanup = startQuoteReply();
+    const source = document.getElementById('source');
+    if (!source) throw new Error('Expected source element.');
+
+    source.innerHTML =
+      'Variable <span class="math-inline"><span data-math="U \\in [0, 1)">U鈭圼0,1)</span></span> is uniform';
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(source);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    document.dispatchEvent(new MouseEvent('mouseup'));
+    vi.runAllTimers();
+
+    const quoteButton = document.querySelector<HTMLElement>('.gv-quote-btn');
+    if (!quoteButton) throw new Error('Expected quote button.');
+    quoteButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    vi.runAllTimers();
+
+    const input = document.getElementById('input');
+    if (!input) throw new Error('Expected input element.');
+
+    expect(input.textContent).toContain('$U \\in [0, 1)$');
+
+    cleanup();
+  });
+
+  it('preserves block math LaTeX syntax in quoted text', () => {
+    const cleanup = startQuoteReply();
+    const source = document.getElementById('source');
+    if (!source) throw new Error('Expected source element.');
+
+    source.innerHTML =
+      'Equation: <span class="math-block"><span data-math="E = mc^2">E=mc虏</span></span>';
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(source);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    document.dispatchEvent(new MouseEvent('mouseup'));
+    vi.runAllTimers();
+
+    const quoteButton = document.querySelector<HTMLElement>('.gv-quote-btn');
+    if (!quoteButton) throw new Error('Expected quote button.');
+    quoteButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    vi.runAllTimers();
+
+    const input = document.getElementById('input');
+    if (!input) throw new Error('Expected input element.');
+
+    expect(input.textContent).toContain('$$E = mc^2$$');
+
+    cleanup();
+  });
+
+  it('preserves standalone data-math elements without container', () => {
+    const cleanup = startQuoteReply();
+    const source = document.getElementById('source');
+    if (!source) throw new Error('Expected source element.');
+
+    source.innerHTML = 'Value <span data-math="x^2">x虏</span> here';
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(source);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    document.dispatchEvent(new MouseEvent('mouseup'));
+    vi.runAllTimers();
+
+    const quoteButton = document.querySelector<HTMLElement>('.gv-quote-btn');
+    if (!quoteButton) throw new Error('Expected quote button.');
+    quoteButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    vi.runAllTimers();
+
+    const input = document.getElementById('input');
+    if (!input) throw new Error('Expected input element.');
+
+    expect(input.textContent).toContain('$x^2$');
+
+    cleanup();
+  });
+});
