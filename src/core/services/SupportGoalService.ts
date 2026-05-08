@@ -30,19 +30,17 @@ const CACHE_TTL_MS = 30 * 60 * 1000;
 export const SUPPORT_GOAL_REFRESH_MS = 5 * 60 * 1000;
 
 export const DEFAULT_SUPPORT_GOAL: SupportGoalData = {
-  enabled: true,
-  title: 'Keyboard fund',
-  titleZh: '\u952e\u76d8\u57fa\u91d1',
-  titleEn: 'Keyboard fund',
-  description: 'This tool will stay free. Sponsorship is optional, but it helps the author eat something nice and buy fun gear.',
-  descriptionZh:
-    '\u8fd9\u4e2a\u5de5\u5177\u4f1a\u7ee7\u7eed\u514d\u8d39\u3002\u8d5e\u52a9\u4e0d\u662f\u5fc5\u987b\u7684\uff0c\u4f46\u4f1a\u8ba9\u4f5c\u8005\u5403\u987f\u597d\u7684\uff0c\u4e70\u70b9\u597d\u73a9\u610f\u3002',
-  descriptionEn:
-    'This tool will stay free. Sponsorship is optional, but it helps the author eat something nice and buy fun gear.',
+  enabled: false,
+  title: '',
+  titleZh: '',
+  titleEn: '',
+  description: '',
+  descriptionZh: '',
+  descriptionEn: '',
   current: 0,
   target: 699,
   currency: 'CNY',
-  kofiUrl: 'https://ko-fi.com/nekonekomeowmeow',
+  kofiUrl: '',
   imageUrl: '',
   wechatQrUrl: '',
   alipayQrUrl: '',
