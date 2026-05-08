@@ -7,6 +7,7 @@
   "currency": "CNY",
   "kofiUrl": "https://ko-fi.com/nekonekomeowmeow",
   "imageUrl": "https://raw.githubusercontent.com/TanChuping/chatgpt-voyager/main/support-assets/1778158576749-image.png",
-  "wechatQrUrl": "",
-  "updatedAt": "2026-05-07"
+  "wechatQrUrl": "https://raw.githubusercontent.com/TanChuping/chatgpt-voyager/main/support-assets/wechat-qr.png",
+  "alipayQrUrl": "https://raw.githubusercontent.com/TanChuping/chatgpt-voyager/main/support-assets/alipay-qr.jpg",
+  "updatedAt": "2026-05-08"
 }
