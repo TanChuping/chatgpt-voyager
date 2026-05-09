@@ -232,6 +232,31 @@ html.dark .timeline-dot:not(.active):not(.starred)::after,
   background-color: var(--timeline-star-color);
 }
 
+.timeline-dot.has-pins::after {
+  box-shadow:
+    0 0 0 2px rgba(139, 92, 246, 0.75),
+    0 0 12px rgba(139, 92, 246, 0.42);
+}
+
+.timeline-dot-pin-indicator {
+  position: absolute;
+  left: calc(50% + 7px);
+  top: calc(50% - 9px);
+  width: 13px;
+  height: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #6d28d9;
+  color: #fff;
+  font-size: 9px;
+  line-height: 1;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 2px 8px rgba(109, 40, 217, 0.42);
+  pointer-events: none;
+}
+
 /* ===== Timeline Marker Levels (shape-based: circle, triangle, square) ===== */
 .timeline-dot[data-level='1']::after {
   width: var(--timeline-dot-size);
@@ -636,6 +661,182 @@ html.dark .timeline-left-slider::before {
 .timeline-preview-toggle.active {
   color: var(--timeline-dot-active-color);
   background-color: var(--timeline-tooltip-bg);
+}
+
+.timeline-pin-controls {
+  position: fixed;
+  z-index: 2147483646;
+  width: 48px;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  opacity: 0.58;
+  transform: scale(0.96);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+  pointer-events: auto;
+}
+
+.timeline-pin-controls:hover,
+.timeline-pin-controls.pin-mode {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.timeline-pin-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.timeline-pin-step,
+.timeline-pin-toggle {
+  border: 1px solid rgba(139, 92, 246, 0.42);
+  background: rgba(17, 24, 39, 0.78);
+  color: #c4b5fd;
+  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.22);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.timeline-pin-step {
+  width: 17px;
+  height: 15px;
+  padding: 0;
+  border-radius: 7px;
+  font-size: 8px;
+  line-height: 1;
+}
+
+.timeline-pin-toggle {
+  width: 29px;
+  height: 29px;
+  padding: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timeline-pin-step:hover:not(:disabled),
+.timeline-pin-toggle:hover,
+.timeline-pin-toggle.active {
+  background: #6d28d9;
+  border-color: #a78bfa;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(109, 40, 217, 0.4);
+}
+
+.timeline-pin-step:disabled {
+  opacity: 0.34;
+  cursor: default;
+}
+
+body.timeline-pin-picking {
+  cursor: crosshair;
+}
+
+body.timeline-pin-picking .gpt-timeline-bar,
+body.timeline-pin-picking .timeline-preview-toggle,
+body.timeline-pin-picking .timeline-preview-panel,
+body.timeline-pin-picking .timeline-left-slider {
+  cursor: default;
+}
+
+.timeline-pin-badge-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483645;
+  pointer-events: none;
+}
+
+.timeline-pin-badge {
+  position: fixed;
+  width: 21px;
+  height: 21px;
+  padding: 0;
+  border: 1px solid rgba(196, 181, 253, 0.9);
+  border-radius: 999px;
+  background: rgba(76, 29, 149, 0.96);
+  color: #fff;
+  transform: translate(-50%, -100%);
+  box-shadow:
+    0 8px 20px rgba(76, 29, 149, 0.32),
+    0 0 0 2px rgba(255, 255, 255, 0.34);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.timeline-pin-badge:hover,
+.timeline-pin-badge.active {
+  transform: translate(-50%, -100%) scale(1.12);
+  box-shadow:
+    0 10px 26px rgba(109, 40, 217, 0.42),
+    0 0 0 3px rgba(196, 181, 253, 0.62);
+}
+
+.timeline-pin-badge.selected {
+  background: #7c3aed;
+  border-color: rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 12px 28px rgba(124, 58, 237, 0.48),
+    0 0 0 4px rgba(196, 181, 253, 0.72);
+}
+
+.timeline-pin-badge.offscreen {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.timeline-pin-delete {
+  position: fixed;
+  z-index: 2147483646;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  border: 1px solid rgba(248, 113, 113, 0.72);
+  border-radius: 999px;
+  background: rgba(127, 29, 29, 0.96);
+  color: #fff;
+  transform: translate(-50%, -100%) scale(0.92);
+  box-shadow: 0 10px 24px rgba(127, 29, 29, 0.32);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+.timeline-pin-delete.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -100%) scale(1);
+}
+
+.timeline-pin-delete:hover {
+  transform: translate(-50%, -100%) scale(1.08);
+  box-shadow: 0 12px 28px rgba(220, 38, 38, 0.42);
 }
 
 .timeline-preview-panel {

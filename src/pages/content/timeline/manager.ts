@@ -74,6 +74,27 @@ interface TimelineManagerOptions {
   previousUrl?: string | null;
 }
 
+interface TimelineTextPin {
+  id: string;
+  turnId: string;
+  xRatio: number;
+  xOffset: number;
+  yRatio: number;
+  yOffset: number;
+  text: string;
+  createdAt: number;
+}
+
+type TimelineTextPinTarget = {
+  marker: {
+    id: string;
+    element: HTMLElement;
+  };
+  xOffset: number;
+  xRatio: number;
+  yOffset: number;
+};
+
 export class TimelineManager {
   private scrollContainer: HTMLElement | null = null;
   private conversationContainer: HTMLElement | null = null;
@@ -160,7 +181,7 @@ export class TimelineManager {
     | ((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void)
     | null = null;
   private starred: Set<string> = new Set();
-  /** Map of turnId → starredAt timestamp (ms). Populated from service/storage; used for preview labels. */
+  /** Map of turnId to starredAt timestamp (ms). Populated from service/storage; used for preview labels. */
   private starredAtMap: Map<string, number> = new Map();
   private markerMap: Map<
     string,
@@ -221,6 +242,25 @@ export class TimelineManager {
   private timestampStartupTimer: number | null = null;
   private seenTurnIds: Set<string> = new Set();
   private pendingDraftTimestampSourceConversationId: string | null;
+  private pinsByTurn: Map<string, TimelineTextPin[]> = new Map();
+  private activePinByTurn: Map<string, string> = new Map();
+  private pinMode = false;
+  private pinControls: HTMLElement | null = null;
+  private pinPrevButton: HTMLButtonElement | null = null;
+  private pinNextButton: HTMLButtonElement | null = null;
+  private pinToggleButton: HTMLButtonElement | null = null;
+  private pinBadgeLayer: HTMLElement | null = null;
+  private pinBadges: Map<string, HTMLButtonElement> = new Map();
+  private selectedPinId: string | null = null;
+  private selectedPinTurnId: string | null = null;
+  private pinDeleteButton: HTMLButtonElement | null = null;
+  private pinFocusTurnId: string | null = null;
+  private onPinToggleClick: ((ev: MouseEvent) => void) | null = null;
+  private onPinPrevClick: ((ev: MouseEvent) => void) | null = null;
+  private onPinNextClick: ((ev: MouseEvent) => void) | null = null;
+  private onPinDeleteClick: ((ev: MouseEvent) => void) | null = null;
+  private onDocumentPinClick: ((ev: MouseEvent) => void) | null = null;
+  private pinBadgePositionRaf: number | null = null;
 
   constructor(private readonly options: TimelineManagerOptions = {}) {
     this.pendingDraftTimestampSourceConversationId = this.computeDraftTimestampSourceConversationId(
@@ -236,6 +276,7 @@ export class TimelineManager {
     this.setupEventListeners();
     this.setupObservers();
     this.conversationId = this.computeConversationId();
+    this.loadTextPins();
     await this.loadStars();
     await this.syncStarredFromService();
     await this.loadTimelineHierarchyStorageContext();
@@ -1020,6 +1061,79 @@ export class TimelineManager {
         (query) => this.highlightSearchInDOM(query),
       );
     }
+
+    this.injectPinUI();
+  }
+
+  private injectPinUI(): void {
+    if (!this.pinControls) {
+      const controls = document.createElement('div');
+      controls.className = 'timeline-pin-controls';
+
+      const nav = document.createElement('div');
+      nav.className = 'timeline-pin-nav';
+
+      const prev = document.createElement('button');
+      prev.type = 'button';
+      prev.className = 'timeline-pin-step timeline-pin-prev';
+      prev.setAttribute('aria-label', 'Previous pin in this message');
+      prev.innerHTML = '<span aria-hidden="true">&#9650;</span>';
+
+      const next = document.createElement('button');
+      next.type = 'button';
+      next.className = 'timeline-pin-step timeline-pin-next';
+      next.setAttribute('aria-label', 'Next pin in this message');
+      next.innerHTML = '<span aria-hidden="true">&#9660;</span>';
+
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'timeline-pin-toggle';
+      toggle.setAttribute('aria-label', 'Pin text in the current conversation');
+      toggle.setAttribute('aria-pressed', 'false');
+      toggle.innerHTML =
+        '<svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 4 6 6"/><path d="m8 10 6-6 6 6-6 6"/><path d="m9 15-5 5"/><path d="m14 16-6-6"/></svg>';
+
+      nav.append(prev, next);
+      controls.append(nav, toggle);
+      document.body.appendChild(controls);
+
+      this.pinControls = controls;
+      this.pinPrevButton = prev;
+      this.pinNextButton = next;
+      this.pinToggleButton = toggle;
+    }
+
+    if (!this.pinBadgeLayer) {
+      const layer = document.createElement('div');
+      layer.className = 'timeline-pin-badge-layer';
+      document.body.appendChild(layer);
+      this.pinBadgeLayer = layer;
+    }
+
+    if (!this.pinDeleteButton) {
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'timeline-pin-delete';
+      deleteButton.setAttribute('aria-label', 'Delete selected pin');
+      deleteButton.innerHTML =
+        '<svg aria-hidden="true" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m6 6 1 14h10l1-14"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>';
+      this.pinBadgeLayer?.appendChild(deleteButton);
+      this.pinDeleteButton = deleteButton;
+    }
+
+    this.positionPinControls();
+    this.updatePinControlsState();
+  }
+
+  private positionPinControls(): void {
+    if (!this.ui.timelineBar || !this.pinControls) return;
+    const rect = this.ui.timelineBar.getBoundingClientRect();
+    const top = Math.max(12, Math.min(window.innerHeight - 82, rect.bottom - 82));
+    const gap = 10;
+    const width = 48;
+    const left = this.rtl ? Math.round(rect.right + gap) : Math.round(rect.left - gap - width);
+    this.pinControls.style.top = `${Math.round(top)}px`;
+    this.pinControls.style.left = `${left}px`;
   }
 
   private updateIntersectionObserverTargets(): void {
@@ -1441,6 +1555,8 @@ export class TimelineManager {
     this.updateIntersectionObserverTargetsFromMarkers();
     this.syncTimelineTrackToMain();
     this.updateVirtualRangeAndRender();
+    this.updateAllPinDotStates();
+    this.renderTextPinBadges();
     this.updateActiveDotUI();
     this.scheduleScrollSync();
     this.previewPanel?.updateMarkers(
@@ -1571,6 +1687,8 @@ export class TimelineManager {
       this.updateTimelineGeometry();
       this.syncTimelineTrackToMain();
       this.updateVirtualRangeAndRender();
+      this.positionPinControls();
+      this.schedulePinBadgePositionUpdate();
     });
     if (this.ui.timelineBar) this.resizeObserver.observe(this.ui.timelineBar);
 
@@ -1643,12 +1761,16 @@ export class TimelineManager {
           this.startRunner(fromIdx, toIdx, dur);
         }
         const targetId = toIdx >= 0 ? this.markers[toIdx]?.id : dot.dataset.targetTurnId || null;
+        this.focusTextPinsForTurn(targetId);
         this.smoothScrollTo(targetElement, dur, targetId);
       }
     };
     this.ui.timelineBar!.addEventListener('click', this.onTimelineBarClick);
 
-    this.onScroll = () => this.scheduleScrollSync();
+    this.onScroll = () => {
+      this.scheduleScrollSync();
+      this.schedulePinBadgePositionUpdate();
+    };
     this.scrollContainer!.addEventListener('scroll', this.onScroll, { passive: true });
 
     this.onTimelineWheel = (e: WheelEvent) => {
@@ -1691,8 +1813,47 @@ export class TimelineManager {
       if (this.contextMenu && !this.contextMenu.contains(ev.target as Node)) {
         this.hideContextMenu();
       }
+      const target = ev.target as HTMLElement | null;
+      if (
+        this.selectedPinId &&
+        target &&
+        !target.closest('.timeline-pin-badge, .timeline-pin-delete, .timeline-pin-controls')
+      ) {
+        this.clearSelectedTextPin();
+      }
     };
     document.addEventListener('click', this.onDocumentClick);
+
+    this.onPinToggleClick = (ev: MouseEvent) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.setPinMode(!this.pinMode);
+    };
+    this.onPinPrevClick = (ev: MouseEvent) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.navigateActiveMessagePin(-1);
+    };
+    this.onPinNextClick = (ev: MouseEvent) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.navigateActiveMessagePin(1);
+    };
+    this.pinToggleButton?.addEventListener('click', this.onPinToggleClick);
+    this.pinPrevButton?.addEventListener('click', this.onPinPrevClick);
+    this.pinNextButton?.addEventListener('click', this.onPinNextClick);
+    this.onPinDeleteClick = (ev: MouseEvent) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (!this.selectedPinTurnId || !this.selectedPinId) return;
+      this.removeTextPin(this.selectedPinTurnId, this.selectedPinId);
+    };
+    this.pinDeleteButton?.addEventListener('click', this.onPinDeleteClick);
+
+    this.onDocumentPinClick = (ev: MouseEvent) => {
+      this.handleDocumentPinClick(ev);
+    };
+    document.addEventListener('click', this.onDocumentPinClick, true);
 
     this.onPointerDown = (ev: PointerEvent) => {
       const dot = (ev.target as HTMLElement).closest('.timeline-dot') as DotElement | null;
@@ -1743,6 +1904,8 @@ export class TimelineManager {
       this.updateTimelineGeometry();
       this.syncTimelineTrackToMain();
       this.updateVirtualRangeAndRender();
+      this.positionPinControls();
+      this.schedulePinBadgePositionUpdate();
       // Reapply position for responsive design (v2 format only)
       this.reapplyPosition();
     };
@@ -1752,6 +1915,8 @@ export class TimelineManager {
         this.updateTimelineGeometry();
         this.syncTimelineTrackToMain();
         this.updateVirtualRangeAndRender();
+        this.positionPinControls();
+        this.schedulePinBadgePositionUpdate();
         // Reapply position for responsive design (v2 format only)
         this.reapplyPosition();
       };
@@ -2038,6 +2203,7 @@ export class TimelineManager {
     });
     this.previewPanel?.updateActiveTurn(this.activeTurnId);
     this.syncPreviewDomActiveTurn();
+    this.updatePinControlsState();
   }
 
   private syncPreviewDomActiveTurn(): void {
@@ -2054,6 +2220,516 @@ export class TimelineManager {
     if (activeEl && document.querySelector('.timeline-preview-panel.visible')) {
       activeEl.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
     }
+  }
+
+  private getPinsStorageKey(): string | null {
+    return this.conversationId ? `gptTimelineTextPins:${this.conversationId}` : null;
+  }
+
+  private loadTextPins(): void {
+    this.pinsByTurn.clear();
+    const key = this.getPinsStorageKey();
+    if (!key) return;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { pins?: unknown } | unknown[];
+      const rawPins = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.pins) ? parsed.pins : [];
+      rawPins.forEach((item) => {
+        if (!item || typeof item !== 'object') return;
+        const pin = item as Partial<TimelineTextPin>;
+        const turnId = typeof pin.turnId === 'string' ? pin.turnId : '';
+        const id = typeof pin.id === 'string' ? pin.id : '';
+        if (!turnId || !id) return;
+        const normalized: TimelineTextPin = {
+          id,
+          turnId,
+          xRatio: this.clamp01(Number(pin.xRatio)),
+          xOffset: Math.max(0, Number.isFinite(Number(pin.xOffset)) ? Number(pin.xOffset) : 0),
+          yRatio: this.clamp01(Number(pin.yRatio)),
+          yOffset: Math.max(0, Number.isFinite(Number(pin.yOffset)) ? Number(pin.yOffset) : 0),
+          text: typeof pin.text === 'string' ? pin.text.slice(0, 160) : '',
+          createdAt: Number.isFinite(Number(pin.createdAt)) ? Number(pin.createdAt) : Date.now(),
+        };
+        const pins = this.pinsByTurn.get(turnId) ?? [];
+        pins.push(normalized);
+        this.pinsByTurn.set(turnId, pins);
+      });
+      this.pinsByTurn.forEach((pins) => pins.sort((a, b) => a.yOffset - b.yOffset));
+    } catch {
+      this.pinsByTurn.clear();
+    }
+  }
+
+  private saveTextPins(): void {
+    const key = this.getPinsStorageKey();
+    if (!key) return;
+    const pins = Array.from(this.pinsByTurn.values()).flat();
+    this.safeLocalStorageSet(key, JSON.stringify({ version: 1, pins }));
+  }
+
+  private clamp01(value: number): number {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(1, value));
+  }
+
+  private setPinMode(enabled: boolean): void {
+    this.pinMode = enabled;
+    this.pinControls?.classList.toggle('pin-mode', enabled);
+    this.pinToggleButton?.classList.toggle('active', enabled);
+    this.pinToggleButton?.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    document.body.classList.toggle('timeline-pin-picking', enabled);
+  }
+
+  private getCurrentPinTurnId(): string | null {
+    if (
+      this.pinFocusTurnId &&
+      this.markerMap.has(this.pinFocusTurnId) &&
+      (this.pinsByTurn.get(this.pinFocusTurnId)?.length ?? 0) > 0
+    ) {
+      return this.pinFocusTurnId;
+    }
+    if (
+      this.activeTurnId &&
+      this.markerMap.has(this.activeTurnId) &&
+      (this.pinsByTurn.get(this.activeTurnId)?.length ?? 0) > 0
+    ) {
+      return this.activeTurnId;
+    }
+    if (this.activeTurnId && this.markerMap.has(this.activeTurnId)) return this.activeTurnId;
+    const index = this.getActiveIndex();
+    return index >= 0 ? this.markers[index]?.id ?? null : null;
+  }
+
+  private getActivePinIndex(turnId: string): number {
+    const pins = this.pinsByTurn.get(turnId) ?? [];
+    if (!pins.length) return -1;
+    const currentId = this.activePinByTurn.get(turnId);
+    if (!currentId) return 0;
+    const currentIndex = pins.findIndex((pin) => pin.id === currentId);
+    return currentIndex >= 0 ? currentIndex : 0;
+  }
+
+  private updatePinControlsState(): void {
+    const turnId = this.getCurrentPinTurnId();
+    const pins = turnId ? this.pinsByTurn.get(turnId) ?? [] : [];
+    const count = pins.length;
+    const activeIndex = turnId ? this.getActivePinIndex(turnId) : -1;
+    if (this.pinPrevButton) this.pinPrevButton.disabled = activeIndex <= 0;
+    if (this.pinNextButton) this.pinNextButton.disabled = activeIndex < 0 || activeIndex >= count - 1;
+    this.pinControls?.setAttribute('data-pin-count', String(count));
+  }
+
+  private handleDocumentPinClick(ev: MouseEvent): void {
+    if (!this.pinMode) return;
+    const target = ev.target as HTMLElement | null;
+    if (!target) return;
+    if (
+      target.closest(
+        '.timeline-pin-controls, .timeline-pin-badge, .gpt-timeline-bar, .timeline-preview-toggle, .timeline-preview-panel, .timeline-left-slider',
+      )
+    ) {
+      return;
+    }
+
+    this.maybeRefreshMarkersForInteraction(target);
+    const pinTarget = this.resolveTextPinTarget(target, ev.clientX, ev.clientY);
+    if (!pinTarget) return;
+
+    ev.preventDefault();
+    ev.stopPropagation();
+    this.addTextPin(pinTarget, ev.clientX, ev.clientY, target);
+    this.setPinMode(false);
+  }
+
+  private resolveTextPinTarget(
+    target: HTMLElement,
+    clientX: number,
+    clientY: number,
+  ): TimelineTextPinTarget | null {
+    if (!this.scrollContainer || this.markers.length === 0) {
+      const directMarker = this.markers.find((item) => item.element.contains(target));
+      if (!directMarker) return null;
+      const rect = directMarker.element.getBoundingClientRect();
+      const y = Math.max(0, clientY - rect.top);
+      return {
+        marker: directMarker,
+        xOffset: Math.max(0, clientX - rect.left),
+        xRatio: this.clamp01((clientX - rect.left) / Math.max(1, rect.width)),
+        yOffset: y,
+      };
+    }
+
+    if (
+      this.conversationContainer &&
+      !this.conversationContainer.contains(target) &&
+      !this.scrollContainer.contains(target)
+    ) {
+      return null;
+    }
+
+    const scrollRect = this.scrollContainer.getBoundingClientRect();
+    const clickTop = clientY - scrollRect.top + this.scrollContainer.scrollTop;
+    const currentMarkerTops = this.markers.map((marker) =>
+      this.computeElementTopInScrollContainer(marker.element),
+    );
+    let ownerIndex = 0;
+    for (let i = 0; i < this.markers.length; i++) {
+      const top = currentMarkerTops[i] ?? this.computeElementTopInScrollContainer(this.markers[i].element);
+      if (top <= clickTop) ownerIndex = i;
+      else break;
+    }
+
+    const marker = this.markers.find((item) => item.element.contains(target)) ?? this.markers[ownerIndex];
+    if (!marker) return null;
+
+    const ownerTop =
+      currentMarkerTops[this.markers.findIndex((item) => item.id === marker.id)] ??
+      this.computeElementTopInScrollContainer(marker.element);
+    const yOffset = Math.max(0, clickTop - ownerTop);
+    const baseRect = (this.conversationContainer ?? this.scrollContainer).getBoundingClientRect();
+    const xOffset = Math.max(0, clientX - baseRect.left);
+    return {
+      marker,
+      xOffset,
+      xRatio: this.clamp01(xOffset / Math.max(1, baseRect.width)),
+      yOffset,
+    };
+  }
+
+  private addTextPin(
+    pinTarget: TimelineTextPinTarget,
+    clientX: number,
+    clientY: number,
+    target: HTMLElement,
+  ): void {
+    const { marker } = pinTarget;
+    const rect = marker.element.getBoundingClientRect();
+    const y = pinTarget.yOffset;
+    const pin: TimelineTextPin = {
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      turnId: marker.id,
+      xRatio: pinTarget.xRatio,
+      xOffset: pinTarget.xOffset,
+      yRatio: this.clamp01(y / Math.max(1, rect.height)),
+      yOffset: y,
+      text: this.extractTextAroundPoint(clientX, clientY, target),
+      createdAt: Date.now(),
+    };
+    const pins = this.pinsByTurn.get(marker.id) ?? [];
+    pins.push(pin);
+    pins.sort((a, b) => a.yOffset - b.yOffset);
+    this.pinsByTurn.set(marker.id, pins);
+    this.activePinByTurn.set(marker.id, pin.id);
+    this.pinFocusTurnId = marker.id;
+    this.activeTurnId = marker.id;
+    this.saveTextPins();
+    this.updatePinDotState(marker.id);
+    this.renderTextPinBadges();
+    this.updateActiveDotUI();
+    this.schedulePinBadgePositionUpdate();
+  }
+
+  private extractTextAroundPoint(clientX: number, clientY: number, fallbackTarget: HTMLElement): string {
+    const doc = document as Document & {
+      caretRangeFromPoint?: (x: number, y: number) => Range | null;
+      caretPositionFromPoint?: (
+        x: number,
+        y: number,
+      ) => { offsetNode: Node; offset: number } | null;
+    };
+    let node: Node | null = null;
+    let offset = 0;
+    const range = doc.caretRangeFromPoint?.(clientX, clientY);
+    if (range) {
+      node = range.startContainer;
+      offset = range.startOffset;
+    } else {
+      const pos = doc.caretPositionFromPoint?.(clientX, clientY);
+      if (pos) {
+        node = pos.offsetNode;
+        offset = pos.offset;
+      }
+    }
+
+    if (node?.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent || '';
+      const left = text.slice(0, offset).search(/[^\s.,;:!?()[\]{}"'`，。！？；：（）【】《》、]*$/);
+      const start = left >= 0 ? left : Math.max(0, offset - 24);
+      const rightMatch = text.slice(offset).match(/^[^\s.,;:!?()[\]{}"'`，。！？；：（）【】《》、]*/);
+      const end = Math.min(text.length, offset + (rightMatch?.[0].length ?? 0));
+      const word = text.slice(start, end).trim();
+      if (word) return word.slice(0, 80);
+      const snippet = text.slice(Math.max(0, offset - 24), Math.min(text.length, offset + 56)).trim();
+      if (snippet) return snippet.slice(0, 80);
+    }
+
+    return this.normalizeText(fallbackTarget.textContent || '').slice(0, 80);
+  }
+
+  private renderTextPinBadges(): void {
+    if (!this.pinBadgeLayer) return;
+    const livePinIds = new Set<string>();
+    for (const marker of this.markers) {
+      const pins = this.pinsByTurn.get(marker.id) ?? [];
+      for (const pin of pins) {
+        livePinIds.add(pin.id);
+        let badge = this.pinBadges.get(pin.id);
+        if (!badge) {
+          badge = document.createElement('button');
+          badge.type = 'button';
+          badge.className = 'timeline-pin-badge';
+          badge.dataset.pinId = pin.id;
+          badge.dataset.turnId = pin.turnId;
+          badge.setAttribute('aria-label', pin.text ? `Select pin: ${pin.text}` : 'Select pin');
+          badge.innerHTML =
+            '<svg aria-hidden="true" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m14 4 6 6"/><path d="m8 10 6-6 6 6-6 6"/><path d="m9 15-5 5"/><path d="m14 16-6-6"/></svg>';
+          badge.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            this.selectTextPin(pin, true);
+          });
+          this.pinBadgeLayer.appendChild(badge);
+          this.pinBadges.set(pin.id, badge);
+        }
+        const isActive = this.activePinByTurn.get(pin.turnId) === pin.id;
+        badge.classList.toggle('active', isActive);
+        badge.classList.toggle('selected', this.selectedPinId === pin.id);
+        badge.title = pin.text ? `Select pin: ${pin.text}` : 'Select pin';
+      }
+    }
+    for (const [pinId, badge] of this.pinBadges) {
+      if (!livePinIds.has(pinId)) {
+        badge.remove();
+        this.pinBadges.delete(pinId);
+      }
+    }
+    this.schedulePinBadgePositionUpdate();
+  }
+
+  private selectTextPin(pin: TimelineTextPin, showDelete = false): void {
+    this.activePinByTurn.set(pin.turnId, pin.id);
+    this.pinFocusTurnId = pin.turnId;
+    this.activeTurnId = pin.turnId;
+    if (showDelete) {
+      this.selectedPinId = pin.id;
+      this.selectedPinTurnId = pin.turnId;
+    } else {
+      this.selectedPinId = null;
+      this.selectedPinTurnId = null;
+      this.hidePinDeleteButton();
+    }
+    this.renderTextPinBadges();
+    this.updateActiveDotUI();
+    this.schedulePinBadgePositionUpdate();
+  }
+
+  private clearSelectedTextPin(): void {
+    if (!this.selectedPinId) return;
+    this.selectedPinId = null;
+    this.selectedPinTurnId = null;
+    this.renderTextPinBadges();
+    this.hidePinDeleteButton();
+  }
+
+  private focusTextPinsForTurn(turnId?: string | null): void {
+    if (!turnId || !this.markerMap.has(turnId)) return;
+    this.pinFocusTurnId = turnId;
+    this.selectedPinId = null;
+    this.selectedPinTurnId = null;
+    const pins = this.pinsByTurn.get(turnId) ?? [];
+    if (pins.length) {
+      const currentId = this.activePinByTurn.get(turnId);
+      if (!currentId || !pins.some((pin) => pin.id === currentId)) {
+        this.activePinByTurn.set(turnId, pins[0].id);
+      }
+    }
+    this.renderTextPinBadges();
+    this.updatePinControlsState();
+    this.hidePinDeleteButton();
+  }
+
+  private schedulePinBadgePositionUpdate(): void {
+    if (this.pinBadgePositionRaf !== null) return;
+    this.pinBadgePositionRaf = requestAnimationFrame(() => {
+      this.pinBadgePositionRaf = null;
+      this.positionTextPinBadges();
+    });
+  }
+
+  private positionTextPinBadges(): void {
+    const baseRect = this.conversationContainer?.getBoundingClientRect() ?? null;
+    for (const marker of this.markers) {
+      const pins = this.pinsByTurn.get(marker.id) ?? [];
+      const rect = marker.element.getBoundingClientRect();
+      for (const pin of pins) {
+        const badge = this.pinBadges.get(pin.id);
+        if (!badge) continue;
+        const yOffset = Math.max(0, pin.yOffset || pin.yRatio * rect.height);
+        const y = rect.top + yOffset;
+        const visible =
+          marker.element.isConnected &&
+          y >= -40 &&
+          y <= window.innerHeight + 40 &&
+          rect.width > 0 &&
+          rect.height > 0;
+        if (!visible) {
+          badge.classList.add('offscreen');
+          continue;
+        }
+        const x = baseRect
+          ? baseRect.left + (pin.xOffset || baseRect.width * pin.xRatio)
+          : rect.left + rect.width * pin.xRatio;
+        badge.style.left = `${Math.round(x)}px`;
+        badge.style.top = `${Math.round(y)}px`;
+        badge.classList.remove('offscreen');
+      }
+    }
+    this.positionPinDeleteButton();
+  }
+
+  private positionPinDeleteButton(): void {
+    if (!this.pinDeleteButton || !this.selectedPinId) {
+      this.hidePinDeleteButton();
+      return;
+    }
+    const badge = this.pinBadges.get(this.selectedPinId);
+    if (!badge || badge.classList.contains('offscreen') || !badge.isConnected) {
+      this.hidePinDeleteButton();
+      return;
+    }
+    const rect = badge.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      this.hidePinDeleteButton();
+      return;
+    }
+    this.pinDeleteButton.style.left = `${Math.round(rect.left + rect.width / 2)}px`;
+    this.pinDeleteButton.style.top = `${Math.round(rect.top - 6)}px`;
+    this.pinDeleteButton.classList.add('visible');
+  }
+
+  private hidePinDeleteButton(): void {
+    this.pinDeleteButton?.classList.remove('visible');
+  }
+
+  private updateAllPinDotStates(): void {
+    this.markers.forEach((marker) => this.updatePinDotState(marker.id));
+    this.updatePinControlsState();
+  }
+
+  private updatePinDotState(turnId: string): void {
+    const hasPins = (this.pinsByTurn.get(turnId)?.length ?? 0) > 0;
+    this.markers.forEach((marker) => {
+      if (marker.id !== turnId || !marker.dotElement) return;
+      marker.dotElement.classList.toggle('has-pins', hasPins);
+      let indicator = marker.dotElement.querySelector('.timeline-dot-pin-indicator');
+      if (hasPins && !indicator) {
+        indicator = document.createElement('span');
+        indicator.className = 'timeline-dot-pin-indicator';
+        indicator.setAttribute('aria-hidden', 'true');
+        indicator.textContent = 'P';
+        marker.dotElement.appendChild(indicator);
+      } else if (!hasPins && indicator) {
+        indicator.remove();
+      }
+    });
+    this.updatePinControlsState();
+  }
+
+  private removeTextPin(turnId: string, pinId: string): void {
+    const pins = this.pinsByTurn.get(turnId) ?? [];
+    const removedIndex = Math.max(0, pins.findIndex((pin) => pin.id === pinId));
+    const nextPins = pins.filter((pin) => pin.id !== pinId);
+    if (nextPins.length) {
+      this.pinsByTurn.set(turnId, nextPins);
+      if (this.activePinByTurn.get(turnId) === pinId) {
+        this.activePinByTurn.set(turnId, nextPins[Math.min(removedIndex, nextPins.length - 1)].id);
+      }
+    } else {
+      this.pinsByTurn.delete(turnId);
+      this.activePinByTurn.delete(turnId);
+      if (this.pinFocusTurnId === turnId) this.pinFocusTurnId = null;
+    }
+    if (this.selectedPinId === pinId) {
+      this.selectedPinId = null;
+      this.selectedPinTurnId = null;
+      this.hidePinDeleteButton();
+    }
+    this.pinBadges.get(pinId)?.remove();
+    this.pinBadges.delete(pinId);
+    this.saveTextPins();
+    this.updatePinDotState(turnId);
+    this.renderTextPinBadges();
+    this.updateActiveDotUI();
+  }
+
+  private navigateActiveMessagePin(direction: -1 | 1): void {
+    const turnId = this.getCurrentPinTurnId();
+    if (!turnId) return;
+    const pins = this.pinsByTurn.get(turnId) ?? [];
+    if (!pins.length) return;
+    const currentIndex = this.getActivePinIndex(turnId);
+    const nextIndex = currentIndex + direction;
+    if (nextIndex < 0 || nextIndex >= pins.length) {
+      this.pinFocusTurnId = turnId;
+      this.activeTurnId = turnId;
+      this.updatePinControlsState();
+      return;
+    }
+    const pin = pins[nextIndex];
+    this.selectTextPin(pin, false);
+    this.navigateToTextPin(pin, 420);
+  }
+
+  private navigateToTextPin(pin: TimelineTextPin, duration = 260): void {
+    const marker = this.markerMap.get(pin.turnId);
+    if (!marker?.element || !this.scrollContainer) return;
+    const messageTop = this.computeScrollTopForElement(marker.element);
+    const targetPosition = messageTop + pin.yOffset - Math.round(this.scrollContainer.clientHeight * 0.22);
+    this.smoothScrollToPosition(targetPosition, duration, pin.turnId, true);
+  }
+
+  private smoothScrollToPosition(
+    targetPosition: number,
+    duration = 260,
+    targetId?: string | null,
+    forceSmooth = false,
+  ): void {
+    if (!this.scrollContainer) return;
+    const maxScroll = Math.max(0, this.scrollContainer.scrollHeight - this.scrollContainer.clientHeight);
+    const target = Math.max(0, Math.min(maxScroll, targetPosition));
+    const startPosition = this.scrollContainer.scrollTop;
+    const distance = target - startPosition;
+    let startTime: number | null = null;
+
+    this.isScrolling = true;
+    this.setActiveTurnFromNavigation(targetId);
+
+    if ((!forceSmooth && this.scrollMode === 'jump') || duration <= 0 || Math.abs(distance) < 2) {
+      this.scrollContainer.scrollTop = target;
+      this.isScrolling = false;
+      this.scheduleScrollSync();
+      this.schedulePinBadgePositionUpdate();
+      return;
+    }
+
+    const animation = (currentTime: number) => {
+      if (!this.scrollContainer) return;
+      if (startTime === null) startTime = currentTime;
+      const timeElapsed = currentTime - startTime;
+      const run = this.easeInOutQuad(timeElapsed, startPosition, distance, duration);
+      this.scrollContainer.scrollTop = run;
+      this.schedulePinBadgePositionUpdate();
+      if (timeElapsed < duration) {
+        requestAnimationFrame(animation);
+      } else {
+        this.scrollContainer.scrollTop = target;
+        this.isScrolling = false;
+        this.scheduleScrollSync();
+        this.schedulePinBadgePositionUpdate();
+      }
+    };
+    requestAnimationFrame(animation);
   }
 
   private static readonly SEARCH_HIGHLIGHT_CLASS = 'timeline-search-highlight';
@@ -2211,7 +2887,7 @@ export class TimelineManager {
     const padY = this.getCSSVarNumber(tip, '--timeline-tooltip-pad-y', 10);
     const borderW = this.getCSSVarNumber(tip, '--timeline-tooltip-border-w', 1);
     const maxH = Math.round(3 * lineH + 2 * padY + 2 * borderW);
-    const ell = '…';
+    const ell = '...';
     const el = this.measureEl;
     el.style.width = `${Math.max(0, Math.floor(targetWidth))}px`;
     const normalized = String(text || '')
@@ -2377,7 +3053,7 @@ export class TimelineManager {
   private buildTooltipText(dot: DotElement): string {
     let fullText = (dot.getAttribute('aria-label') || '').trim();
     const id = dot.dataset.targetTurnId || '';
-    if (id && this.starred.has(id)) fullText = `★ ${fullText}`;
+    if (id && this.starred.has(id)) fullText = `* ${fullText}`;
 
     if (this.showMessageTimestampsEnabled && id && this.timestampService && this.conversationId) {
       const ts = this.timestampService.getTimestamp(this.conversationId, id as TurnId);
@@ -2521,7 +3197,7 @@ export class TimelineManager {
         }
       }
     } else {
-      // Range was reset — preserve dots owned by in-range markers, remove the rest
+      // Range was reset; preserve dots owned by in-range markers, remove the rest
       const keepDots = new Set<Element>();
       for (let i = start; i <= end; i++) {
         if (this.markers[i]?.dotElement) keepDots.add(this.markers[i].dotElement!);
@@ -2588,6 +3264,10 @@ export class TimelineManager {
     if (localVersion !== this.markersVersion) return;
     if (frag.childNodes.length) this.ui.trackContent.appendChild(frag);
     this.visibleRange = { start, end };
+    for (let i = start; i <= end; i++) {
+      const marker = this.markers[i];
+      if (marker) this.updatePinDotState(marker.id);
+    }
     this.updateSlider();
   }
 
@@ -2609,7 +3289,7 @@ export class TimelineManager {
     const railTop = Math.round(barRect.top + pad + (innerH - railLen) / 2);
     const railLeftGap = 8;
     const sliderWidth = 12;
-    // In RTL, bar is on the left side — position slider to its right instead
+    // In RTL, bar is on the left side; position slider to its right instead
     const left = this.rtl
       ? Math.round(barRect.right + railLeftGap)
       : Math.round(barRect.left - railLeftGap - sliderWidth);
@@ -2705,6 +3385,7 @@ export class TimelineManager {
     const dy = e.clientY - this.barStartPos.y;
     this.ui.timelineBar!.style.left = `${this.barStartOffset.x + dx}px`;
     this.ui.timelineBar!.style.top = `${this.barStartOffset.y + dy}px`;
+    this.positionPinControls();
   }
 
   private endBarDrag(_e: PointerEvent): void {
@@ -2748,6 +3429,7 @@ export class TimelineManager {
       }
       this.updateSlider();
       this.previewPanel?.reposition();
+      this.positionPinControls();
     }
   }
 
@@ -2767,6 +3449,7 @@ export class TimelineManager {
     this.ui.timelineBar.style.top = `${clampedTop}px`;
     this.ui.timelineBar.style.left = `${clampedLeft}px`;
     this.previewPanel?.reposition();
+    this.positionPinControls();
   }
 
   /**
@@ -3426,7 +4109,7 @@ export class TimelineManager {
       if (level === currentLevel) {
         const check = document.createElement('span');
         check.className = 'check-icon';
-        check.textContent = '✓';
+        check.textContent = 'v';
         item.appendChild(check);
       }
 
@@ -3451,7 +4134,7 @@ export class TimelineManager {
 
       const icon = document.createElement('span');
       icon.className = 'collapse-icon';
-      icon.textContent = isCollapsed ? '▶' : '▼';
+      icon.textContent = isCollapsed ? '+' : '-';
       collapseItem.appendChild(icon);
 
       const collapseLabel = document.createElement('span');
@@ -4024,6 +4707,47 @@ export class TimelineManager {
     try {
       this.ui.timelineBar?.remove();
     } catch {}
+    try {
+      if (this.onPinToggleClick) {
+        this.pinToggleButton?.removeEventListener('click', this.onPinToggleClick);
+      }
+      if (this.onPinPrevClick) {
+        this.pinPrevButton?.removeEventListener('click', this.onPinPrevClick);
+      }
+      if (this.onPinNextClick) {
+        this.pinNextButton?.removeEventListener('click', this.onPinNextClick);
+      }
+      if (this.onPinDeleteClick) {
+        this.pinDeleteButton?.removeEventListener('click', this.onPinDeleteClick);
+      }
+      if (this.onDocumentPinClick) {
+        document.removeEventListener('click', this.onDocumentPinClick, true);
+      }
+      this.pinControls?.remove();
+      this.pinBadgeLayer?.remove();
+      document.body.classList.remove('timeline-pin-picking');
+    } catch {}
+    if (this.pinBadgePositionRaf !== null) {
+      try {
+        cancelAnimationFrame(this.pinBadgePositionRaf);
+      } catch {}
+      this.pinBadgePositionRaf = null;
+    }
+    this.pinControls = null;
+    this.pinPrevButton = null;
+    this.pinNextButton = null;
+    this.pinToggleButton = null;
+    this.pinBadgeLayer = null;
+    this.pinDeleteButton = null;
+    this.selectedPinId = null;
+    this.selectedPinTurnId = null;
+    this.pinBadges.clear();
+    this.onPinToggleClick = null;
+    this.onPinPrevClick = null;
+    this.onPinNextClick = null;
+    this.onPinDeleteClick = null;
+    this.onDocumentPinClick = null;
+    this.pinMode = false;
     try {
       this.ui.tooltip?.remove();
     } catch {}

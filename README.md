@@ -9,6 +9,7 @@ Repository: [TanChuping/chatgpt-voyager](https://github.com/TanChuping/chatgpt-v
 ## Features
 
 - ChatGPT conversation timeline with dot navigation, preview, highlighting, and starred positions.
+- Timeline text pins for long answers: pin exact spots inside a message, switch pins within the selected timeline dot, select pins from the page, and delete pins with an inline delete control.
 - Sidebar folders for organizing conversations locally.
 - Prompt Manager with tags, search, prompt import/export, compact/comfortable display modes, and click-to-copy or click-to-insert behavior.
 - Input enhancements, including input collapse, draft autosave, quote reply, Vim-style input option, Ctrl+Enter send option, and auto-scroll prevention.
@@ -56,6 +57,16 @@ npm run build:chrome
 ```
 
 Other platform build scripts are kept from the upstream project, but the actively maintained target for this fork is Chrome/Edge on ChatGPT.
+
+## Recent Updates
+
+### 1.4.8
+
+- Added timeline text pins for quickly returning to exact positions inside long ChatGPT messages.
+- Pin navigation is scoped to the selected timeline dot, so the up/down pin controls do not jump into pins from other messages.
+- Clicking a timeline dot now switches the active pin area for that message.
+- Clicking an inline pin selects it and reveals a delete button; clicking empty space clears the delete control.
+- Added focused tests for pin creation, message ownership, scoped navigation, pin selection, and dot-driven pin focus.
 
 ## Privacy Notes
 
