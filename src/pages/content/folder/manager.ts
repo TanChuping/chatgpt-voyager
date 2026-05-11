@@ -509,6 +509,7 @@ export class FolderManager {
       domRecoveryTimer = setTimeout(() => {
         domRecoveryTimer = null;
         if (this.isDestroyed) return;
+        this.updateVisibilityBasedOnSideNav();
         if (
           this.containerElement &&
           document.body.contains(this.containerElement) &&
@@ -540,6 +541,45 @@ export class FolderManager {
       window.removeEventListener('gv-print-cleanup', domRecoveryCheck);
       window.removeEventListener('afterprint', domRecoveryCheck);
     });
+  }
+
+  private isElementActuallyVisible(element: HTMLElement | null): boolean {
+    if (!element || !document.body.contains(element)) return false;
+    const style = window.getComputedStyle(element);
+    if (
+      style.display === 'none' ||
+      style.visibility === 'hidden' ||
+      style.opacity === '0' ||
+      element.hidden ||
+      element.getAttribute('aria-hidden') === 'true'
+    ) {
+      return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+    return (
+      rect.width > 24 &&
+      rect.height > 24 &&
+      rect.right > 0 &&
+      rect.bottom > 0 &&
+      rect.left < window.innerWidth &&
+      rect.top < window.innerHeight
+    );
+  }
+
+  private shouldShowEmbeddedFolderContainer(): boolean {
+    if (!this.folderEnabled) return false;
+
+    const sidebarVisible = this.isElementActuallyVisible(this.sidebarContainer);
+    if (sidebarVisible) return true;
+
+    const appRoot = document.querySelector('#app-root');
+    const appRootClass = appRoot?.getAttribute('class') || '';
+    const appRootHasSideNavState = /\bside-nav-/.test(appRootClass);
+    const appRootAllowsSidebar =
+      !appRootHasSideNavState || appRoot?.classList.contains('side-nav-open') === true;
+
+    return appRootAllowsSidebar && sidebarVisible;
   }
 
   /**
@@ -1162,12 +1202,7 @@ export class FolderManager {
     folderIcon.textContent = 'folder';
     folderIcon.style.cursor = 'pointer';
     folderIcon.style.userSelect = 'none';
-
-    // Apply folder color if set
-    if (folder.color && folder.color !== 'default') {
-      const colorValue = getFolderColor(folder.color, isDarkMode());
-      folderIcon.style.color = colorValue;
-    }
+    folderIcon.style.color = getFolderColor(folder.color, isDarkMode());
 
     folderIcon.addEventListener('click', (e) => {
       e.stopPropagation(); // Prevent bubbling issues
@@ -2301,15 +2336,26 @@ export class FolderManager {
    */
   private updateVisibilityBasedOnSideNav(): void {
     const appRoot = document.querySelector('#app-root');
-    if (!appRoot) return;
+    const freshSidebar = findChatGptSidebar();
+    if (
+      freshSidebar &&
+      freshSidebar !== this.sidebarContainer &&
+      this.isElementActuallyVisible(freshSidebar)
+    ) {
+      this.debug('Visible sidebar changed, reinitializing folder UI');
+      this.sidebarContainer = freshSidebar;
+      this.reinitializeFolderUI();
+      return;
+    }
 
-    const isSideNavOpen = appRoot.classList.contains('side-nav-open');
+    const shouldShow = this.shouldShowEmbeddedFolderContainer();
+    const appRootSaysOpen = appRoot?.classList.contains('side-nav-open') ?? true;
 
     // Check if containerElement exists AND is still in the DOM
     // During screen resize (e.g., split-screen to fullscreen), ChatGPT may re-render the sidebar DOM,
     // causing containerElement to become detached from the DOM tree
     if (!this.containerElement || !document.body.contains(this.containerElement)) {
-      if (isSideNavOpen) {
+      if (shouldShow) {
         this.debug('Container element not in DOM, reinitializing folder UI');
         // Reinitialize the entire folder UI asynchronously
         // This ensures sidebarContainer and recentSection are also re-found
@@ -2320,14 +2366,14 @@ export class FolderManager {
 
     // Also check if sidebarContainer is still valid
     if (!this.sidebarContainer || !document.body.contains(this.sidebarContainer)) {
-      if (isSideNavOpen) {
+      if (appRootSaysOpen) {
         this.debug('Sidebar container not in DOM, reinitializing folder UI');
         this.reinitializeFolderUI();
       }
       return;
     }
 
-    if (isSideNavOpen) {
+    if (shouldShow) {
       this.containerElement.style.display = '';
       this.debug('Sidebar open - showing folder container');
     } else {
@@ -6599,8 +6645,8 @@ export class FolderManager {
           console.error('[FolderManager] Failed to initialize folder UI:', error);
         });
       } else {
-        // UI already exists, just show it
-        this.containerElement.style.display = '';
+        // UI already exists, sync it with the actual responsive sidebar state.
+        this.updateVisibilityBasedOnSideNav();
         this.debug('Folder feature enabled');
       }
     } else {

@@ -60,6 +60,12 @@ Other platform build scripts are kept from the upstream project, but the activel
 
 ## Recent Updates
 
+### 1.4.10
+
+- Fixed sidebar folders disappearing after resizing ChatGPT from a narrow layout back to a wide layout.
+- Folder visibility now follows the real rendered ChatGPT sidebar instead of only trusting stale side-nav class names.
+- Folder icon colors now respect the selected folder color in the embedded sidebar list.
+
 ### 1.4.8
 
 - Added timeline text pins for quickly returning to exact positions inside long ChatGPT messages.

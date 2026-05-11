@@ -4101,6 +4101,21 @@ body.light-theme {
   white-space: nowrap;
 }
 
+.gv-folder-container .gv-folder-icon {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  overflow: visible;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  text-indent: 0 !important;
+  white-space: normal;
+}
+
 .gv-folder-container button::before,
 .gv-folder-menu-item::before {
   display: inline-flex;

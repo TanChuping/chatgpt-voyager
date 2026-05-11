@@ -13,6 +13,10 @@ type TestableManager = {
   createFolderElement: (folder: Folder, level?: number) => HTMLElement;
   toggleFolder: (folderId: string) => void;
   renameFolder: (folderId: string) => void;
+  folderEnabled: boolean;
+  sidebarContainer: HTMLElement | null;
+  containerElement: HTMLElement | null;
+  updateVisibilityBasedOnSideNav: () => void;
   // Expose private method via type casting for testing only
   extractConversationData: (element: HTMLElement) => {
     url: string;
@@ -31,6 +35,21 @@ function createFolder(): Folder {
     createdAt: now,
     updatedAt: now,
   };
+}
+
+function setRect(element: HTMLElement, width: number, height: number): void {
+  element.getBoundingClientRect = () =>
+    ({
+      left: 0,
+      top: 0,
+      right: width,
+      bottom: height,
+      width,
+      height,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect;
 }
 
 describe('folder name click/double-click interaction', () => {
@@ -108,7 +127,49 @@ describe('folder name click/double-click interaction', () => {
 
     const data = typedManager.extractConversationData(convEl);
 
-    expect(data.url).toContain('/app/2b6fe5971f124c03');
+    expect(data.url).toContain('/c/2b6fe5971f124c03');
     expect(data.url).not.toContain('/u/1/');
+  });
+
+  it('hides embedded folders when the ChatGPT sidebar is no longer visible', () => {
+    manager = new FolderManager();
+    const typedManager = manager as unknown as TestableManager;
+
+    const appRoot = document.createElement('div');
+    appRoot.id = 'app-root';
+    appRoot.className = 'side-nav-open';
+    document.body.appendChild(appRoot);
+
+    const sidebar = document.createElement('aside');
+    const folders = document.createElement('div');
+    document.body.append(sidebar, folders);
+    setRect(sidebar, 280, 700);
+
+    typedManager.folderEnabled = true;
+    typedManager.sidebarContainer = sidebar;
+    typedManager.containerElement = folders;
+
+    typedManager.updateVisibilityBasedOnSideNav();
+    expect(folders.style.display).toBe('');
+
+    setRect(sidebar, 0, 0);
+    typedManager.updateVisibilityBasedOnSideNav();
+    expect(folders.style.display).toBe('none');
+
+    appRoot.className = 'side-nav-closed';
+    setRect(sidebar, 280, 700);
+    typedManager.updateVisibilityBasedOnSideNav();
+    expect(folders.style.display).toBe('');
+  });
+
+  it('applies the configured folder color to the embedded folder icon', () => {
+    manager = new FolderManager();
+    const typedManager = manager as unknown as TestableManager;
+    const folder = { ...createFolder(), color: 'red' };
+
+    const folderEl = typedManager.createFolderElement(folder);
+    const icon = folderEl.querySelector('.gv-folder-icon') as HTMLElement | null;
+
+    expect(icon?.style.color).toBe('rgb(239, 68, 68)');
   });
 });
