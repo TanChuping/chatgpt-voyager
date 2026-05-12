@@ -124,6 +124,7 @@ export class TimelineManager {
   private visibleUserTurns: Set<Element> = new Set();
   private onTimelineBarClick: ((e: Event) => void) | null = null;
   private onScroll: (() => void) | null = null;
+  private onDocumentScroll: ((e: Event) => void) | null = null;
   private onTimelineWheel: ((e: WheelEvent) => void) | null = null;
   private onWindowResize: (() => void) | null = null;
   private onTimelineBarOver: ((e: MouseEvent) => void) | null = null;
@@ -1772,6 +1773,29 @@ export class TimelineManager {
       this.schedulePinBadgePositionUpdate();
     };
     this.scrollContainer!.addEventListener('scroll', this.onScroll, { passive: true });
+    this.onDocumentScroll = (e: Event) => {
+      const target = e.target as Element | null;
+      if (
+        target &&
+        (target === this.ui.track ||
+          target === this.ui.trackContent ||
+          target.closest?.(
+            '.gpt-timeline-bar, .timeline-preview-panel, .timeline-left-slider',
+          ))
+      ) {
+        return;
+      }
+      if (this.shouldRefreshScrollContainerForScrollTarget(target)) {
+        this.refreshCriticalElementsFromDocument();
+      }
+      this.scheduleScrollSync();
+      this.schedulePinBadgePositionUpdate();
+    };
+    document.addEventListener('scroll', this.onDocumentScroll, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener('scroll', this.onDocumentScroll, { passive: true });
 
     this.onTimelineWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -3077,9 +3101,6 @@ export class TimelineManager {
 
   private computeActiveByScroll(): void {
     if (this.isScrolling || !this.scrollContainer || this.markers.length === 0) return;
-    const timeNow =
-      typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-    if (timeNow < this.activeLockUntil) return;
     const scrollTop = this.scrollContainer.scrollTop;
     const ref = scrollTop + this.scrollContainer.clientHeight * 0.45;
     let activeId = this.markers[0].id;
@@ -3100,32 +3121,20 @@ export class TimelineManager {
       }
     }
     if (this.activeTurnId !== activeId) {
-      const now =
-        typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-      const since = now - this.lastActiveChangeTime;
-      if (since < this.minActiveChangeInterval) {
-        this.pendingActiveId = activeId;
-        if (!this.activeChangeTimer) {
-          const delay = Math.max(this.minActiveChangeInterval - since, 0);
-          this.activeChangeTimer = window.setTimeout(() => {
-            this.activeChangeTimer = null;
-            if (this.pendingActiveId && this.pendingActiveId !== this.activeTurnId) {
-              this.activeTurnId = this.pendingActiveId;
-              this.updateActiveDotUI();
-              this.lastActiveChangeTime =
-                typeof performance !== 'undefined' && performance.now
-                  ? performance.now()
-                  : Date.now();
-            }
-            this.pendingActiveId = null;
-          }, delay);
-        }
-      } else {
-        this.activeTurnId = activeId;
-        this.updateActiveDotUI();
-        this.lastActiveChangeTime = now;
-      }
+      this.applyActiveTurnFromScroll(activeId);
     }
+  }
+
+  private applyActiveTurnFromScroll(activeId: string): void {
+    if (this.activeChangeTimer) {
+      clearTimeout(this.activeChangeTimer);
+      this.activeChangeTimer = null;
+    }
+    this.pendingActiveId = null;
+    this.activeTurnId = activeId;
+    this.updateActiveDotUI();
+    this.lastActiveChangeTime =
+      typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
   }
 
   private syncTimelineTrackToMain(): void {
@@ -4445,6 +4454,20 @@ export class TimelineManager {
     this.recalculateAndRenderMarkers();
   }
 
+  private shouldRefreshScrollContainerForScrollTarget(target: Element | null): boolean {
+    if (!target || !this.userTurnSelector) return false;
+    if (target === this.scrollContainer) return false;
+    if (!(target instanceof HTMLElement)) return false;
+    if (this.ui.timelineBar?.contains(target)) return false;
+    if (this.scrollContainer?.contains(target)) return false;
+
+    const firstTurn = document.querySelector(this.userTurnSelector) as HTMLElement | null;
+    if (!firstTurn) return false;
+
+    const nextScrollContainer = this.getScrollContainerForElement(firstTurn);
+    return !!nextScrollContainer && nextScrollContainer !== this.scrollContainer;
+  }
+
   private refreshCriticalElementsFromDocument(): boolean {
     if (!this.userTurnSelector) return false;
 
@@ -4669,6 +4692,14 @@ export class TimelineManager {
         this.scrollContainer.removeEventListener('scroll', this.onScroll);
       } catch {}
     }
+    if (this.onDocumentScroll) {
+      try {
+        document.removeEventListener('scroll', this.onDocumentScroll, { capture: true });
+      } catch {}
+      try {
+        window.removeEventListener('scroll', this.onDocumentScroll);
+      } catch {}
+    }
     if (this.ui.timelineBar) {
       try {
         this.ui.timelineBar.removeEventListener('wheel', this.onTimelineWheel!);
@@ -4777,6 +4808,7 @@ export class TimelineManager {
     this.activeTurnId = null;
     this.scrollContainer = null;
     this.conversationContainer = null;
+    this.onDocumentScroll = null;
     if (this.activeChangeTimer) {
       clearTimeout(this.activeChangeTimer);
       this.activeChangeTimer = null;

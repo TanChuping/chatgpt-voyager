@@ -114,7 +114,7 @@ describe('TimelineManager flow click highlight behavior', () => {
     expect(internal.activeTurnId).toBeNull();
     expect(firstDot.classList.contains('active')).toBe(false);
     expect(startRunnerSpy).toHaveBeenCalledWith(0, 1, 520);
-    expect(smoothScrollSpy).toHaveBeenCalledWith(secondTarget, 520);
+    expect(smoothScrollSpy).toHaveBeenCalledWith(secondTarget, 520, 'm1');
 
     manager.destroy();
   });
@@ -166,7 +166,11 @@ describe('TimelineManager flow click highlight behavior', () => {
       activeTurnId: string | null;
       setupEventListeners: () => void;
       updateActiveDotUI: () => void;
-      smoothScrollTo: (targetElement: HTMLElement, duration: number) => void;
+      smoothScrollTo: (
+        targetElement: HTMLElement,
+        duration: number,
+        targetId?: string | null,
+      ) => void;
       computeFlowDuration: (fromIdx: number, toIdx: number) => number;
       userTurnSelector: string;
       recalculateAndRenderMarkers: () => void;
@@ -219,7 +223,7 @@ describe('TimelineManager flow click highlight behavior', () => {
     dot.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     expect(recalcSpy).toHaveBeenCalledTimes(1);
-    expect(smoothScrollSpy).toHaveBeenCalledWith(freshTarget, 0);
+    expect(smoothScrollSpy).toHaveBeenCalledWith(freshTarget, 0, 'm1');
 
     manager.destroy();
   });

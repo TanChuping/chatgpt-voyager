@@ -60,6 +60,11 @@ Other platform build scripts are kept from the upstream project, but the activel
 
 ## Recent Updates
 
+### 1.4.11
+
+- Timeline dot highlighting now follows the current scroll position in real time while reading.
+- Added a document-level scroll fallback so the timeline keeps syncing if ChatGPT swaps its internal scroll container.
+
 ### 1.4.10
 
 - Fixed sidebar folders disappearing after resizing ChatGPT from a narrow layout back to a wide layout.
