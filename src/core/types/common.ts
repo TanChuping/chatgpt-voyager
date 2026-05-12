@@ -61,6 +61,8 @@ export const StorageKeys = {
   CHAT_WIDTH_ENABLED: 'gvChatWidthEnabled',
   CHAT_FONT_SIZE: 'gvChatFontSize',
   CHAT_FONT_SIZE_ENABLED: 'gvChatFontSizeEnabled',
+  CODE_FONT_SIZE: 'gvCodeFontSize',
+  CODE_FONT_SIZE_ENABLED: 'gvCodeFontSizeEnabled',
   EDIT_INPUT_WIDTH: 'gptEditInputWidth',
   EDIT_INPUT_WIDTH_ENABLED: 'gvEditInputWidthEnabled',
   SIDEBAR_WIDTH: 'gptSidebarWidth',

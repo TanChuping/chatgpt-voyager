@@ -3,12 +3,15 @@
  */
 
 const STYLE_ID = 'gpt-voyager-chat-font-size';
+const CODE_STYLE_ID = 'gpt-voyager-code-font-size';
 const DEFAULT_PERCENT = 100;
 const MIN_PERCENT = 80;
 const MAX_PERCENT = 150;
 
 const ENABLED_KEY = 'gvChatFontSizeEnabled';
 const VALUE_KEY = 'gvChatFontSize';
+const CODE_ENABLED_KEY = 'gvCodeFontSizeEnabled';
+const CODE_VALUE_KEY = 'gvCodeFontSize';
 
 const clampPercent = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, Math.round(value)));
@@ -87,20 +90,51 @@ function applyFontSize(percent: number) {
       line-height: 1.6 !important;
     }
 
-    /* Code blocks: slightly smaller than body text */
-    model-response code,
-    model-response pre,
-    .model-response code,
-    .model-response pre,
-    message-content code,
-    message-content pre,
-    [data-message-author-role] code,
-    [data-message-author-role] pre,
-    .code-container,
+  `;
+}
+
+function applyCodeFontSize(percent: number) {
+  const normalized = normalizePercent(percent, DEFAULT_PERCENT);
+  const sizeValue = `${normalized}%`;
+
+  let style = document.getElementById(CODE_STYLE_ID) as HTMLStyleElement;
+  if (!style) {
+    style = document.createElement('style');
+    style.id = CODE_STYLE_ID;
+    document.head.appendChild(style);
+  }
+
+  style.textContent = `
+    /* ChatGPT code blocks, including the current CodeMirror-backed cm-content renderer. */
+    pre.cm-content,
+    pre.cm-content code,
+    .cm-content,
+    .cm-content code,
+    code-block pre,
+    code-block code,
+    .code-container pre,
+    .code-container code,
     .formatted-code-block-internal-container pre,
-    .formatted-code-block-internal-container code {
-      font-size: calc(${sizeValue} * 0.875) !important;
+    .formatted-code-block-internal-container code,
+    [data-message-author-role] pre,
+    [data-message-author-role] pre code,
+    model-response pre,
+    model-response pre code,
+    .model-response pre,
+    .model-response pre code,
+    message-content pre,
+    message-content pre code {
+      font-size: ${sizeValue} !important;
       line-height: 1.5 !important;
+    }
+
+    pre.cm-content span,
+    .cm-content span,
+    code-block pre span,
+    .formatted-code-block-internal-container pre span,
+    [data-message-author-role] pre span {
+      font-size: inherit !important;
+      line-height: inherit !important;
     }
   `;
 }
@@ -112,12 +146,21 @@ function removeStyles() {
   }
 }
 
+function removeCodeStyles() {
+  const style = document.getElementById(CODE_STYLE_ID);
+  if (style) {
+    style.remove();
+  }
+}
+
 export function startChatFontSizeAdjuster() {
   let currentPercent = DEFAULT_PERCENT;
   let enabled = false;
+  let currentCodePercent = DEFAULT_PERCENT;
+  let codeEnabled = false;
 
   // Load initial state
-  chrome.storage?.sync?.get([VALUE_KEY, ENABLED_KEY], (res) => {
+  chrome.storage?.sync?.get([VALUE_KEY, ENABLED_KEY, CODE_VALUE_KEY, CODE_ENABLED_KEY], (res) => {
     const storedValue = res?.[VALUE_KEY];
     const numericValue = typeof storedValue === 'number' ? storedValue : DEFAULT_PERCENT;
     const normalized = normalizePercent(numericValue, DEFAULT_PERCENT);
@@ -129,9 +172,27 @@ export function startChatFontSizeAdjuster() {
       applyFontSize(currentPercent);
     }
 
+    const storedCodeValue = res?.[CODE_VALUE_KEY];
+    const numericCodeValue =
+      typeof storedCodeValue === 'number' ? storedCodeValue : DEFAULT_PERCENT;
+    const normalizedCode = normalizePercent(numericCodeValue, DEFAULT_PERCENT);
+    currentCodePercent = normalizedCode;
+
+    codeEnabled = res?.[CODE_ENABLED_KEY] === true;
+
+    if (codeEnabled) {
+      applyCodeFontSize(currentCodePercent);
+    }
+
     if (typeof storedValue === 'number' && storedValue !== normalized) {
       try {
         chrome.storage?.sync?.set({ [VALUE_KEY]: normalized });
+      } catch {}
+    }
+
+    if (typeof storedCodeValue === 'number' && storedCodeValue !== normalizedCode) {
+      try {
+        chrome.storage?.sync?.set({ [CODE_VALUE_KEY]: normalizedCode });
       } catch {}
     }
   });
@@ -168,6 +229,32 @@ export function startChatFontSizeAdjuster() {
         }
       }
     }
+
+    if (changes[CODE_ENABLED_KEY]) {
+      codeEnabled = changes[CODE_ENABLED_KEY].newValue === true;
+      if (codeEnabled) {
+        applyCodeFontSize(currentCodePercent);
+      } else {
+        removeCodeStyles();
+      }
+    }
+
+    if (changes[CODE_VALUE_KEY]) {
+      const newValue = changes[CODE_VALUE_KEY].newValue;
+      if (typeof newValue === 'number') {
+        const normalized = normalizePercent(newValue, DEFAULT_PERCENT);
+        currentCodePercent = normalized;
+        if (codeEnabled) {
+          applyCodeFontSize(currentCodePercent);
+        }
+
+        if (normalized !== newValue) {
+          try {
+            chrome.storage?.sync?.set({ [CODE_VALUE_KEY]: normalized });
+          } catch {}
+        }
+      }
+    }
   };
 
   chrome.storage?.onChanged?.addListener(storageChangeHandler);
@@ -177,6 +264,7 @@ export function startChatFontSizeAdjuster() {
     'beforeunload',
     () => {
       removeStyles();
+      removeCodeStyles();
       try {
         chrome.storage?.onChanged?.removeListener(storageChangeHandler);
       } catch {}

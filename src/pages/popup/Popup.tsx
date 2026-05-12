@@ -30,6 +30,7 @@ type PromptViewMode = 'compact' | 'comfortable';
 const LEGACY_BASELINE_PX = 1200;
 const CHAT_PERCENT = { min: 30, max: 100, defaultValue: 70 };
 const CHAT_FONT_SIZE = { min: 80, max: 150, defaultValue: 100 };
+const CODE_FONT_SIZE = { min: 80, max: 150, defaultValue: 100 };
 const EDIT_PERCENT = { min: 30, max: 100, defaultValue: 60 };
 const SIDEBAR_PX = { min: 240, max: 600, defaultValue: 280 };
 const FOLDER_SPACING = { min: 0, max: 16, defaultValue: 2 };
@@ -269,6 +270,8 @@ export default function Popup() {
   const [chatWidth, setChatWidth] = useState(CHAT_PERCENT.defaultValue);
   const [chatFontSizeEnabled, setChatFontSizeEnabled] = useState(false);
   const [chatFontSize, setChatFontSize] = useState(CHAT_FONT_SIZE.defaultValue);
+  const [codeFontSizeEnabled, setCodeFontSizeEnabled] = useState(false);
+  const [codeFontSize, setCodeFontSize] = useState(CODE_FONT_SIZE.defaultValue);
   const [editInputWidthEnabled, setEditInputWidthEnabled] = useState(false);
   const [editInputWidth, setEditInputWidth] = useState(EDIT_PERCENT.defaultValue);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_PX.defaultValue);
@@ -322,6 +325,8 @@ export default function Popup() {
         [StorageKeys.CHAT_WIDTH]: CHAT_PERCENT.defaultValue,
         [StorageKeys.CHAT_FONT_SIZE_ENABLED]: false,
         [StorageKeys.CHAT_FONT_SIZE]: CHAT_FONT_SIZE.defaultValue,
+        [StorageKeys.CODE_FONT_SIZE_ENABLED]: false,
+        [StorageKeys.CODE_FONT_SIZE]: CODE_FONT_SIZE.defaultValue,
         [StorageKeys.EDIT_INPUT_WIDTH_ENABLED]: false,
         [StorageKeys.EDIT_INPUT_WIDTH]: EDIT_PERCENT.defaultValue,
         [StorageKeys.SIDEBAR_WIDTH]: SIDEBAR_PX.defaultValue,
@@ -386,6 +391,15 @@ export default function Popup() {
             CHAT_FONT_SIZE.defaultValue,
             CHAT_FONT_SIZE.min,
             CHAT_FONT_SIZE.max,
+          ),
+        );
+        setCodeFontSizeEnabled(result[StorageKeys.CODE_FONT_SIZE_ENABLED] === true);
+        setCodeFontSize(
+          normalizeNumber(
+            result[StorageKeys.CODE_FONT_SIZE],
+            CODE_FONT_SIZE.defaultValue,
+            CODE_FONT_SIZE.min,
+            CODE_FONT_SIZE.max,
           ),
         );
         setEditInputWidthEnabled(result[StorageKeys.EDIT_INPUT_WIDTH_ENABLED] === true);
@@ -645,6 +659,19 @@ export default function Popup() {
             onChangeComplete={(value) => void setSyncStorage({ [StorageKeys.CHAT_FONT_SIZE]: value })}
             enabled={chatFontSizeEnabled}
             onToggle={(value) => updateToggle(setChatFontSizeEnabled, StorageKeys.CHAT_FONT_SIZE_ENABLED, value)}
+          />
+          <WidthSlider
+            label={t('codeFontSize')}
+            value={codeFontSize}
+            min={CODE_FONT_SIZE.min}
+            max={CODE_FONT_SIZE.max}
+            step={1}
+            narrowLabel={t('chatFontSizeSmall')}
+            wideLabel={t('chatFontSizeLarge')}
+            onChange={setCodeFontSize}
+            onChangeComplete={(value) => void setSyncStorage({ [StorageKeys.CODE_FONT_SIZE]: value })}
+            enabled={codeFontSizeEnabled}
+            onToggle={(value) => updateToggle(setCodeFontSizeEnabled, StorageKeys.CODE_FONT_SIZE_ENABLED, value)}
           />
           <WidthSlider
             label={t('editInputWidth')}

@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const STYLE_ID = 'gpt-voyager-chat-font-size';
+const CODE_STYLE_ID = 'gpt-voyager-code-font-size';
 const VALUE_KEY = 'gvChatFontSize';
 const ENABLED_KEY = 'gvChatFontSizeEnabled';
+const CODE_VALUE_KEY = 'gvCodeFontSize';
+const CODE_ENABLED_KEY = 'gvCodeFontSizeEnabled';
 
 type StorageChangeListener = (
   changes: Record<string, chrome.storage.StorageChange>,
@@ -11,6 +14,10 @@ type StorageChangeListener = (
 
 function getInjectedStyle(): HTMLStyleElement | null {
   return document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+}
+
+function getInjectedCodeStyle(): HTMLStyleElement | null {
+  return document.getElementById(CODE_STYLE_ID) as HTMLStyleElement | null;
 }
 
 describe('chatFontSize', () => {
@@ -27,7 +34,12 @@ describe('chatFontSize', () => {
 
     (chrome.storage.sync.get as unknown as ReturnType<typeof vi.fn>).mockImplementation(
       (_keys: unknown, callback: (value: Record<string, unknown>) => void) => {
-        callback({ [VALUE_KEY]: 120, [ENABLED_KEY]: true });
+        callback({
+          [VALUE_KEY]: 120,
+          [ENABLED_KEY]: true,
+          [CODE_VALUE_KEY]: 110,
+          [CODE_ENABLED_KEY]: false,
+        });
       },
     );
 
@@ -50,12 +62,14 @@ describe('chatFontSize', () => {
     expect(style).not.toBeNull();
     const text = style!.textContent ?? '';
     expect(text).toContain('font-size: 120% !important');
+    expect(text).not.toContain('pre.cm-content');
+    expect(text).not.toContain('.formatted-code-block-internal-container code');
   });
 
   it('does not inject styles when disabled', async () => {
     (chrome.storage.sync.get as unknown as ReturnType<typeof vi.fn>).mockImplementation(
       (_keys: unknown, callback: (value: Record<string, unknown>) => void) => {
-        callback({ [VALUE_KEY]: 120, [ENABLED_KEY]: false });
+        callback({ [VALUE_KEY]: 120, [ENABLED_KEY]: false, [CODE_ENABLED_KEY]: false });
       },
     );
 
@@ -91,6 +105,48 @@ describe('chatFontSize', () => {
     expect(getInjectedStyle()).toBeNull();
   });
 
+  it('applies code block font-size independently when enabled', async () => {
+    (chrome.storage.sync.get as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (_keys: unknown, callback: (value: Record<string, unknown>) => void) => {
+        callback({
+          [VALUE_KEY]: 120,
+          [ENABLED_KEY]: true,
+          [CODE_VALUE_KEY]: 115,
+          [CODE_ENABLED_KEY]: true,
+        });
+      },
+    );
+
+    const { startChatFontSizeAdjuster } = await import('../index');
+    startChatFontSizeAdjuster();
+
+    const style = getInjectedCodeStyle();
+    expect(style).not.toBeNull();
+    const text = style!.textContent ?? '';
+    expect(text).toContain('pre.cm-content');
+    expect(text).toContain('.cm-content code');
+    expect(text).toContain('font-size: 115% !important');
+  });
+
+  it('updates and removes code block font-size from storage changes', async () => {
+    const { startChatFontSizeAdjuster } = await import('../index');
+    startChatFontSizeAdjuster();
+
+    expect(getInjectedCodeStyle()).toBeNull();
+
+    storageChangeListeners[0](
+      { [CODE_ENABLED_KEY]: { oldValue: false, newValue: true } },
+      'sync',
+    );
+    storageChangeListeners[0]({ [CODE_VALUE_KEY]: { oldValue: 110, newValue: 130 } }, 'sync');
+
+    expect(getInjectedCodeStyle()?.textContent ?? '').toContain('font-size: 130% !important');
+
+    storageChangeListeners[0]({ [CODE_ENABLED_KEY]: { oldValue: true, newValue: false } }, 'sync');
+
+    expect(getInjectedCodeStyle()).toBeNull();
+  });
+
   it('clamps values to min/max range', async () => {
     (chrome.storage.sync.get as unknown as ReturnType<typeof vi.fn>).mockImplementation(
       (_keys: unknown, callback: (value: Record<string, unknown>) => void) => {
@@ -124,5 +180,6 @@ describe('chatFontSize', () => {
     // Block elements
     expect(text).toContain('model-response p');
     expect(text).toContain('message-content li');
+    expect(text).not.toContain('pre code');
   });
 });

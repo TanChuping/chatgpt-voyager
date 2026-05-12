@@ -47,6 +47,8 @@ export const BACKUPABLE_SYNC_SETTINGS_DEFAULTS: Record<string, unknown> = {
   [StorageKeys.CHAT_WIDTH_ENABLED]: false,
   [StorageKeys.CHAT_FONT_SIZE]: 100,
   [StorageKeys.CHAT_FONT_SIZE_ENABLED]: false,
+  [StorageKeys.CODE_FONT_SIZE]: 100,
+  [StorageKeys.CODE_FONT_SIZE_ENABLED]: false,
   [StorageKeys.EDIT_INPUT_WIDTH]: 60,
   [StorageKeys.EDIT_INPUT_WIDTH_ENABLED]: false,
   [StorageKeys.SIDEBAR_WIDTH]: 312,

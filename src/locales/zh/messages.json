@@ -284,6 +284,9 @@
   "chatFontSize": {
     "message": "聊天字号"
   },
+  "codeFontSize": {
+    "message": "代码框字号"
+  },
   "chatFontSizeSmall": {
     "message": "小"
   },

@@ -284,6 +284,9 @@
   "chatFontSize": {
     "message": "Chat font size"
   },
+  "codeFontSize": {
+    "message": "Code block font size"
+  },
   "chatFontSizeSmall": {
     "message": "Small"
   },

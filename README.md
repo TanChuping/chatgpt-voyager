@@ -60,6 +60,11 @@ Other platform build scripts are kept from the upstream project, but the activel
 
 ## Recent Updates
 
+### 1.4.13
+
+- Added a separate code block font-size control for ChatGPT code panes, including the current `cm-content` renderer.
+- Chat font-size adjustments no longer force code blocks to follow the body-text scale.
+
 ### 1.4.12
 
 - Timeline highlighting now also follows browser scrollbar dragging by switching to the active page scroll source.
