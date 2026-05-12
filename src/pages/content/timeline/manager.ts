@@ -1774,20 +1774,11 @@ export class TimelineManager {
     };
     this.scrollContainer!.addEventListener('scroll', this.onScroll, { passive: true });
     this.onDocumentScroll = (e: Event) => {
-      const target = e.target as Element | null;
-      if (
-        target &&
-        (target === this.ui.track ||
-          target === this.ui.trackContent ||
-          target.closest?.(
-            '.gpt-timeline-bar, .timeline-preview-panel, .timeline-left-slider',
-          ))
-      ) {
+      const target = e.target;
+      if (this.isTimelineScrollEventTarget(target)) {
         return;
       }
-      if (this.shouldRefreshScrollContainerForScrollTarget(target)) {
-        this.refreshCriticalElementsFromDocument();
-      }
+      this.adoptScrollContainerFromScrollEvent(target);
       this.scheduleScrollSync();
       this.schedulePinBadgePositionUpdate();
     };
@@ -4454,18 +4445,109 @@ export class TimelineManager {
     this.recalculateAndRenderMarkers();
   }
 
-  private shouldRefreshScrollContainerForScrollTarget(target: Element | null): boolean {
-    if (!target || !this.userTurnSelector) return false;
-    if (target === this.scrollContainer) return false;
-    if (!(target instanceof HTMLElement)) return false;
-    if (this.ui.timelineBar?.contains(target)) return false;
-    if (this.scrollContainer?.contains(target)) return false;
+  private isTimelineScrollEventTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof Element)) return false;
+    return (
+      target === this.ui.track ||
+      target === this.ui.trackContent ||
+      !!target.closest?.('.gpt-timeline-bar, .timeline-preview-panel, .timeline-left-slider')
+    );
+  }
+
+  private getDocumentScrollElement(): HTMLElement {
+    return (
+      (document.scrollingElement as HTMLElement | null) ||
+      (document.documentElement as HTMLElement | null) ||
+      (document.body as unknown as HTMLElement)
+    );
+  }
+
+  private isDocumentScrollEventTarget(target: EventTarget | null): boolean {
+    const documentScroller = this.getDocumentScrollElement();
+    return (
+      !target ||
+      target === document ||
+      target === window ||
+      target === documentScroller ||
+      target === document.documentElement ||
+      target === document.body
+    );
+  }
+
+  private isScrollableElement(element: HTMLElement | null): element is HTMLElement {
+    if (!element) return false;
+    return element.scrollHeight > element.clientHeight + 1;
+  }
+
+  private replaceScrollContainer(nextScrollContainer: HTMLElement): boolean {
+    if (nextScrollContainer === this.scrollContainer) return false;
+
+    if (this.scrollContainer && this.onScroll) {
+      try {
+        this.scrollContainer.removeEventListener('scroll', this.onScroll);
+      } catch {}
+    }
+
+    this.scrollContainer = nextScrollContainer;
+
+    if (this.onScroll) {
+      this.scrollContainer.addEventListener('scroll', this.onScroll, { passive: true });
+    }
+
+    if (this.intersectionObserver && this.scrollContainer) {
+      try {
+        this.intersectionObserver.disconnect();
+        this.intersectionObserver = new IntersectionObserver(
+          () => {
+            this.scheduleScrollSync();
+          },
+          { root: this.scrollContainer, threshold: 0.1, rootMargin: '-40% 0px -59% 0px' },
+        );
+        this.updateIntersectionObserverTargetsFromMarkers();
+      } catch {}
+    }
+
+    return true;
+  }
+
+  private refreshMarkerTopsForCurrentScrollContainer(): void {
+    if (!this.scrollContainer || this.markers.length === 0) return;
+    this.markerTops = this.markers.map((marker) =>
+      this.computeElementTopInScrollContainer(marker.element),
+    );
+  }
+
+  private adoptScrollContainerFromScrollEvent(target: EventTarget | null): boolean {
+    if (!this.userTurnSelector) return false;
 
     const firstTurn = document.querySelector(this.userTurnSelector) as HTMLElement | null;
     if (!firstTurn) return false;
 
-    const nextScrollContainer = this.getScrollContainerForElement(firstTurn);
-    return !!nextScrollContainer && nextScrollContainer !== this.scrollContainer;
+    let nextScrollContainer: HTMLElement | null = null;
+
+    if (this.isDocumentScrollEventTarget(target)) {
+      const documentScroller = this.getDocumentScrollElement();
+      if (this.isScrollableElement(documentScroller)) {
+        nextScrollContainer = documentScroller;
+      }
+    } else if (target instanceof HTMLElement && this.isScrollableElement(target)) {
+      if (target.contains(firstTurn) || firstTurn.contains(target)) {
+        nextScrollContainer = target;
+      }
+    }
+
+    if (!nextScrollContainer) {
+      nextScrollContainer = this.getScrollContainerForElement(firstTurn);
+    }
+
+    if (!nextScrollContainer || !this.replaceScrollContainer(nextScrollContainer)) return false;
+
+    this.refreshMarkerTopsForCurrentScrollContainer();
+    this.updateTimelineGeometry();
+    this.syncTimelineTrackToMain();
+    this.updateVirtualRangeAndRender();
+    this.updateSlider();
+    return true;
   }
 
   private refreshCriticalElementsFromDocument(): boolean {

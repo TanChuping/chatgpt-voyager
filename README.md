@@ -60,6 +60,10 @@ Other platform build scripts are kept from the upstream project, but the activel
 
 ## Recent Updates
 
+### 1.4.12
+
+- Timeline highlighting now also follows browser scrollbar dragging by switching to the active page scroll source.
+
 ### 1.4.11
 
 - Timeline dot highlighting now follows the current scroll position in real time while reading.
