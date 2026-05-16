@@ -60,11 +60,10 @@ export class TimelinePreviewPanel {
   }
 
   updateActiveTurn(turnId: string | null): void {
-    const changed = this.activeTurnId !== turnId;
     this.activeTurnId = turnId;
     if (!this._isOpen || !this.listEl) return;
     this.updateActiveHighlight();
-    if (changed) this.scrollActiveIntoView();
+    this.scheduleActiveIntoView();
   }
 
   /** Reposition toggle and panel after layout changes (e.g. RTL switch, resize). */
@@ -95,7 +94,7 @@ export class TimelinePreviewPanel {
     this.panelEl.classList.add('visible');
     this.toggleBtn?.classList.add('active');
     this.toggleBtn?.setAttribute('aria-pressed', 'true');
-    this.scrollActiveIntoView();
+    this.scheduleActiveIntoView();
   }
 
   close(): void {
@@ -318,6 +317,7 @@ export class TimelinePreviewPanel {
     }
     if (this._isOpen) {
       this.renderList();
+      this.scheduleActiveIntoView();
     }
     this.onSearchChange?.(this.searchQuery);
   }
@@ -391,6 +391,9 @@ export class TimelinePreviewPanel {
     }
 
     item.addEventListener('click', () => {
+      this.activeTurnId = marker.id;
+      this.updateActiveHighlight();
+      this.scrollItemIntoListView(item);
       this.onNavigate?.(marker.id, marker.index);
     });
 
@@ -438,7 +441,38 @@ export class TimelinePreviewPanel {
     const activeItem = this.listEl.querySelector(
       '.timeline-preview-item.active',
     ) as HTMLElement | null;
-    activeItem?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    if (!activeItem) return;
+    this.scrollItemIntoListView(activeItem);
+  }
+
+  private scheduleActiveIntoView(): void {
+    this.scrollActiveIntoView();
+    queueMicrotask(() => this.scrollActiveIntoView());
+    requestAnimationFrame(() => this.scrollActiveIntoView());
+    window.setTimeout(() => this.scrollActiveIntoView(), 100);
+    window.setTimeout(() => this.scrollActiveIntoView(), 300);
+    window.setTimeout(() => this.scrollActiveIntoView(), 700);
+  }
+
+  private scrollItemIntoListView(item: HTMLElement): void {
+    if (!this.listEl) return;
+    const listRect = this.listEl.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    const padding = 8;
+    let nextScrollTop = this.listEl.scrollTop;
+
+    if (itemRect.top < listRect.top + padding) {
+      nextScrollTop += itemRect.top - listRect.top - padding;
+    } else if (itemRect.bottom > listRect.bottom - padding) {
+      nextScrollTop += itemRect.bottom - listRect.bottom + padding;
+    } else {
+      return;
+    }
+
+    const maxScrollTop = Math.max(0, this.listEl.scrollHeight - this.listEl.clientHeight);
+    nextScrollTop = Math.max(0, Math.min(maxScrollTop, Math.round(nextScrollTop)));
+    if (Math.abs(this.listEl.scrollTop - nextScrollTop) <= 1) return;
+    this.listEl.scrollTop = nextScrollTop;
   }
 
   /** Format starredAt timestamp as compact date+time (MM/DD HH:mm). */
