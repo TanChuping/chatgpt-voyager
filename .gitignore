@@ -66,6 +66,7 @@ support-assets/
 # Local agent outputs
 .agent/
 LOCAL_DEVELOPMENT.md
+公式交接.md
 docs/plans/
 output/
 GPT-Voyager/diagnostics/
