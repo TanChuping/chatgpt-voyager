@@ -60,6 +60,10 @@ Other platform build scripts are kept from the upstream project, but the activel
 
 ## Recent Updates
 
+### 1.4.15
+
+- Timeline dot IDs now use ChatGPT's native message UUID instead of a numeric sequence, so newly loaded mid-conversation messages no longer create hash-suffixed ghost dots that visually look like "jump-in" entries.
+
 ### 1.4.13
 
 - Added a separate code block font-size control for ChatGPT code panes, including the current `cm-content` renderer.

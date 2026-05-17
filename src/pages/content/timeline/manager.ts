@@ -1361,6 +1361,14 @@ export class TimelineManager {
     usedIds: Set<string>,
     existingTurnIdOwners: Map<string, HTMLElement[]>,
   ): string {
+    // Prefer ChatGPT's stable message UUID — it's globally unique and survives
+    // mid-conversation insertions (lazy-load of older turns) without collision.
+    const uuid = this.extractStableMessageUuid(el);
+    if (uuid) {
+      const uuidId = `u-${uuid}`;
+      if (!usedIds.has(uuidId) && !existingTurnIdOwners.has(uuidId)) return uuidId;
+    }
+
     const basis = this.extractTurnText(el) || `user-${index}`;
     const candidates = [
       this.turnIdByIndex.get(index) || '',
@@ -1382,6 +1390,22 @@ export class TimelineManager {
       candidate = `${base}-${suffix}`;
     }
     return candidate;
+  }
+
+  private extractStableMessageUuid(el: HTMLElement): string | null {
+    const direct = el.dataset?.messageId;
+    if (direct && this.looksLikeUuid(direct)) return direct;
+    const nested = el.querySelector('[data-message-id]') as HTMLElement | null;
+    const nestedId = nested?.dataset?.messageId;
+    if (nestedId && this.looksLikeUuid(nestedId)) return nestedId;
+    const closest = el.closest('[data-message-id]') as HTMLElement | null;
+    const closestId = closest?.dataset?.messageId;
+    if (closestId && this.looksLikeUuid(closestId)) return closestId;
+    return null;
+  }
+
+  private looksLikeUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
   }
 
   private ensureTurnId(
