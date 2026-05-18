@@ -4,6 +4,7 @@ import { StorageKeys } from '@/core/types/common';
 import { GV_RTL_CLASS, detectRTL } from '@/core/utils/rtl';
 
 import { getTranslationSync } from '../../../utils/i18n';
+import { ATTACHMENT_COLOR, ATTACHMENT_LABEL, type AttachmentInfo } from './attachments';
 import type { PreviewMarkerData } from './types';
 
 const SEARCH_DEBOUNCE_MS = 200;
@@ -374,11 +375,26 @@ export class TimelinePreviewPanel {
     const text = document.createElement('span');
     text.className = 'timeline-preview-text';
     text.setAttribute('dir', 'auto');
+
+    // File attachment chips render before the body text so a turn that
+    // started with "PDF · paper.pdf" reads as a structured pill rather than
+    // a confusing run-on title.
+    if (marker.attachments && marker.attachments.length > 0) {
+      for (const att of marker.attachments) {
+        text.appendChild(this.createAttachmentChip(att, 'preview'));
+      }
+    }
+
     const displayText = this.truncateText(marker.summary, 80);
-    if (this.searchQuery) {
-      this.appendHighlighted(text, displayText, this.searchQuery);
-    } else {
-      text.textContent = displayText;
+    if (displayText) {
+      const body = document.createElement('span');
+      body.className = 'timeline-preview-body';
+      if (this.searchQuery) {
+        this.appendHighlighted(body, displayText, this.searchQuery);
+      } else {
+        body.textContent = displayText;
+      }
+      text.appendChild(body);
     }
     item.appendChild(text);
 
@@ -420,6 +436,66 @@ export class TimelinePreviewPanel {
     if (cursor < text.length) {
       container.appendChild(document.createTextNode(text.slice(cursor)));
     }
+  }
+
+  /**
+   * Build a colored file-type chip. The `mode` flips between the boxed style
+   * used inside the preview list and the lighter inline-label style used in
+   * the dot tooltip (no rectangle, just a tiny colored dot + colored text).
+   */
+  private createAttachmentChip(att: AttachmentInfo, mode: 'preview' | 'tooltip'): HTMLElement {
+    const chip = document.createElement('span');
+    chip.className = `timeline-attachment-chip timeline-attachment-chip--${mode}`;
+    chip.dataset.fileType = att.type;
+    const color = ATTACHMENT_COLOR[att.type];
+    chip.style.setProperty('--gv-att-color', color);
+    if (mode === 'tooltip') {
+      const dot = document.createElement('span');
+      dot.className = 'timeline-attachment-chip__dot';
+      chip.appendChild(dot);
+      const label = document.createElement('span');
+      label.className = 'timeline-attachment-chip__label';
+      label.textContent = ATTACHMENT_LABEL[att.type];
+      chip.appendChild(label);
+      const name = document.createElement('span');
+      name.className = 'timeline-attachment-chip__name';
+      name.textContent = this.shortFilename(att.name);
+      chip.appendChild(name);
+    } else {
+      const label = document.createElement('span');
+      label.className = 'timeline-attachment-chip__label';
+      label.textContent = ATTACHMENT_LABEL[att.type];
+      chip.appendChild(label);
+      const sep = document.createElement('span');
+      sep.className = 'timeline-attachment-chip__sep';
+      sep.textContent = '·';
+      chip.appendChild(sep);
+      const name = document.createElement('span');
+      name.className = 'timeline-attachment-chip__name';
+      name.textContent = this.shortFilename(att.name);
+      chip.appendChild(name);
+    }
+    chip.title = att.name;
+    return chip;
+  }
+
+  private shortFilename(name: string): string {
+    const stripped = name.trim();
+    // Drop the extension first because we're already showing the type label.
+    const dot = stripped.lastIndexOf('.');
+    const stem = dot > 0 ? stripped.slice(0, dot) : stripped;
+    // Roughly "first 5 chars / glyphs" per the user spec — for CJK that's 5
+    // characters; for ASCII it's 5 chars but we extend to ~12 before
+    // truncating so plain English filenames stay readable.
+    const hasCJK = /[一-鿿]/.test(stem);
+    const limit = hasCJK ? 5 : 12;
+    const chars: string[] = [];
+    for (const ch of stem) {
+      chars.push(ch);
+      if (chars.length >= limit) break;
+    }
+    const head = chars.join('');
+    return head.length < stem.length ? `${head}…` : head;
   }
 
   private truncateText(text: string, maxLen: number): string {

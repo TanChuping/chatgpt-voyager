@@ -60,47 +60,27 @@ Other platform build scripts are kept from the upstream project, but the activel
 
 ## Recent Updates
 
+### 1.5.0
+
+- File-attachment chips in the timeline. Turns that contain a PDF, Word doc, spreadsheet, pasted text blob, image, … now show a small colored pill in front of the body text (red for PDF, blue for Word, green for spreadsheets, gray for plain text, etc.), so the dot tooltip and preview panel no longer confuse the filename with the user's actual question. Dot tooltips use a minimal colored-dot + label variant; the preview panel uses the boxed pill.
+- Stripped ChatGPT's own chrome text (the "展开收起" toggle, the "文档"/"Document" tile label) out of every turn summary so the dot aria-label and tooltip read exactly what the user typed.
+- Pin text capture now avoids LaTeX source and host-chrome noise — pinning inside or near a KaTeX block records the rendered text rather than `\boxed{…}`.
+- Prompt Manager header lets the title stay full-width on narrow panels by wrapping the version pill / language toggle to a second row instead of clipping "GPT-Voyager" to "GPT-Voy…".
+- One-shot purge of leftover `geminiTimeline*` localStorage keys carried over from the project's Gemini Voyager ancestry.
+- Repainted the timeline left-handle accent in the project's purple so the last bit of ChatGPT-green leaked into the bar is gone.
+
 ### 1.4.17
 
-- Click-jump between timeline dots now uses the browser's native compositor-driven smooth scroll, matching the feel of a real wheel scroll instead of the hand-rolled requestAnimationFrame loop that was sharing the main thread with ChatGPT's own scroll handlers and stuttering on close jumps.
-- The scroll listener short-circuits its heavy sync work while a click-jump is in flight; pin badges still track the page so they stay anchored during the animation.
-
-### 1.4.16
-
-- Timeline dots now slide smoothly when the marker list changes — inserts, collapses, and lazy-loaded turns no longer snap into place.
-- The active dot now respects scroll direction: while the user scrolls one way, a noisy candidate that points the other way is held back briefly so the highlight no longer flickers backward during fast or sustained scrolling.
+- Click-jump between timeline dots now uses the browser's native compositor-driven smooth scroll, matching the feel of a real wheel scroll instead of a hand-rolled requestAnimationFrame loop. Adjacent-dot clicks went from ~25fps to baseline display refresh.
+- Scroll listener short-circuits heavy sync work while a click-jump is in flight; pin badges still track the page so they stay anchored during the animation.
 
 ### 1.4.15
 
-- Timeline dot IDs now use ChatGPT's native message UUID instead of a numeric sequence, so newly loaded mid-conversation messages no longer create hash-suffixed ghost dots that visually look like "jump-in" entries.
-
-### 1.4.13
-
-- Added a separate code block font-size control for ChatGPT code panes, including the current `cm-content` renderer.
-- Chat font-size adjustments no longer force code blocks to follow the body-text scale.
-
-### 1.4.12
-
-- Timeline highlighting now also follows browser scrollbar dragging by switching to the active page scroll source.
-
-### 1.4.11
-
-- Timeline dot highlighting now follows the current scroll position in real time while reading.
-- Added a document-level scroll fallback so the timeline keeps syncing if ChatGPT swaps its internal scroll container.
-
-### 1.4.10
-
-- Fixed sidebar folders disappearing after resizing ChatGPT from a narrow layout back to a wide layout.
-- Folder visibility now follows the real rendered ChatGPT sidebar instead of only trusting stale side-nav class names.
-- Folder icon colors now respect the selected folder color in the embedded sidebar list.
+- Timeline dot IDs now use ChatGPT's native message UUID instead of a numeric sequence. New turns ChatGPT lazy-loads into the middle of a conversation no longer produce hash-suffixed ghost dots ("u-12-1a6zsk2") that look like jump-in entries.
 
 ### 1.4.8
 
-- Added timeline text pins for quickly returning to exact positions inside long ChatGPT messages.
-- Pin navigation is scoped to the selected timeline dot, so the up/down pin controls do not jump into pins from other messages.
-- Clicking a timeline dot now switches the active pin area for that message.
-- Clicking an inline pin selects it and reveals a delete button; clicking empty space clears the delete control.
-- Added focused tests for pin creation, message ownership, scoped navigation, pin selection, and dot-driven pin focus.
+- Timeline text pins: pin exact spots inside a long ChatGPT answer, navigate between them with up/down controls scoped to the selected dot, and delete pins inline. Pin ownership binds to stable turn IDs so they survive scrolling and DOM re-renders.
 
 ## Privacy Notes
 

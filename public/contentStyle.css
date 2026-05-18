@@ -603,7 +603,7 @@ html.dark .timeline-left-slider::before {
   left: 2px;
   width: 8px;
   height: 22px;
-  background: rgba(16, 163, 127, 0.28);
+  background: rgba(109, 40, 217, 0.28);
   border-radius: 9999px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
   pointer-events: auto;
@@ -612,7 +612,7 @@ html.dark .timeline-left-slider::before {
 }
 
 .timeline-left-handle:hover {
-  background: rgba(16, 163, 127, 0.45);
+  background: rgba(109, 40, 217, 0.45);
 }
 
 .timeline-left-handle:active {
@@ -971,6 +971,80 @@ body.timeline-pin-picking .timeline-left-slider {
   white-space: nowrap;
   text-align: start;
   unicode-bidi: plaintext;
+  /* The text element now holds a row of attachment chips followed by the
+     body text; align them on a single line and gap them like inline pills. */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.timeline-preview-body {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* File-attachment chips. Two visual modes:
+ *   .timeline-attachment-chip--preview → boxed pill (used inside the
+ *     preview-panel item rows; ChatGPT-style file-tile shrink).
+ *   .timeline-attachment-chip--tooltip → naked label with a colored bullet
+ *     (used inside the dot tooltip where backgrounds would look heavy).
+ * Both modes pull their accent color from CSS var --gv-att-color set per
+ * chip by the JS that mounts them. */
+.timeline-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  user-select: none;
+  max-width: 14em;
+}
+
+.timeline-attachment-chip__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.timeline-attachment-chip__name {
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.timeline-attachment-chip__sep {
+  opacity: 0.55;
+}
+
+.timeline-attachment-chip--preview {
+  padding: 1px 7px 2px;
+  border-radius: 6px;
+  color: var(--gv-att-color);
+  background: color-mix(in srgb, var(--gv-att-color) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gv-att-color) 22%, transparent);
+  line-height: 1.5;
+}
+
+.timeline-attachment-chip--tooltip {
+  color: var(--gv-att-color);
+  background: transparent;
+  padding: 0;
+  border: none;
+}
+
+.timeline-attachment-chip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--gv-att-color);
+  flex-shrink: 0;
 }
 
 .timeline-preview-empty {
@@ -1359,11 +1433,9 @@ body.light-theme .gv-pm-panel {
   font-size: 17px;
   letter-spacing: -0.02em;
   color: oklch(0.14 0.004 285);
-  flex: 1;
+  flex: 0 0 auto;
   min-width: 0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   position: relative;
   z-index: 1;
 }
@@ -1387,7 +1459,8 @@ body.light-theme .gv-pm-title {
 .gv-pm-title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px 8px;
   flex: 1;
   min-width: 0;
 }

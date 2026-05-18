@@ -18,6 +18,12 @@ import { GV_RTL_CLASS, applyRTLClass } from '@/core/utils/rtl';
 import { getTranslationSync, initI18n } from '../../../utils/i18n';
 import { TimestampService } from '../timestamp/TimestampService';
 import { makeStableTurnId } from '../fork/turnId';
+import {
+  ATTACHMENT_COLOR,
+  ATTACHMENT_LABEL,
+  type AttachmentInfo,
+  extractAttachments,
+} from './attachments';
 import { eventBus } from './EventBus';
 import { StarredMessagesService } from './StarredMessagesService';
 import { TimelinePreviewPanel } from './TimelinePreviewPanel';
@@ -40,6 +46,19 @@ const TURN_LABEL_PREFIXES =
   /^[\u200B\u200C\u200D\u200E\u200F\uFEFF]*(?:you said|you wrote|user message|your prompt|you asked)[:\s]*/i;
 const VISUALLY_HIDDEN_CLASS_FRAGMENT = 'visually-hidden';
 const INJECTED_UI_SELECTOR = '.gv-fork-btn, .gv-fork-confirm, .gv-fork-indicator-group';
+
+/**
+ * Selectors for ChatGPT-native UI chrome that we want to strip from any text
+ * extracted off a user-turn element. Without this, the timeline dot tooltip
+ * and preview panel pick up host-page button labels like "展开收起" and bake
+ * them into our turn summaries.
+ */
+const HOST_CHROME_SELECTOR = [
+  '[data-testid="collapsible-user-message-toggle"]',
+  '[class*="toggleControl"]',
+  '[class*="showMoreLabel"]',
+  '[class*="showLessLabel"]',
+].join(',');
 
 type ExtGlobal = typeof globalThis & {
   chrome?: {
@@ -107,6 +126,7 @@ export class TimelineManager {
     baseN: number;
     dotElement: DotElement | null;
     starred: boolean;
+    attachments: ReadonlyArray<AttachmentInfo>;
   }> = [];
   private activeTurnId: string | null = null;
   private ui: {
@@ -224,6 +244,7 @@ export class TimelineManager {
       n: number;
       baseN: number;
       summary: string;
+      attachments: ReadonlyArray<AttachmentInfo>;
     }
   > = new Map();
   private conversationId: string | null = null;
@@ -302,6 +323,7 @@ export class TimelineManager {
 
   async init(): Promise<void> {
     await initI18n();
+    this.purgeLegacyLocalStorageKeys();
     const ok = await this.findCriticalElements();
     if (!ok) return;
     this.injectTimelineUI();
@@ -1213,6 +1235,17 @@ export class TimelineManager {
       // Remove extension-injected UI elements (e.g. fork button)
       clone.querySelectorAll(INJECTED_UI_SELECTOR).forEach((el) => el.remove());
 
+      // Strip ChatGPT's own chrome buttons so things like the "展开收起" toggle
+      // don't bleed into our turn summaries / aria labels.
+      clone.querySelectorAll(HOST_CHROME_SELECTOR).forEach((el) => el.remove());
+
+      // Strip file-attachment tiles outright — we report those as structured
+      // data via extractAttachments, so the body text shouldn't repeat the
+      // filename / localised "文档" / "Document" noun rendered inside the tile.
+      clone
+        .querySelectorAll('[role="group"][aria-label], [class*="file-tile"][aria-label]')
+        .forEach((el) => el.remove());
+
       // Restore original text for LaTeX-rendered elements
       clone.querySelectorAll<HTMLElement>('[data-user-latex-original]').forEach((el) => {
         el.textContent = el.dataset.userLatexOriginal ?? '';
@@ -1704,14 +1737,23 @@ export class TimelineManager {
       let n = offsetFromStart / contentSpan;
       n = Math.max(0, Math.min(1, n));
       const id = nextIds[idx];
+      const attachments = extractAttachments(element);
+      // Strip attachment filenames out of the body summary so the timeline
+      // tooltip / preview reads the real question the user typed, not the
+      // file tile labels that ChatGPT bakes into the bubble.
+      const cleanSummary = this.stripAttachmentNamesFromSummary(
+        this.extractTurnText(element),
+        attachments,
+      );
       const m = {
         id,
         element,
-        summary: this.extractTurnText(element),
+        summary: cleanSummary,
         n,
         baseN: n,
         dotElement: oldDots.get(id) ?? null,
         starred: this.starred.has(id),
+        attachments,
       };
       oldDots.delete(id);
       this.markerMap.set(id, m);
@@ -1739,6 +1781,7 @@ export class TimelineManager {
         index: i,
         starred: m.starred,
         starredAt: m.starred ? this.starredAtMap.get(m.id) : undefined,
+        attachments: m.attachments,
       })),
     );
     // Inject timestamps after markers are ready
@@ -1953,6 +1996,29 @@ export class TimelineManager {
       },
       { root: this.scrollContainer, threshold: 0.1, rootMargin: '-40% 0px -59% 0px' },
     );
+  }
+
+  /**
+   * One-shot cleanup of localStorage entries left over from the project's
+   * Gemini-Voyager ancestry. The active code path only ever writes the
+   * `gpt*` / `gv-*` namespaces, but old installs accumulated parallel
+   * `geminiTimeline*` keys that no longer get read. Strip them so storage
+   * doesn't quietly fork between two schemas forever.
+   */
+  private purgeLegacyLocalStorageKeys(): void {
+    try {
+      const drop: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (k.startsWith('geminiTimeline')) drop.push(k);
+      }
+      for (const k of drop) {
+        try {
+          localStorage.removeItem(k);
+        } catch {}
+      }
+    } catch {}
   }
 
   private setupEventListeners(): void {
@@ -2929,6 +2995,21 @@ export class TimelineManager {
       }
     }
 
+    // KaTeX renders math as a `.katex` subtree containing both `.katex-mathml`
+    // (the source / accessibility tree) and `.katex-html` (the visible glyphs).
+    // textContent of either branch yields raw LaTeX commands like `\boxed{...}`.
+    // When the caret hits anywhere inside a katex tree, snap the pin text to
+    // the parent paragraph's visible text instead so we don't bake source code
+    // into the pin label.
+    const katexAncestor = this.findKatexAncestor(node);
+    if (katexAncestor) {
+      const surroundingBlock =
+        (katexAncestor.closest('p, li, blockquote, div.markdown, .prose') as HTMLElement | null) ||
+        fallbackTarget;
+      const cleaned = this.extractCleanInlineText(surroundingBlock);
+      if (cleaned) return cleaned.slice(0, 80);
+    }
+
     if (node?.nodeType === Node.TEXT_NODE) {
       const text = node.textContent || '';
       const left = text
@@ -2939,15 +3020,90 @@ export class TimelineManager {
         .slice(offset)
         .match(/^[^\s.,;:!?()[\]{}"'`，。！？；：（）【】《》、]*/);
       const end = Math.min(text.length, offset + (rightMatch?.[0].length ?? 0));
-      const word = text.slice(start, end).trim();
+      const word = this.stripLatexNoise(text.slice(start, end).trim());
       if (word) return word.slice(0, 80);
-      const snippet = text
-        .slice(Math.max(0, offset - 24), Math.min(text.length, offset + 56))
-        .trim();
+      const snippet = this.stripLatexNoise(
+        text.slice(Math.max(0, offset - 24), Math.min(text.length, offset + 56)).trim(),
+      );
       if (snippet) return snippet.slice(0, 80);
     }
 
-    return this.normalizeText(fallbackTarget.textContent || '').slice(0, 80);
+    return this.extractCleanInlineText(fallbackTarget).slice(0, 80);
+  }
+
+  private findKatexAncestor(node: Node | null): HTMLElement | null {
+    let cur: Node | null = node;
+    while (cur && cur !== document.documentElement) {
+      if (cur.nodeType === Node.ELEMENT_NODE) {
+        const el = cur as HTMLElement;
+        if (
+          el.classList?.contains('katex') ||
+          el.classList?.contains('katex-display') ||
+          el.classList?.contains('katex-mathml') ||
+          el.classList?.contains('katex-html')
+        ) {
+          return el;
+        }
+      }
+      cur = cur.parentNode;
+    }
+    return null;
+  }
+
+  private extractCleanInlineText(el: HTMLElement | null): string {
+    if (!el) return '';
+    try {
+      const clone = el.cloneNode(true) as HTMLElement;
+      // Strip extension UI + ChatGPT chrome buttons (same as turn extraction).
+      clone.querySelectorAll(INJECTED_UI_SELECTOR).forEach((n) => n.remove());
+      clone.querySelectorAll(HOST_CHROME_SELECTOR).forEach((n) => n.remove());
+      // Drop the LaTeX source tree; keep only what's rendered visually.
+      clone.querySelectorAll('.katex-mathml, annotation, .katex-html .sr-only').forEach((n) =>
+        n.remove(),
+      );
+      // Convert any `[data-user-latex-original]` placeholders back to the LaTeX
+      // the user actually typed, then mark the substring so we can keep it
+      // intact below.
+      clone.querySelectorAll<HTMLElement>('[data-user-latex-original]').forEach((n) => {
+        n.textContent = n.dataset.userLatexOriginal ?? n.textContent ?? '';
+      });
+      return this.stripLatexNoise(this.normalizeText(clone.textContent || ''));
+    } catch {
+      return this.stripLatexNoise(this.normalizeText(el.textContent || ''));
+    }
+  }
+
+  /**
+   * Safety net for legacy paths that bypass the DOM-level tile removal in
+   * `extractTurnText`. If the filename still appears verbatim in the body
+   * (e.g. the tile selector missed a variant), strip it. Normal flow already
+   * removes the entire file tile up front, so this is usually a no-op.
+   */
+  private stripAttachmentNamesFromSummary(
+    summary: string,
+    attachments: ReadonlyArray<AttachmentInfo>,
+  ): string {
+    if (!summary) return summary;
+    let out = summary;
+    for (const att of attachments) {
+      if (!att.name) continue;
+      const escaped = att.name.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      out = out.replace(new RegExp(escaped, 'g'), '');
+    }
+    return out.replace(/\s{2,}/g, ' ').trim();
+  }
+
+  private stripLatexNoise(s: string): string {
+    if (!s) return s;
+    // Heuristic: collapse stray backslash-commands like \boxed{...} \text{...}
+    // that occasionally slip through when text crosses a katex boundary. We
+    // keep the curly-brace contents because they usually carry the visible
+    // glyphs the user already sees rendered next door.
+    return s
+      .replace(/\\(?:boxed|text|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, '$1')
+      .replace(/\\[A-Za-z]+\b/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
   }
 
   private renderTextPinBadges(): void {
@@ -3473,7 +3629,7 @@ export class TimelineManager {
     const fullText = this.buildTooltipText(dot);
     const p = this.computePlacementInfo(dot);
     const layout = this.truncateToThreeLines(fullText, p.width);
-    tip.textContent = layout.text;
+    this.renderTooltipContent(tip, dot, layout.text);
     this.placeTooltipAt(dot, p.placement, p.width, layout.height);
     tip.setAttribute('aria-hidden', 'false');
     if (this.showRafId !== null) {
@@ -3548,7 +3704,7 @@ export class TimelineManager {
     const fullText = this.buildTooltipText(dot);
     const p = this.computePlacementInfo(dot);
     const layout = this.truncateToThreeLines(fullText, p.width);
-    tip.textContent = layout.text;
+    this.renderTooltipContent(tip, dot, layout.text);
     this.placeTooltipAt(dot, p.placement, p.width, layout.height);
   }
 
@@ -3564,6 +3720,67 @@ export class TimelineManager {
       }
     }
     return fullText;
+  }
+
+  /**
+   * Paint the tooltip with a colored file-type chip prefix when the marker
+   * has attachments, then the body text. Without this the tooltip read like
+   *   "PDF · ap22-frq-calculus-bc.pdf 看看这个" — single string with the
+   * filename indistinguishable from the user's question. Per spec, the dot
+   * tooltip uses the minimal chip variant (colored dot + colored label, no
+   * background box) so it doesn't dominate the tooltip.
+   */
+  private renderTooltipContent(tip: HTMLElement, dot: DotElement, bodyText: string): void {
+    tip.textContent = '';
+    const id = dot.dataset.targetTurnId || '';
+    const marker = this.markerMap.get(id);
+    const attachments = marker?.attachments ?? [];
+    if (attachments.length > 0) {
+      for (const att of attachments) {
+        tip.appendChild(this.createTooltipAttachmentChip(att));
+      }
+    }
+    if (bodyText) {
+      // Body text starts after the chips. A leading space keeps inline spacing
+      // natural inside the -webkit-box clamp without forcing a line break.
+      const sep = document.createTextNode(attachments.length > 0 ? '  ' : '');
+      tip.appendChild(sep);
+      tip.appendChild(document.createTextNode(bodyText));
+    }
+  }
+
+  private createTooltipAttachmentChip(att: AttachmentInfo): HTMLElement {
+    const chip = document.createElement('span');
+    chip.className = 'timeline-attachment-chip timeline-attachment-chip--tooltip';
+    chip.dataset.fileType = att.type;
+    chip.style.setProperty('--gv-att-color', ATTACHMENT_COLOR[att.type]);
+    const dot = document.createElement('span');
+    dot.className = 'timeline-attachment-chip__dot';
+    chip.appendChild(dot);
+    const label = document.createElement('span');
+    label.className = 'timeline-attachment-chip__label';
+    label.textContent = ATTACHMENT_LABEL[att.type];
+    chip.appendChild(label);
+    const name = document.createElement('span');
+    name.className = 'timeline-attachment-chip__name';
+    name.textContent = this.shortAttachmentName(att.name);
+    chip.appendChild(name);
+    return chip;
+  }
+
+  private shortAttachmentName(name: string): string {
+    const stripped = name.trim();
+    const dot = stripped.lastIndexOf('.');
+    const stem = dot > 0 ? stripped.slice(0, dot) : stripped;
+    const hasCJK = /[一-鿿]/.test(stem);
+    const limit = hasCJK ? 5 : 12;
+    const chars: string[] = [];
+    for (const ch of stem) {
+      chars.push(ch);
+      if (chars.length >= limit) break;
+    }
+    const head = chars.join('');
+    return head.length < stem.length ? `${head}…` : head;
   }
 
   private setProgrammaticScrollLock(duration: number): void {
