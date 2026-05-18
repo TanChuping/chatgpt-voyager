@@ -1366,5 +1366,47 @@
   },
   "markdownOptions": {
     "message": "Markdown"
+  },
+  "favoritesSidebarTitle": {
+    "message": "Favorites"
+  },
+  "favoritesCurrentSectionTitle": {
+    "message": "This conversation"
+  },
+  "favoritesAllSectionTitle": {
+    "message": "All favorites"
+  },
+  "favoritesViewFlat": {
+    "message": "By time"
+  },
+  "favoritesViewGrouped": {
+    "message": "By conversation"
+  },
+  "favoritesEmptyAll": {
+    "message": "No starred messages yet. Click the ★ in the timeline preview to add one."
+  },
+  "favoritesEmptyCurrent": {
+    "message": "No favorites in this conversation yet."
+  },
+  "favoritesRemove": {
+    "message": "Remove favorite"
+  },
+  "favoritesJumpDialogTitle": {
+    "message": "Jump to another conversation?"
+  },
+  "favoritesJumpDialogBody": {
+    "message": "Leaving the current conversation will load a different chat. If you are in a temporary chat, its content will be lost. Any unsent text in the input box is saved by the draft auto-save feature, but please double-check before continuing."
+  },
+  "favoritesJumpDialogConfirm": {
+    "message": "Jump"
+  },
+  "favoritesJumpDialogCancel": {
+    "message": "Cancel"
+  },
+  "favoritesJumpDialogTargetLabel": {
+    "message": "Target:"
+  },
+  "favoritesUntitledConversation": {
+    "message": "Untitled conversation"
   }
 }

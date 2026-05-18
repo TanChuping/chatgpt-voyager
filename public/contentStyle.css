@@ -32,7 +32,7 @@
 :root {
   --timeline-dot-color: #4b5563;
   --timeline-dot-active-color: #6d28d9;
-  --timeline-star-color: #f59e0b;
+  --timeline-star-color: #facc6e;
   --timeline-tooltip-bg: #ffffff;
   --timeline-tooltip-text: #0f172a;
   --timeline-tooltip-border: #e2e8f0;
@@ -62,7 +62,7 @@
   :root {
     --timeline-dot-color: #6b7280;
     --timeline-dot-active-color: #a78bfa;
-    --timeline-star-color: #f59e0b;
+    --timeline-star-color: #facc6e;
     --timeline-tooltip-bg: #0b1220;
     --timeline-tooltip-text: #e2e8f0;
     --timeline-tooltip-border: #1f2937;
@@ -74,7 +74,7 @@
 .theme-host.dark-theme {
   --timeline-dot-color: #6b7280;
   --timeline-dot-active-color: #a78bfa;
-  --timeline-star-color: #f59e0b;
+  --timeline-star-color: #facc6e;
   --timeline-tooltip-bg: #0b1220;
   --timeline-tooltip-text: #e2e8f0;
   --timeline-tooltip-border: #1f2937;
@@ -84,7 +84,7 @@
 .theme-host.light-theme {
   --timeline-dot-color: #4b5563;
   --timeline-dot-active-color: #6d28d9;
-  --timeline-star-color: #f59e0b;
+  --timeline-star-color: #facc6e;
   --timeline-tooltip-bg: #ffffff;
   --timeline-tooltip-text: #0f172a;
   --timeline-tooltip-border: #e2e8f0;
@@ -345,7 +345,10 @@ html.dark .timeline-dot:not(.active):not(.starred)::after,
   pointer-events: none;
   color: var(--timeline-star-color);
   z-index: 1;
-  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.3));
+  /* Lighter halo than before — the pointy gold star was too aggressive,
+     this soft rounded star sits gently on top of the dot core. */
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.18));
+  opacity: 0.92;
 }
 
 .timeline-dot-favorite svg {
@@ -1070,7 +1073,9 @@ body.timeline-pin-picking .timeline-left-slider {
   fill: currentColor;
   stroke: currentColor;
   stroke-width: 0;
-  transition: fill 120ms ease, stroke 120ms ease;
+  transition:
+    fill 120ms ease,
+    stroke 120ms ease;
 }
 
 .timeline-preview-star:not(.on) svg {
@@ -10279,4 +10284,530 @@ body.light-theme .gv-floating-folder-panel__count,
 html.light-theme .gv-floating-folder-panel__count {
   background: rgba(95, 99, 104, 0.1);
   color: var(--gv-floating-folder-panel__text-muted);
+}
+
+/* Gold star prefix on the "Star project" pill so it reads as a favoriting
+   action consistent with the timeline star and the favorites button. Size
+   and footprint stay at the upstream defaults — user explicitly asked not
+   to shrink this button. */
+.gv-pm-footer-support .gv-pm-project-link::before {
+  color: #f5b820;
+  text-shadow: 0 0 6px rgba(245, 184, 32, 0.45);
+}
+.gv-pm-panel[data-gv-theme='dark'] .gv-pm-footer-support .gv-pm-project-link::before {
+  color: #fbbf24;
+  text-shadow: 0 0 6px rgba(251, 191, 36, 0.55);
+}
+
+/* Backup demoted from full-width primary CTA to an inline secondary action
+   alongside import/export/设置. Subtle purple tint preserves "backup is
+   different from prompts export" without grabbing visual primacy. */
+.gv-pm-footer-secondary .gv-pm-backup-btn {
+  height: 30px;
+  border-radius: 8px;
+  padding: 0 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(109, 40, 217, 0.12);
+  border: none;
+  color: #7c3aed;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 120ms ease;
+}
+.gv-pm-footer-secondary .gv-pm-backup-btn:hover {
+  background: rgba(109, 40, 217, 0.2);
+}
+.gv-pm-panel[data-gv-theme='dark'] .gv-pm-footer-secondary .gv-pm-backup-btn {
+  background: rgba(167, 139, 250, 0.14);
+  color: #c4b5fd;
+}
+.gv-pm-panel[data-gv-theme='dark'] .gv-pm-footer-secondary .gv-pm-backup-btn:hover {
+  background: rgba(167, 139, 250, 0.22);
+}
+
+/* Compact favorites-trigger pill next to "Star project". Soft amber so the
+   favorites surface reads consistently across the timeline preview, the
+   starred dot, and this button. */
+.gv-pm-favorites-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 184, 32, 0.4);
+  background: rgba(245, 184, 32, 0.1);
+  color: #b45309;
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.gv-pm-favorites-btn__icon {
+  flex: 0 0 auto;
+}
+.gv-pm-favorites-btn__label {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.gv-pm-favorites-btn:hover,
+.gv-pm-favorites-btn:focus-visible,
+.gv-pm-favorites-btn.active {
+  outline: none;
+  background: rgba(245, 184, 32, 0.2);
+  border-color: rgba(245, 184, 32, 0.65);
+  color: #92400e;
+}
+.gv-pm-panel[data-gv-theme='dark'] .gv-pm-favorites-btn {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.08);
+  color: #fbbf24;
+}
+.gv-pm-panel[data-gv-theme='dark'] .gv-pm-favorites-btn:hover,
+.gv-pm-panel[data-gv-theme='dark'] .gv-pm-favorites-btn:focus-visible,
+.gv-pm-panel[data-gv-theme='dark'] .gv-pm-favorites-btn.active {
+  background: rgba(251, 191, 36, 0.18);
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fde68a;
+}
+
+/* Secondary popover anchored to the favorites button. Mirrors the support
+   popover's positioning model — pinned to viewport coordinates set by JS. */
+.gv-pm-favorites-popover {
+  position: fixed;
+  z-index: 2147483647;
+  width: 280px;
+  max-height: min(60vh, 480px);
+  background: oklch(0.995 0.002 250);
+  color: oklch(0.18 0.012 285);
+  border: 1px solid rgba(109, 40, 217, 0.22);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px oklch(0 0 0 / 0.18);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  font-size: 13px;
+}
+.gv-pm-favorites-popover.gv-hidden {
+  display: none;
+}
+.gv-pm-favorites-popover .gv-favorites-sidebar {
+  flex: 1 1 auto;
+  background: transparent;
+  color: inherit;
+  min-height: 0;
+}
+.gv-pm-panel[data-gv-theme='dark'] ~ .gv-pm-favorites-popover,
+.gv-pm-favorites-popover[data-gv-theme='dark'] {
+  background: oklch(0.18 0.008 285);
+  color: oklch(0.92 0.004 250);
+  border-color: rgba(167, 139, 250, 0.28);
+  box-shadow: 0 18px 48px oklch(0 0 0 / 0.38);
+}
+
+/* ── Favorites sidebar ──────────────────────────────────────────────────── */
+.gv-favorites-sidebar {
+  flex: 0 0 230px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: rgba(255, 255, 255, 0.02);
+  color: inherit;
+  font-size: 12px;
+}
+.gv-favorites-sidebar__header {
+  padding: 10px 12px 4px;
+  flex: 0 0 auto;
+}
+.gv-favorites-sidebar__title {
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+.gv-favorites-sidebar__section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 4px 0 0;
+}
+.gv-favorites-sidebar__section--current {
+  flex: 0 0 auto;
+  max-height: 38%;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+  padding-bottom: 6px;
+}
+.gv-favorites-sidebar__section--all {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.gv-favorites-sidebar__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 10px 4px 12px;
+}
+.gv-favorites-sidebar__section-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.58;
+  padding: 4px 10px 2px 12px;
+}
+.gv-favorites-sidebar__section--all .gv-favorites-sidebar__section-title {
+  padding: 0;
+}
+.gv-favorites-sidebar__view-toggle {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+.gv-favorites-sidebar__view-btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 10.5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.62;
+}
+.gv-favorites-sidebar__view-btn:hover {
+  opacity: 0.9;
+}
+.gv-favorites-sidebar__view-btn--active {
+  background: rgba(255, 255, 255, 0.12);
+  opacity: 1;
+}
+.gv-favorites-sidebar__list {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  padding: 2px 6px 6px;
+  min-height: 0;
+}
+.gv-favorites-sidebar__section--current .gv-favorites-sidebar__list {
+  flex: 0 1 auto;
+}
+.gv-favorites-sidebar__empty {
+  padding: 10px 8px;
+  opacity: 0.5;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.gv-favorites-sidebar__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 6px 6px 8px;
+  margin: 1px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  outline: none;
+}
+.gv-favorites-sidebar__row:hover,
+.gv-favorites-sidebar__row:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+}
+.gv-favorites-sidebar__row--current {
+  background: rgba(124, 58, 237, 0.08);
+}
+.gv-favorites-sidebar__row--current:hover {
+  background: rgba(124, 58, 237, 0.16);
+}
+.gv-favorites-sidebar__row-star {
+  flex: 0 0 auto;
+  color: #fdd663;
+  margin-top: 2px;
+  display: inline-flex;
+}
+.gv-favorites-sidebar__row-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gv-favorites-sidebar__row-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 11.5px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.gv-favorites-sidebar__row-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  opacity: 0.55;
+  min-width: 0;
+}
+.gv-favorites-sidebar__row-conv {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.gv-favorites-sidebar__row-time {
+  flex: 0 0 auto;
+}
+.gv-favorites-sidebar__icon-btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.gv-favorites-sidebar__row:hover .gv-favorites-sidebar__icon-btn,
+.gv-favorites-sidebar__row:focus-within .gv-favorites-sidebar__icon-btn {
+  opacity: 0.7;
+}
+.gv-favorites-sidebar__icon-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+}
+.gv-favorites-sidebar__icon-btn--remove:hover {
+  color: #f87171;
+}
+.gv-favorites-sidebar__group {
+  display: flex;
+  flex-direction: column;
+  margin: 2px 0;
+}
+.gv-favorites-sidebar__group-header {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  width: 100%;
+}
+.gv-favorites-sidebar__group-header:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.gv-favorites-sidebar__group--current .gv-favorites-sidebar__group-header {
+  color: #c4b5fd;
+}
+.gv-favorites-sidebar__group-caret {
+  flex: 0 0 12px;
+  text-align: center;
+  font-size: 9px;
+  opacity: 0.6;
+}
+.gv-favorites-sidebar__group-title {
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.gv-favorites-sidebar__group-count {
+  flex: 0 0 auto;
+  font-size: 10px;
+  opacity: 0.55;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.gv-favorites-sidebar__group-body {
+  display: flex;
+  flex-direction: column;
+  padding-left: 6px;
+}
+
+/* Light theme overrides for the favorites sidebar */
+.theme-host.light-theme .gv-favorites-sidebar,
+body.light-theme .gv-favorites-sidebar,
+html.light-theme .gv-favorites-sidebar {
+  background: rgba(99, 102, 241, 0.04);
+}
+.theme-host.light-theme .gv-favorites-sidebar__section--current,
+body.light-theme .gv-favorites-sidebar__section--current,
+html.light-theme .gv-favorites-sidebar__section--current {
+  border-bottom-color: rgba(15, 23, 42, 0.08);
+}
+.theme-host.light-theme .gv-favorites-sidebar__view-toggle,
+body.light-theme .gv-favorites-sidebar__view-toggle,
+html.light-theme .gv-favorites-sidebar__view-toggle {
+  background: rgba(15, 23, 42, 0.06);
+}
+.theme-host.light-theme .gv-favorites-sidebar__view-btn--active,
+body.light-theme .gv-favorites-sidebar__view-btn--active,
+html.light-theme .gv-favorites-sidebar__view-btn--active {
+  background: rgba(15, 23, 42, 0.12);
+}
+.theme-host.light-theme .gv-favorites-sidebar__row:hover,
+body.light-theme .gv-favorites-sidebar__row:hover,
+html.light-theme .gv-favorites-sidebar__row:hover {
+  background: rgba(15, 23, 42, 0.05);
+}
+.theme-host.light-theme .gv-favorites-sidebar__row--current,
+body.light-theme .gv-favorites-sidebar__row--current,
+html.light-theme .gv-favorites-sidebar__row--current {
+  background: rgba(124, 58, 237, 0.1);
+}
+.theme-host.light-theme .gv-favorites-sidebar__group-count,
+body.light-theme .gv-favorites-sidebar__group-count,
+html.light-theme .gv-favorites-sidebar__group-count {
+  background: rgba(15, 23, 42, 0.08);
+}
+.theme-host.light-theme .gv-favorites-sidebar__group--current .gv-favorites-sidebar__group-header,
+body.light-theme .gv-favorites-sidebar__group--current .gv-favorites-sidebar__group-header,
+html.light-theme .gv-favorites-sidebar__group--current .gv-favorites-sidebar__group-header {
+  color: #7c3aed;
+}
+
+/* ── Jump confirmation dialog ───────────────────────────────────────────── */
+.gv-jump-confirm-dialog__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+}
+.gv-jump-confirm-dialog {
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  background: #1f2025;
+  color: #e8eaed;
+  border-radius: 14px;
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  padding: 18px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  font-size: 13px;
+}
+.gv-jump-confirm-dialog__title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.gv-jump-confirm-dialog__body {
+  font-size: 12.5px;
+  line-height: 1.55;
+  opacity: 0.86;
+}
+.gv-jump-confirm-dialog__target {
+  background: rgba(255, 255, 255, 0.04);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gv-jump-confirm-dialog__target-label {
+  opacity: 0.6;
+  margin-right: 6px;
+}
+.gv-jump-confirm-dialog__target-value {
+  font-weight: 600;
+}
+.gv-jump-confirm-dialog__target-preview {
+  opacity: 0.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.gv-jump-confirm-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+.gv-jump-confirm-dialog__btn {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.gv-jump-confirm-dialog__btn--cancel {
+  background: transparent;
+  color: inherit;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.gv-jump-confirm-dialog__btn--cancel:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.gv-jump-confirm-dialog__btn--confirm {
+  background: #7c3aed;
+  color: #fff;
+}
+.gv-jump-confirm-dialog__btn--confirm:hover {
+  background: #6d28d9;
+}
+.gv-jump-confirm-dialog__btn:focus-visible {
+  outline: 2px solid rgba(124, 58, 237, 0.5);
+  outline-offset: 2px;
+}
+
+.theme-host.light-theme .gv-jump-confirm-dialog,
+body.light-theme .gv-jump-confirm-dialog,
+html.light-theme .gv-jump-confirm-dialog {
+  background: #ffffff;
+  color: #1f2937;
+  border-color: rgba(99, 102, 241, 0.28);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.24);
+}
+.theme-host.light-theme .gv-jump-confirm-dialog__target,
+body.light-theme .gv-jump-confirm-dialog__target,
+html.light-theme .gv-jump-confirm-dialog__target {
+  background: rgba(15, 23, 42, 0.05);
+}
+.theme-host.light-theme .gv-jump-confirm-dialog__btn--cancel,
+body.light-theme .gv-jump-confirm-dialog__btn--cancel,
+html.light-theme .gv-jump-confirm-dialog__btn--cancel {
+  border-color: rgba(15, 23, 42, 0.18);
+}
+.theme-host.light-theme .gv-jump-confirm-dialog__btn--cancel:hover,
+body.light-theme .gv-jump-confirm-dialog__btn--cancel:hover,
+html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
+  background: rgba(15, 23, 42, 0.05);
 }

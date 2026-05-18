@@ -11,16 +11,20 @@ import type { marked as MarkedFn } from 'marked';
 import browser from 'webextension-polyfill';
 
 import { PROJECT_REPOSITORY_URL } from '@/core/constants/project';
+import {
+  buildConversationIdFromUrl,
+  extractConversationIdFromUrl,
+} from '@/core/utils/conversationIdentity';
 import { logger } from '@/core/services/LoggerService';
 import { exportBackupableSyncSettings } from '@/core/services/SettingsBackupService';
 import { promptStorageService } from '@/core/services/StorageService';
 import {
   DEFAULT_SUPPORT_GOAL,
   SUPPORT_GOAL_REFRESH_MS,
+  type SupportGoalData,
   formatSupportAmount,
   getSupportGoalProgress,
   loadSupportGoal,
-  type SupportGoalData,
 } from '@/core/services/SupportGoalService';
 import { type StorageKey, StorageKeys } from '@/core/types/common';
 import { isExtensionContextInvalidatedError } from '@/core/utils/extensionContext';
@@ -42,12 +46,75 @@ import {
 import type { TranslationKey } from '@/utils/translations';
 
 import { insertTextIntoChatInput } from '../chatInput/index';
+import { mountFavoritesSidebar } from '../favorites/sidebar';
+import { showJumpConfirmDialog } from '../favorites/jumpConfirmDialog';
 import { createFolderStorageAdapter } from '../folder/storage/FolderStorageAdapter';
 import { expandInputCollapseIfNeeded } from '../inputCollapse/index';
+import { eventBus } from '../timeline/EventBus';
+import type { StarredMessage } from '../timeline/starredTypes';
 import { extractPlainTitle } from './compactTitle';
 import { parsePromptImportPayload } from './importPayload';
 import { activatePromptText } from './promptClickAction';
 import { getScrollHintState } from './scrollHint';
+
+/**
+ * Read the current ChatGPT conversation id in the same `gpt:conv:<uuid>`
+ * format that StarredMessagesService stores — without the prefix, every
+ * comparison against `message.conversationId` would fail and even
+ * same-conversation jumps would prompt the confirmation dialog. Returns
+ * null on the new-chat page (no id in the URL).
+ */
+function getCurrentChatGptConversationId(): string | null {
+  try {
+    if (!extractConversationIdFromUrl(window.location.href)) return null;
+    return buildConversationIdFromUrl(window.location.href);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Drop a `#gv-turn-<id>` fragment on the current URL so the timeline
+ * manager's hashchange listener scrolls the page to the starred turn. Forced
+ * hash clear first so clicking the same turn twice still re-triggers the
+ * scroll.
+ */
+function jumpToStarredInPage(turnId: string): void {
+  if (!turnId) return;
+  try {
+    const base = window.location.pathname + window.location.search;
+    if (window.location.hash) {
+      window.history.replaceState(null, '', base);
+    }
+    window.location.hash = `gv-turn-${turnId}`;
+  } catch (error) {
+    logger.warn('[PromptManager] Failed to jump to starred message in-page', {
+      error: String(error),
+    });
+  }
+}
+
+/**
+ * Confirm with the user before leaving the current conversation, since
+ * temporary chats lose their content on navigation. Confirmed → assign
+ * location and let the destination page handle the hash-driven scroll.
+ */
+async function jumpToStarredCrossConversation(message: StarredMessage): Promise<void> {
+  const confirmed = await showJumpConfirmDialog({
+    conversationTitle: message.conversationTitle ?? null,
+    contentPreview: message.content ?? null,
+  });
+  if (!confirmed) return;
+  if (!message.conversationUrl) return;
+  try {
+    const targetUrl = `${message.conversationUrl}#gv-turn-${message.turnId}`;
+    window.location.assign(targetUrl);
+  } catch (error) {
+    logger.warn('[PromptManager] Failed to navigate to starred message', {
+      error: String(error),
+    });
+  }
+}
 
 type PromptItem = {
   id: string;
@@ -266,7 +333,9 @@ function createSupportPanel(i18n: ReturnType<typeof createI18n>): HTMLElement {
     const useChinese = supportLanguage === 'zh';
     return {
       title: useChinese ? goal.titleZh || goal.title : goal.titleEn || goal.title,
-      description: useChinese ? goal.descriptionZh || goal.description : goal.descriptionEn || goal.description,
+      description: useChinese
+        ? goal.descriptionZh || goal.description
+        : goal.descriptionEn || goal.description,
     };
   };
 
@@ -346,7 +415,10 @@ function createSupportPanel(i18n: ReturnType<typeof createI18n>): HTMLElement {
         tabs.appendChild(tab);
       }
 
-      const code = createEl('div', `gv-pm-support-payment gv-pm-support-payment-${activePayment.key}`);
+      const code = createEl(
+        'div',
+        `gv-pm-support-payment gv-pm-support-payment-${activePayment.key}`,
+      );
       const img = createEl('img');
       img.src = activePayment.url;
       img.alt = `${activePayment.label} QR`;
@@ -856,11 +928,10 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     backupBtn.textContent = i18n.t('pm_backup');
     backupBtn.title = i18n.t('pm_backup_tooltip');
 
-    // Primary actions container
-    const primaryActions = createEl('div', 'gv-pm-footer-actions');
-    primaryActions.appendChild(backupBtn);
-
-    // Secondary actions container
+    // Single inline row for all secondary footer actions. Backup used to
+    // live in its own full-width primary row, but functionally it's a rare
+    // "full snapshot" action — keeping it inline next to import/export
+    // matches actual usage frequency.
     const secondaryActions = createEl('div', 'gv-pm-footer-secondary');
 
     const importBtn = createEl('button', 'gv-pm-import-btn');
@@ -881,17 +952,45 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     projectLink.setAttribute('aria-label', i18n.t('starProject'));
     projectLink.textContent = i18n.t('starProject');
 
+    // Secondary "favorites" button next to the star-project pill — clicking
+    // toggles a separate popover containing the starred-message sidebar so
+    // the primary prompt-list view stays uncluttered.
+    const favoritesBtn = createEl('button', 'gv-pm-favorites-btn');
+    favoritesBtn.setAttribute('type', 'button');
+    favoritesBtn.setAttribute('aria-haspopup', 'dialog');
+    favoritesBtn.setAttribute('aria-expanded', 'false');
+    favoritesBtn.title = i18n.t('favoritesSidebarTitle');
+    favoritesBtn.setAttribute('aria-label', i18n.t('favoritesSidebarTitle'));
+    const favoritesIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    favoritesIcon.setAttribute('viewBox', '0 0 24 24');
+    favoritesIcon.setAttribute('width', '14');
+    favoritesIcon.setAttribute('height', '14');
+    favoritesIcon.setAttribute('fill', 'currentColor');
+    favoritesIcon.setAttribute('stroke', 'currentColor');
+    favoritesIcon.setAttribute('stroke-width', '1.4');
+    favoritesIcon.setAttribute('stroke-linejoin', 'round');
+    favoritesIcon.setAttribute('stroke-linecap', 'round');
+    favoritesIcon.setAttribute('aria-hidden', 'true');
+    favoritesIcon.classList.add('gv-pm-favorites-btn__icon');
+    favoritesIcon.innerHTML =
+      '<path d="M12 3.6l2.55 5.17 5.7.83-4.13 4.02.98 5.68L12 16.6l-5.1 2.7.98-5.68L3.75 9.6l5.7-.83L12 3.6z"/>';
+    const favoritesLabel = createEl('span', 'gv-pm-favorites-btn__label');
+    favoritesLabel.textContent = i18n.t('favoritesSidebarTitle');
+    favoritesBtn.appendChild(favoritesIcon);
+    favoritesBtn.appendChild(favoritesLabel);
+
     const supportPanel = createSupportPanel(i18n);
 
+    secondaryActions.appendChild(backupBtn);
     secondaryActions.appendChild(importBtn);
     secondaryActions.appendChild(exportBtn);
     secondaryActions.appendChild(settingsBtn);
 
     const supportActions = createEl('div', 'gv-pm-footer-support');
     supportActions.appendChild(projectLink);
+    supportActions.appendChild(favoritesBtn);
     supportActions.appendChild(supportPanel);
 
-    footer.appendChild(primaryActions);
     footer.appendChild(secondaryActions);
     footer.appendChild(supportActions);
     footer.appendChild(importInput);
@@ -927,6 +1026,82 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     panel.appendChild(list);
     panel.appendChild(footer);
     panel.appendChild(notice);
+
+    // Build the secondary favorites popover. It sits as a sibling to the
+    // panel and is anchored to the favorites button next to "★ Star project"
+    // in the footer. Mounting the sidebar eagerly keeps the listing fresh
+    // even while the popover is closed (so re-opening doesn't flash empty).
+    const favoritesPopover = createEl('div', 'gv-pm-favorites-popover gv-hidden');
+    favoritesPopover.setAttribute('role', 'dialog');
+    favoritesPopover.setAttribute('aria-modal', 'false');
+    const favoritesSidebar = mountFavoritesSidebar({
+      getCurrentConversationId: () => getCurrentChatGptConversationId(),
+      onJumpInPage: (turnId) => jumpToStarredInPage(turnId),
+      onJumpCrossConversation: async (message) => {
+        await jumpToStarredCrossConversation(message);
+      },
+    });
+    favoritesPopover.appendChild(favoritesSidebar.element);
+    document.body.appendChild(favoritesPopover);
+
+    let favoritesOpen = false;
+    const positionFavoritesPopover = () => {
+      const anchor = favoritesBtn.getBoundingClientRect();
+      const popH = favoritesPopover.offsetHeight || 360;
+      const popW = favoritesPopover.offsetWidth || 260;
+      const pad = 8;
+      // Open above the button so it floats out of the panel/footer area.
+      let top = Math.round(anchor.top - popH - 8);
+      if (top < pad) top = Math.round(anchor.bottom + 8);
+      let left = Math.round(anchor.left + anchor.width / 2 - popW / 2);
+      if (left + popW + pad > window.innerWidth) left = window.innerWidth - popW - pad;
+      if (left < pad) left = pad;
+      favoritesPopover.style.top = `${top}px`;
+      favoritesPopover.style.left = `${left}px`;
+    };
+    const openFavoritesPopover = () => {
+      favoritesOpen = true;
+      favoritesPopover.classList.remove('gv-hidden');
+      favoritesBtn.classList.add('active');
+      favoritesBtn.setAttribute('aria-expanded', 'true');
+      void favoritesSidebar.refresh();
+      // Measure after the element is visible so offsetWidth/Height resolve.
+      requestAnimationFrame(positionFavoritesPopover);
+    };
+    const closeFavoritesPopover = () => {
+      favoritesOpen = false;
+      favoritesPopover.classList.add('gv-hidden');
+      favoritesBtn.classList.remove('active');
+      favoritesBtn.setAttribute('aria-expanded', 'false');
+    };
+    favoritesBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (favoritesOpen) {
+        closeFavoritesPopover();
+      } else {
+        openFavoritesPopover();
+      }
+    });
+    // Dismiss on outside click and Escape, in line with the support popover.
+    const onFavoritesOutsideClick = (e: MouseEvent) => {
+      if (!favoritesOpen) return;
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (favoritesPopover.contains(target)) return;
+      if (favoritesBtn.contains(target)) return;
+      closeFavoritesPopover();
+    };
+    const onFavoritesKeydown = (e: KeyboardEvent) => {
+      if (favoritesOpen && e.key === 'Escape') {
+        e.preventDefault();
+        closeFavoritesPopover();
+      }
+    };
+    document.addEventListener('click', onFavoritesOutsideClick, true);
+    document.addEventListener('keydown', onFavoritesKeydown, true);
+    window.addEventListener('resize', () => {
+      if (favoritesOpen) positionFavoritesPopover();
+    });
 
     // State
     let items: PromptItem[] = await readStorage<PromptItem[]>(STORAGE_KEYS.items, []);
@@ -1486,6 +1661,9 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     function openPanel(): void {
       open = true;
       panel.classList.remove('gv-hidden');
+      // Refresh the favorites listing every time the panel comes back up
+      // so stars added while it was closed show immediately.
+      void favoritesSidebar.refresh();
       if (locked && savedPos) {
         // Clamp the saved position to the current viewport. Without this, a
         // panel pinned on a wider screen renders past the edge after the user
@@ -1511,8 +1689,34 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     function closePanel(): void {
       open = false;
       panel.classList.add('gv-hidden');
+      // Favorites popover is anchored to a button inside the panel — when
+      // the panel hides, the anchor's bounding rect collapses, so the
+      // popover would float in stale coordinates. Close it together.
+      if (favoritesOpen) {
+        closeFavoritesPopover();
+      }
       hideTooltip();
     }
+
+    // Whenever the user stars a message anywhere on the page (timeline dot,
+    // preview panel, etc.) we surface the favorites popover so the new entry
+    // is visible. The popover anchors to the favorites button — which lives
+    // inside the prompt-manager panel — so the panel has to open first if
+    // it's currently hidden.
+    const onStarAddedAutoPopup = () => {
+      if (!open) openPanel();
+      void favoritesSidebar.refresh();
+      // Let layout settle so the favorites button has a real bounding rect
+      // before we try to anchor the popover to it.
+      requestAnimationFrame(() => {
+        if (!favoritesOpen) openFavoritesPopover();
+      });
+    };
+    const onStarRemoved = () => {
+      void favoritesSidebar.refresh();
+    };
+    const unsubscribeStarAdded = eventBus.on('starred:added', onStarAddedAutoPopup);
+    const unsubscribeStarRemoved = eventBus.on('starred:removed', onStarRemoved);
 
     function applyLockUI(): void {
       lockBtn.classList.toggle('active', locked);
@@ -1538,6 +1742,14 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       projectLink.textContent = i18n.t('starProject');
       projectLink.title = i18n.t('starProject');
       projectLink.setAttribute('aria-label', i18n.t('starProject'));
+      // Favorites trigger lives outside refreshUITexts' original scope —
+      // both its visible label and a11y attributes need to follow the
+      // language change, and the popover sidebar refreshes its internal
+      // labels on its own via refreshLabels().
+      favoritesLabel.textContent = i18n.t('favoritesSidebarTitle');
+      favoritesBtn.title = i18n.t('favoritesSidebarTitle');
+      favoritesBtn.setAttribute('aria-label', i18n.t('favoritesSidebarTitle'));
+      favoritesSidebar.refreshLabels();
       const supportButton = supportPanel.querySelector('.gv-pm-support-btn');
       if (supportButton) {
         supportButton.textContent = '?';
@@ -1664,6 +1876,13 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       // exclusion, clicking its scrollbar would be treated as an outside
       // click and close the whole panel.
       if (target.closest('.gv-pm-tooltip')) return;
+      // Favorites popover, support popover, and the cross-conversation jump
+      // confirmation dialog are all appended to document.body, so without
+      // these exclusions clicking inside any of them would close the prompt
+      // panel — and with it the popover anchored to the panel's footer.
+      if (target.closest('.gv-pm-favorites-popover')) return;
+      if (target.closest('.gv-pm-support-popover')) return;
+      if (target.closest('.gv-jump-confirm-dialog__overlay')) return;
       closePanel();
     };
     window.addEventListener('pointerdown', onWindowPointerDown, { capture: true });
@@ -1819,7 +2038,8 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
         if (!browser.runtime?.id) {
           // Extension context invalidated, show fallback message
           setNotice(
-            i18n.t('pm_settings_fallback') || '璇风偣鍑绘祻瑙堝櫒宸ュ叿鏍忎腑鐨勬墿灞曞浘鏍囨墦寮€璁剧疆',
+            i18n.t('pm_settings_fallback') ||
+              '璇风偣鍑绘祻瑙堝櫒宸ュ叿鏍忎腑鐨勬墿灞曞浘鏍囨墦寮€璁剧疆',
             'err',
           );
           return;
@@ -1832,7 +2052,8 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
         if (!response?.ok) {
           // If programmatic opening failed, show a helpful message
           setNotice(
-            i18n.t('pm_settings_fallback') || '璇风偣鍑绘祻瑙堝櫒宸ュ叿鏍忎腑鐨勬墿灞曞浘鏍囨墦寮€璁剧疆',
+            i18n.t('pm_settings_fallback') ||
+              '璇风偣鍑绘祻瑙堝櫒宸ュ叿鏍忎腑鐨勬墿灞曞浘鏍囨墦寮€璁剧疆',
             'err',
           );
         }
@@ -1840,14 +2061,16 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
         // Silently handle extension context errors
         if (isExtensionContextInvalidatedError(err)) {
           setNotice(
-            i18n.t('pm_settings_fallback') || '璇风偣鍑绘祻瑙堝櫒宸ュ叿鏍忎腑鐨勬墿灞曞浘鏍囨墦寮€璁剧疆',
+            i18n.t('pm_settings_fallback') ||
+              '璇风偣鍑绘祻瑙堝櫒宸ュ叿鏍忎腑鐨勬墿灞曞浘鏍囨墦寮€璁剧疆',
             'err',
           );
           return;
         }
         console.warn('[PromptManager] Failed to open settings:', err);
         setNotice(
-          i18n.t('pm_settings_fallback') || '璇风偣鍑绘祻瑙堝櫒宸ュ叿鏍忎腑鐨勬墿灞曞浘鏍囨墦寮€璁剧疆',
+          i18n.t('pm_settings_fallback') ||
+            '璇风偣鍑绘祻瑙堝櫒宸ュ叿鏍忎腑鐨勬墿灞曞浘鏍囨墦寮€璁剧疆',
           'err',
         );
       }
@@ -2196,10 +2419,20 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
             } catch {}
           }
 
+          try {
+            unsubscribeStarAdded();
+            unsubscribeStarRemoved();
+            document.removeEventListener('click', onFavoritesOutsideClick, true);
+            document.removeEventListener('keydown', onFavoritesKeydown, true);
+            favoritesSidebar.destroy();
+            favoritesPopover.remove();
+          } catch {}
+
           trigger.remove();
           panel.remove();
           document.querySelectorAll('.gv-pm-confirm').forEach((el) => el.remove());
           document.querySelectorAll('.gv-pm-support-popover').forEach((el) => el.remove());
+          document.querySelectorAll('.gv-pm-favorites-popover').forEach((el) => el.remove());
         } catch (e) {
           console.error('[PromptManager] Destroy error:', e);
         }

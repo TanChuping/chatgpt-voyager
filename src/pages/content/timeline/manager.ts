@@ -16,17 +16,17 @@ import { hashString } from '@/core/utils/hash';
 import { GV_RTL_CLASS, applyRTLClass } from '@/core/utils/rtl';
 
 import { getTranslationSync, initI18n } from '../../../utils/i18n';
-import { TimestampService } from '../timestamp/TimestampService';
 import { makeStableTurnId } from '../fork/turnId';
+import { TimestampService } from '../timestamp/TimestampService';
+import { eventBus } from './EventBus';
+import { StarredMessagesService } from './StarredMessagesService';
+import { TimelinePreviewPanel } from './TimelinePreviewPanel';
 import {
   ATTACHMENT_COLOR,
   ATTACHMENT_LABEL,
   type AttachmentInfo,
   extractAttachments,
 } from './attachments';
-import { eventBus } from './EventBus';
-import { StarredMessagesService } from './StarredMessagesService';
-import { TimelinePreviewPanel } from './TimelinePreviewPanel';
 import {
   getTimelineHierarchyStorageKey,
   getTimelineHierarchyStorageKeysToRead,
@@ -283,6 +283,7 @@ export class TimelineManager {
   private onBarPointerMove: ((ev: PointerEvent) => void) | null = null;
   private onBarPointerUp: ((ev: PointerEvent) => void) | null = null;
   private eventBusUnsubscribers: Array<() => void> = [];
+  private onGvTurnHashChange: (() => void) | null = null;
   private shortcutUnsubscribe: (() => void) | null = null;
   private navigationQueue: Array<'previous' | 'next'> = [];
   private isNavigating: boolean = false;
@@ -348,8 +349,17 @@ export class TimelineManager {
     // Ensure initial render even when ChatGPT's DOM is already stable.
     this.recalculateAndRenderMarkers();
     this.startScrollPositionPoller();
-    // Handle URL hash for starred message navigation
+    // Handle URL hash for starred message navigation. Fires once on init,
+    // then again whenever the `#gv-turn-…` fragment changes — that's the
+    // signal from the favorites sidebar that the user clicked an in-page
+    // starred message and wants the timeline to scroll there.
     this.handleStarredMessageNavigation();
+    this.onGvTurnHashChange = () => {
+      if (window.location.hash.startsWith('#gv-turn-')) {
+        this.handleStarredMessageNavigation();
+      }
+    };
+    window.addEventListener('hashchange', this.onGvTurnHashChange);
     // Initialize keyboard shortcuts
     await this.initKeyboardShortcuts();
     try {
@@ -1467,32 +1477,81 @@ export class TimelineManager {
    * on `oaiusercontent.com` (the file storage CDN), so a sizeable image with
    * that origin is the practical detection signal here. Tiny avatars and
    * inline emoji-style images stay below the size threshold.
+   *
+   * The real ChatGPT layout wraps each turn in a `<section data-testid="conversation-turn-N">`
+   * with a numeric suffix, and the user-message `[data-message-author-role]`
+   * div lives several layers inside that section. So walking siblings from
+   * the inner user div finds nothing — we have to climb to the section first,
+   * then walk to the next sibling section (which is the assistant's reply).
    */
   private detectGeneratedImageAfterTurn(turnElement: HTMLElement): boolean {
     try {
-      const parent = turnElement.parentElement;
-      if (!parent) return false;
-      let cur: Element | null = turnElement.nextElementSibling;
+      // Climb to the outer conversation-turn section. ChatGPT uses
+      // `data-testid="conversation-turn-<n>"`, so a prefix match is required;
+      // exact-equals matching was the original bug that hid this signal.
+      const turnSection =
+        turnElement.closest<HTMLElement>('[data-testid^="conversation-turn"]') ??
+        turnElement.closest<HTMLElement>('article') ??
+        turnElement;
+
+      // ChatGPT scatters conversation-turn sections across deeply nested
+      // layout wrappers — they are NOT direct siblings of one parent, so
+      // `nextElementSibling` walking mostly hits empty `contents` divs.
+      // Use the full document-order list of sections to find the reply.
+      const allSections = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-testid^="conversation-turn"]'),
+      );
+      const idx = allSections.indexOf(turnSection);
+      if (idx >= 0) {
+        // The reply lives in the next section. Allow up to 2 sections in case
+        // ChatGPT renders reasoning/tool-call segments before the final image.
+        for (let offset = 1; offset <= 2; offset++) {
+          const candidate = allSections[idx + offset];
+          if (!candidate) break;
+          // Stop at the next user turn — that's a new prompt, not this reply.
+          if (this.isUserTurnSection(candidate)) break;
+          // Only count images that live inside an assistant turn. Without this
+          // guard, user-uploaded screenshots (also served via the estuary URL)
+          // would trip elementHasGeneratedImage and paint the photo icon on
+          // every dot in a conversation full of user image uploads.
+          if (this.isAssistantTurnSection(candidate) && this.elementHasGeneratedImage(candidate))
+            return true;
+        }
+      }
+
+      // Sibling fallback for older / alternate layouts where the sections
+      // are direct siblings. Cheap and harmless when it doesn't apply.
+      let cur: Element | null = turnSection.nextElementSibling;
       let visited = 0;
-      while (cur && visited < 12) {
+      while (cur && visited < 4) {
         visited++;
         if (cur instanceof HTMLElement) {
-          if (cur.matches('[data-message-author-role="user"]')) break;
-          if (this.elementHasGeneratedImage(cur)) return true;
+          if (this.isUserTurnSection(cur)) break;
+          if (this.isAssistantTurnSection(cur) && this.elementHasGeneratedImage(cur)) return true;
         }
         cur = cur.nextElementSibling;
       }
-      // Some ChatGPT layouts wrap each turn group in a separate article; fall
-      // back to scanning the enclosing turn group for an image when the
-      // sibling walk didn't surface anything.
-      const turnGroup = turnElement.closest('article, [data-turn-id], [data-testid="conversation-turn"]');
-      if (turnGroup instanceof HTMLElement && this.elementHasGeneratedImage(turnGroup)) {
-        return true;
-      }
+
       return false;
     } catch {
       return false;
     }
+  }
+
+  /**
+   * True when the section is a user prompt. ChatGPT migrated from
+   * `data-message-author-role="user"` (still present in some layouts) to
+   * `data-turn="user"` on the outer `<section data-testid="conversation-turn-*">`.
+   * Check both so old and new chats classify correctly.
+   */
+  private isUserTurnSection(section: HTMLElement): boolean {
+    if (section.getAttribute('data-turn') === 'user') return true;
+    return !!section.querySelector('[data-message-author-role="user"]');
+  }
+
+  private isAssistantTurnSection(section: HTMLElement): boolean {
+    if (section.getAttribute('data-turn') === 'assistant') return true;
+    return !!section.querySelector('[data-message-author-role="assistant"]');
   }
 
   private elementHasGeneratedImage(el: HTMLElement): boolean {
@@ -1502,11 +1561,17 @@ export class TimelineManager {
       if (!src) continue;
       // Tile-style attachments the user sent live under different routes; we
       // only count actual generated content from ChatGPT's image pipeline.
+      // ChatGPT migrated DALL-E / native image outputs to the `estuary`
+      // backend endpoint (`/backend-api/estuary/content?id=file_…`) — the
+      // older oaiusercontent / dalle URLs are still around for legacy
+      // conversations.
       if (
         src.includes('oaiusercontent.com') ||
         src.includes('dalle') ||
         src.includes('image-gen') ||
-        src.includes('files.oaiusercontent.com')
+        src.includes('files.oaiusercontent.com') ||
+        src.includes('/backend-api/estuary/content') ||
+        src.includes('/backend-api/files/')
       ) {
         // Avatars and tiny icons are well under 100px; generated images are
         // always larger. Use the natural size when available, fall back to
@@ -1551,8 +1616,13 @@ export class TimelineManager {
         star = document.createElement('span');
         star.className = 'timeline-dot-favorite';
         star.setAttribute('aria-hidden', 'true');
+        // Rounded-corner star: same 5-point silhouette but with
+        // stroke-linejoin="round" + matching stroke so the tips and inner
+        // vertices read as soft pebble shapes instead of needle points.
         star.innerHTML =
-          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.9 7.5.6-5.7 4.9 1.8 7.3L12 17.8 5.5 21.7l1.8-7.3L1.6 9.5l7.5-.6L12 2z"/></svg>';
+          '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">' +
+          '<path d="M12 2.7l2.7 6.45 6.95.55-5.3 4.55 1.65 6.8L12 17.4l-6 3.65 1.65-6.8-5.3-4.55 6.95-.55L12 2.7z"/>' +
+          '</svg>';
         dot.appendChild(star);
       }
     } else if (star) {
@@ -1999,8 +2069,7 @@ export class TimelineManager {
     if (this.markers.length === 0 || nextIds.length === 0) return false;
     const currentIds = this.markers.map((marker) => marker.id);
     const orderChanged =
-      currentIds.length !== nextIds.length ||
-      currentIds.some((id, index) => nextIds[index] !== id);
+      currentIds.length !== nextIds.length || currentIds.some((id, index) => nextIds[index] !== id);
     if (!orderChanged) return false;
 
     const signature = nextIds.join('|');
@@ -2246,9 +2315,7 @@ export class TimelineManager {
         if (Math.abs(delta) > 1) {
           this.lastScrollDirection = delta > 0 ? 1 : -1;
           this.lastScrollDirectionAt =
-            typeof performance !== 'undefined' && performance.now
-              ? performance.now()
-              : Date.now();
+            typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
         }
       }
       this.lastObservedScrollTop = nextScrollTop;
@@ -3207,9 +3274,9 @@ export class TimelineManager {
       clone.querySelectorAll(INJECTED_UI_SELECTOR).forEach((n) => n.remove());
       clone.querySelectorAll(HOST_CHROME_SELECTOR).forEach((n) => n.remove());
       // Drop the LaTeX source tree; keep only what's rendered visually.
-      clone.querySelectorAll('.katex-mathml, annotation, .katex-html .sr-only').forEach((n) =>
-        n.remove(),
-      );
+      clone
+        .querySelectorAll('.katex-mathml, annotation, .katex-html .sr-only')
+        .forEach((n) => n.remove());
       // Convert any `[data-user-latex-original]` placeholders back to the LaTeX
       // the user actually typed, then mark the substring so we can keep it
       // intact below.
@@ -3994,10 +4061,13 @@ export class TimelineManager {
       return;
     }
     if (this.scrollSyncTimerId !== null) return;
-    this.scrollSyncTimerId = window.setTimeout(() => {
-      this.scrollSyncTimerId = null;
-      this.queueScrollSyncFrame();
-    }, Math.max(0, this.scrollSyncInterval - elapsed));
+    this.scrollSyncTimerId = window.setTimeout(
+      () => {
+        this.scrollSyncTimerId = null;
+        this.queueScrollSyncFrame();
+      },
+      Math.max(0, this.scrollSyncInterval - elapsed),
+    );
   }
 
   private recordUserScrollActivity(): void {
@@ -4250,9 +4320,7 @@ export class TimelineManager {
     }
 
     const selectionBelongsToFocus =
-      !!this.selectedPinId &&
-      !!nextFocusTurnId &&
-      this.selectedPinTurnId === nextFocusTurnId;
+      !!this.selectedPinId && !!nextFocusTurnId && this.selectedPinTurnId === nextFocusTurnId;
     const selectionChanged = !!this.selectedPinId && !selectionBelongsToFocus;
     if (selectionChanged) {
       this.selectedPinId = null;
@@ -5683,7 +5751,11 @@ export class TimelineManager {
       return false;
     }
 
-    if (target instanceof HTMLElement && target !== this.scrollContainer && this.isScrollableElement(target)) {
+    if (
+      target instanceof HTMLElement &&
+      target !== this.scrollContainer &&
+      this.isScrollableElement(target)
+    ) {
       const firstTurn = this.userTurnSelector
         ? (document.querySelector(this.userTurnSelector) as HTMLElement | null)
         : null;
@@ -5966,6 +6038,11 @@ export class TimelineManager {
       }
     });
     this.eventBusUnsubscribers = [];
+
+    if (this.onGvTurnHashChange) {
+      window.removeEventListener('hashchange', this.onGvTurnHashChange);
+      this.onGvTurnHashChange = null;
+    }
 
     // Ensure draggable listeners are removed
     try {

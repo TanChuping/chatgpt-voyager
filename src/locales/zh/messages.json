@@ -1366,5 +1366,47 @@
   },
   "markdownOptions": {
     "message": "Markdown / 公式"
+  },
+  "favoritesSidebarTitle": {
+    "message": "收藏夹"
+  },
+  "favoritesCurrentSectionTitle": {
+    "message": "当前对话"
+  },
+  "favoritesAllSectionTitle": {
+    "message": "全部收藏"
+  },
+  "favoritesViewFlat": {
+    "message": "按时间"
+  },
+  "favoritesViewGrouped": {
+    "message": "按对话"
+  },
+  "favoritesEmptyAll": {
+    "message": "暂无收藏。点击时间线预览里的 ★ 即可收藏消息。"
+  },
+  "favoritesEmptyCurrent": {
+    "message": "当前对话还没有收藏。"
+  },
+  "favoritesRemove": {
+    "message": "移除收藏"
+  },
+  "favoritesJumpDialogTitle": {
+    "message": "跳转到其他对话？"
+  },
+  "favoritesJumpDialogBody": {
+    "message": "离开当前对话会载入另一个会话。如果你当前在临时对话里，离开后内容会丢失。输入框里未发送的文字已由草稿自动保存功能托底，但还是建议你确认一下再继续。"
+  },
+  "favoritesJumpDialogConfirm": {
+    "message": "跳转"
+  },
+  "favoritesJumpDialogCancel": {
+    "message": "取消"
+  },
+  "favoritesJumpDialogTargetLabel": {
+    "message": "目标对话："
+  },
+  "favoritesUntitledConversation": {
+    "message": "未命名对话"
   }
 }
