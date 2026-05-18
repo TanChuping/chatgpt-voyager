@@ -48,7 +48,7 @@
   --timeline-tooltip-anim-out: 100ms linear;
   --timeline-bar-bg: rgba(248, 250, 252, 0.88);
   --timeline-dot-size: 12px;
-  --timeline-active-ring: 3px;
+  --timeline-active-ring: 4px;
   --timeline-track-padding: 16px;
   --timeline-tooltip-max: 288px;
   --timeline-min-gap: 24px;
@@ -235,17 +235,34 @@ html.dark .timeline-dot:not(.active):not(.starred)::after,
 .timeline-dot.active::after {
   box-shadow:
     0 0 0 var(--timeline-active-ring) var(--timeline-dot-active-color),
-    0 0 14px rgba(109, 40, 217, 0.5);
+    0 0 16px rgba(109, 40, 217, 0.55);
 }
 
+/* Starred dots now carry the SVG gold-star overlay (rendered as a child
+   span) on top of a soft amber tint, so the icon reads cleanly without
+   overpowering the position of the dot itself. */
 .timeline-dot.starred::after {
-  background-color: var(--timeline-star-color);
+  background-color: rgba(245, 158, 11, 0.22);
+}
+
+.timeline-dot.starred.active::after {
+  background-color: var(--timeline-dot-active-color);
 }
 
 .timeline-dot.has-pins::after {
   box-shadow:
     0 0 0 2px rgba(139, 92, 246, 0.75),
     0 0 12px rgba(139, 92, 246, 0.42);
+}
+
+/* When a dot is BOTH the active one and carries pins, restore the strong
+   active ring on top of the pin-indicating glow so the user can still see
+   "this is where I am" without it being eaten by the pin halo. */
+.timeline-dot.active.has-pins::after {
+  box-shadow:
+    0 0 0 var(--timeline-active-ring) var(--timeline-dot-active-color),
+    0 0 0 calc(var(--timeline-active-ring) + 2px) rgba(139, 92, 246, 0.55),
+    0 0 18px rgba(109, 40, 217, 0.55);
 }
 
 .timeline-dot-pin-indicator {
@@ -265,7 +282,78 @@ html.dark .timeline-dot:not(.active):not(.starred)::after,
   transform: translate(-50%, -50%);
   box-shadow: 0 2px 8px rgba(109, 40, 217, 0.42);
   pointer-events: none;
+  /* Sit above the active ring's box-shadow so the P stays readable on the
+     currently-selected pin dot. */
+  z-index: 2;
 }
+
+/* ===== Per-dot accent strip on the LEFT of the bar =====
+   Up to two thin colored capsules (one per attachment) — or, when the
+   assistant generated an image in reply, a small photo icon that takes
+   their place. Anchored next to the dot so it tracks `--n` automatically. */
+.timeline-dot-accent {
+  position: absolute;
+  right: calc(50% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  height: 18px;
+}
+
+.timeline-dot-accent-pill {
+  width: 3px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--gv-accent-color, currentColor);
+  opacity: 0.7;
+}
+
+.timeline-dot-accent-image {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, #a78bfa 0%, #6d28d9 55%, #3b82f6 100%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(76, 29, 149, 0.5);
+}
+
+.timeline-dot-accent-image svg {
+  width: 9px;
+  height: 9px;
+}
+
+/* ===== Gold favorite star, centered inside the dot core =====
+   Replaces the dot's plain fill when the user has favorited the turn from
+   the preview panel. Sits below the pin indicator z-index so both can show
+   simultaneously, but above the dot's after pseudo so the icon is visible. */
+.timeline-dot-favorite {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(var(--timeline-dot-size) + 3px);
+  height: calc(var(--timeline-dot-size) + 3px);
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: var(--timeline-star-color);
+  z-index: 1;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.3));
+}
+
+.timeline-dot-favorite svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* (see .timeline-dot.starred::after above for the favorite-state styling) */
 
 /* ===== Timeline Marker Levels (shape-based: circle, triangle, square) ===== */
 .timeline-dot[data-level='1']::after {
@@ -937,11 +1025,59 @@ body.timeline-pin-picking .timeline-left-slider {
   background-color: rgba(109, 40, 217, 0.1);
 }
 
+/* The dedicated star button now carries the favorite indicator, so we drop
+   the old text-appended star next to the index. */
 .timeline-preview-item.starred .timeline-preview-index::after {
-  content: '\2605';
-  margin-inline-start: 2px;
+  content: none;
+}
+
+.timeline-preview-star {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  margin-inline-end: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: rgba(120, 113, 108, 0.45);
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    transform 120ms ease;
+}
+
+.timeline-preview-star:hover {
   color: var(--timeline-star-color);
-  font-size: 11px;
+  background-color: rgba(245, 158, 11, 0.12);
+}
+
+.timeline-preview-star:active {
+  transform: scale(0.92);
+}
+
+.timeline-preview-star.on {
+  color: var(--timeline-star-color);
+}
+
+.timeline-preview-star svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 0;
+  transition: fill 120ms ease, stroke 120ms ease;
+}
+
+.timeline-preview-star:not(.on) svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
 }
 
 .timeline-preview-starred-time {

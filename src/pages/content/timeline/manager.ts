@@ -127,6 +127,7 @@ export class TimelineManager {
     dotElement: DotElement | null;
     starred: boolean;
     attachments: ReadonlyArray<AttachmentInfo>;
+    hasGeneratedImage: boolean;
   }> = [];
   private activeTurnId: string | null = null;
   private ui: {
@@ -245,6 +246,7 @@ export class TimelineManager {
       baseN: number;
       summary: string;
       attachments: ReadonlyArray<AttachmentInfo>;
+      hasGeneratedImage: boolean;
     }
   > = new Map();
   private conversationId: string | null = null;
@@ -700,6 +702,7 @@ export class TimelineManager {
         if (marker.dotElement) {
           marker.dotElement.classList.toggle('starred', want);
           marker.dotElement.setAttribute('aria-pressed', want ? 'true' : 'false');
+          this.updateDotIndicators(marker.dotElement, marker);
         }
       }
     }
@@ -1112,6 +1115,12 @@ export class TimelineManager {
           this.smoothScrollTo(marker.element, dur, marker.id);
         },
         (query) => this.highlightSearchInDOM(query),
+        (turnId) => {
+          // Star toggle from the preview-panel row. Reuses the same code path
+          // long-press on a dot would invoke so the persistence, sharing and
+          // dot-indicator refresh all stay in one place.
+          this.toggleStar(turnId).catch(() => {});
+        },
       );
     }
 
@@ -1451,6 +1460,144 @@ export class TimelineManager {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
   }
 
+  /**
+   * Walk forward from a user turn through siblings until the next user turn,
+   * checking the assistant content in between for what looks like a generated
+   * image. ChatGPT puts dalle/sora/etc results inside `<img>` elements hosted
+   * on `oaiusercontent.com` (the file storage CDN), so a sizeable image with
+   * that origin is the practical detection signal here. Tiny avatars and
+   * inline emoji-style images stay below the size threshold.
+   */
+  private detectGeneratedImageAfterTurn(turnElement: HTMLElement): boolean {
+    try {
+      const parent = turnElement.parentElement;
+      if (!parent) return false;
+      let cur: Element | null = turnElement.nextElementSibling;
+      let visited = 0;
+      while (cur && visited < 12) {
+        visited++;
+        if (cur instanceof HTMLElement) {
+          if (cur.matches('[data-message-author-role="user"]')) break;
+          if (this.elementHasGeneratedImage(cur)) return true;
+        }
+        cur = cur.nextElementSibling;
+      }
+      // Some ChatGPT layouts wrap each turn group in a separate article; fall
+      // back to scanning the enclosing turn group for an image when the
+      // sibling walk didn't surface anything.
+      const turnGroup = turnElement.closest('article, [data-turn-id], [data-testid="conversation-turn"]');
+      if (turnGroup instanceof HTMLElement && this.elementHasGeneratedImage(turnGroup)) {
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  private elementHasGeneratedImage(el: HTMLElement): boolean {
+    const imgs = el.querySelectorAll('img');
+    for (const img of Array.from(imgs)) {
+      const src = (img.getAttribute('src') || '').toLowerCase();
+      if (!src) continue;
+      // Tile-style attachments the user sent live under different routes; we
+      // only count actual generated content from ChatGPT's image pipeline.
+      if (
+        src.includes('oaiusercontent.com') ||
+        src.includes('dalle') ||
+        src.includes('image-gen') ||
+        src.includes('files.oaiusercontent.com')
+      ) {
+        // Avatars and tiny icons are well under 100px; generated images are
+        // always larger. Use the natural size when available, fall back to
+        // the rendered width.
+        const w = img.naturalWidth || img.width || 0;
+        if (w === 0 || w > 120) return true;
+      }
+    }
+    // Some image generations render via a styled <div> placeholder while
+    // streaming. We can pick those up by their distinctive role wrappers.
+    if (el.querySelector('[data-testid*="image-generation"], [class*="image-gen"]')) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Mount / refresh the per-dot accent children: gold favorite star, file
+   * attachment capsules on the left of the bar, or — when the assistant
+   * generated an image in reply — a small photo icon that takes the
+   * capsules' place. All three are pure visual overlays with
+   * `pointer-events: none` so click handling on the dot itself is untouched.
+   */
+  private updateDotIndicators(
+    dot: DotElement,
+    marker: {
+      starred?: boolean;
+      attachments?: ReadonlyArray<AttachmentInfo>;
+      hasGeneratedImage?: boolean;
+    },
+  ): void {
+    // Test fixtures sometimes hand us a partial marker shape; treat the new
+    // attachment/image flags as soft-optional so this never explodes.
+    const starred = !!marker.starred;
+    const attachments = marker.attachments ?? [];
+    const hasGeneratedImage = !!marker.hasGeneratedImage;
+
+    // Gold star (favorited) — overlay centered inside the dot core.
+    let star = dot.querySelector(':scope > .timeline-dot-favorite') as HTMLElement | null;
+    if (starred) {
+      if (!star) {
+        star = document.createElement('span');
+        star.className = 'timeline-dot-favorite';
+        star.setAttribute('aria-hidden', 'true');
+        star.innerHTML =
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.9 7.5.6-5.7 4.9 1.8 7.3L12 17.8 5.5 21.7l1.8-7.3L1.6 9.5l7.5-.6L12 2z"/></svg>';
+        dot.appendChild(star);
+      }
+    } else if (star) {
+      star.remove();
+    }
+
+    // Left-side accent: image-gen icon takes priority over the attachment
+    // capsules, since "user gave a file AND assistant generated an image" is
+    // rare and "what came out" is the more memorable signal for review.
+    let accent = dot.querySelector(':scope > .timeline-dot-accent') as HTMLElement | null;
+    const wantImage = hasGeneratedImage;
+    const wantCapsules = !wantImage && attachments.length > 0;
+
+    if (!wantImage && !wantCapsules) {
+      accent?.remove();
+      return;
+    }
+
+    if (!accent) {
+      accent = document.createElement('span');
+      accent.className = 'timeline-dot-accent';
+      accent.setAttribute('aria-hidden', 'true');
+      dot.appendChild(accent);
+    }
+
+    if (wantImage) {
+      accent.dataset.kind = 'image';
+      accent.innerHTML =
+        '<span class="timeline-dot-accent-image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 9"/></svg></span>';
+      return;
+    }
+
+    accent.dataset.kind = 'files';
+    accent.textContent = '';
+    // Cap at the first two attachments so the strip never overflows the
+    // bar's left gutter; the third file (if any) lives only in the preview.
+    const limited = attachments.slice(0, 2);
+    for (const att of limited) {
+      const pill = document.createElement('span');
+      pill.className = 'timeline-dot-accent-pill';
+      pill.style.setProperty('--gv-accent-color', ATTACHMENT_COLOR[att.type]);
+      accent.appendChild(pill);
+    }
+  }
+
   private ensureTurnId(
     el: Element,
     index: number,
@@ -1745,6 +1892,7 @@ export class TimelineManager {
         this.extractTurnText(element),
         attachments,
       );
+      const hasGeneratedImage = this.detectGeneratedImageAfterTurn(element);
       const m = {
         id,
         element,
@@ -1754,6 +1902,7 @@ export class TimelineManager {
         dotElement: oldDots.get(id) ?? null,
         starred: this.starred.has(id),
         attachments,
+        hasGeneratedImage,
       };
       oldDots.delete(id);
       this.markerMap.set(id, m);
@@ -4258,6 +4407,7 @@ export class TimelineManager {
         // Apply marker level
         const level = this.getMarkerLevel(marker.id);
         dot.setAttribute('data-level', String(level));
+        this.updateDotIndicators(dot, marker);
         marker.dotElement = dot;
         frag.appendChild(dot);
       } else {
@@ -4272,6 +4422,7 @@ export class TimelineManager {
         // Apply marker level
         const level = this.getMarkerLevel(marker.id);
         marker.dotElement.setAttribute('data-level', String(level));
+        this.updateDotIndicators(marker.dotElement, marker);
       }
     }
     if (localVersion !== this.markersVersion) return;
@@ -4611,12 +4762,25 @@ export class TimelineManager {
         if (m.dotElement) {
           m.dotElement.classList.toggle('starred', isStarredNow);
           m.dotElement.setAttribute('aria-pressed', isStarredNow ? 'true' : 'false');
+          this.updateDotIndicators(m.dotElement, m);
           // Only refresh tooltip if this specific dot is actively hovered/focused
           // (checked internally by refreshTooltipForDot)
           this.refreshTooltipForDot(m.dotElement);
         }
       }
     });
+    // Push the new starred state through to the preview panel so its row
+    // star button flips state immediately after a click.
+    this.previewPanel?.updateMarkers(
+      this.markers.map((m, i) => ({
+        id: m.id,
+        summary: m.summary,
+        index: i,
+        starred: m.starred,
+        starredAt: m.starred ? this.starredAtMap.get(m.id) : undefined,
+        attachments: m.attachments,
+      })),
+    );
   }
 
   /**

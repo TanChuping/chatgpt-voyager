@@ -60,6 +60,11 @@ Other platform build scripts are kept from the upstream project, but the activel
 
 ## Recent Updates
 
+### 1.5.1
+
+- One-click favorites in the preview panel: each row has a star toggle so you can pin a message to your favorites list without long-pressing the dot.
+- Timeline dots now layer multiple signals without stepping on each other: the active highlight reads on pin dots, favorites show a gold ★ inside the dot, file attachments paint a thin colored capsule on the left side of the bar (one per attachment, up to two), and a generated image in the reply takes that slot over with a small photo icon.
+
 ### 1.5.0
 
 - File-attachment chips in the timeline. Turns that contain a PDF, Word doc, spreadsheet, pasted text blob, image, … now show a small colored pill in front of the body text (red for PDF, blue for Word, green for spreadsheets, gray for plain text, etc.), so the dot tooltip and preview panel no longer confuse the filename with the user's actual question. Dot tooltips use a minimal colored-dot + label variant; the preview panel uses the boxed pill.

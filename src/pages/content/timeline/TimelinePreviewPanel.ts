@@ -25,6 +25,7 @@ export class TimelinePreviewPanel {
   private searchDebounceTimer: number | null = null;
   private onNavigate: ((turnId: string, index: number) => void) | null = null;
   private onSearchChange: ((query: string) => void) | null = null;
+  private onToggleStar: ((turnId: string) => void) | null = null;
   private onDocumentPointerDown: ((e: PointerEvent) => void) | null = null;
   private onKeyDown: ((e: KeyboardEvent) => void) | null = null;
   private onWindowResize: (() => void) | null = null;
@@ -45,9 +46,11 @@ export class TimelinePreviewPanel {
   init(
     onNavigate: (turnId: string, index: number) => void,
     onSearchChange?: (query: string) => void,
+    onToggleStar?: (turnId: string) => void,
   ): void {
     this.onNavigate = onNavigate;
     this.onSearchChange = onSearchChange ?? null;
+    this.onToggleStar = onToggleStar ?? null;
     this.createDOM();
     this.applyDirection();
     this.positionToggle();
@@ -365,6 +368,25 @@ export class TimelinePreviewPanel {
     }
     if (marker.id === this.activeTurnId) {
       item.classList.add('active');
+    }
+
+    // Favorite (star) toggle button. Clicking it stars / unstars the turn
+    // without navigating, which is what the row-level click handler does.
+    if (this.onToggleStar) {
+      const starBtn = document.createElement('button');
+      starBtn.type = 'button';
+      starBtn.className = 'timeline-preview-star';
+      starBtn.classList.toggle('on', !!marker.starred);
+      starBtn.setAttribute('aria-pressed', marker.starred ? 'true' : 'false');
+      starBtn.setAttribute('aria-label', marker.starred ? 'Unstar message' : 'Star message');
+      starBtn.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.85 6.8 7.35.6-5.6 4.8 1.75 7.2L12 17.95 5.65 21.9l1.75-7.2-5.6-4.8 7.35-.6L12 2.5z"/></svg>';
+      starBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        this.onToggleStar?.(marker.id);
+      });
+      item.appendChild(starBtn);
     }
 
     const indexLabel = document.createElement('span');
