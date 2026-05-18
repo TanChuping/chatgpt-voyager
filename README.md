@@ -60,6 +60,11 @@ Other platform build scripts are kept from the upstream project, but the activel
 
 ## Recent Updates
 
+### 1.4.16
+
+- Timeline dots now slide smoothly when the marker list changes — inserts, collapses, and lazy-loaded turns no longer snap into place.
+- The active dot now respects scroll direction: while the user scrolls one way, a noisy candidate that points the other way is held back briefly so the highlight no longer flickers backward during fast or sustained scrolling.
+
 ### 1.4.15
 
 - Timeline dot IDs now use ChatGPT's native message UUID instead of a numeric sequence, so newly loaded mid-conversation messages no longer create hash-suffixed ghost dots that visually look like "jump-in" entries.

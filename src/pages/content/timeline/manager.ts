@@ -144,6 +144,16 @@ export class TimelineManager {
   private scrollPollIntervalId: number | null = null;
   private lastObservedScrollTop = -1;
   private lastObservedFirstMarkerTop = Number.NaN;
+  // Scroll-direction monotonicity for active-dot updates: when the user is
+  // actively scrolling forward, a candidate that points BACKWARD is held back
+  // briefly to filter out noisy oscillation from stale marker rects.
+  private lastScrollDirection: -1 | 0 | 1 = 0;
+  private lastScrollDirectionAt = 0;
+  private readonly scrollDirectionFreshnessMs = 350;
+  private readonly reverseActiveConfirmDelay = 180;
+  private pendingReverseActiveId: string | null = null;
+  private pendingReverseActiveAt = 0;
+  private pendingReverseActiveTimer: number | null = null;
   private scrollAnimationLockUntil = 0;
   private lastScrollContainerRefreshAt = 0;
   private readonly scrollContainerRefreshInterval = 500;
@@ -2015,7 +2025,18 @@ export class TimelineManager {
 
     this.onScroll = () => {
       this.recordUserScrollActivity();
-      this.lastObservedScrollTop = this.scrollContainer?.scrollTop ?? this.lastObservedScrollTop;
+      const nextScrollTop = this.scrollContainer?.scrollTop ?? this.lastObservedScrollTop;
+      if (this.lastObservedScrollTop >= 0) {
+        const delta = nextScrollTop - this.lastObservedScrollTop;
+        if (Math.abs(delta) > 1) {
+          this.lastScrollDirection = delta > 0 ? 1 : -1;
+          this.lastScrollDirectionAt =
+            typeof performance !== 'undefined' && performance.now
+              ? performance.now()
+              : Date.now();
+        }
+      }
+      this.lastObservedScrollTop = nextScrollTop;
       this.scheduleScrollSync();
       this.schedulePinBadgePositionUpdate();
     };
@@ -3661,7 +3682,72 @@ export class TimelineManager {
       }
     }
     if (this.activeTurnId !== activeId) {
+      this.maybeApplyActiveTurnFromScroll(activeId);
+    }
+  }
+
+  /**
+   * Gate active-dot updates with scroll-direction monotonicity. If the user is
+   * actively scrolling forward and the proposed new active points BACKWARD in
+   * the marker list (or vice versa), defer it briefly. If the same backward
+   * candidate persists past the confirm window, apply it. This filters out
+   * spurious oscillation caused by stale `markerTops` cache during fast scroll
+   * — the symptom users describe as "1-2-3-4-5-6 突然变到 4".
+   */
+  private maybeApplyActiveTurnFromScroll(activeId: string): void {
+    const now =
+      typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    const directionFresh =
+      this.lastScrollDirection !== 0 &&
+      now - this.lastScrollDirectionAt < this.scrollDirectionFreshnessMs;
+    const currentId = this.activeTurnId;
+    if (!directionFresh || !currentId || currentId === activeId) {
+      this.clearPendingReverseActive();
       this.applyActiveTurnFromScroll(activeId);
+      return;
+    }
+    const fromIdx = this.markers.findIndex((m) => m.id === currentId);
+    const toIdx = this.markers.findIndex((m) => m.id === activeId);
+    if (fromIdx < 0 || toIdx < 0) {
+      this.clearPendingReverseActive();
+      this.applyActiveTurnFromScroll(activeId);
+      return;
+    }
+    const goingForward = toIdx > fromIdx;
+    const matchesDirection = (this.lastScrollDirection === 1) === goingForward;
+    if (matchesDirection) {
+      this.clearPendingReverseActive();
+      this.applyActiveTurnFromScroll(activeId);
+      return;
+    }
+    // Reverse jump while user is scrolling the other way — be cautious.
+    if (this.pendingReverseActiveId === activeId) {
+      // Already pending; let the timer flush it if it persists.
+      return;
+    }
+    this.pendingReverseActiveId = activeId;
+    this.pendingReverseActiveAt = now;
+    if (this.pendingReverseActiveTimer !== null) {
+      clearTimeout(this.pendingReverseActiveTimer);
+    }
+    this.pendingReverseActiveTimer = window.setTimeout(() => {
+      this.pendingReverseActiveTimer = null;
+      const pending = this.pendingReverseActiveId;
+      this.pendingReverseActiveId = null;
+      if (!pending) return;
+      // Only apply if it still differs from the current active — by now scroll
+      // sync might have already settled on a forward-direction candidate.
+      if (this.activeTurnId !== pending) {
+        this.applyActiveTurnFromScroll(pending);
+      }
+    }, this.reverseActiveConfirmDelay);
+  }
+
+  private clearPendingReverseActive(): void {
+    this.pendingReverseActiveId = null;
+    if (this.pendingReverseActiveTimer !== null) {
+      clearTimeout(this.pendingReverseActiveTimer);
+      this.pendingReverseActiveTimer = null;
     }
   }
 

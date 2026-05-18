@@ -183,6 +183,16 @@
   cursor: pointer;
   padding: 0;
   pointer-events: auto;
+  /* Smooth reflow when a new turn inserts mid-conversation (e.g. lazy load)
+     or when the user collapses/expands a marker level. Skipped on first paint
+     because no `top` is animated from. Kept short so during scroll-sync the
+     timeline still feels responsive. */
+  transition: top 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Newly created dots should not animate from their initial position. */
+.timeline-dot.timeline-dot--no-transition {
+  transition: none;
 }
 
 .timeline-dot::after {
