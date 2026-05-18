@@ -60,6 +60,11 @@ Other platform build scripts are kept from the upstream project, but the activel
 
 ## Recent Updates
 
+### 1.4.17
+
+- Click-jump between timeline dots now uses the browser's native compositor-driven smooth scroll, matching the feel of a real wheel scroll instead of the hand-rolled requestAnimationFrame loop that was sharing the main thread with ChatGPT's own scroll handlers and stuttering on close jumps.
+- The scroll listener short-circuits its heavy sync work while a click-jump is in flight; pin badges still track the page so they stay anchored during the animation.
+
 ### 1.4.16
 
 - Timeline dots now slide smoothly when the marker list changes — inserts, collapses, and lazy-loaded turns no longer snap into place.

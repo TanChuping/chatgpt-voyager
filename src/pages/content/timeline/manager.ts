@@ -2037,6 +2037,18 @@ export class TimelineManager {
         }
       }
       this.lastObservedScrollTop = nextScrollTop;
+      // Skip the heavy sync work while our own click-jump animation is driving
+      // the scroll. Without this guard, every scroll tick re-queues another
+      // sync RAF, layering main-thread work on top of an already-running
+      // animation. The smooth-scroll routine handles a single track sync at
+      // the start; a full sync runs once when the animation lands (via
+      // correctScrollToElement). Pin badge positioning still updates so any
+      // active pin tracks the page smoothly during the jump — its own
+      // `hasPinBadgePositionWork` guard keeps it free when no pins are active.
+      if (this.isScrolling) {
+        this.schedulePinBadgePositionUpdate();
+        return;
+      }
       this.scheduleScrollSync();
       this.schedulePinBadgePositionUpdate();
     };
@@ -2050,6 +2062,13 @@ export class TimelineManager {
         this.adoptScrollContainerFromScrollEvent(target);
       }
       this.recordUserScrollActivity();
+      // Same rationale as the primary onScroll guard: don't pile sync work
+      // onto frames already running our click-jump animation. Pin badges still
+      // track their target.
+      if (this.isScrolling) {
+        this.schedulePinBadgePositionUpdate();
+        return;
+      }
       this.scheduleScrollSync();
       this.schedulePinBadgePositionUpdate();
     };
@@ -2426,31 +2445,43 @@ export class TimelineManager {
     const targetPosition = this.computeScrollTopForElement(targetElement);
     const startPosition = this.scrollContainer.scrollTop;
     const distance = targetPosition - startPosition;
-    let startTime: number | null = null;
 
     this.isScrolling = true;
     this.setProgrammaticScrollLock(duration);
     this.setActiveTurnFromNavigation(targetId);
+    // Position the timeline-track once at animation start so the active dot is
+    // visible in the bar throughout the jump. The per-frame scroll listener is
+    // short-circuited during isScrolling, so without this single sync the track
+    // would freeze at its previous position until the animation lands.
+    this.syncTimelineTrackToMain();
 
-    if (this.scrollMode === 'jump' || duration <= 0) {
+    if (this.scrollMode === 'jump' || duration <= 0 || Math.abs(distance) < 2) {
       this.scrollContainer.scrollTop = targetPosition;
       this.correctScrollToElement(targetElement, targetId);
       return;
     }
-    const animation = (currentTime: number) => {
-      if (!this.scrollContainer) return;
-      if (startTime === null) startTime = currentTime;
-      const timeElapsed = currentTime - startTime;
-      const run = this.easeInOutQuad(timeElapsed, startPosition, distance, duration);
-      this.scrollContainer.scrollTop = run;
-      if (timeElapsed < duration) {
-        requestAnimationFrame(animation);
-      } else {
+
+    // Use the browser's native smooth scroll. It runs on the compositor and
+    // gives the same buttery feel as a real wheel scroll, which our hand-rolled
+    // RAF loop never could because every animation frame had to share the main
+    // thread with ChatGPT's own scroll handlers. Our `isScrolling` flag still
+    // short-circuits the scroll listener so we don't pile on per-frame work.
+    if (typeof this.scrollContainer.scrollTo === 'function') {
+      try {
+        this.scrollContainer.scrollTo({ top: targetPosition, behavior: 'smooth' });
+      } catch {
         this.scrollContainer.scrollTop = targetPosition;
-        this.correctScrollToElement(targetElement, targetId);
       }
-    };
-    requestAnimationFrame(animation);
+    } else {
+      this.scrollContainer.scrollTop = targetPosition;
+    }
+    // Native smooth scroll doesn't expose a completion callback. Estimate when
+    // it will land using our requested duration (plus a small buffer) and run
+    // the same correction routine the manual animation used to.
+    const settleMs = Math.max(250, duration + 80);
+    window.setTimeout(() => {
+      this.correctScrollToElement(targetElement, targetId);
+    }, settleMs);
   }
 
   private easeInOutQuad(t: number, b: number, c: number, d: number): number {
@@ -3170,6 +3201,9 @@ export class TimelineManager {
     this.isScrolling = true;
     this.setProgrammaticScrollLock(duration);
     this.setActiveTurnFromNavigation(targetId);
+    // See smoothScrollTo: position the track once up front because the per-
+    // frame scroll listener is short-circuited during isScrolling.
+    this.syncTimelineTrackToMain();
 
     if ((!forceSmooth && this.scrollMode === 'jump') || duration <= 0 || Math.abs(distance) < 2) {
       this.scrollContainer.scrollTop = target;
