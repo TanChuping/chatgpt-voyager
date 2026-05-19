@@ -175,6 +175,13 @@ export class FolderManager {
   private activeImportDialog: HTMLElement | null = null; // Currently open import dialog
   private activeImportExportMenuCloseHandler: ((e: MouseEvent) => void) | null = null;
   private activeImportExportMenuListenerTimeout: number | null = null;
+  /** Currently-open per-folder actions menu (the "..." popover). Tracked
+   *  to prevent duplicate menus stacking when the user re-clicks the "..."
+   *  button — stopPropagation on the trigger kept the outside-click
+   *  closer from firing, so each click silently appended another menu. */
+  private activeFolderActionsMenu: HTMLElement | null = null;
+  private activeFolderActionsMenuFolderId: string | null = null;
+  private activeFolderActionsMenuCleanup: (() => void) | null = null;
 
   // Cleanup references
   private routeChangeCleanup: (() => void) | null = null;
@@ -4426,6 +4433,14 @@ export class FolderManager {
     const folder = this.data.folders.find((f) => f.id === folderId);
     if (!folder) return;
 
+    // Toggle: re-clicking the same folder's "..." closes the open menu.
+    // Otherwise (different folder, or stale tracker) close the previous one
+    // before opening the next — without this guard, stopPropagation on the
+    // trigger button blocks the outside-click closer and menus stack.
+    const reopeningSameFolder = this.activeFolderActionsMenuFolderId === folderId;
+    this.closeFolderActionsMenu();
+    if (reopeningSameFolder) return;
+
     // Create context menu
     const menu = document.createElement('div');
     menu.className = 'gv-folder-menu';
@@ -4477,21 +4492,45 @@ export class FolderManager {
       menuItem.textContent = item.label;
       menuItem.addEventListener('click', () => {
         item.action();
-        menu.remove();
+        this.closeFolderActionsMenu();
       });
       menu.appendChild(menuItem);
     });
 
     document.body.appendChild(menu);
 
-    // Close menu on click outside
     const closeMenu = (e: MouseEvent) => {
-      if (!menu.contains(e.target as Node)) {
-        menu.remove();
-        document.removeEventListener('click', closeMenu);
-      }
+      if (!menu.contains(e.target as Node)) this.closeFolderActionsMenu();
     };
-    setTimeout(() => document.addEventListener('click', closeMenu), 0);
+    // setTimeout so the same click that opened the menu doesn't immediately
+    // close it via the document-level listener.
+    const closerTimeoutId = window.setTimeout(
+      () => document.addEventListener('click', closeMenu),
+      0,
+    );
+
+    this.activeFolderActionsMenu = menu;
+    this.activeFolderActionsMenuFolderId = folderId;
+    this.activeFolderActionsMenuCleanup = () => {
+      window.clearTimeout(closerTimeoutId);
+      document.removeEventListener('click', closeMenu);
+      menu.remove();
+    };
+  }
+
+  /** Tear down whatever per-folder "..." menu is currently mounted. Safe to
+   *  call with nothing open. */
+  private closeFolderActionsMenu(): void {
+    if (this.activeFolderActionsMenuCleanup) {
+      try {
+        this.activeFolderActionsMenuCleanup();
+      } catch {
+        // best-effort
+      }
+    }
+    this.activeFolderActionsMenu = null;
+    this.activeFolderActionsMenuFolderId = null;
+    this.activeFolderActionsMenuCleanup = null;
   }
 
   /**

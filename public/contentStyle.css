@@ -4382,9 +4382,13 @@ body.light-theme {
 }
 
 .gv-folder-action-btn::before {
-  content: '...';
-  font-size: 16px;
+  /* U+22EF (⋯ midline horizontal ellipsis) sits on the math line instead
+   * of the baseline — three baseline dots in `...` looked low inside the
+   * hover circle. */
+  content: '\22EF';
+  font-size: 18px;
   letter-spacing: 0;
+  line-height: 1;
 }
 
 .gv-folder-expand-btn::before {
@@ -8625,14 +8629,20 @@ body.gv-rtl .gv-pm-item-compact .gv-pm-bottom {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
-/* Hide-Archived Onboarding Nudge (lives inside .gv-folder-container) */
+/* Hide-Archived Onboarding Nudge (lives inside .gv-folder-container).
+ * Asymmetric old margins (right: 0) leaked the body copy past the
+ * sidebar edge when mounted inside ChatGPT's narrow nav block — switch
+ * to symmetric padding and let `box-sizing: border-box` keep the bubble
+ * inside its container regardless of nav-block width. `overflow-wrap`
+ * is a safety net for long English words breaking the layout in CJK
+ * locales where the body copy uses inline ASCII tokens. */
 .gv-hide-archived-nudge {
-  margin: 4px 8px 10px 0;
+  margin: 4px 6px 10px 6px;
   padding: 12px 14px;
   border-radius: 12px;
   border: 1px solid rgba(99, 102, 241, 0.28);
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.06) 100%);
-  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  font-family: inherit;
   font-size: 13px;
   line-height: 1.45;
   color: inherit;
@@ -8642,6 +8652,9 @@ body.gv-rtl .gv-pm-item-compact .gv-pm-bottom {
     opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
     transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 .gv-hide-archived-nudge.gv-hide-archived-nudge--show {
   opacity: 1;
