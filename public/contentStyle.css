@@ -4194,15 +4194,20 @@ body.dark-theme .gv-pm-notice.err {
    Folder Manager Styles
    ======================================== */
 
-/* CSS Variables for folder theming */
+/* CSS Variables for folder theming.
+ * On ChatGPT pages, `--text-primary` / `--text-secondary` /
+ * `--sidebar-surface-*` are defined globally — we route through them so
+ * folder UI inherits ChatGPT's exact palette and reads as a native part of
+ * the sidebar. The hard-coded values stay as fallbacks for pages that
+ * don't define those tokens (legacy Gemini host, isolated test contexts). */
 :root {
-  --folder-bg: #ffffff;
-  --folder-text: #1f2937;
+  --folder-bg: var(--sidebar-surface-primary, #ffffff);
+  --folder-text: var(--text-primary, #1f2937);
   --folder-border: #e5e7eb;
-  --folder-hover-bg: #f3f4f6;
-  --folder-active-bg: #ede9fe;
-  --folder-icon-color: #4b5563;
-  --folder-menu-bg: #ffffff;
+  --folder-hover-bg: var(--sidebar-surface-secondary, #f3f4f6);
+  --folder-active-bg: var(--sidebar-surface-tertiary, #ede9fe);
+  --folder-icon-color: var(--text-secondary, #4b5563);
+  --folder-menu-bg: var(--main-surface-primary, #ffffff);
   --folder-menu-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   --folder-dragover-bg: #ede9fe;
   --folder-dragover-border: #6d28d9;
@@ -4235,13 +4240,13 @@ body.dark-theme .gv-pm-notice.err {
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --folder-bg: #1f2937;
-    --folder-text: #e5e7eb;
+    --folder-bg: var(--sidebar-surface-primary, #1f2937);
+    --folder-text: var(--text-primary, #e5e7eb);
     --folder-border: #374151;
-    --folder-hover-bg: #374151;
-    --folder-active-bg: #3b0764;
-    --folder-icon-color: #9ca3af;
-    --folder-menu-bg: #1f2937;
+    --folder-hover-bg: var(--sidebar-surface-secondary, #374151);
+    --folder-active-bg: var(--sidebar-surface-tertiary, #3b0764);
+    --folder-icon-color: var(--text-secondary, #9ca3af);
+    --folder-menu-bg: var(--main-surface-primary, #1f2937);
     --folder-menu-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     --folder-dragover-bg: #2e1065;
     --folder-dragover-border: #a78bfa;
@@ -4255,13 +4260,13 @@ body.dark-theme .gv-pm-notice.err {
 /* Theme support - Overrides system preferences on Gemini/AI Studio */
 .theme-host.dark-theme,
 body.dark-theme {
-  --folder-bg: #1f2937;
-  --folder-text: #e5e7eb;
+  --folder-bg: var(--sidebar-surface-primary, #1f2937);
+  --folder-text: var(--text-primary, #e5e7eb);
   --folder-border: #374151;
-  --folder-hover-bg: #374151;
-  --folder-active-bg: #3b0764;
-  --folder-icon-color: #9ca3af;
-  --folder-menu-bg: #1f2937;
+  --folder-hover-bg: var(--sidebar-surface-secondary, #374151);
+  --folder-active-bg: var(--sidebar-surface-tertiary, #3b0764);
+  --folder-icon-color: var(--text-secondary, #9ca3af);
+  --folder-menu-bg: var(--main-surface-primary, #1f2937);
   --folder-menu-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   --folder-dragover-bg: #2e1065;
   --folder-dragover-border: #a78bfa;
@@ -4273,13 +4278,13 @@ body.dark-theme {
 
 .theme-host.light-theme,
 body.light-theme {
-  --folder-bg: #ffffff;
-  --folder-text: #1f2937;
+  --folder-bg: var(--sidebar-surface-primary, #ffffff);
+  --folder-text: var(--text-primary, #1f2937);
   --folder-border: #e5e7eb;
-  --folder-hover-bg: #f3f4f6;
-  --folder-active-bg: #ede9fe;
-  --folder-icon-color: #4b5563;
-  --folder-menu-bg: #ffffff;
+  --folder-hover-bg: var(--sidebar-surface-secondary, #f3f4f6);
+  --folder-active-bg: var(--sidebar-surface-tertiary, #ede9fe);
+  --folder-icon-color: var(--text-secondary, #4b5563);
+  --folder-menu-bg: var(--main-surface-primary, #ffffff);
   --folder-menu-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   --folder-dragover-bg: #ede9fe;
   --folder-dragover-border: #6d28d9;
@@ -4297,13 +4302,8 @@ body.light-theme {
   background: var(--main-surface-primary, var(--sidebar-surface-primary, transparent));
   /* Ensure alignment with Recent section */
   margin-left: 0;
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
+  font-family: inherit;
+  color: var(--text-primary, inherit);
 }
 
 .gv-folder-sticky-host .gv-folder-container {
@@ -4311,6 +4311,30 @@ body.light-theme {
   top: auto;
   z-index: auto;
   margin-top: 0;
+}
+
+/* ── Mounted inside ChatGPT's native nav block (新聊天/搜索聊天/Codex) ──
+ * The host <div> is already `tall:sticky tall:top-header-height tall:z-20`,
+ * so we let it own the sticky behaviour and reset our own. The folder
+ * section then becomes the bottom portion of the same sticky group — the
+ * native nav items sit above it, the history list scrolls under it. */
+.gv-folder-container.gv-folder-container--in-nav-block {
+  position: static;
+  top: auto;
+  z-index: auto;
+  margin: 0;
+  padding: 4px 0 4px;
+  background: transparent;
+  border-top: 1px solid color-mix(in oklab, currentColor 8%, transparent);
+  margin-top: 4px;
+}
+
+/* Inside the nav block ChatGPT's <ul> already pads itself, so we mirror that
+ * by leaving our own header at the same horizontal indent (8px = matches the
+ * native menu-item padding) without an extra outer chrome. */
+.gv-folder-container.gv-folder-container--in-nav-block .gv-folder-header {
+  padding-inline: 6px;
+  margin-block: 2px;
 }
 
 .gv-folder-container mat-icon,
@@ -4433,15 +4457,18 @@ body.light-theme {
   flex: 1;
 }
 
-/* Let native Gemini title styles take precedence - don't override */
+/* Section heading — matches ChatGPT's other sidebar section labels
+ * ("聊天记录" etc.). Uses the same secondary-text token so it reads as a
+ * native label rather than a transplanted gray-on-gray block; opacity
+ * trick is gone (was muddying dark mode). */
 .gv-folder-header .title {
   margin: 0;
   padding-left: 0;
-  color: var(--text-primary, var(--folder-text));
-  font-size: 13px;
+  color: var(--text-secondary, var(--folder-text));
+  font-size: 12px;
   font-weight: 600;
-  line-height: 20px;
-  opacity: 0.72;
+  line-height: 18px;
+  letter-spacing: 0.01em;
 }
 
 .gv-folder-header-actions {

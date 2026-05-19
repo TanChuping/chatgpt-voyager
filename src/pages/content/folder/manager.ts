@@ -888,18 +888,30 @@ export class FolderManager {
     const foldersList = this.createFoldersList();
     this.containerElement.appendChild(foldersList);
 
-    // ChatGPT keeps New Chat/Search Chat inside a sticky sidebar header. Mount
-    // folders inside that same sticky host so they stay anchored with the
-    // native actions while only the history list scrolls underneath.
-    const chatGptSidebarHeader =
-      this.sidebarContainer?.querySelector<HTMLElement>('#sidebar-header');
-    const chatGptHeaderSection =
-      chatGptSidebarHeader?.closest<HTMLElement>('.sticky') || chatGptSidebarHeader;
-    if (chatGptHeaderSection) {
-      chatGptHeaderSection.classList.add('gv-folder-sticky-host');
-      chatGptHeaderSection.appendChild(this.containerElement);
+    // Mount strategy: the user wants folders to share the sticky region with
+    // ChatGPT's 新聊天/搜索聊天/Codex block — that block is a single sticky
+    // <div> containing a <ul> of nav items. Appending folders INSIDE that
+    // block makes them part of the same sticky unit, so on scroll the whole
+    // group stays pinned and history rows pass beneath without ever covering
+    // the native nav items above. Fall back to the previous sidebar-header
+    // approach when the new layout isn't found (older / variant ChatGPT
+    // builds).
+    const navBlock = this.findChatGptSidebarNavBlock();
+    if (navBlock) {
+      navBlock.classList.add('gv-sidebar-nav-block');
+      navBlock.appendChild(this.containerElement);
+      this.containerElement.classList.add('gv-folder-container--in-nav-block');
     } else {
-      this.recentSection.parentElement?.insertBefore(this.containerElement, this.recentSection);
+      const chatGptSidebarHeader =
+        this.sidebarContainer?.querySelector<HTMLElement>('#sidebar-header');
+      const chatGptHeaderSection =
+        chatGptSidebarHeader?.closest<HTMLElement>('.sticky') || chatGptSidebarHeader;
+      if (chatGptHeaderSection) {
+        chatGptHeaderSection.classList.add('gv-folder-sticky-host');
+        chatGptHeaderSection.appendChild(this.containerElement);
+      } else {
+        this.recentSection.parentElement?.insertBefore(this.containerElement, this.recentSection);
+      }
     }
 
     // Initial active conversation highlight and route listeners
@@ -910,6 +922,39 @@ export class FolderManager {
 
     // Apply initial folder enabled setting
     this.applyFolderEnabledSetting();
+  }
+
+  /**
+   * Locate the ChatGPT sidebar's sticky nav block — the <div> that contains
+   * the 新聊天/搜索聊天/Codex <ul> and whose own `tall:sticky tall:top-header-height`
+   * classes keep it pinned at the top of the scroll-port. Folder UI gets
+   * appended INSIDE this element so it inherits the same sticky region
+   * (folders never cover the nav items above them, they just extend the
+   * pinned area downward). Returns null on older / variant ChatGPT layouts
+   * — callers fall back to the legacy sidebar-header mount.
+   */
+  private findChatGptSidebarNavBlock(): HTMLElement | null {
+    const sidebar = this.sidebarContainer;
+    if (!sidebar) return null;
+
+    // The expanded-sidebar "new chat" link is an anchor with href="/" wrapped
+    // in <li>→<ul>→<div class="pt-(--sidebar-section-first-margin-top) … tall:sticky">.
+    // We disambiguate from the collapsed tiny-bar's copy of the same link by
+    // requiring (a) a <ul> ancestor (the rail uses a different structure)
+    // and (b) the ancestor div has position:sticky in computed style.
+    const links = Array.from(sidebar.querySelectorAll<HTMLAnchorElement>('a[href="/"]'));
+    for (const link of links) {
+      const ul = link.closest('ul');
+      if (!ul) continue;
+      const candidate = ul.parentElement as HTMLElement | null;
+      if (!candidate) continue;
+      const position = getComputedStyle(candidate).position;
+      // `tall:sticky` only applies above a height breakpoint; if the viewport
+      // is short the block falls back to `relative`. We still want to mount
+      // there — the sticky behaviour will kick in once the viewport grows.
+      if (position === 'sticky' || position === 'relative') return candidate;
+    }
+    return null;
   }
 
   private findSidebarScrollContainer(): HTMLElement | null {
