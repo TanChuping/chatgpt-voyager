@@ -6,6 +6,14 @@ It is a heavily modified work based on [Gemini Voyager](https://github.com/Nagi-
 
 Repository: [TanChuping/chatgpt-voyager](https://github.com/TanChuping/chatgpt-voyager)
 
+## Demo
+
+| 文件夹功能 / Folders | 标签跳转 / Timeline jump |
+| :---: | :---: |
+| ![Folder feature](docs/media/%E6%96%87%E4%BB%B6%E5%A4%B9%E5%8A%9F%E8%83%BD.gif) | ![Timeline jump](docs/media/%E6%A0%87%E7%AD%BE%E8%B7%B3%E8%BD%AC.gif) |
+| **图钉拖拽 / Pin drag** | **收藏夹栏 / Favorites bar** |
+| ![Pin drag](docs/media/%E5%9B%BE%E9%92%89%E6%8B%96%E6%8B%BD.gif) | ![Favorites bar](docs/media/%E6%94%B6%E8%97%8F%E5%A4%B9%E6%A0%8F.gif) |
+
 ## Features
 
 - ChatGPT conversation timeline with dot navigation, preview, highlighting, and starred positions.
