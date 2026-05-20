@@ -195,6 +195,16 @@
   transition: none;
 }
 
+/*
+ * `.timeline-dot--unmounted` marks dots whose turn body ChatGPT has
+ * virtualised away (and we have no cached snapshot). We deliberately do
+ * NOT give these a different visual — the dot looks identical to a
+ * regular content dot. The state is only used by the tooltip code to
+ * substitute "消息未加载，跳转后将显示内容" when the aria-label is empty,
+ * so users aren't confused by an empty tooltip but the timeline itself
+ * stays visually uniform.
+ */
+
 .timeline-dot::after {
   content: '';
   position: absolute;
@@ -1125,6 +1135,16 @@ body.timeline-pin-picking .timeline-left-slider {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* "Unmounted" placeholder: shown when ChatGPT has virtualised this turn's
+ * body and we have no cached snapshot. Greyed out + half-transparent so
+ * it's obviously a placeholder rather than mistaken for the real message
+ * text. Inherits .timeline-preview-body's ellipsis behaviour. */
+.timeline-preview-body.timeline-preview-body--unmounted {
+  color: var(--text-tertiary, #8e8e8e);
+  opacity: 0.6;
+  font-style: italic;
 }
 
 /* File-attachment chips. Two visual modes:

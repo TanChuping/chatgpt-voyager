@@ -836,6 +836,9 @@
   "timelinePreviewNoMessages": {
     "message": "No messages"
   },
+  "timelineUnmountedTooltip": {
+    "message": "Message not loaded — content will appear after jumping"
+  },
   "quoteReply": {
     "message": "Quote reply"
   },

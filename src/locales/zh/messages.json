@@ -836,6 +836,9 @@
   "timelinePreviewNoMessages": {
     "message": "No messages"
   },
+  "timelineUnmountedTooltip": {
+    "message": "消息未加载，跳转后将显示内容"
+  },
   "quoteReply": {
     "message": "引用回复"
   },

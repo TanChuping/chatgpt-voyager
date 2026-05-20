@@ -417,6 +417,15 @@ export class TimelinePreviewPanel {
         body.textContent = displayText;
       }
       text.appendChild(body);
+    } else if (!marker.attachments || marker.attachments.length === 0) {
+      // Same "unmounted" semantic as the timeline dot: ChatGPT virtualised
+      // this turn's body away and we have no cached snapshot. Render a
+      // greyed-out placeholder so the row isn't visually empty — clicking
+      // the row still scrolls to the turn and triggers ChatGPT's mount.
+      const placeholder = document.createElement('span');
+      placeholder.className = 'timeline-preview-body timeline-preview-body--unmounted';
+      placeholder.textContent = getTranslationSync('timelineUnmountedTooltip');
+      text.appendChild(placeholder);
     }
     item.appendChild(text);
 
