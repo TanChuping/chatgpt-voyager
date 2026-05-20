@@ -118,9 +118,17 @@ type TimelineTextPinTarget = {
 export class TimelineManager {
   private scrollContainer: HTMLElement | null = null;
   private conversationContainer: HTMLElement | null = null;
+  /**
+   * `element` is null for **phantom markers** — turns we've seen during this
+   * session whose DOM has since been virtualized away by ChatGPT (very long
+   * messages or after a tab switch). Phantoms preserve the dot's position
+   * on the bar (so pins don't shift) and fall back to `phantomOffsetTop`
+   * for any scroll math. Anything that reads DOM (rects, text walkers,
+   * intersection observation) must skip phantoms.
+   */
   private markers: Array<{
     id: string;
-    element: HTMLElement;
+    element: HTMLElement | null;
     summary: string;
     n: number;
     baseN: number;
@@ -128,7 +136,27 @@ export class TimelineManager {
     starred: boolean;
     attachments: ReadonlyArray<AttachmentInfo>;
     hasGeneratedImage: boolean;
+    phantomOffsetTop?: number;
   }> = [];
+  /**
+   * Per-session snapshot of every turn we've ever rendered. Keyed by stable
+   * turnId. When the next render cycle doesn't find a key here in the live
+   * DOM, we synthesise a phantom marker from this cache instead of dropping
+   * the dot entirely. Capped at `STICKY_CACHE_MAX` entries (LRU by
+   * lastSeenAt) so pathological histories don't blow up memory.
+   */
+  private stickyTurnCache: Map<
+    string,
+    {
+      id: string;
+      offsetTop: number;
+      summary: string;
+      attachments: ReadonlyArray<AttachmentInfo>;
+      hasGeneratedImage: boolean;
+      lastSeenAt: number;
+    }
+  > = new Map();
+  private static readonly STICKY_CACHE_MAX = 500;
   private activeTurnId: string | null = null;
   private ui: {
     timelineBar: HTMLElement | null;
@@ -239,7 +267,7 @@ export class TimelineManager {
     string,
     {
       id: string;
-      element: HTMLElement;
+      element: HTMLElement | null;
       dotElement: DotElement | null;
       starred: boolean;
       n: number;
@@ -247,6 +275,7 @@ export class TimelineManager {
       summary: string;
       attachments: ReadonlyArray<AttachmentInfo>;
       hasGeneratedImage: boolean;
+      phantomOffsetTop?: number;
     }
   > = new Map();
   private conversationId: string | null = null;
@@ -564,7 +593,11 @@ export class TimelineManager {
   private updateIntersectionObserverTargetsFromMarkers(): void {
     if (!this.intersectionObserver) return;
     this.intersectionObserver.disconnect();
-    this.markers.forEach((m) => this.intersectionObserver!.observe(m.element));
+    // Phantom markers have no DOM to observe — skip them. Their active-turn
+    // tracking is handled separately (via scroll position vs cached offset).
+    this.markers.forEach((m) => {
+      if (m.element) this.intersectionObserver!.observe(m.element);
+    });
   }
 
   private applyContainerVisibility(): void {
@@ -1114,7 +1147,7 @@ export class TimelineManager {
           if (this.maybeRefreshMarkersForInteraction(marker?.element || null)) {
             marker = this.markers[index] || this.markerMap.get(turnId);
           }
-          if (!marker?.element) return;
+          if (!marker) return;
           const fromIdx = this.getActiveIndex();
           const dur = this.computeFlowDuration(fromIdx, index);
           if (this.scrollMode === 'flow' && fromIdx >= 0 && index >= 0 && fromIdx !== index) {
@@ -1122,7 +1155,21 @@ export class TimelineManager {
             this.updateActiveDotUI();
             this.startRunner(fromIdx, index, dur);
           }
-          this.smoothScrollTo(marker.element, dur, marker.id);
+          if (marker.element) {
+            this.smoothScrollTo(marker.element, dur, marker.id);
+          } else if (
+            typeof marker.phantomOffsetTop === 'number' &&
+            this.scrollContainer
+          ) {
+            // Phantom — its DOM has been virtualised away. Scroll the
+            // container to the cached offset so ChatGPT lazy-loads the
+            // turn back in, then the next render pass will hydrate this
+            // marker into a live one and the user lands at the real turn.
+            this.scrollContainer.scrollTo({
+              top: marker.phantomOffsetTop,
+              behavior: 'smooth',
+            });
+          }
         },
         (query) => this.highlightSearchInDOM(query),
         (turnId) => {
@@ -1388,6 +1435,7 @@ export class TimelineManager {
   private collectPreviousMarkerElementsById(): Map<string, Set<HTMLElement>> {
     const elementsById = new Map<string, Set<HTMLElement>>();
     this.markers.forEach((marker) => {
+      if (!marker.element) return;
       let elements = elementsById.get(marker.id);
       if (!elements) {
         elements = new Set<HTMLElement>();
@@ -1932,48 +1980,157 @@ export class TimelineManager {
     }
     this.pendingMarkerOrderSignature = null;
 
+    // First pass: build *live* marker entries from DOM and refresh the sticky
+    // cache for everything we just saw.
+    const liveTops = new Map<string, number>();
+    const liveMarkers = Array.from(allEls).map((el, idx) => {
+      const element = el as HTMLElement;
+      const elementTop = allTops[idx] ?? this.computeElementTopInScrollContainer(element);
+      const id = nextIds[idx];
+      const attachments = extractAttachments(element);
+      const cleanSummary = this.stripAttachmentNamesFromSummary(
+        this.extractTurnText(element),
+        attachments,
+      );
+      const hasGeneratedImage = this.detectGeneratedImageAfterTurn(element);
+      liveTops.set(id, elementTop);
+      this.stickyTurnCache.set(id, {
+        id,
+        offsetTop: elementTop,
+        summary: cleanSummary,
+        attachments,
+        hasGeneratedImage,
+        lastSeenAt: Date.now(),
+      });
+      return {
+        id,
+        element,
+        summary: cleanSummary,
+        attachments,
+        hasGeneratedImage,
+      };
+    });
+
+    // Trim the cache LRU so pathological histories don't grow without bound.
+    if (this.stickyTurnCache.size > TimelineManager.STICKY_CACHE_MAX) {
+      const sorted = Array.from(this.stickyTurnCache.values()).sort(
+        (a, b) => a.lastSeenAt - b.lastSeenAt,
+      );
+      while (this.stickyTurnCache.size > TimelineManager.STICKY_CACHE_MAX) {
+        const oldest = sorted.shift();
+        if (!oldest) break;
+        this.stickyTurnCache.delete(oldest.id);
+      }
+    }
+
+    // Second pass: phantom markers — entries the cache remembers from earlier
+    // this session but that ChatGPT's virtualisation has dropped from the
+    // current DOM. We synthesise them from cache so pins / dot ordering /
+    // active-turn ratios don't fall off the bar mid-scroll.
+    const liveIds = new Set(liveMarkers.map((m) => m.id));
+    const phantomEntries: Array<{
+      id: string;
+      offsetTop: number;
+      summary: string;
+      attachments: ReadonlyArray<AttachmentInfo>;
+      hasGeneratedImage: boolean;
+    }> = [];
+    for (const entry of this.stickyTurnCache.values()) {
+      if (liveIds.has(entry.id)) continue;
+      phantomEntries.push({
+        id: entry.id,
+        offsetTop: entry.offsetTop,
+        summary: entry.summary,
+        attachments: entry.attachments,
+        hasGeneratedImage: entry.hasGeneratedImage,
+      });
+    }
+
+    // Merge live + phantom by offset to build the ordered marker list, then
+    // recompute contentSpan / n / baseN across the merged set so live and
+    // phantom dots share the same coordinate system.
+    type MergedEntry =
+      | {
+          kind: 'live';
+          id: string;
+          element: HTMLElement;
+          summary: string;
+          attachments: ReadonlyArray<AttachmentInfo>;
+          hasGeneratedImage: boolean;
+          top: number;
+        }
+      | {
+          kind: 'phantom';
+          id: string;
+          summary: string;
+          attachments: ReadonlyArray<AttachmentInfo>;
+          hasGeneratedImage: boolean;
+          top: number;
+        };
+
+    const merged: MergedEntry[] = [
+      ...liveMarkers.map((m) => ({
+        kind: 'live' as const,
+        id: m.id,
+        element: m.element as HTMLElement,
+        summary: m.summary,
+        attachments: m.attachments,
+        hasGeneratedImage: m.hasGeneratedImage,
+        top: liveTops.get(m.id) ?? 0,
+      })),
+      ...phantomEntries.map((p) => ({
+        kind: 'phantom' as const,
+        id: p.id,
+        summary: p.summary,
+        attachments: p.attachments,
+        hasGeneratedImage: p.hasGeneratedImage,
+        top: p.offsetTop,
+      })),
+    ];
+    merged.sort((a, b) => a.top - b.top);
+
     let contentSpan: number;
-    const firstTurnTop = allTops[0] ?? this.computeElementTopInScrollContainer(allEls[0]);
-    if (allEls.length < 2) {
+    const firstTurnTop = merged.length > 0 ? merged[0].top : 0;
+    if (merged.length < 2) {
       contentSpan = 1;
     } else {
-      const lastTurnTop =
-        allTops[allTops.length - 1] ??
-        this.computeElementTopInScrollContainer(allEls[allEls.length - 1]);
-      contentSpan = lastTurnTop - firstTurnTop;
+      contentSpan = merged[merged.length - 1].top - firstTurnTop;
     }
     if (contentSpan <= 0) contentSpan = 1;
     this.firstUserTurnOffset = firstTurnTop;
     this.contentSpanPx = contentSpan;
 
     this.markerMap.clear();
-    this.markers = Array.from(allEls).map((el, idx) => {
-      const element = el as HTMLElement;
-      const elementTop = allTops[idx] ?? this.computeElementTopInScrollContainer(element);
-      const offsetFromStart = elementTop - firstTurnTop;
+    this.markers = merged.map((entry) => {
+      const offsetFromStart = entry.top - firstTurnTop;
       let n = offsetFromStart / contentSpan;
       n = Math.max(0, Math.min(1, n));
-      const id = nextIds[idx];
-      const attachments = extractAttachments(element);
-      // Strip attachment filenames out of the body summary so the timeline
-      // tooltip / preview reads the real question the user typed, not the
-      // file tile labels that ChatGPT bakes into the bubble.
-      const cleanSummary = this.stripAttachmentNamesFromSummary(
-        this.extractTurnText(element),
-        attachments,
-      );
-      const hasGeneratedImage = this.detectGeneratedImageAfterTurn(element);
-      const m = {
-        id,
-        element,
-        summary: cleanSummary,
-        n,
-        baseN: n,
-        dotElement: oldDots.get(id) ?? null,
-        starred: this.starred.has(id),
-        attachments,
-        hasGeneratedImage,
-      };
+      const id = entry.id;
+      const m =
+        entry.kind === 'live'
+          ? {
+              id,
+              element: entry.element,
+              summary: entry.summary,
+              n,
+              baseN: n,
+              dotElement: oldDots.get(id) ?? null,
+              starred: this.starred.has(id),
+              attachments: entry.attachments,
+              hasGeneratedImage: entry.hasGeneratedImage,
+            }
+          : {
+              id,
+              element: null,
+              summary: entry.summary,
+              n,
+              baseN: n,
+              dotElement: oldDots.get(id) ?? null,
+              starred: this.starred.has(id),
+              attachments: entry.attachments,
+              hasGeneratedImage: entry.hasGeneratedImage,
+              phantomOffsetTop: entry.top,
+            };
       oldDots.delete(id);
       this.markerMap.set(id, m);
       return m;
@@ -2115,6 +2272,10 @@ export class TimelineManager {
     this.markers.forEach((marker) => {
       activeTurnIds.add(marker.id);
       const msgEl = marker.element;
+      // Phantom marker — no DOM to anchor a timestamp pill to. Keep the
+      // turn id active so the timestamp service doesn't garbage-collect it,
+      // but skip rendering until the real DOM comes back.
+      if (!msgEl) return;
       const parent = msgEl.parentElement;
       if (!parent) {
         existingTimestampEls.get(marker.id)?.remove();
@@ -2303,6 +2464,22 @@ export class TimelineManager {
         const targetId = toIdx >= 0 ? this.markers[toIdx]?.id : dot.dataset.targetTurnId || null;
         this.focusTextPinsForTurn(targetId);
         this.smoothScrollTo(targetElement, dur, targetId);
+      } else if (toIdx >= 0) {
+        // Phantom dot: no live element, but we have a cached offset to
+        // scroll into so ChatGPT lazy-loads the turn back. Once the next
+        // render pass hydrates the marker, normal click flow resumes.
+        const phantomMarker = this.markers[toIdx];
+        if (
+          phantomMarker &&
+          typeof phantomMarker.phantomOffsetTop === 'number' &&
+          this.scrollContainer
+        ) {
+          this.focusTextPinsForTurn(phantomMarker.id);
+          this.scrollContainer.scrollTo({
+            top: phantomMarker.phantomOffsetTop,
+            behavior: 'smooth',
+          });
+        }
       }
     };
     this.ui.timelineBar!.addEventListener('click', this.onTimelineBarClick);
@@ -3100,8 +3277,15 @@ export class TimelineManager {
     clientX: number,
     clientY: number,
   ): TimelineTextPinTarget | null {
-    if (!this.scrollContainer || this.markers.length === 0) {
-      const directMarker = this.markers.find((item) => item.element.contains(target));
+    // Pin creation always anchors to a real DOM turn the user just clicked.
+    // Phantoms have no on-page node to host the pin overlay, so filter them
+    // out of the candidate set entirely — the pin would be unplaceable.
+    const liveMarkers = this.markers.filter(
+      (m): m is typeof m & { element: HTMLElement } => m.element !== null,
+    );
+
+    if (!this.scrollContainer || liveMarkers.length === 0) {
+      const directMarker = liveMarkers.find((item) => item.element.contains(target));
       if (!directMarker) return null;
       const rect = directMarker.element.getBoundingClientRect();
       const y = Math.max(0, clientY - rect.top);
@@ -3123,23 +3307,23 @@ export class TimelineManager {
 
     const scrollRect = this.scrollContainer.getBoundingClientRect();
     const clickTop = clientY - scrollRect.top + this.scrollContainer.scrollTop;
-    const currentMarkerTops = this.markers.map((marker) =>
+    const currentMarkerTops = liveMarkers.map((marker) =>
       this.computeElementTopInScrollContainer(marker.element),
     );
     let ownerIndex = 0;
-    for (let i = 0; i < this.markers.length; i++) {
+    for (let i = 0; i < liveMarkers.length; i++) {
       const top =
-        currentMarkerTops[i] ?? this.computeElementTopInScrollContainer(this.markers[i].element);
+        currentMarkerTops[i] ?? this.computeElementTopInScrollContainer(liveMarkers[i].element);
       if (top <= clickTop) ownerIndex = i;
       else break;
     }
 
     const marker =
-      this.markers.find((item) => item.element.contains(target)) ?? this.markers[ownerIndex];
+      liveMarkers.find((item) => item.element.contains(target)) ?? liveMarkers[ownerIndex];
     if (!marker) return null;
 
     const ownerTop =
-      currentMarkerTops[this.markers.findIndex((item) => item.id === marker.id)] ??
+      currentMarkerTops[liveMarkers.findIndex((item) => item.id === marker.id)] ??
       this.computeElementTopInScrollContainer(marker.element);
     const yOffset = Math.max(0, clickTop - ownerTop);
     const baseRect = (this.conversationContainer ?? this.scrollContainer).getBoundingClientRect();
@@ -3422,6 +3606,11 @@ export class TimelineManager {
     const baseRect = this.conversationContainer?.getBoundingClientRect() ?? null;
     for (const marker of this.markers) {
       const pins = this.pinsByTurn.get(marker.id) ?? [];
+      // Phantom: no DOM node, no place to anchor a floating badge. The pin
+      // data is still alive in storage and the dot still shows on the bar —
+      // we just can't render the on-page bubble until ChatGPT re-renders
+      // the turn, which the next pass will pick up automatically.
+      if (!marker.element) continue;
       const rect = marker.element.getBoundingClientRect();
       for (const pin of pins) {
         const badge = this.pinBadges.get(pin.id);
@@ -4146,7 +4335,12 @@ export class TimelineManager {
       const containerRect = this.scrollContainer.getBoundingClientRect();
       for (let i = 0; i < this.markers.length; i++) {
         const m = this.markers[i];
-        const top = m.element.getBoundingClientRect().top - containerRect.top + scrollTop;
+        // Phantom: fall back to its cached offsetTop so we can still tell
+        // whether the viewport has scrolled past this turn even though its
+        // DOM has been recycled.
+        const top = m.element
+          ? m.element.getBoundingClientRect().top - containerRect.top + scrollTop
+          : (m.phantomOffsetTop ?? 0);
         if (top <= ref) activeId = m.id;
         else break;
       }
@@ -4238,15 +4432,21 @@ export class TimelineManager {
 
     this.lastMarkerTopsSanityCheckAt = now;
     const containerRect = this.scrollContainer.getBoundingClientRect();
-    const expectedFirstTop = this.markerTops[0] - scrollTop + containerRect.top;
-    const actualFirstTop = this.markers[0].element.getBoundingClientRect().top;
+    // Sanity check needs real DOM rects; if the first/last markers are
+    // currently phantoms, we can't compare against the live viewport, so
+    // assume the cache is still valid and let the next render refresh it.
+    const firstElement = this.markers[0]?.element;
     const lastIndex = this.markerTops.length - 1;
+    const lastElement = lastIndex > 0 ? this.markers[lastIndex]?.element : firstElement;
+    if (!firstElement || !lastElement) {
+      return this.markerTopsMatchViewportCache;
+    }
+    const expectedFirstTop = this.markerTops[0] - scrollTop + containerRect.top;
+    const actualFirstTop = firstElement.getBoundingClientRect().top;
     const expectedLastTop =
       lastIndex > 0 ? this.markerTops[lastIndex] - scrollTop + containerRect.top : expectedFirstTop;
     const actualLastTop =
-      lastIndex > 0
-        ? (this.markers[lastIndex]?.element.getBoundingClientRect().top ?? expectedLastTop)
-        : expectedFirstTop;
+      lastIndex > 0 ? lastElement.getBoundingClientRect().top : expectedFirstTop;
     this.markerTopsMatchViewportCache =
       Math.abs(expectedFirstTop - actualFirstTop) <= 24 &&
       Math.abs(expectedLastTop - actualLastTop) <= 24;
@@ -4264,6 +4464,10 @@ export class TimelineManager {
     let nearestBelowId: string | null = null;
     let hasUsableRects = false;
     for (const marker of this.markers) {
+      // Phantom markers contribute via cached `markerTops`, not via viewport
+      // rects. Skip them here — computeActiveByScroll handles the cached
+      // path on its own.
+      if (!marker.element) continue;
       const rect = marker.element.getBoundingClientRect();
       const hasRect =
         rect.width > 0 ||
@@ -5815,7 +6019,9 @@ export class TimelineManager {
   private refreshMarkerTopsForCurrentScrollContainer(): boolean {
     if (!this.scrollContainer || this.markers.length === 0) return false;
     const nextTops = this.markers.map((marker) =>
-      this.computeElementTopInScrollContainer(marker.element),
+      marker.element
+        ? this.computeElementTopInScrollContainer(marker.element)
+        : (marker.phantomOffsetTop ?? 0),
     );
     const changed =
       nextTops.length !== this.markerTops.length ||
@@ -5969,8 +6175,9 @@ export class TimelineManager {
           console.log('[Timeline] Found target marker, scrolling');
 
           // Minimal delay for DOM readiness
+          const liveElement = marker.element;
           setTimeout(() => {
-            this.smoothScrollTo(marker.element, 800, marker.id);
+            this.smoothScrollTo(liveElement, 800, marker.id);
 
             // Clear hash after scroll completes
             setTimeout(() => {
