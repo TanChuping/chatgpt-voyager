@@ -142,6 +142,20 @@ export class FolderManager {
   private importInProgress: boolean = false; // Lock to prevent concurrent imports
   private exportInProgress: boolean = false; // Lock to prevent concurrent exports
   private selectedConversations: Set<string> = new Set(); // For multi-select support
+  /**
+   * Snapshot of every conversation currently in the multi-select set, keyed by
+   * conversationId. Populated at selection time (long-press, click toggle, or
+   * the dragstart's "auto-select self" branch) so the dragstart handler can
+   * build the drag payload from cached data instead of re-querying the
+   * sidebar DOM. ChatGPT's sidebar virtualises off-screen conversations and
+   * recycles their DOM nodes — without this cache, `findConversationElement`
+   * returns null for any selected conversation that the user has since
+   * scrolled out of view, and the multi-select drag silently drops only the
+   * visible subset. Kept in lockstep with `selectedConversations`: every
+   * insertion/removal/clear touches both. Folder conversations skip this
+   * cache (we read their data from `data.folderContents` directly).
+   */
+  private selectedConversationData: Map<string, ConversationReference> = new Map();
   private isMultiSelectMode: boolean = false; // Multi-select mode state
   private multiSelectSource: 'folder' | 'native' | null = null; // Track where multi-select was initiated
   private multiSelectFolderId: string | null = null; // Track which folder multi-select was initiated from
@@ -1886,10 +1900,18 @@ export class FolderManager {
       longPressTriggered = false;
 
       const conversationId = this.extractConversationId(element);
+      // Capture the full conversation snapshot NOW, while the element is
+      // still mounted and refers to the conversation the user is touching.
+      // ChatGPT virtualises off-screen sidebar entries, and once the user
+      // scrolls past this row, the DOM node may be recycled to display a
+      // different conversation. Without this snapshot the dragstart handler
+      // can't find the original conversation any more.
+      const snapshot = this.captureNativeConversationSnapshot(element);
 
       longPressTimeoutId = window.setTimeout(() => {
         longPressTriggered = true;
         this.enterMultiSelectMode(conversationId, 'native');
+        if (snapshot) this.selectedConversationData.set(conversationId, snapshot);
         // Add visual feedback to this element
         element.classList.add('gv-conversation-selected');
       }, this.longPressThreshold);
@@ -1931,7 +1953,11 @@ export class FolderManager {
           e.preventDefault();
           e.stopPropagation();
           const conversationId = this.extractConversationId(element);
-          this.toggleConversationSelection(conversationId);
+          // Snapshot the conversation BEFORE the toggle so virtualisation
+          // can't recycle the row out from under us — same reasoning as
+          // the long-press path.
+          const snapshot = this.captureNativeConversationSnapshot(element);
+          this.toggleConversationSelection(conversationId, snapshot ?? undefined);
 
           // Update visual state
           if (this.selectedConversations.has(conversationId)) {
@@ -1957,10 +1983,18 @@ export class FolderManager {
       // Restrict to move-only to prevent Chrome from triggering split-screen/tab tiling
       if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
 
-      // If this conversation is not selected, select it exclusively
+      // If this conversation is not selected, decide how to fold it in:
+      //   - Multi-select mode active → EXTEND the existing selection. ChatGPT
+      //     recycles sidebar DOM nodes during scroll, so the user may be
+      //     grabbing a row that wasn't part of the original multi-select.
+      //     Clearing here would silently throw away every other selection.
+      //   - Not in multi-select mode → exclusive single-select (Gemini parity).
       if (!this.selectedConversations.has(conversationId)) {
-        this.clearSelection();
-        this.selectConversation(conversationId);
+        const snapshot = this.captureNativeConversationSnapshot(element);
+        if (!this.isMultiSelectMode) {
+          this.clearSelection();
+        }
+        this.selectConversation(conversationId, snapshot ?? undefined);
         element.classList.add('gv-conversation-selected');
         this.updateConversationSelectionUI();
       }
@@ -1973,23 +2007,31 @@ export class FolderManager {
 
       // Check if we have multiple selections
       if (this.selectedConversations.size > 1) {
-        // Multi-select drag - collect all selected conversations
+        // Multi-select drag — build the payload from snapshots captured
+        // at selection time. We do NOT re-query the sidebar DOM here:
+        // ChatGPT virtualises off-screen entries, so any selected
+        // conversation the user has since scrolled out of view would
+        // return null from `findConversationElement` and silently fall
+        // out of the drag. The snapshot Map is populated whenever a
+        // conversation enters the selection (long-press, click toggle,
+        // dragstart self-select).
         const selectedConvs: ConversationReference[] = [];
-
         this.selectedConversations.forEach((id) => {
+          const cached = this.selectedConversationData.get(id);
+          if (cached) {
+            selectedConvs.push({ ...cached, addedAt: Date.now() });
+            return;
+          }
+          // No cached snapshot (legacy selection from before this fix, or
+          // a selection that pre-dated the cache wiring). Fall back to a
+          // DOM lookup — works only for currently-mounted rows.
           const convEl = this.findConversationElement(id);
           if (convEl) {
-            const convTitle = this.extractConversationTitleForDrag(convEl);
-            const convData = this.extractConversationData(convEl);
-
-            selectedConvs.push({
-              conversationId: id,
-              title: convTitle,
-              url: convData.url,
-              addedAt: Date.now(),
-              isGem: convData.isGem,
-              gemId: convData.gemId,
-            });
+            const fallbackSnapshot = this.captureNativeConversationSnapshot(convEl);
+            if (fallbackSnapshot) {
+              selectedConvs.push(fallbackSnapshot);
+              this.selectedConversationData.set(id, fallbackSnapshot);
+            }
           }
         });
 
@@ -2001,7 +2043,8 @@ export class FolderManager {
 
         e.dataTransfer?.setData('application/json', JSON.stringify(dragData));
 
-        // Apply opacity to all selected conversations
+        // Apply opacity to whatever selected rows ARE currently mounted —
+        // virtualised ones can't be visibly dimmed; that's fine.
         this.selectedConversations.forEach((id) => {
           const el = this.findConversationElement(id);
           if (el) el.style.opacity = '0.5';
@@ -4050,15 +4093,21 @@ export class FolderManager {
   // Multi-select helper methods
   private clearSelection(): void {
     this.selectedConversations.clear();
+    this.selectedConversationData.clear();
   }
 
-  private selectConversation(conversationId: string): void {
+  private selectConversation(conversationId: string, snapshot?: ConversationReference): void {
     this.selectedConversations.add(conversationId);
+    if (snapshot) this.selectedConversationData.set(conversationId, snapshot);
   }
 
-  private toggleConversationSelection(conversationId: string): void {
+  private toggleConversationSelection(
+    conversationId: string,
+    snapshot?: ConversationReference,
+  ): void {
     if (this.selectedConversations.has(conversationId)) {
       this.selectedConversations.delete(conversationId);
+      this.selectedConversationData.delete(conversationId);
 
       // Auto-exit multi-select mode when all selections are cleared
       if (this.selectedConversations.size === 0 && this.isMultiSelectMode) {
@@ -4076,7 +4125,30 @@ export class FolderManager {
         return;
       }
       this.selectedConversations.add(conversationId);
+      if (snapshot) this.selectedConversationData.set(conversationId, snapshot);
     }
+  }
+
+  /**
+   * Build a `ConversationReference` snapshot from a native sidebar
+   * conversation element. Called at selection time so the multi-select
+   * drag can survive ChatGPT's sidebar DOM virtualisation — once captured,
+   * we don't need the element back in the DOM to drop the conversation
+   * into a folder.
+   */
+  private captureNativeConversationSnapshot(element: HTMLElement): ConversationReference | null {
+    const conversationId = this.extractConversationId(element);
+    if (!conversationId) return null;
+    const title = this.extractConversationTitleForDrag(element);
+    const data = this.extractConversationData(element);
+    return {
+      conversationId,
+      title,
+      url: data.url,
+      addedAt: Date.now(),
+      isGem: data.isGem,
+      gemId: data.gemId,
+    };
   }
 
   private updateConversationSelectionUI(): void {
