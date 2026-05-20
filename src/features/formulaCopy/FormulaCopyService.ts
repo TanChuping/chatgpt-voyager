@@ -192,22 +192,37 @@ export class FormulaCopyService {
     // 1. Try data-math attribute
     const dataMath = element.getAttribute('data-math');
     if (dataMath) {
-      return dataMath;
+      return this.normalizeLatexWhitespace(dataMath);
     }
 
     // 2. Try annotation element with encoding="application/x-tex"
     const annotation = element.querySelector('annotation[encoding="application/x-tex"]');
     if (annotation?.textContent) {
-      return annotation.textContent.trim();
+      return this.normalizeLatexWhitespace(annotation.textContent);
     }
 
     // 3. Fallback: try any annotation element
     const anyAnnotation = element.querySelector('annotation');
     if (anyAnnotation?.textContent) {
-      return anyAnnotation.textContent.trim();
+      return this.normalizeLatexWhitespace(anyAnnotation.textContent);
     }
 
     return null;
+  }
+
+  /**
+   * Collapse intra-formula whitespace to single spaces so the copied LaTeX
+   * is a single line. ChatGPT's model output often pretty-prints long
+   * formulas with newlines between operands for readability, and those
+   * newlines pass through the KaTeX `<annotation>` element verbatim. The
+   * rendered math is identical either way (LaTeX treats newlines as
+   * whitespace in math mode), but tools like Desmos that ingest one
+   * LaTeX expression per line break on the multi-line form. This is safe
+   * because LaTeX math-mode tokens are delimited by command names and
+   * braces, never by significant whitespace.
+   */
+  private normalizeLatexWhitespace(latex: string): string {
+    return latex.replace(/\s+/g, ' ').trim();
   }
 
   /**
