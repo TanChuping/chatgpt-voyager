@@ -3636,19 +3636,27 @@ export class TimelineManager {
         if (!badge) continue;
         const yOffset = Math.max(0, pin.yOffset || pin.yRatio * rect.height);
         const y = rect.top + yOffset;
-        const visible =
-          anchor.isConnected &&
-          y >= -40 &&
-          y <= window.innerHeight + 40 &&
-          rect.width > 0 &&
-          rect.height > 0;
+        // Visibility used to require `rect.width > 0 && rect.height > 0`,
+        // but ChatGPT collapses the outer `<section>` wrapper of a
+        // virtualised turn to height = 0 while preserving its document-flow
+        // top. In a long conversation, the user turn that anchors a pin in
+        // the following long assistant answer goes through this state once
+        // the reader scrolls past it: BCR.height = 0, BCR.top = a real
+        // negative-or-positive viewport y. The Y projection above
+        // (`rect.top + yOffset`) still lands in the correct viewport
+        // position, so the badge SHOULD be visible — but the old check
+        // bailed because of the zero height and the user saw nothing.
+        // `anchor.isConnected` is enough to reject genuinely-detached
+        // elements; the viewport-range clamp on y is what actually decides
+        // whether the user can see the pin.
+        const visible = anchor.isConnected && y >= -40 && y <= window.innerHeight + 40;
         if (!visible) {
           badge.classList.add('offscreen');
           continue;
         }
         const x = baseRect
           ? baseRect.left + (pin.xOffset || baseRect.width * pin.xRatio)
-          : rect.left + rect.width * pin.xRatio;
+          : rect.left + (rect.width || 1) * pin.xRatio;
         badge.style.left = `${Math.round(x)}px`;
         badge.style.top = `${Math.round(y)}px`;
         badge.classList.remove('offscreen');
