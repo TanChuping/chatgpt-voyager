@@ -4,10 +4,65 @@ import { TurnTextCache, computeFingerprint } from '../turnTextCache';
 
 const STORAGE_PREFIX = 'gptTimelineTurnTextCache:';
 
+/** Enumerate localStorage keys in a way that works in both real browsers
+ *  and JSDOM (where Storage isn't a real Object). */
+function enumerateStorageKeys(): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k != null) out.push(k);
+  }
+  return out;
+}
+
 describe('TurnTextCache', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.useFakeTimers();
+    // JSDOM doesn't expose `.key()` on the localStorage instance — the
+    // real Storage API has it, but the JSDOM mock omits it. Production
+    // code (real Chrome) uses .key for the eviction sweep, so we shim it
+    // here by wrapping setItem/removeItem to track insertion order.
+    if (typeof (localStorage as Storage).key !== 'function') {
+      const tracked: string[] = [];
+      const origSet = localStorage.setItem.bind(localStorage);
+      const origRemove = localStorage.removeItem.bind(localStorage);
+      const origClear = localStorage.clear.bind(localStorage);
+      // Repopulate tracked list from whatever was set before the polyfill
+      // attached (cleared at the start of beforeEach so usually empty).
+      Object.defineProperty(localStorage, 'setItem', {
+        configurable: true,
+        writable: true,
+        value(key: string, val: string) {
+          if (!tracked.includes(key)) tracked.push(key);
+          return origSet(key, val);
+        },
+      });
+      Object.defineProperty(localStorage, 'removeItem', {
+        configurable: true,
+        writable: true,
+        value(key: string) {
+          const i = tracked.indexOf(key);
+          if (i >= 0) tracked.splice(i, 1);
+          return origRemove(key);
+        },
+      });
+      Object.defineProperty(localStorage, 'clear', {
+        configurable: true,
+        writable: true,
+        value() {
+          tracked.length = 0;
+          return origClear();
+        },
+      });
+      Object.defineProperty(localStorage, 'key', {
+        configurable: true,
+        writable: true,
+        value(n: number): string | null {
+          return n >= 0 && n < tracked.length ? tracked[n] : null;
+        },
+      });
+    }
   });
 
   afterEach(() => {
@@ -358,6 +413,135 @@ describe('TurnTextCache', () => {
         { name: 'new.pdf', type: 'pdf' as const },
       ]);
       expect(cached?.fingerprint).not.toBe(liveFp);
+    });
+  });
+
+  describe('cleanup audit (multiple writers, growth limits)', () => {
+    it('idempotent set() does NOT trigger a localStorage write when fingerprint matches', async () => {
+      vi.useRealTimers();
+      const cache = new TurnTextCache();
+      cache.setConversation('gpt:conv:idemp');
+      cache.set(makeEntry('t1', 'hello'));
+      await new Promise((r) => setTimeout(r, 500));
+      const setSpy = vi.spyOn(localStorage, 'setItem');
+      // Write the SAME content again — primer + reconcile typically race like this.
+      cache.set(makeEntry('t1', 'hello'));
+      cache.set(makeEntry('t1', 'hello'));
+      cache.set(makeEntry('t1', 'hello'));
+      await new Promise((r) => setTimeout(r, 500));
+      expect(setSpy).not.toHaveBeenCalled();
+      setSpy.mockRestore();
+    });
+
+    it('idempotent set() DOES trigger save when fingerprint changes', async () => {
+      vi.useRealTimers();
+      const cache = new TurnTextCache();
+      cache.setConversation('gpt:conv:change');
+      cache.set(makeEntry('t1', 'hello'));
+      await new Promise((r) => setTimeout(r, 500));
+      const setSpy = vi.spyOn(localStorage, 'setItem');
+      cache.set(makeEntry('t1', 'world')); // different content
+      await new Promise((r) => setTimeout(r, 500));
+      expect(setSpy).toHaveBeenCalledTimes(1);
+      setSpy.mockRestore();
+    });
+
+    it('evicts oldest conversations when localStorage exceeds the conversation cap', () => {
+      vi.useRealTimers();
+      // Seed 85 fake conversation cache entries with ascending lastSeenAt
+      for (let i = 0; i < 85; i++) {
+        const key = `${STORAGE_PREFIX}gpt:conv:bulk-${i}`;
+        localStorage.setItem(
+          key,
+          JSON.stringify({
+            v: 1,
+            entries: [
+              {
+                id: `u-${i}`,
+                summary: `seed-${i}`,
+                attachments: [],
+                hasGeneratedImage: false,
+                lastSeenAt: i, // older = lower
+                fingerprint: computeFingerprint(`seed-${i}`, []),
+              },
+            ],
+          }),
+        );
+      }
+      const before = enumerateStorageKeys()
+        .filter((k) => k.startsWith(STORAGE_PREFIX)).length;
+      expect(before).toBe(85);
+
+      // Loading a fresh conversation should trigger eviction down to MAX (80).
+      const cache = new TurnTextCache();
+      cache.setConversation('gpt:conv:current');
+
+      const after = enumerateStorageKeys()
+        .filter((k) => k.startsWith(STORAGE_PREFIX)).length;
+      // 80 cap, plus the newly-bound conversation is exempt from eviction
+      // (and would be added when we call set/flush). Since we haven't
+      // written anything yet, just check the others got trimmed.
+      expect(after).toBeLessThanOrEqual(80);
+      // The youngest 5 of the seeded 85 (lastSeenAt=80..84) must survive.
+      expect(localStorage.getItem(`${STORAGE_PREFIX}gpt:conv:bulk-84`)).not.toBeNull();
+      expect(localStorage.getItem(`${STORAGE_PREFIX}gpt:conv:bulk-80`)).not.toBeNull();
+      // The oldest must be gone.
+      expect(localStorage.getItem(`${STORAGE_PREFIX}gpt:conv:bulk-0`)).toBeNull();
+    });
+
+    it('never evicts the conversation we are about to load', () => {
+      vi.useRealTimers();
+      // Seed the active conversation with `lastSeenAt: 0` (oldest), plus 85 newer ones.
+      localStorage.setItem(
+        `${STORAGE_PREFIX}gpt:conv:active`,
+        JSON.stringify({
+          v: 1,
+          entries: [
+            {
+              id: 'u-1',
+              summary: 'keep me',
+              attachments: [],
+              hasGeneratedImage: false,
+              lastSeenAt: 0,
+              fingerprint: computeFingerprint('keep me', []),
+            },
+          ],
+        }),
+      );
+      for (let i = 0; i < 85; i++) {
+        localStorage.setItem(
+          `${STORAGE_PREFIX}gpt:conv:other-${i}`,
+          JSON.stringify({
+            v: 1,
+            entries: [
+              {
+                id: `u-x${i}`,
+                summary: 'x',
+                attachments: [],
+                hasGeneratedImage: false,
+                lastSeenAt: 100 + i,
+                fingerprint: computeFingerprint('x', []),
+              },
+            ],
+          }),
+        );
+      }
+      const cache = new TurnTextCache();
+      cache.setConversation('gpt:conv:active');
+      // The active conversation must NOT have been evicted despite being
+      // the oldest by lastSeenAt.
+      expect(localStorage.getItem(`${STORAGE_PREFIX}gpt:conv:active`)).not.toBeNull();
+      // And it should be readable.
+      expect(cache.get('u-1')?.summary).toBe('keep me');
+    });
+
+    it('getConversationId returns the bound conversation (used by primer to filter cross-conv events)', () => {
+      const cache = new TurnTextCache();
+      expect(cache.getConversationId()).toBeNull();
+      cache.setConversation('gpt:conv:x');
+      expect(cache.getConversationId()).toBe('gpt:conv:x');
+      cache.setConversation(null);
+      expect(cache.getConversationId()).toBeNull();
     });
   });
 });

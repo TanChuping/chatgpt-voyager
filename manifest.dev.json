@@ -38,6 +38,12 @@
       "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
       "js": ["src/pages/content/index.tsx"],
       "css": ["contentStyle.css"]
+    },
+    {
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+      "js": ["src/pages/pageWorld/conversationHook.ts"],
+      "run_at": "document_start",
+      "world": "MAIN"
     }
   ],
   "host_permissions": [
@@ -52,5 +58,5 @@
     "service_worker": "src/pages/background/index.ts",
     "type": "module"
   },
-  "version": "1.5.7"
+  "version": "1.6.0"
 }

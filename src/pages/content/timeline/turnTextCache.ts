@@ -70,6 +70,15 @@ interface PersistedShape {
 const STORAGE_PREFIX = 'gptTimelineTurnTextCache:';
 const MAX_ENTRIES = 500;
 const SAVE_DEBOUNCE_MS = 400;
+/**
+ * Cap on how many conversations' caches we keep in localStorage at once.
+ * Each cached conversation is roughly 20–50 KB serialized; localStorage gives
+ * us ~5 MB per origin. 80 conversations keeps us comfortably under that
+ * even after considering ChatGPT's own usage of localStorage. Eviction
+ * sorts by the conversation's most-recent `lastSeenAt` and drops the
+ * oldest first.
+ */
+const MAX_CONVERSATIONS = 80;
 
 export class TurnTextCache {
   private map = new Map<string, TurnTextCacheEntry>();
@@ -87,17 +96,44 @@ export class TurnTextCache {
     this.map.clear();
     if (!conversationId) return;
     this.load();
+    // Trim cross-conversation storage on each conversation switch. Cheap
+    // enough (one key scan) and avoids unbounded growth across long usage.
+    this.evictOldConversations();
+  }
+
+  /** Expose for callers that need to filter cross-conversation traffic
+   * (e.g. the API-capture primer skips events for other conversations). */
+  getConversationId(): string | null {
+    return this.conversationId;
   }
 
   get(turnId: string): TurnTextCacheEntry | undefined {
     return this.map.get(turnId);
   }
 
-  /** Insert/refresh a snapshot. Should only be called when the live DOM
-   * produced non-empty content for this turn — caching an empty snapshot
-   * would mask the fallback mechanism. */
+  /**
+   * Insert/refresh a snapshot. Should only be called when the live DOM
+   * (or the API capture) produced non-empty content for this turn —
+   * caching an empty snapshot would mask the fallback mechanism.
+   *
+   * Idempotent re-writes (same fingerprint as the cached entry) only
+   * refresh `lastSeenAt` and DO NOT schedule a save. This matters because
+   * both the DOM-reconcile path and the API-prime path write through this
+   * method; if every reconcile pass scheduled a fresh debounced save, we'd
+   * churn localStorage on every scroll. With the short-circuit, only
+   * actual content changes hit disk.
+   */
   set(entry: TurnTextCacheEntry): void {
     if (!this.conversationId) return;
+    const existing = this.map.get(entry.id);
+    if (
+      existing &&
+      existing.fingerprint === entry.fingerprint &&
+      existing.hasGeneratedImage === entry.hasGeneratedImage
+    ) {
+      existing.lastSeenAt = entry.lastSeenAt;
+      return;
+    }
     this.map.set(entry.id, { ...entry });
     this.scheduleSave();
   }
@@ -232,5 +268,58 @@ export class TurnTextCache {
     this.map.clear();
     this.dirty = true;
     this.scheduleSave();
+  }
+
+  /**
+   * Sweep localStorage for `gptTimelineTurnTextCache:*` keys and evict the
+   * least-recently-touched conversations down to `MAX_CONVERSATIONS`. Each
+   * persisted payload's "most-recent activity" is the max `lastSeenAt` of
+   * its entries (cheap to compute since entries are already in memory when
+   * we read them).
+   *
+   * Called from `setConversation` so the user pays this cost at conversation
+   * switch — never during scroll or other interactive paths. NEVER evicts
+   * the currently-active conversation regardless of its recency rank.
+   */
+  private evictOldConversations(): void {
+    try {
+      const entries: Array<{ key: string; convId: string; mostRecent: number }> = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(STORAGE_PREFIX)) continue;
+        const convId = k.slice(STORAGE_PREFIX.length);
+        let mostRecent = 0;
+        try {
+          const raw = localStorage.getItem(k);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw) as Partial<PersistedShape>;
+          if (Array.isArray(parsed.entries)) {
+            for (const e of parsed.entries) {
+              if (typeof e?.lastSeenAt === 'number' && e.lastSeenAt > mostRecent) {
+                mostRecent = e.lastSeenAt;
+              }
+            }
+          }
+        } catch {
+          // Malformed entry — leave at mostRecent=0 so it gets evicted first.
+        }
+        entries.push({ key: k, convId, mostRecent });
+      }
+      if (entries.length <= MAX_CONVERSATIONS) return;
+      entries.sort((a, b) => a.mostRecent - b.mostRecent); // oldest first
+      const evictCount = entries.length - MAX_CONVERSATIONS;
+      for (let i = 0; i < evictCount; i++) {
+        const target = entries[i];
+        // NEVER drop the conversation we are about to load / are inside.
+        if (target.convId === this.conversationId) continue;
+        try {
+          localStorage.removeItem(target.key);
+        } catch {
+          /* ignore — single failure shouldn't poison the sweep */
+        }
+      }
+    } catch {
+      // localStorage walk failed (private mode, etc.) — non-fatal.
+    }
   }
 }

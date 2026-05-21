@@ -2,6 +2,12 @@
   "extName": {
     "message": "GPT-Voyager"
   },
+  "singleConvExportButton": {
+    "message": "导出此对话"
+  },
+  "singleConvExportButtonTooltip": {
+    "message": "将此对话导出为 Markdown"
+  },
   "extDescription": {
     "message": "为 ChatGPT 提供时间线、文件夹、Prompt 管理和聊天导出。"
   },

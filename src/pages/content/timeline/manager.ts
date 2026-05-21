@@ -41,6 +41,8 @@ import { findMatchingStarredMessages } from './starredLookup';
 import type { StarredMessage, StarredMessagesData } from './starredTypes';
 import { TurnTextCache, computeFingerprint } from './turnTextCache';
 import type { DotElement, MarkerLevel } from './types';
+import { getConversationCaptureService } from '@/features/conversationApi/ConversationCaptureService';
+import { installCachePrimerForManager } from '@/features/cachePrimer/CachePrimer';
 
 /** Accessibility prefixes injected by ChatGPT's DOM that should be stripped from previews. */
 const TURN_LABEL_PREFIXES =
@@ -149,6 +151,8 @@ export class TimelineManager {
    * LRU-capped inside TurnTextCache.
    */
   private turnTextCache: TurnTextCache = new TurnTextCache();
+  private cachePrimerInstalled = false;
+  private cachePrimerDispose: (() => void) | null = null;
   private activeTurnId: string | null = null;
   private ui: {
     timelineBar: HTMLElement | null;
@@ -354,6 +358,20 @@ export class TimelineManager {
     this.setupObservers();
     this.conversationId = this.computeConversationId();
     this.turnTextCache.setConversation(this.conversationId);
+    // Subscribe the turn-text cache to live API captures (page-world hook).
+    // Idempotent: install once per manager instance.
+    if (!this.cachePrimerInstalled) {
+      this.cachePrimerInstalled = true;
+      try {
+        const handle = installCachePrimerForManager(
+          this.turnTextCache,
+          getConversationCaptureService(),
+        );
+        this.cachePrimerDispose = handle.dispose;
+      } catch (err) {
+        console.warn('[GPT-Voyager] cache primer install failed', err);
+      }
+    }
     this.loadTextPins();
     await this.loadStars();
     await this.syncStarredFromService();
@@ -6261,6 +6279,18 @@ export class TimelineManager {
     try {
       this.turnTextCache.flushSync();
     } catch {}
+
+    // Unsubscribe from the API-capture service so we don't leak a listener
+    // per URL navigation. Without this, every conversation switch (which
+    // tears down this manager and spawns a fresh one) would add one more
+    // dangling closure to the singleton's listener list, fed by every
+    // future capture event.
+    if (this.cachePrimerDispose) {
+      try {
+        this.cachePrimerDispose();
+      } catch {}
+      this.cachePrimerDispose = null;
+    }
 
     // Cleanup keyboard shortcuts
     if (this.shortcutUnsubscribe) {

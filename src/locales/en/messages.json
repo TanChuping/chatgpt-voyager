@@ -2,6 +2,12 @@
   "extName": {
     "message": "GPT-Voyager"
   },
+  "singleConvExportButton": {
+    "message": "Export this conversation"
+  },
+  "singleConvExportButtonTooltip": {
+    "message": "Export this conversation as Markdown"
+  },
   "extDescription": {
     "message": "GPT-Voyager: timeline, folders, prompt vault, and chat export for ChatGPT."
   },

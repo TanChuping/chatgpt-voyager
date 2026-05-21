@@ -7,6 +7,7 @@ import { startFormulaCopy } from '@/features/formulaCopy';
 import { initI18n } from '@/utils/i18n';
 
 import { startCanvasExport } from './canvasExport/index';
+import { startSingleConversationExport } from './conversationExport/index';
 import { startChatFontSizeAdjuster } from './chatFontSize/index';
 import { startInputVimMode } from './chatInput/vimMode';
 import { startChatWidthAdjuster } from './chatWidth/index';
@@ -129,8 +130,7 @@ async function startChatGPTFeatures(): Promise<void> {
   await runFeatureStep('Sidebar Auto Hide', () => startSidebarAutoHide());
   await runFeatureStep('Input Collapse', () => startInputCollapse());
 
-  inputVimModeCleanup =
-    (await runFeatureStep('Input Vim Mode', () => startInputVimMode())) ?? null;
+  inputVimModeCleanup = (await runFeatureStep('Input Vim Mode', () => startInputVimMode())) ?? null;
 
   await runFeatureStep('Prevent Auto Scroll', () => startPreventAutoScroll());
   await runFeatureStep('Formula Copy', () => startFormulaCopy());
@@ -144,13 +144,13 @@ async function startChatGPTFeatures(): Promise<void> {
     }
   });
 
-  sendBehaviorCleanup =
-    (await runFeatureStep('Send Behavior', () => startSendBehavior())) ?? null;
+  sendBehaviorCleanup = (await runFeatureStep('Send Behavior', () => startSendBehavior())) ?? null;
   draftSaveCleanup = (await runFeatureStep('Draft Save', () => startDraftSave())) ?? null;
 
   await runFeatureStep('Markdown Patcher', () => startMarkdownPatcher());
   await runFeatureStep('Export Button', () => startExportButton());
   await runFeatureStep('Canvas Export', () => startCanvasExport());
+  await runFeatureStep('Single-Conversation Export', () => startSingleConversationExport());
 
   await runFeatureStep('Fork', async () => {
     if (await isForkFeatureEnabled()) forkCleanup = startFork();

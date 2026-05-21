@@ -10871,3 +10871,18 @@ body.light-theme .gv-jump-confirm-dialog__btn--cancel:hover,
 html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
   background: rgba(15, 23, 42, 0.05);
 }
+
+/* Top-bar "Export conversation" button — placed next to ChatGPT's Share
+ * button. Inherits Share's classes for padding / rounding / hover; we
+ * just add a small gap between the icon and the localised label so it
+ * doesn't look cramped (ChatGPT's icon-only Share button has no such gap). */
+.gv-export-conv-topbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.gv-export-conv-topbar__label {
+  font-size: 0.875rem;
+  line-height: 1;
+  white-space: nowrap;
+}
