@@ -97,6 +97,25 @@ export interface LinearMessage {
   text: string;
   attachments: LinearAttachment[];
   createTime: number | null;
+  /**
+   * Original `content_type` string from the API node ("text",
+   * "multimodal_text", "code", "execution_output", "thoughts",
+   * "reasoning_recap", "model_editable_context", "tether_quote", ...).
+   *
+   * Carried through so the simplified-export filter can decide which
+   * messages are user-facing "answers" vs. tool/internal noise. The
+   * standard exporters ignore it.
+   */
+  contentType?: string;
+  /**
+   * Channel string from the API node. ChatGPT uses `"final"` for the
+   * polished user-facing assistant response, `"commentary"` for the
+   * model's pre-tool narration that wraps Code Interpreter / browsing
+   * calls, and leaves it `null` on legacy models. The simplified-export
+   * filter treats `null` and `"final"` as visible, everything else as
+   * intermediate noise.
+   */
+  channel?: string | null;
 }
 
 export interface LinearConversation {

@@ -79,6 +79,7 @@ export const BACKUPABLE_SYNC_SETTINGS_DEFAULTS: Record<string, unknown> = {
   [StorageKeys.GV_POPUP_SECTION_ORDER]: null,
   [StorageKeys.FOLDER_ENABLED]: true,
   [StorageKeys.FOLDER_HIDE_ARCHIVED_CONVERSATIONS]: false,
+  [StorageKeys.SINGLE_CONV_EXPORT_FORMAT]: 'markdown',
 };
 
 export const BACKUPABLE_SYNC_SETTINGS_KEYS = Object.keys(BACKUPABLE_SYNC_SETTINGS_DEFAULTS);

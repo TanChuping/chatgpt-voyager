@@ -10,7 +10,13 @@
  * Idempotent: tagged with `data-gv-export-btn` so reinsertions don't
  * double-inject.
  */
-import { exportConversation } from '@/features/singleConvExport';
+import {
+  DEFAULT_SINGLE_CONV_EXPORT_FORMAT,
+  exportConversation,
+  isSingleConvExportFormat,
+  type SingleConvExportFormat,
+} from '@/features/singleConvExport';
+import { StorageKeys } from '@/core/types/common';
 import { getTranslationSync } from '@/utils/i18n';
 
 const TAG = 'data-gv-export-btn';
@@ -78,10 +84,30 @@ function injectIfNeeded(): void {
       console.warn('[GPT-Voyager] export: no conversation ID in URL');
       return;
     }
-    exportConversation(convId, 'markdown');
+    // Resolve format from the popup setting at click time so a
+    // running ChatGPT tab picks up popup changes without a reload.
+    void resolveExportFormat().then((fmt) => exportConversation(convId, fmt));
   });
 
   parent.insertBefore(btn, share.nextSibling);
+}
+
+/**
+ * Read the user's preferred export format from chrome.storage.sync.
+ * Defensive against malformed values written by older builds — anything
+ * outside the union falls back to the standard markdown default.
+ */
+async function resolveExportFormat(): Promise<SingleConvExportFormat> {
+  try {
+    const result = await chrome.storage?.sync?.get({
+      [StorageKeys.SINGLE_CONV_EXPORT_FORMAT]: DEFAULT_SINGLE_CONV_EXPORT_FORMAT,
+    });
+    const value = result?.[StorageKeys.SINGLE_CONV_EXPORT_FORMAT];
+    if (isSingleConvExportFormat(value)) return value;
+    return DEFAULT_SINGLE_CONV_EXPORT_FORMAT;
+  } catch {
+    return DEFAULT_SINGLE_CONV_EXPORT_FORMAT;
+  }
 }
 
 let observer: MutationObserver | null = null;

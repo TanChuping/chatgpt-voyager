@@ -110,6 +110,12 @@ export const StorageKeys = {
 
   // Export
   EXPORT_IMAGE_WIDTH: 'gvExportImageWidth',
+  /**
+   * Single-conversation export format chosen in the popup. Drives the
+   * top-bar download button. See `SingleConvExportFormat` in
+   * `src/features/singleConvExport/index.ts` for the union.
+   */
+  SINGLE_CONV_EXPORT_FORMAT: 'gvSingleConvExportFormat',
 
   // Message timestamps
   GV_SHOW_MESSAGE_TIMESTAMPS: 'gvShowMessageTimestamps',

@@ -9,10 +9,48 @@ import {
 } from '../conversationApi/ConversationCaptureService';
 import type { LinearConversation } from '../conversationApi/types';
 import { downloadBlob } from './downloadFile';
+import { toHtml } from './HtmlExporter';
 import { toJson } from './JsonExporter';
+import { toJsonSimple } from './JsonSimpleExporter';
 import { toMarkdown } from './MarkdownExporter';
+import { toMarkdownSimple } from './MarkdownSimpleExporter';
 
-export type SingleConvExportFormat = 'markdown' | 'json';
+/**
+ * Output formats the top-bar button can emit.
+ *
+ *  - `markdown`        : standard, lossless markdown (the 1.6.0 default).
+ *                        Includes Code Interpreter blocks, tool outputs and
+ *                        commentary-channel narration verbatim.
+ *  - `markdown-simple` : user input + final assistant text + timestamps only.
+ *  - `json`            : standard, full linear JSON (also from 1.6.0).
+ *  - `json-simple`     : 3-field JSON (role/text/createTime + attachments).
+ *  - `html`            : single self-contained HTML transcript, simplified.
+ *
+ * Keep the list in sync with the popup radio group and with `formatLinear`.
+ */
+export type SingleConvExportFormat =
+  | 'markdown'
+  | 'markdown-simple'
+  | 'json'
+  | 'json-simple'
+  | 'html';
+
+/** Default when the user hasn't picked one (matches pre-1.7 behaviour). */
+export const DEFAULT_SINGLE_CONV_EXPORT_FORMAT: SingleConvExportFormat = 'markdown';
+
+/**
+ * Allow-list check used at the storage boundary — chrome.storage.sync can
+ * hand us anything if a future build wrote a value we no longer recognise.
+ */
+export function isSingleConvExportFormat(value: unknown): value is SingleConvExportFormat {
+  return (
+    value === 'markdown' ||
+    value === 'markdown-simple' ||
+    value === 'json' ||
+    value === 'json-simple' ||
+    value === 'html'
+  );
+}
 
 const SESSION_KEY = 'gv-pending-single-export';
 const PENDING_RESUME_TIMEOUT_MS = 15000;
@@ -44,18 +82,41 @@ function todayStamp(): string {
   return `${y}${m}${day}`;
 }
 
+function extensionFor(format: SingleConvExportFormat): 'md' | 'json' | 'html' {
+  switch (format) {
+    case 'markdown':
+    case 'markdown-simple':
+      return 'md';
+    case 'json':
+    case 'json-simple':
+      return 'json';
+    case 'html':
+      return 'html';
+  }
+}
+
 export function buildFilename(linear: LinearConversation, format: SingleConvExportFormat): string {
-  const ext = format === 'markdown' ? 'md' : 'json';
+  const ext = extensionFor(format);
   const slug = slugifyTitle(linear.title, linear.id || 'conversation');
   return `chatgpt-${slug}-${todayStamp()}.${ext}`;
 }
 
-function formatLinear(linear: LinearConversation, format: SingleConvExportFormat): {
-  body: string;
-  mime: string;
-} {
-  if (format === 'markdown') return { body: toMarkdown(linear), mime: 'text/markdown' };
-  return { body: toJson(linear), mime: 'application/json' };
+function formatLinear(
+  linear: LinearConversation,
+  format: SingleConvExportFormat,
+): { body: string; mime: string } {
+  switch (format) {
+    case 'markdown':
+      return { body: toMarkdown(linear), mime: 'text/markdown' };
+    case 'markdown-simple':
+      return { body: toMarkdownSimple(linear), mime: 'text/markdown' };
+    case 'json':
+      return { body: toJson(linear), mime: 'application/json' };
+    case 'json-simple':
+      return { body: toJsonSimple(linear), mime: 'application/json' };
+    case 'html':
+      return { body: toHtml(linear), mime: 'text/html' };
+  }
 }
 
 function performExport(linear: LinearConversation, format: SingleConvExportFormat): void {

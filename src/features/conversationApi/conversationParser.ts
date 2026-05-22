@@ -168,6 +168,9 @@ export function walkMapping(api: ApiConversation): LinearConversation {
       text,
       attachments,
       createTime: msg.create_time ?? null,
+      contentType:
+        typeof msg.content?.content_type === 'string' ? msg.content.content_type : undefined,
+      channel: typeof msg.channel === 'string' ? msg.channel : msg.channel === null ? null : undefined,
     });
   }
 

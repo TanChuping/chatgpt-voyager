@@ -6,7 +6,40 @@
     "message": "导出此对话"
   },
   "singleConvExportButtonTooltip": {
-    "message": "将此对话导出为 Markdown"
+    "message": "按照扩展弹窗里选定的格式导出此对话"
+  },
+  "singleConvExportOptions": {
+    "message": "对话导出"
+  },
+  "singleConvExportFormat": {
+    "message": "导出格式"
+  },
+  "singleConvExportFormatHint": {
+    "message": "选择 ChatGPT 顶栏 Share 按钮旁那个下载按钮使用的格式。简化版会去掉 Code Interpreter 的代码块、工具输出和模型调用工具前的旁白，只保留你的消息、模型最终回答和时间戳。"
+  },
+  "singleConvExportFormatMarkdown": {
+    "message": "标准 Markdown"
+  },
+  "singleConvExportFormatMarkdownHint": {
+    "message": "完整保留。包含 Code Interpreter 代码、工具输出和中间旁白。"
+  },
+  "singleConvExportFormatMarkdownSimple": {
+    "message": "简化 Markdown"
+  },
+  "singleConvExportFormatJson": {
+    "message": "标准 JSON"
+  },
+  "singleConvExportFormatJsonHint": {
+    "message": "完整线性 JSON（直接来自 API mapping）。适合归档或下游处理。"
+  },
+  "singleConvExportFormatJsonSimple": {
+    "message": "简化 JSON"
+  },
+  "singleConvExportFormatHtml": {
+    "message": "HTML（简化）"
+  },
+  "singleConvExportFormatSimpleHint": {
+    "message": "只保留你的消息、模型最终回答和时间戳。"
   },
   "extDescription": {
     "message": "为 ChatGPT 提供时间线、文件夹、Prompt 管理和聊天导出。"

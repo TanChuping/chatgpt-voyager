@@ -23,6 +23,8 @@ Repository: [TanChuping/chatgpt-voyager](https://github.com/TanChuping/chatgpt-v
 - Input enhancements, including input collapse, draft autosave, quote reply, Vim-style input option, Ctrl+Enter send option, and auto-scroll prevention.
 - Markdown, KaTeX/LaTeX, formula copy, and Mermaid rendering support, including mind maps.
 - Conversation export and local backup/import for prompts, folders, settings, and timeline hierarchy.
+- One-click single-conversation export to Markdown or JSON from the chat header (piggybacks ChatGPT's own conversation fetch — no separate API call, no extra permissions).
+- Cross-conversation favorites: star any user message, jump back to it from the favorites panel even after switching conversations.
 - Layout controls for chat width, font size, input width, sidebar width, and folder spacing.
 - A small support popover with Ko-fi and optional payment QR codes.
 
@@ -68,6 +70,34 @@ Other platform build scripts are kept from the upstream project, but the activel
 
 ## Recent Updates
 
+### 1.6.1
+
+- **Conversation export now has format choices in the popup.** A new "Conversation export" section in the extension settings lets you pick between five formats: Standard Markdown (the 1.6.0 default, lossless), Simplified Markdown, Standard JSON, Simplified JSON, and HTML.
+- **Simplified variants strip the "model thinking" noise** that users were reporting in the standard export. Under the hood, ChatGPT's conversation payload includes a lot more than the final answer — Code Interpreter's Python source (sometimes 30+ KB per turn), the model's pre-tool narration ("I'll build a single-file HTML page..."), tool execution output, and intermediate reasoning blocks. The simplified formats keep only three things: your messages, the model's final reply, and timestamps. The standard formats are unchanged so existing archives keep working.
+- **HTML export** produces a single self-contained file with inlined CSS, light/dark auto-adapt, and proper HTML escaping. Double-click to read in any browser, no extension needed.
+- **Filter is fail-closed**: unknown assistant content types (anything ChatGPT might add in the future) are dropped from the simplified output by default — better to be missing a new feature than to leak garbled internal blocks into an archive.
+
+### 1.6.0
+
+- **One-click single-conversation export** from a new button in the chat top bar next to ChatGPT's own Share control. Output is Markdown or JSON; filename follows `chatgpt-<slug>-<YYYYMMDD>.{md|json}`. The exporter walks ChatGPT's conversation `mapping` (current_node → parent chain → reverse) so branched / edited threads always export the *currently shown* path, not the full tree.
+- **Silent API cache primer.** A page-world fetch/XHR hook (runs in MAIN world via a dedicated content script at `document_start`) listens for ChatGPT's own `/backend-api/conversation/<uuid>` calls, bridges the parsed payload into the extension via `window.postMessage` (+ a sessionStorage fallback for the cold-start case where the content-script hasn't booted yet), and pre-fills the timeline's TurnTextCache for every user turn. Effect: opening a long conversation now shows correct dot tooltips and preview-panel rows immediately, instead of waiting for the user to scroll past each turn to populate it.
+- Conversation parser + export skeleton adapted from [pionxzh/chatgpt-exporter](https://github.com/pionxzh/chatgpt-exporter) (MIT). See `THIRD_PARTY_NOTICES.md` for the attribution and the reason we diverged from issuing API calls ourselves.
+
+### 1.5.4
+
+- Persistent turn-text cache. The timeline now persists each user turn's `{summary, attachments, hasGeneratedImage}` snapshot per conversation in localStorage (`gptTimelineTurnTextCache:<conversationId>`), capped at 500 entries per conversation and 80 conversations globally with LRU eviction. ChatGPT aggressively virtualises far-away message bodies, which used to leave the timeline dot tooltips and preview-panel rows blank until the user scrolled past every turn at least once. With the cache populated, the same data survives page reload, route change, and ChatGPT's own virtualisation.
+- Edit detection via content fingerprints: each cached entry carries a stable hash of `(summary + attachment names)`. If a turn's live fingerprint diverges from the cached one (user edited, assistant regenerated), the cache invalidates that single entry — no full-cache wipes, no fragile DOM-timing heuristics.
+- Click-jump animation now has a spring-overshoot pass so the active dot settles into place visibly instead of snapping.
+- Unmounted-turn placeholders: the preview panel shows a soft placeholder row for turns whose body ChatGPT has unmounted, so the panel's vertical scroll position stays stable as virtualisation toggles.
+
+### 1.5.3
+
+- Sticky markers: timeline dots now survive ChatGPT's mid-conversation virtualisation pass. Previously, dots could vanish briefly when ChatGPT unmounted a turn's outer wrapper during fast scroll; now we keep a phantom marker pinned at the last known anchor until either the wrapper re-mounts or the conversation reconciles to confirm the turn is actually gone.
+
+### 1.5.2
+
+- Folder sidebar mounted inside ChatGPT's native sticky nav block, picking up ChatGPT's own design tokens so spacing/colors match the surrounding "New chat" / "Search chats" rows. Side effects: folders now scroll-stick correctly with the rest of the sidebar header, and the "⋯" menu glyph is centered with proper hover affordance instead of nudging on click.
+
 ### 1.5.1
 
 - One-click favorites in the preview panel: each row has a star toggle so you can pin a message to your favorites list without long-pressing the dot.
@@ -107,3 +137,18 @@ This project is distributed under GPL-3.0, following the original license of Gem
 - Modified project: [ChatGPT Voyager](https://github.com/TanChuping/chatgpt-voyager)
 
 If you redistribute modified versions, keep the GPL-3.0 license and preserve attribution to the upstream project.
+
+## Support The Author
+
+ChatGPT Voyager is free and will stay free. If it saved you some time and you feel like buying the author a coffee (or a Sony keyboard), any of these work:
+
+- **Ko-fi** — [ko-fi.com/nekonekomeowmeow](https://ko-fi.com/nekonekomeowmeow)
+- **微信 / WeChat** and **支付宝 / Alipay** — scan the QR code below
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/TanChuping/chatgpt-voyager-support/refs/heads/main/support-assets/wechat-qr.png" alt="WeChat QR" width="220" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://raw.githubusercontent.com/TanChuping/chatgpt-voyager-support/refs/heads/main/support-assets/alipay-qr.jpg" alt="Alipay QR" width="220" />
+</p>
+
+Thanks. Seriously.

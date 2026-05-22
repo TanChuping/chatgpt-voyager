@@ -4,12 +4,17 @@ import browser from 'webextension-polyfill';
 
 import { PROJECT_REPOSITORY_URL } from '@/core/constants/project';
 import {
+  DEFAULT_SINGLE_CONV_EXPORT_FORMAT,
+  isSingleConvExportFormat,
+  type SingleConvExportFormat,
+} from '@/features/singleConvExport';
+import {
   DEFAULT_SUPPORT_GOAL,
   SUPPORT_GOAL_REFRESH_MS,
+  type SupportGoalData,
   formatSupportAmount,
   getSupportGoalProgress,
   loadSupportGoal,
-  type SupportGoalData,
 } from '@/core/services/SupportGoalService';
 import { StorageKeys } from '@/core/types/common';
 
@@ -90,13 +95,7 @@ function ToggleRow({
   );
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Card className="p-4">
       <CardTitle className="mb-3">{title}</CardTitle>
@@ -137,9 +136,10 @@ function SupportPopover({ label }: { label: string }) {
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    const refresh = (force = false) => void loadSupportGoal({ force }).then((data) => {
-      if (!cancelled) setGoal(data);
-    });
+    const refresh = (force = false) =>
+      void loadSupportGoal({ force }).then((data) => {
+        if (!cancelled) setGoal(data);
+      });
 
     refresh();
     const interval = window.setInterval(() => refresh(true), SUPPORT_GOAL_REFRESH_MS);
@@ -227,18 +227,26 @@ function SupportPopover({ label }: { label: string }) {
           </div>
           {goal.wechatQrUrl || goal.alipayQrUrl ? (
             <div className="mt-3 grid grid-cols-2 gap-3">
-            {goal.wechatQrUrl ? (
-              <div className="border-border bg-muted/40 text-muted-foreground flex flex-col items-center justify-center overflow-hidden rounded-md border text-center text-[11px] leading-tight">
-                <img src={goal.wechatQrUrl} alt="WeChat QR" className="aspect-square w-full object-cover" />
-                <span className="py-1">微信</span>
-              </div>
-            ) : null}
-            {goal.alipayQrUrl ? (
-              <div className="border-border bg-muted/40 text-muted-foreground flex flex-col items-center justify-center overflow-hidden rounded-md border text-center text-[11px] leading-tight">
-                <img src={goal.alipayQrUrl} alt="Alipay QR" className="aspect-square w-full object-cover" />
-                <span className="py-1">支付宝</span>
-              </div>
-            ) : null}
+              {goal.wechatQrUrl ? (
+                <div className="border-border bg-muted/40 text-muted-foreground flex flex-col items-center justify-center overflow-hidden rounded-md border text-center text-[11px] leading-tight">
+                  <img
+                    src={goal.wechatQrUrl}
+                    alt="WeChat QR"
+                    className="aspect-square w-full object-cover"
+                  />
+                  <span className="py-1">微信</span>
+                </div>
+              ) : null}
+              {goal.alipayQrUrl ? (
+                <div className="border-border bg-muted/40 text-muted-foreground flex flex-col items-center justify-center overflow-hidden rounded-md border text-center text-[11px] leading-tight">
+                  <img
+                    src={goal.alipayQrUrl}
+                    alt="Alipay QR"
+                    className="aspect-square w-full object-cover"
+                  />
+                  <span className="py-1">支付宝</span>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -288,6 +296,9 @@ export default function Popup() {
   const [quoteReply, setQuoteReply] = useState(true);
 
   const [formulaCopyFormat, setFormulaCopyFormat] = useState<FormulaCopyFormat>('latex');
+  const [singleConvExportFormat, setSingleConvExportFormat] = useState<SingleConvExportFormat>(
+    DEFAULT_SINGLE_CONV_EXPORT_FORMAT,
+  );
   const [mermaidEnabled, setMermaidEnabled] = useState(true);
   const [promptHidden, setPromptHidden] = useState(false);
   const [promptInsertOnClick, setPromptInsertOnClick] = useState(false);
@@ -346,6 +357,7 @@ export default function Popup() {
         [StorageKeys.PROMPT_INSERT_ON_CLICK]: false,
         [StorageKeys.PROMPT_VIEW_MODE]: 'comfortable',
         [StorageKeys.PROMPT_CUSTOM_WEBSITES]: [],
+        [StorageKeys.SINGLE_CONV_EXPORT_FORMAT]: DEFAULT_SINGLE_CONV_EXPORT_FORMAT,
       })
       .then((result) => {
         const mode = result[StorageKeys.TIMELINE_SCROLL_MODE];
@@ -441,11 +453,17 @@ export default function Popup() {
         setMermaidEnabled(result[StorageKeys.MERMAID_ENABLED] !== false);
         setPromptHidden(result[StorageKeys.HIDE_PROMPT_MANAGER] === true);
         setPromptInsertOnClick(result[StorageKeys.PROMPT_INSERT_ON_CLICK] === true);
-        setPromptViewMode(result[StorageKeys.PROMPT_VIEW_MODE] === 'compact' ? 'compact' : 'comfortable');
+        setPromptViewMode(
+          result[StorageKeys.PROMPT_VIEW_MODE] === 'compact' ? 'compact' : 'comfortable',
+        );
         setCustomWebsites(
           Array.isArray(result[StorageKeys.PROMPT_CUSTOM_WEBSITES])
             ? (result[StorageKeys.PROMPT_CUSTOM_WEBSITES] as string[])
             : [],
+        );
+        const exportFormat = result[StorageKeys.SINGLE_CONV_EXPORT_FORMAT];
+        setSingleConvExportFormat(
+          isSingleConvExportFormat(exportFormat) ? exportFormat : DEFAULT_SINGLE_CONV_EXPORT_FORMAT,
         );
       });
   }, []);
@@ -501,6 +519,33 @@ export default function Popup() {
     [t],
   );
 
+  /**
+   * Mirror of `SingleConvExportFormat`. Keep this list in sync with
+   * `src/features/singleConvExport/index.ts`. The label/description pairs
+   * are intentionally distinct: the label fits one line in the popup, the
+   * description tells the user *what gets stripped out* in the simplified
+   * variants — which is the whole reason this setting exists.
+   */
+  const singleConvExportOptions = useMemo(
+    () =>
+      [
+        ['markdown', t('singleConvExportFormatMarkdown'), t('singleConvExportFormatMarkdownHint')],
+        [
+          'markdown-simple',
+          t('singleConvExportFormatMarkdownSimple'),
+          t('singleConvExportFormatSimpleHint'),
+        ],
+        ['json', t('singleConvExportFormatJson'), t('singleConvExportFormatJsonHint')],
+        [
+          'json-simple',
+          t('singleConvExportFormatJsonSimple'),
+          t('singleConvExportFormatSimpleHint'),
+        ],
+        ['html', t('singleConvExportFormatHtml'), t('singleConvExportFormatSimpleHint')],
+      ] as const,
+    [t],
+  );
+
   if (showStarredHistory) {
     return <StarredHistory onClose={() => setShowStarredHistory(false)} />;
   }
@@ -522,7 +567,9 @@ export default function Popup() {
               type="button"
               variant={timelineMode === 'flow' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => updateToggle<ScrollMode>(setTimelineMode, StorageKeys.TIMELINE_SCROLL_MODE, 'flow')}
+              onClick={() =>
+                updateToggle<ScrollMode>(setTimelineMode, StorageKeys.TIMELINE_SCROLL_MODE, 'flow')
+              }
             >
               {t('flow')}
             </Button>
@@ -530,7 +577,9 @@ export default function Popup() {
               type="button"
               variant={timelineMode === 'jump' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => updateToggle<ScrollMode>(setTimelineMode, StorageKeys.TIMELINE_SCROLL_MODE, 'jump')}
+              onClick={() =>
+                updateToggle<ScrollMode>(setTimelineMode, StorageKeys.TIMELINE_SCROLL_MODE, 'jump')
+              }
             >
               {t('jump')}
             </Button>
@@ -539,27 +588,35 @@ export default function Popup() {
             id="timeline-hidden"
             title={t('hideOuterContainer')}
             checked={timelineHidden}
-            onChange={(value) => updateToggle(setTimelineHidden, StorageKeys.TIMELINE_HIDE_CONTAINER, value)}
+            onChange={(value) =>
+              updateToggle(setTimelineHidden, StorageKeys.TIMELINE_HIDE_CONTAINER, value)
+            }
           />
           <ToggleRow
             id="timeline-draggable"
             title={t('draggableTimeline')}
             checked={timelineDraggable}
-            onChange={(value) => updateToggle(setTimelineDraggable, StorageKeys.TIMELINE_DRAGGABLE, value)}
+            onChange={(value) =>
+              updateToggle(setTimelineDraggable, StorageKeys.TIMELINE_DRAGGABLE, value)
+            }
           />
           <ToggleRow
             id="timeline-preview"
             title={t('pinTimelinePreview')}
             description={t('pinTimelinePreviewHint')}
             checked={timelinePreviewPinned}
-            onChange={(value) => updateToggle(setTimelinePreviewPinned, StorageKeys.TIMELINE_PREVIEW_PINNED, value)}
+            onChange={(value) =>
+              updateToggle(setTimelinePreviewPinned, StorageKeys.TIMELINE_PREVIEW_PINNED, value)
+            }
           />
           <ToggleRow
             id="timeline-level"
             title={t('enableMarkerLevel')}
             description={t('enableMarkerLevelHint')}
             checked={timelineMarkerLevel}
-            onChange={(value) => updateToggle(setTimelineMarkerLevel, StorageKeys.TIMELINE_MARKER_LEVEL, value)}
+            onChange={(value) =>
+              updateToggle(setTimelineMarkerLevel, StorageKeys.TIMELINE_MARKER_LEVEL, value)
+            }
           />
           <ToggleRow
             id="fork-enabled"
@@ -577,7 +634,12 @@ export default function Popup() {
             >
               {t('resetTimelinePosition')}
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => setShowStarredHistory(true)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowStarredHistory(true)}
+            >
               {t('viewStarredHistory')}
             </Button>
           </div>
@@ -594,20 +656,26 @@ export default function Popup() {
             id="folder-floating"
             title={t('enableFloatingFolderPanel')}
             checked={folderFloating}
-            onChange={(value) => updateToggle(setFolderFloating, StorageKeys.FOLDER_FLOATING_MODE_ENABLED, value)}
+            onChange={(value) =>
+              updateToggle(setFolderFloating, StorageKeys.FOLDER_FLOATING_MODE_ENABLED, value)
+            }
           />
           <ToggleRow
             id="folder-hide-archived"
             title={t('hideArchivedConversations')}
             checked={hideArchived}
-            onChange={(value) => updateToggle(setHideArchived, StorageKeys.FOLDER_HIDE_ARCHIVED_CONVERSATIONS, value)}
+            onChange={(value) =>
+              updateToggle(setHideArchived, StorageKeys.FOLDER_HIDE_ARCHIVED_CONVERSATIONS, value)
+            }
           />
           <ToggleRow
             id="folder-project"
             title={t('folderAsProject_enable')}
             description={t('folderAsProject_description')}
             checked={folderProjectEnabled}
-            onChange={(value) => updateToggle(setFolderProjectEnabled, StorageKeys.FOLDER_PROJECT_ENABLED, value)}
+            onChange={(value) =>
+              updateToggle(setFolderProjectEnabled, StorageKeys.FOLDER_PROJECT_ENABLED, value)
+            }
           />
           <WidthSlider
             label={t('folderSpacing')}
@@ -618,7 +686,9 @@ export default function Popup() {
             narrowLabel={t('folderSpacingCompact')}
             wideLabel={t('folderSpacingSpacious')}
             onChange={(value) => setFolderSpacing(value)}
-            onChangeComplete={(value) => void setSyncStorage({ [StorageKeys.GV_FOLDER_SPACING]: value })}
+            onChangeComplete={(value) =>
+              void setSyncStorage({ [StorageKeys.GV_FOLDER_SPACING]: value })
+            }
           />
           <WidthSlider
             label={t('folderTreeIndent')}
@@ -629,7 +699,9 @@ export default function Popup() {
             narrowLabel={t('folderTreeIndentCompact')}
             wideLabel={t('folderTreeIndentSpacious')}
             onChange={(value) => setFolderTreeIndent(value)}
-            onChangeComplete={(value) => void setSyncStorage({ [StorageKeys.GV_FOLDER_TREE_INDENT]: value })}
+            onChangeComplete={(value) =>
+              void setSyncStorage({ [StorageKeys.GV_FOLDER_TREE_INDENT]: value })
+            }
           />
         </Section>
 
@@ -645,7 +717,9 @@ export default function Popup() {
             onChange={setChatWidth}
             onChangeComplete={(value) => void setSyncStorage({ [StorageKeys.CHAT_WIDTH]: value })}
             enabled={chatWidthEnabled}
-            onToggle={(value) => updateToggle(setChatWidthEnabled, StorageKeys.CHAT_WIDTH_ENABLED, value)}
+            onToggle={(value) =>
+              updateToggle(setChatWidthEnabled, StorageKeys.CHAT_WIDTH_ENABLED, value)
+            }
           />
           <WidthSlider
             label={t('chatFontSize')}
@@ -656,9 +730,13 @@ export default function Popup() {
             narrowLabel={t('chatFontSizeSmall')}
             wideLabel={t('chatFontSizeLarge')}
             onChange={setChatFontSize}
-            onChangeComplete={(value) => void setSyncStorage({ [StorageKeys.CHAT_FONT_SIZE]: value })}
+            onChangeComplete={(value) =>
+              void setSyncStorage({ [StorageKeys.CHAT_FONT_SIZE]: value })
+            }
             enabled={chatFontSizeEnabled}
-            onToggle={(value) => updateToggle(setChatFontSizeEnabled, StorageKeys.CHAT_FONT_SIZE_ENABLED, value)}
+            onToggle={(value) =>
+              updateToggle(setChatFontSizeEnabled, StorageKeys.CHAT_FONT_SIZE_ENABLED, value)
+            }
           />
           <WidthSlider
             label={t('codeFontSize')}
@@ -669,9 +747,13 @@ export default function Popup() {
             narrowLabel={t('chatFontSizeSmall')}
             wideLabel={t('chatFontSizeLarge')}
             onChange={setCodeFontSize}
-            onChangeComplete={(value) => void setSyncStorage({ [StorageKeys.CODE_FONT_SIZE]: value })}
+            onChangeComplete={(value) =>
+              void setSyncStorage({ [StorageKeys.CODE_FONT_SIZE]: value })
+            }
             enabled={codeFontSizeEnabled}
-            onToggle={(value) => updateToggle(setCodeFontSizeEnabled, StorageKeys.CODE_FONT_SIZE_ENABLED, value)}
+            onToggle={(value) =>
+              updateToggle(setCodeFontSizeEnabled, StorageKeys.CODE_FONT_SIZE_ENABLED, value)
+            }
           />
           <WidthSlider
             label={t('editInputWidth')}
@@ -682,9 +764,13 @@ export default function Popup() {
             narrowLabel={t('chatWidthNarrow')}
             wideLabel={t('chatWidthWide')}
             onChange={setEditInputWidth}
-            onChangeComplete={(value) => void setSyncStorage({ [StorageKeys.EDIT_INPUT_WIDTH]: value })}
+            onChangeComplete={(value) =>
+              void setSyncStorage({ [StorageKeys.EDIT_INPUT_WIDTH]: value })
+            }
             enabled={editInputWidthEnabled}
-            onToggle={(value) => updateToggle(setEditInputWidthEnabled, StorageKeys.EDIT_INPUT_WIDTH_ENABLED, value)}
+            onToggle={(value) =>
+              updateToggle(setEditInputWidthEnabled, StorageKeys.EDIT_INPUT_WIDTH_ENABLED, value)
+            }
           />
           <WidthSlider
             label={t('sidebarWidth')}
@@ -696,21 +782,27 @@ export default function Popup() {
             narrowLabel={t('sidebarWidthNarrow')}
             wideLabel={t('sidebarWidthWide')}
             onChange={setSidebarWidth}
-            onChangeComplete={(value) => void setSyncStorage({ [StorageKeys.SIDEBAR_WIDTH]: value })}
+            onChangeComplete={(value) =>
+              void setSyncStorage({ [StorageKeys.SIDEBAR_WIDTH]: value })
+            }
           />
           <ToggleRow
             id="sidebar-auto-hide"
             title={t('sidebarAutoHide')}
             description={t('sidebarAutoHideHint')}
             checked={sidebarAutoHide}
-            onChange={(value) => updateToggle(setSidebarAutoHide, StorageKeys.GV_SIDEBAR_AUTO_HIDE, value)}
+            onChange={(value) =>
+              updateToggle(setSidebarAutoHide, StorageKeys.GV_SIDEBAR_AUTO_HIDE, value)
+            }
           />
           <ToggleRow
             id="sidebar-full-hide"
             title={t('sidebarFullHide')}
             description={t('sidebarFullHideHint')}
             checked={sidebarFullHide}
-            onChange={(value) => updateToggle(setSidebarFullHide, StorageKeys.GV_SIDEBAR_FULL_HIDE, value)}
+            onChange={(value) =>
+              updateToggle(setSidebarFullHide, StorageKeys.GV_SIDEBAR_FULL_HIDE, value)
+            }
           />
         </Section>
 
@@ -727,21 +819,31 @@ export default function Popup() {
             title={t('safariEnterFix')}
             description={t('safariEnterFixHint')}
             checked={safariEnterFix}
-            onChange={(value) => updateToggle(setSafariEnterFix, StorageKeys.SAFARI_ENTER_FIX, value)}
+            onChange={(value) =>
+              updateToggle(setSafariEnterFix, StorageKeys.SAFARI_ENTER_FIX, value)
+            }
           />
           <ToggleRow
             id="input-collapse"
             title={t('enableInputCollapse')}
             description={t('enableInputCollapseHint')}
             checked={inputCollapse}
-            onChange={(value) => updateToggle(setInputCollapse, StorageKeys.INPUT_COLLAPSE_ENABLED, value)}
+            onChange={(value) =>
+              updateToggle(setInputCollapse, StorageKeys.INPUT_COLLAPSE_ENABLED, value)
+            }
           />
           <ToggleRow
             id="input-collapse-filled"
             title={t('inputCollapseWhenNotEmpty')}
             description={t('inputCollapseWhenNotEmptyHint')}
             checked={inputCollapseWhenNotEmpty}
-            onChange={(value) => updateToggle(setInputCollapseWhenNotEmpty, StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY, value)}
+            onChange={(value) =>
+              updateToggle(
+                setInputCollapseWhenNotEmpty,
+                StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY,
+                value,
+              )
+            }
           />
           <ToggleRow
             id="vim-mode"
@@ -762,14 +864,18 @@ export default function Popup() {
             title={t('preventAutoScroll')}
             description={t('preventAutoScrollHint')}
             checked={preventAutoScroll}
-            onChange={(value) => updateToggle(setPreventAutoScroll, StorageKeys.PREVENT_AUTO_SCROLL_ENABLED, value)}
+            onChange={(value) =>
+              updateToggle(setPreventAutoScroll, StorageKeys.PREVENT_AUTO_SCROLL_ENABLED, value)
+            }
           />
           <ToggleRow
             id="quote-reply"
             title={t('quoteReply')}
             description={t('quoteReplyHint')}
             checked={quoteReply}
-            onChange={(value) => updateToggle(setQuoteReply, StorageKeys.QUOTE_REPLY_ENABLED, value)}
+            onChange={(value) =>
+              updateToggle(setQuoteReply, StorageKeys.QUOTE_REPLY_ENABLED, value)
+            }
           />
         </Section>
 
@@ -779,7 +885,9 @@ export default function Popup() {
             title={t('mermaidRendering')}
             description={t('mermaidRenderingHint')}
             checked={mermaidEnabled}
-            onChange={(value) => updateToggle(setMermaidEnabled, StorageKeys.MERMAID_ENABLED, value)}
+            onChange={(value) =>
+              updateToggle(setMermaidEnabled, StorageKeys.MERMAID_ENABLED, value)
+            }
           />
           <div className="space-y-2 pt-2">
             <Label className="text-sm font-medium">{t('formulaCopyFormat')}</Label>
@@ -802,27 +910,68 @@ export default function Popup() {
           </div>
         </Section>
 
+        <Section title={t('singleConvExportOptions')}>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">{t('singleConvExportFormat')}</Label>
+            <p className="text-muted-foreground text-xs">{t('singleConvExportFormatHint')}</p>
+            {singleConvExportOptions.map(([value, label, description]) => (
+              <label
+                key={value}
+                className="flex cursor-pointer items-start gap-2 text-sm"
+                htmlFor={`single-conv-export-${value}`}
+              >
+                <input
+                  id={`single-conv-export-${value}`}
+                  type="radio"
+                  name="singleConvExportFormat"
+                  value={value}
+                  checked={singleConvExportFormat === value}
+                  onChange={() => {
+                    setSingleConvExportFormat(value);
+                    void setSyncStorage({ [StorageKeys.SINGLE_CONV_EXPORT_FORMAT]: value });
+                  }}
+                  className="mt-1"
+                />
+                <span className="flex flex-col">
+                  <span>{label}</span>
+                  <span className="text-muted-foreground text-xs">{description}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </Section>
+
         <Section title={t('promptManagerOptions')}>
           <ToggleRow
             id="prompt-hidden"
             title={t('hidePromptManager')}
             description={t('hidePromptManagerHint')}
             checked={promptHidden}
-            onChange={(value) => updateToggle(setPromptHidden, StorageKeys.HIDE_PROMPT_MANAGER, value)}
+            onChange={(value) =>
+              updateToggle(setPromptHidden, StorageKeys.HIDE_PROMPT_MANAGER, value)
+            }
           />
           <ToggleRow
             id="prompt-insert"
             title={t('promptInsertOnClick')}
             description={t('promptInsertOnClickHint')}
             checked={promptInsertOnClick}
-            onChange={(value) => updateToggle(setPromptInsertOnClick, StorageKeys.PROMPT_INSERT_ON_CLICK, value)}
+            onChange={(value) =>
+              updateToggle(setPromptInsertOnClick, StorageKeys.PROMPT_INSERT_ON_CLICK, value)
+            }
           />
           <div className="flex gap-2">
             <Button
               type="button"
               variant={promptViewMode === 'comfortable' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => updateToggle<PromptViewMode>(setPromptViewMode, StorageKeys.PROMPT_VIEW_MODE, 'comfortable')}
+              onClick={() =>
+                updateToggle<PromptViewMode>(
+                  setPromptViewMode,
+                  StorageKeys.PROMPT_VIEW_MODE,
+                  'comfortable',
+                )
+              }
             >
               {t('pm_view_comfortable')}
             </Button>
@@ -830,7 +979,13 @@ export default function Popup() {
               type="button"
               variant={promptViewMode === 'compact' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => updateToggle<PromptViewMode>(setPromptViewMode, StorageKeys.PROMPT_VIEW_MODE, 'compact')}
+              onClick={() =>
+                updateToggle<PromptViewMode>(
+                  setPromptViewMode,
+                  StorageKeys.PROMPT_VIEW_MODE,
+                  'compact',
+                )
+              }
             >
               {t('pm_view_compact')}
             </Button>
@@ -853,7 +1008,10 @@ export default function Popup() {
             ) : null}
             <div className="space-y-1">
               {customWebsites.map((domain) => (
-                <div key={domain} className="flex items-center justify-between rounded-md border px-2 py-1 text-sm">
+                <div
+                  key={domain}
+                  className="flex items-center justify-between rounded-md border px-2 py-1 text-sm"
+                >
                   <span>{domain}</span>
                   <Button
                     type="button"

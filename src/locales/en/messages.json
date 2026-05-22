@@ -6,7 +6,40 @@
     "message": "Export this conversation"
   },
   "singleConvExportButtonTooltip": {
-    "message": "Export this conversation as Markdown"
+    "message": "Export this conversation using the format chosen in the extension popup"
+  },
+  "singleConvExportOptions": {
+    "message": "Conversation export"
+  },
+  "singleConvExportFormat": {
+    "message": "Export format"
+  },
+  "singleConvExportFormatHint": {
+    "message": "Picks the format used by the download button next to ChatGPT's Share. Simplified variants strip Code Interpreter blocks, tool output, and the model's pre-tool narration — keeping only your messages, the final reply, and timestamps."
+  },
+  "singleConvExportFormatMarkdown": {
+    "message": "Standard Markdown"
+  },
+  "singleConvExportFormatMarkdownHint": {
+    "message": "Lossless. Includes Code Interpreter code, tool output, and intermediate narration."
+  },
+  "singleConvExportFormatMarkdownSimple": {
+    "message": "Simplified Markdown"
+  },
+  "singleConvExportFormatJson": {
+    "message": "Standard JSON"
+  },
+  "singleConvExportFormatJsonHint": {
+    "message": "Full linear JSON from the API mapping. Best for archival or downstream tooling."
+  },
+  "singleConvExportFormatJsonSimple": {
+    "message": "Simplified JSON"
+  },
+  "singleConvExportFormatHtml": {
+    "message": "HTML (simplified)"
+  },
+  "singleConvExportFormatSimpleHint": {
+    "message": "Your messages, the model's final reply, and timestamps only."
   },
   "extDescription": {
     "message": "GPT-Voyager: timeline, folders, prompt vault, and chat export for ChatGPT."
