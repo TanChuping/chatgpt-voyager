@@ -11,10 +11,6 @@ import type { marked as MarkedFn } from 'marked';
 import browser from 'webextension-polyfill';
 
 import { PROJECT_REPOSITORY_URL } from '@/core/constants/project';
-import {
-  buildConversationIdFromUrl,
-  extractConversationIdFromUrl,
-} from '@/core/utils/conversationIdentity';
 import { logger } from '@/core/services/LoggerService';
 import { exportBackupableSyncSettings } from '@/core/services/SettingsBackupService';
 import { promptStorageService } from '@/core/services/StorageService';
@@ -27,6 +23,10 @@ import {
   loadSupportGoal,
 } from '@/core/services/SupportGoalService';
 import { type StorageKey, StorageKeys } from '@/core/types/common';
+import {
+  buildConversationIdFromUrl,
+  extractConversationIdFromUrl,
+} from '@/core/utils/conversationIdentity';
 import { isExtensionContextInvalidatedError } from '@/core/utils/extensionContext';
 import { migrateFromLocalStorage } from '@/core/utils/storageMigration';
 import { EXTENSION_VERSION } from '@/core/utils/version';
@@ -46,8 +46,8 @@ import {
 import type { TranslationKey } from '@/utils/translations';
 
 import { insertTextIntoChatInput } from '../chatInput/index';
-import { mountFavoritesSidebar } from '../favorites/sidebar';
 import { showJumpConfirmDialog } from '../favorites/jumpConfirmDialog';
+import { mountFavoritesSidebar } from '../favorites/sidebar';
 import { createFolderStorageAdapter } from '../folder/storage/FolderStorageAdapter';
 import { expandInputCollapseIfNeeded } from '../inputCollapse/index';
 import { eventBus } from '../timeline/EventBus';
@@ -1698,25 +1698,19 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       hideTooltip();
     }
 
-    // Whenever the user stars a message anywhere on the page (timeline dot,
-    // preview panel, etc.) we surface the favorites popover so the new entry
-    // is visible. The popover anchors to the favorites button — which lives
-    // inside the prompt-manager panel — so the panel has to open first if
-    // it's currently hidden.
-    const onStarAddedAutoPopup = () => {
-      if (!open) openPanel();
-      void favoritesSidebar.refresh();
-      // Let layout settle so the favorites button has a real bounding rect
-      // before we try to anchor the popover to it.
-      requestAnimationFrame(() => {
-        if (!favoritesOpen) openFavoritesPopover();
-      });
-    };
-    const onStarRemoved = () => {
+    // Star events come from anywhere on the page (timeline dot, preview panel,
+    // sidebar row). 1.5.1–1.6.1 auto-popped the prompt-manager panel + the
+    // favorites popover the moment a star was added, on the theory that
+    // surfacing the new entry was helpful. Users reported the opposite — the
+    // popping was disruptive when they were mid-reading. From 1.6.2 onward we
+    // silently refresh the favorites data so the new entry is *there* when
+    // they choose to open the popover manually, but we do not change panel
+    // visibility on either add or remove.
+    const onStarChanged = () => {
       void favoritesSidebar.refresh();
     };
-    const unsubscribeStarAdded = eventBus.on('starred:added', onStarAddedAutoPopup);
-    const unsubscribeStarRemoved = eventBus.on('starred:removed', onStarRemoved);
+    const unsubscribeStarAdded = eventBus.on('starred:added', onStarChanged);
+    const unsubscribeStarRemoved = eventBus.on('starred:removed', onStarChanged);
 
     function applyLockUI(): void {
       lockBtn.classList.toggle('active', locked);
