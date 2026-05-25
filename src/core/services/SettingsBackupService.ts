@@ -80,6 +80,14 @@ export const BACKUPABLE_SYNC_SETTINGS_DEFAULTS: Record<string, unknown> = {
   [StorageKeys.FOLDER_ENABLED]: true,
   [StorageKeys.FOLDER_HIDE_ARCHIVED_CONVERSATIONS]: false,
   [StorageKeys.SINGLE_CONV_EXPORT_FORMAT]: 'markdown',
+  // Chat font family — preset selection only. The custom font bytes
+  // (`CHAT_CUSTOM_FONT_DATA`) deliberately live in chrome.storage.local
+  // and are NOT round-tripped through settings backup: they can be
+  // multi-MB and we don't want to bloat the exported JSON.
+  [StorageKeys.CHAT_FONT_FAMILY_ENABLED]: false,
+  [StorageKeys.CHAT_FONT_FAMILY]: 'default',
+  [StorageKeys.CHAT_CUSTOM_FONT_NAME]: '',
+  [StorageKeys.CHAT_CUSTOM_FONT_FORMAT]: '',
 };
 
 export const BACKUPABLE_SYNC_SETTINGS_KEYS = Object.keys(BACKUPABLE_SYNC_SETTINGS_DEFAULTS);

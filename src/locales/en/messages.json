@@ -332,6 +332,33 @@
   "chatFontSizeLarge": {
     "message": "Large"
   },
+  "chatFontFamily": {
+    "message": "Chat font"
+  },
+  "chatFontFamilyDefault": {
+    "message": "Default (ChatGPT)"
+  },
+  "chatFontFamilyClaude": {
+    "message": "Claude-style (Tiempos)"
+  },
+  "chatFontFamilyGemini": {
+    "message": "Gemini-style (Google Sans)"
+  },
+  "chatFontFamilyCustom": {
+    "message": "Custom"
+  },
+  "chatFontFamilyNoneImported": {
+    "message": "none imported"
+  },
+  "chatFontFamilyHint": {
+    "message": "Presets fall back to your system fonts if the original isn't installed. Import a .woff2/.woff/.ttf/.otf below for guaranteed rendering. Code blocks stay monospace."
+  },
+  "chatFontFamilyImport": {
+    "message": "Import font…"
+  },
+  "chatFontFamilyClear": {
+    "message": "Clear custom font"
+  },
   "sidebarWidth": {
     "message": "Sidebar width"
   },

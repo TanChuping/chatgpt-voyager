@@ -63,6 +63,18 @@ export const StorageKeys = {
   CHAT_FONT_SIZE_ENABLED: 'gvChatFontSizeEnabled',
   CODE_FONT_SIZE: 'gvCodeFontSize',
   CODE_FONT_SIZE_ENABLED: 'gvCodeFontSizeEnabled',
+  /**
+   * Chat font family. Preset selection + custom-font metadata go in
+   * `chrome.storage.sync` so they round-trip across devices. The actual
+   * font bytes (`CHAT_CUSTOM_FONT_DATA`) live in `chrome.storage.local`
+   * because sync has an 8 KB per-item cap that's far below any usable
+   * font size. See `src/pages/content/chatFontFamily/index.ts`.
+   */
+  CHAT_FONT_FAMILY: 'gvChatFontFamily',
+  CHAT_FONT_FAMILY_ENABLED: 'gvChatFontFamilyEnabled',
+  CHAT_CUSTOM_FONT_NAME: 'gvChatCustomFontName',
+  CHAT_CUSTOM_FONT_FORMAT: 'gvChatCustomFontFormat',
+  CHAT_CUSTOM_FONT_DATA: 'gvChatCustomFontData',
   EDIT_INPUT_WIDTH: 'gptEditInputWidth',
   EDIT_INPUT_WIDTH_ENABLED: 'gvEditInputWidthEnabled',
   SIDEBAR_WIDTH: 'gptSidebarWidth',

@@ -332,6 +332,33 @@
   "chatFontSizeLarge": {
     "message": "大"
   },
+  "chatFontFamily": {
+    "message": "聊天字体"
+  },
+  "chatFontFamilyDefault": {
+    "message": "默认（ChatGPT）"
+  },
+  "chatFontFamilyClaude": {
+    "message": "Claude 风格（Tiempos）"
+  },
+  "chatFontFamilyGemini": {
+    "message": "Gemini 风格（Google Sans）"
+  },
+  "chatFontFamilyCustom": {
+    "message": "自定义"
+  },
+  "chatFontFamilyNoneImported": {
+    "message": "未导入"
+  },
+  "chatFontFamilyHint": {
+    "message": "预设字体若本机未安装会回退到系统字体。下方可导入 .woff2/.woff/.ttf/.otf 文件以保证渲染。代码块保持等宽字体。"
+  },
+  "chatFontFamilyImport": {
+    "message": "导入字体…"
+  },
+  "chatFontFamilyClear": {
+    "message": "清除自定义字体"
+  },
   "sidebarWidth": {
     "message": "侧边栏宽度"
   },

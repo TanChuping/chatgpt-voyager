@@ -1,13 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+/* The popup font-family picker calls into the chatFontFamily content-script
+   feature via chrome.storage; see src/pages/content/chatFontFamily/index.ts. */
 
 import browser from 'webextension-polyfill';
 
 import { PROJECT_REPOSITORY_URL } from '@/core/constants/project';
-import {
-  DEFAULT_SINGLE_CONV_EXPORT_FORMAT,
-  isSingleConvExportFormat,
-  type SingleConvExportFormat,
-} from '@/features/singleConvExport';
 import {
   DEFAULT_SUPPORT_GOAL,
   SUPPORT_GOAL_REFRESH_MS,
@@ -17,12 +14,18 @@ import {
   loadSupportGoal,
 } from '@/core/services/SupportGoalService';
 import { StorageKeys } from '@/core/types/common';
+import {
+  DEFAULT_SINGLE_CONV_EXPORT_FORMAT,
+  type SingleConvExportFormat,
+  isSingleConvExportFormat,
+} from '@/features/singleConvExport';
 
 import { DarkModeToggle } from '../../components/DarkModeToggle';
 import { LanguageSwitcher } from '../../components/LanguageSwitcher';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardTitle } from '../../components/ui/card';
 import { Label } from '../../components/ui/label';
+import { Select } from '../../components/ui/select';
 import { Switch } from '../../components/ui/switch';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { StarredHistory } from './components/StarredHistory';
@@ -31,6 +34,20 @@ import WidthSlider from './components/WidthSlider';
 type ScrollMode = 'jump' | 'flow';
 type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar' | 'notion';
 type PromptViewMode = 'compact' | 'comfortable';
+/**
+ * Mirror of `FontPreset` in `src/pages/content/chatFontFamily/index.ts`.
+ * Keep in sync — both ends validate against this list.
+ */
+type FontPreset = 'default' | 'claude' | 'gemini' | 'custom';
+const FONT_PRESETS: readonly FontPreset[] = ['default', 'claude', 'gemini', 'custom'] as const;
+
+/**
+ * 4 MB upper bound on imported font size. chrome.storage.local has an 5 MB
+ * total quota for unlimitedStorage-free extensions; we want headroom for
+ * the rest of the extension's local data (turn text cache etc.). Most
+ * woff2 fonts are 80–300 KB, so this is generous.
+ */
+const MAX_CUSTOM_FONT_BYTES = 4 * 1024 * 1024;
 
 const LEGACY_BASELINE_PX = 1200;
 const CHAT_PERCENT = { min: 30, max: 100, defaultValue: 70 };
@@ -280,6 +297,21 @@ export default function Popup() {
   const [chatFontSize, setChatFontSize] = useState(CHAT_FONT_SIZE.defaultValue);
   const [codeFontSizeEnabled, setCodeFontSizeEnabled] = useState(false);
   const [codeFontSize, setCodeFontSize] = useState(CODE_FONT_SIZE.defaultValue);
+  const [fontFamilyEnabled, setFontFamilyEnabled] = useState(false);
+  const [fontFamily, setFontFamily] = useState<FontPreset>('default');
+  /**
+   * Human-readable name shown next to the "Custom" option. Mirror of
+   * `gvChatCustomFontName` in storage.sync. Empty string when no font
+   * has been imported on this device yet (even if another device has
+   * imported one — the bytes don't sync across devices).
+   */
+  const [customFontName, setCustomFontName] = useState<string>('');
+  /**
+   * Transient status line under the import button — last import success
+   * or failure message. Not persisted; recomputed on each file pick.
+   */
+  const [customFontStatus, setCustomFontStatus] = useState<string>('');
+  const customFontInputRef = useRef<HTMLInputElement | null>(null);
   const [editInputWidthEnabled, setEditInputWidthEnabled] = useState(false);
   const [editInputWidth, setEditInputWidth] = useState(EDIT_PERCENT.defaultValue);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_PX.defaultValue);
@@ -311,6 +343,97 @@ export default function Popup() {
     await browser.storage.sync.set(items);
   }, []);
 
+  /**
+   * Read a user-picked font file, base64-encode it, push the metadata to
+   * sync and the bytes to local. Also flips the family preset to 'custom'
+   * and enables the feature so the user sees the effect immediately —
+   * importing a font with the toggle off would be confusing.
+   *
+   * woff2 is preferred (10× smaller than ttf typically) but we accept
+   * all the common desktop formats. Files larger than `MAX_CUSTOM_FONT_BYTES`
+   * are rejected before allocating any payload, to keep us under
+   * chrome.storage.local's ~5 MB quota.
+   */
+  const handleCustomFontPicked = useCallback(
+    async (file: File) => {
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      if (ext !== 'woff2' && ext !== 'woff' && ext !== 'ttf' && ext !== 'otf') {
+        setCustomFontStatus(`✗ ${file.name}: unsupported (use woff2/woff/ttf/otf)`);
+        return;
+      }
+      if (file.size > MAX_CUSTOM_FONT_BYTES) {
+        setCustomFontStatus(
+          `✗ ${file.name}: too large (${Math.round(file.size / 1024)} KB > 4 MB)`,
+        );
+        return;
+      }
+      try {
+        const buf = await file.arrayBuffer();
+        // Base64-encode in 32 KB chunks. `String.fromCharCode(...bigArray)`
+        // overflows the call stack for files larger than ~125 KB on V8.
+        const bytes = new Uint8Array(buf);
+        const CHUNK = 0x8000;
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += CHUNK) {
+          binary += String.fromCharCode.apply(
+            null,
+            Array.from(bytes.subarray(i, i + CHUNK)),
+          );
+        }
+        const base64 = btoa(binary);
+        const mime =
+          ext === 'woff2'
+            ? 'font/woff2'
+            : ext === 'woff'
+              ? 'font/woff'
+              : ext === 'ttf'
+                ? 'font/ttf'
+                : 'font/otf';
+        const dataUrl = `data:${mime};base64,${base64}`;
+        const displayName = file.name.replace(/\.[^.]+$/, '');
+
+        // Heavy payload → chrome.storage.local (sync has 8 KB per-item cap).
+        await browser.storage.local.set({ [StorageKeys.CHAT_CUSTOM_FONT_DATA]: dataUrl });
+        // Metadata + preset selection → chrome.storage.sync so it round-
+        // trips across devices. Without the data the content script falls
+        // back to system fonts gracefully on the other device.
+        await browser.storage.sync.set({
+          [StorageKeys.CHAT_CUSTOM_FONT_NAME]: displayName,
+          [StorageKeys.CHAT_CUSTOM_FONT_FORMAT]: ext,
+          [StorageKeys.CHAT_FONT_FAMILY]: 'custom',
+          [StorageKeys.CHAT_FONT_FAMILY_ENABLED]: true,
+        });
+        setCustomFontName(displayName);
+        setFontFamily('custom');
+        setFontFamilyEnabled(true);
+        setCustomFontStatus(`✓ ${displayName} (${Math.round(file.size / 1024)} KB)`);
+      } catch (err) {
+        console.warn('[GPT-Voyager] custom font import failed:', err);
+        setCustomFontStatus(`✗ ${String((err as Error)?.message || err)}`);
+      }
+    },
+    [],
+  );
+
+  /**
+   * Drop the imported font bytes + metadata. If the user was currently on
+   * the 'custom' preset, fall back to 'default' so they aren't stuck
+   * looking at the system fallback wondering what happened.
+   */
+  const handleCustomFontClear = useCallback(async () => {
+    await browser.storage.local.remove(StorageKeys.CHAT_CUSTOM_FONT_DATA);
+    await browser.storage.sync.set({
+      [StorageKeys.CHAT_CUSTOM_FONT_NAME]: '',
+      [StorageKeys.CHAT_CUSTOM_FONT_FORMAT]: '',
+    });
+    setCustomFontName('');
+    setCustomFontStatus('');
+    if (fontFamily === 'custom') {
+      setFontFamily('default');
+      await browser.storage.sync.set({ [StorageKeys.CHAT_FONT_FAMILY]: 'default' });
+    }
+  }, [fontFamily]);
+
   useEffect(() => {
     try {
       setExtVersion(chrome?.runtime?.getManifest?.()?.version ?? '');
@@ -338,6 +461,9 @@ export default function Popup() {
         [StorageKeys.CHAT_FONT_SIZE]: CHAT_FONT_SIZE.defaultValue,
         [StorageKeys.CODE_FONT_SIZE_ENABLED]: false,
         [StorageKeys.CODE_FONT_SIZE]: CODE_FONT_SIZE.defaultValue,
+        [StorageKeys.CHAT_FONT_FAMILY_ENABLED]: false,
+        [StorageKeys.CHAT_FONT_FAMILY]: 'default',
+        [StorageKeys.CHAT_CUSTOM_FONT_NAME]: '',
         [StorageKeys.EDIT_INPUT_WIDTH_ENABLED]: false,
         [StorageKeys.EDIT_INPUT_WIDTH]: EDIT_PERCENT.defaultValue,
         [StorageKeys.SIDEBAR_WIDTH]: SIDEBAR_PX.defaultValue,
@@ -414,6 +540,13 @@ export default function Popup() {
             CODE_FONT_SIZE.max,
           ),
         );
+        setFontFamilyEnabled(result[StorageKeys.CHAT_FONT_FAMILY_ENABLED] === true);
+        const rawFamily = result[StorageKeys.CHAT_FONT_FAMILY];
+        setFontFamily(
+          FONT_PRESETS.includes(rawFamily as FontPreset) ? (rawFamily as FontPreset) : 'default',
+        );
+        const rawCustomName = result[StorageKeys.CHAT_CUSTOM_FONT_NAME];
+        setCustomFontName(typeof rawCustomName === 'string' ? rawCustomName : '');
         setEditInputWidthEnabled(result[StorageKeys.EDIT_INPUT_WIDTH_ENABLED] === true);
         setEditInputWidth(
           normalizePercent(
@@ -755,6 +888,87 @@ export default function Popup() {
               updateToggle(setCodeFontSizeEnabled, StorageKeys.CODE_FONT_SIZE_ENABLED, value)
             }
           />
+          {/* Chat font family — preset picker + optional file upload.
+              Custom-imported fonts are stored in chrome.storage.local so the
+              ~5 MB quota is honoured; the preset choice itself goes to
+              chrome.storage.sync. See chatFontFamily/index.ts. */}
+          <div className="flex flex-col gap-2 border-t pt-3">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="gv-font-family-select" className="text-sm font-medium">
+                {t('chatFontFamily')}
+              </Label>
+              <Switch
+                id="gv-font-family-enabled"
+                checked={fontFamilyEnabled}
+                onChange={(event) =>
+                  updateToggle(
+                    setFontFamilyEnabled,
+                    StorageKeys.CHAT_FONT_FAMILY_ENABLED,
+                    event.target.checked,
+                  )
+                }
+              />
+            </div>
+            <Select
+              id="gv-font-family-select"
+              value={fontFamily}
+              disabled={!fontFamilyEnabled}
+              onChange={(e) => {
+                const v = e.target.value as FontPreset;
+                setFontFamily(v);
+                void setSyncStorage({ [StorageKeys.CHAT_FONT_FAMILY]: v });
+              }}
+            >
+              <option value="default">{t('chatFontFamilyDefault')}</option>
+              <option value="claude">{t('chatFontFamilyClaude')}</option>
+              <option value="gemini">{t('chatFontFamilyGemini')}</option>
+              <option value="custom" disabled={!customFontName}>
+                {t('chatFontFamilyCustom')}
+                {customFontName
+                  ? ` — ${customFontName}`
+                  : ` (${t('chatFontFamilyNoneImported')})`}
+              </option>
+            </Select>
+            <p className="text-muted-foreground text-xs leading-snug">
+              {t('chatFontFamilyHint')}
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                ref={customFontInputRef}
+                type="file"
+                accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void handleCustomFontPicked(file);
+                  // Reset so re-picking the same file fires onChange again
+                  // (file inputs swallow same-file picks otherwise).
+                  e.target.value = '';
+                }}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!fontFamilyEnabled}
+                onClick={() => customFontInputRef.current?.click()}
+              >
+                {t('chatFontFamilyImport')}
+              </Button>
+              {customFontName ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={!fontFamilyEnabled}
+                  onClick={() => void handleCustomFontClear()}
+                >
+                  {t('chatFontFamilyClear')}
+                </Button>
+              ) : null}
+            </div>
+            {customFontStatus ? (
+              <p className="text-muted-foreground text-xs leading-snug">{customFontStatus}</p>
+            ) : null}
+          </div>
           <WidthSlider
             label={t('editInputWidth')}
             value={editInputWidth}
