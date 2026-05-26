@@ -804,10 +804,37 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     const manifestVersion = chrome?.runtime?.getManifest?.()?.version;
     const versionBadge = document.createElement('span');
     versionBadge.className = 'gv-pm-version';
+    versionBadge.setAttribute('role', 'button');
+    versionBadge.setAttribute('tabindex', '0');
     versionBadge.title = manifestVersion
-      ? `${i18n.t('extensionVersion')} ${manifestVersion}`
+      ? `${i18n.t('extensionVersion')} ${manifestVersion} — ${i18n.t('announcementVersionChipHint') || 'click to view announcements'}`
       : i18n.t('extensionVersion');
     versionBadge.textContent = manifestVersion ?? '...';
+    // Make the version chip a secondary entry-point into the announcement
+    // modal (besides the top-bar megaphone). Lazy-import the module so
+    // the prompt-manager chunk doesn't drag the markdown renderer in
+    // unless someone clicks the chip.
+    const openAnnouncement = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      void import('../announcement/index').then((m) => {
+        void m.openCurrentAnnouncementModal();
+      });
+    };
+    versionBadge.addEventListener('click', openAnnouncement);
+    versionBadge.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') openAnnouncement(e);
+    });
+    // Mirror the megaphone button's unread-dot state on this chip too:
+    // listen to storage changes so flipping the SEEN flag in one tab
+    // turns off the dot here in real time.
+    function applyVersionUnread(unread: boolean) {
+      versionBadge.classList.toggle('gv-pm-version--unread', unread);
+    }
+    void import('../announcement/service').then((svc) => {
+      void svc.refreshSnapshot().then((snap) => applyVersionUnread(snap.hasUnread));
+      svc.subscribe(() => applyVersionUnread(svc.getLastSnapshot().hasUnread));
+    });
 
     // Theme toggle
     const themeToggle = createEl('button', 'gv-pm-theme-toggle');

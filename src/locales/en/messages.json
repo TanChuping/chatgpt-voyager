@@ -2,6 +2,24 @@
   "extName": {
     "message": "GPT-Voyager"
   },
+  "announcementButton": {
+    "message": "Announcements"
+  },
+  "announcementDetail": {
+    "message": "View details"
+  },
+  "announcementClose": {
+    "message": "Close"
+  },
+  "announcementEmptyTitle": {
+    "message": "No announcements"
+  },
+  "announcementEmptyBody": {
+    "message": "There are no extension announcements right now. Check back later."
+  },
+  "announcementVersionChipHint": {
+    "message": "click to view announcements"
+  },
   "singleConvExportButton": {
     "message": "Export this conversation"
   },

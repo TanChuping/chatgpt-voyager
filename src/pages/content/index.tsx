@@ -6,6 +6,7 @@ import {
 import { startFormulaCopy } from '@/features/formulaCopy';
 import { initI18n } from '@/utils/i18n';
 
+import { startAnnouncement } from './announcement/index';
 import { startCanvasExport } from './canvasExport/index';
 import { startChatFontFamilyAdjuster } from './chatFontFamily/index';
 import { startChatFontSizeAdjuster } from './chatFontSize/index';
@@ -153,6 +154,7 @@ async function startChatGPTFeatures(): Promise<void> {
   await runFeatureStep('Export Button', () => startExportButton());
   await runFeatureStep('Canvas Export', () => startCanvasExport());
   await runFeatureStep('Single-Conversation Export', () => startSingleConversationExport());
+  await runFeatureStep('Announcement', () => startAnnouncement());
 
   await runFeatureStep('Fork', async () => {
     if (await isForkFeatureEnabled()) forkCleanup = startFork();

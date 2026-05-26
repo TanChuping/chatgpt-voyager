@@ -59,6 +59,10 @@ scripts/support-goal-gui.mjs
 scripts/support-goal-manager.mjs
 support-goal.json
 support-assets/
+manage-announcement.cmd
+scripts/announcement-manager.mjs
+scripts/announcement-gui.mjs
+announcements.json
 
 # Git worktrees (local dev only)
 .worktrees/

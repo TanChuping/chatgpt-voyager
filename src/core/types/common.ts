@@ -139,6 +139,29 @@ export const StorageKeys = {
   // Folder as Project
   FOLDER_PROJECT_ENABLED: 'gvFolderProjectEnabled',
   FOLDER_PROJECT_PENDING_FOLDER_ID: 'gvFolderProjectPendingFolderId',
+
+  /**
+   * Announcement system (1.6.5+).
+   *
+   * `SEEN_ID` — last announcement id the user explicitly acknowledged
+   *   (clicked × on bubble OR opened the modal). Bubble pops only when
+   *   the *current* id is different from this. Lives in storage.local
+   *   intentionally — dismissing on one device doesn't silence the bubble
+   *   on another, but each device only pops it once.
+   *
+   * `BUBBLE_SHOWN_FOR` — last announcement id we auto-popped the bubble
+   *   for on THIS tab/device. Distinct from SEEN_ID so the bubble pops
+   *   exactly once even if the user ignores it (no × click, no detail
+   *   click) — without this, every page reload would re-show the bubble
+   *   for the same announcement.
+   *
+   * `CACHE_V1` — lightly throttled cache of the remote JSON payload so
+   *   we don't refetch on every tab open. Stored under `local` because
+   *   the cache can be larger than sync's per-item cap.
+   */
+  ANNOUNCEMENT_SEEN_ID: 'gvAnnouncementSeenId',
+  ANNOUNCEMENT_BUBBLE_SHOWN_FOR: 'gvAnnouncementBubbleShownFor',
+  ANNOUNCEMENT_CACHE_V1: 'gvAnnouncementCacheV1',
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];

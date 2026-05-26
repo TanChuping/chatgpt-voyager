@@ -2,6 +2,24 @@
   "extName": {
     "message": "GPT-Voyager"
   },
+  "announcementButton": {
+    "message": "公告"
+  },
+  "announcementDetail": {
+    "message": "查看详情"
+  },
+  "announcementClose": {
+    "message": "关闭"
+  },
+  "announcementEmptyTitle": {
+    "message": "暂无公告"
+  },
+  "announcementEmptyBody": {
+    "message": "目前没有插件公告。下次再来看看吧。"
+  },
+  "announcementVersionChipHint": {
+    "message": "点击查看公告"
+  },
   "singleConvExportButton": {
     "message": "导出此对话"
   },
