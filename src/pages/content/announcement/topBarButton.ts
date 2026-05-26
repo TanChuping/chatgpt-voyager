@@ -1,7 +1,7 @@
 /**
  * Megaphone button injected into ChatGPT's top-right control cluster.
  *
- * Position rule (verified live in 1.6.5):
+ * Position rule (verified live 1.6.5+):
  *   - In a conversation page (`/c/<uuid>`): ChatGPT shows a Share button
  *     with `data-testid="share-chat-button"`. Our 1.6.0 export button
  *     already injects to the LEFT of Share. We inject our announcement
@@ -9,13 +9,28 @@
  *     the export button hasn't mounted yet — the MutationObserver will
  *     fix the ordering on the next page tick).
  *
- *   - Outside a conversation (`/`, `/temporary-chat`, etc.): ChatGPT shows
- *     a "temporary chat" toggle icon top-right. We inject to its LEFT.
+ *   - Outside a conversation (`/`, `/?temporary-chat=true`, etc.):
+ *     ChatGPT shows a "temporary chat" toggle. Its IMMEDIATE parent is
+ *     a `<span>` with `display: block` (1 child). If we insert our
+ *     button as a sibling of the toggle inside that span, both buttons
+ *     (each `display: flex`, hence block-level) stack vertically in
+ *     block flow — which then doubles the cluster height to 72px and
+ *     pushes the top button off-screen because the surrounding wrappers
+ *     are `items-center` over the 52px header. So on the homepage we
+ *     walk OUT of any wrappers that would force vertical stacking,
+ *     until we land in a real horizontal flex row (the `flex items-
+ *     center` div one level above the span), and insert there.
  *
- * Reusing ChatGPT's own button className gives us native styling for free
- * (padding, hover, border-radius, etc.). The MutationObserver covers
- * ChatGPT's SPA route changes — they tear down and re-mount the header
- * on every navigation, and our static injection wouldn't survive.
+ * Reusing ChatGPT's own button className gives us native styling for
+ * free (padding, hover, border-radius). We clone from the *button*
+ * itself (Share / temp-chat-toggle), never from the wrapper div we
+ * insert into — wrapper utility classes copied onto a `<button>` can
+ * disable pointer events or stretch the button into a full-viewport
+ * click shield (1.6.5 regression).
+ *
+ * The MutationObserver covers ChatGPT's SPA route changes — they tear
+ * down and re-mount the header on every navigation, and our static
+ * injection wouldn't survive.
  */
 const TAG = 'data-gv-announcement-btn';
 const INDICATOR_CLASS = 'gv-announcement-btn__indicator';
@@ -53,14 +68,94 @@ interface InjectArgs {
 let onClickRef: (() => void) | null = null;
 let labelRef = '';
 
-function findAnchor(): { parent: HTMLElement; before: HTMLElement } | null {
+interface Anchor {
+  /** Container we insertBefore() into. */
+  parent: HTMLElement;
+  /** Direct child of `parent` we sit immediately to the LEFT of. */
+  before: HTMLElement;
+  /**
+   * The actual native button to clone styling from (padding, hover,
+   * border radius). Always a `<button>` — never a wrapper element,
+   * which would otherwise pollute the megaphone with layout utility
+   * classes (`absolute`, `inset-0`, etc.) and can turn it into a
+   * fullscreen click shield (1.6.5 regression).
+   */
+  styleSource: HTMLElement;
+}
+
+/**
+ * Return TRUE if appending a NEW `<button display:flex>` sibling into
+ * `container` would lay out top-to-bottom (visual vertical stacking),
+ * which we want to avoid because the surrounding header is only 52px
+ * tall and the two stacked buttons (36px each) overflow above/below.
+ *
+ * Cases:
+ *   - `display: flex` row → side-by-side (false)
+ *   - `display: flex` column → stacked (true)
+ *   - `display: block` (most common offender — that `<span>` wrapping
+ *     the temp-chat toggle) → block-level children stack (true)
+ *   - `display: inline-block` → block-level kids still stack (true)
+ *   - `display: grid` → can't tell without measuring, treat as
+ *     non-stacking to avoid walking too far
+ */
+function wouldStackVertically(container: HTMLElement): boolean {
+  const cs = window.getComputedStyle(container);
+  if (cs.display === 'flex' || cs.display === 'inline-flex') {
+    return cs.flexDirection === 'column' || cs.flexDirection === 'column-reverse';
+  }
+  if (cs.display === 'grid' || cs.display === 'inline-grid') return false;
+  // block / inline-block / list-item / flow-root / table-* — sibling
+  // block-level children (our flex buttons are block-level) stack.
+  // `inline` is the only safe one (children flow inline), but it's
+  // unusual for a ChatGPT layout wrapper. Treat anything that isn't a
+  // confirmed horizontal-row mode as stacking.
+  if (cs.display === 'inline') return false;
+  return true;
+}
+
+/**
+ * Walk up the parent chain from `start` until we find an ancestor that
+ * does NOT stack vertically — i.e. a real horizontal flex row. Returns
+ * that ancestor + the direct child of it on the path back to `start`,
+ * so the caller can `insertBefore(newBtn, that child)` and end up
+ * immediately to the LEFT of the existing icon cluster.
+ *
+ * Bounded depth (5) + a width cap (≤ half viewport) so we don't drift
+ * up into the page header row and land next to the model picker on
+ * the opposite side.
+ */
+function findHorizontalRowAncestor(
+  start: HTMLElement,
+): { parent: HTMLElement; before: HTMLElement } | null {
+  const widthLimit = Math.max(window.innerWidth * 0.5, 320);
+  let child: HTMLElement = start;
+  let parent: HTMLElement | null = start.parentElement;
+  let depth = 0;
+  while (parent && parent !== document.body && depth < 5) {
+    const pr = parent.getBoundingClientRect();
+    if (pr.width > widthLimit) break;
+    if (!wouldStackVertically(parent)) {
+      return { parent, before: child };
+    }
+    child = parent;
+    parent = parent.parentElement;
+    depth++;
+  }
+  return null;
+}
+
+function findAnchor(): Anchor | null {
   // In a conversation: anchor on the share button, but if our 1.6.0
   // export button (`data-gv-export-btn`) is to its left we anchor on
   // that instead so we end up further left.
   const share = document.querySelector<HTMLElement>('[data-testid="share-chat-button"]');
   if (share && share.parentElement) {
     const exportBtn = share.parentElement.querySelector<HTMLElement>('[data-gv-export-btn]');
-    return { parent: share.parentElement, before: exportBtn ?? share };
+    return {
+      parent: share.parentElement,
+      before: exportBtn ?? share,
+      styleSource: share,
+    };
   }
   // Outside a conversation, find the temporary-chat toggle. ChatGPT
   // historically has used a few different `aria-label`s for this; we
@@ -71,32 +166,45 @@ function findAnchor(): { parent: HTMLElement; before: HTMLElement } | null {
     document.querySelector<HTMLElement>(
       '[aria-label*="emporary" i], [aria-label*="临时" i], [aria-label*="临" i]',
     );
-  if (temp && temp.parentElement) {
-    return { parent: temp.parentElement, before: temp };
+  if (!temp || !temp.parentElement) return null;
+  // Escape any wrapper that would force vertical stacking. On 2026-05
+  // ChatGPT the immediate parent is a `<span display:block>` (1 child),
+  // one level above is the `flex items-center` row we actually want.
+  // styleSource is *always* the temp-chat button — wrapper classes
+  // are never copied onto our `<button>`.
+  const horiz = findHorizontalRowAncestor(temp);
+  if (horiz) {
+    return { parent: horiz.parent, before: horiz.before, styleSource: temp };
   }
-  return null;
+  return { parent: temp.parentElement, before: temp, styleSource: temp };
 }
 
 function injectIfNeeded(): void {
   const anchor = findAnchor();
   if (!anchor) return;
-  const { parent, before } = anchor;
-  // Idempotency: don't re-inject. Also re-order if a competing element
-  // ended up to our right (e.g. share button got remounted later).
-  const existing = parent.querySelector<HTMLButtonElement>(`[${TAG}]`);
-  if (existing) {
-    if (existing.nextSibling !== before) parent.insertBefore(existing, before);
+  const { parent, before, styleSource } = anchor;
+  // Idempotency. Use a GLOBAL query (not parent-scoped) so that if
+  // ChatGPT remounted the header into a different subtree — or our
+  // anchor logic now picks a different ancestor than it did last tick
+  // — we relocate the existing button instead of leaking duplicates.
+  const allExisting = Array.from(document.querySelectorAll<HTMLButtonElement>(`[${TAG}]`));
+  if (allExisting.length > 0) {
+    const survivor = allExisting[0];
+    for (let i = 1; i < allExisting.length; i++) allExisting[i].remove();
+    if (survivor.parentElement !== parent || survivor.nextSibling !== before) {
+      try {
+        parent.insertBefore(survivor, before);
+      } catch {
+        // `before` may have been detached between findAnchor and now —
+        // ignore; the next mutation tick re-attempts with fresh refs.
+      }
+    }
     return;
   }
   if (!onClickRef) return;
 
-  // Clone styling from the anchor's sibling (share or temp button) so
-  // we inherit ChatGPT-native padding/rounding/hover state. Fall back
-  // to a minimal class set if there's nothing to clone.
-  const styleSource =
-    parent.querySelector<HTMLElement>('[data-testid="share-chat-button"]') ||
-    parent.querySelector<HTMLElement>('[data-gv-export-btn]') ||
-    before;
+  // Clone styling from a real `<button>` (never a wrapper div). See
+  // the `Anchor.styleSource` doc for why this matters.
   const btn = document.createElement('button');
   btn.className = `${styleSource.className || ''} gv-announcement-btn`.trim();
   btn.type = 'button';
