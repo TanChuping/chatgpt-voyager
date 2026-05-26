@@ -25,6 +25,19 @@ import type {
 } from './types';
 
 const CACHE_TTL_MS = 30 * 60 * 1000; // refetch at most every 30 min
+/**
+ * Coarse cache-buster window for non-forced fetches. raw.githubusercontent.com
+ * sits behind a CDN that aggressively caches GETs; without a buster a freshly-
+ * pushed JSON can be invisible to clients for several minutes even when the
+ * blob is already updated at origin. 5 min is short enough that a publisher
+ * pushing a new announcement sees it propagate fast, but long enough that
+ * background polling doesn't hammer the CDN.
+ *
+ * Forced fetches (the modal-open path) bypass this and use a per-call timestamp,
+ * so a user clicking the megaphone immediately after a push gets the latest
+ * content.
+ */
+const CDN_BUST_WINDOW_MS = 5 * 60 * 1000;
 
 type Listener = (current: RemoteAnnouncement | null) => void;
 
@@ -102,12 +115,19 @@ async function writeFlag(key: string, value: string): Promise<void> {
 }
 
 /**
- * Fetch the remote feed via plain GET. We deliberately bust HTTP caching
- * via a `?t=<timestamp>` cache-buster keyed off our own TTL window so
- * users get the new announcement promptly without hammering the CDN.
+ * Fetch the remote feed via plain GET. The cache-buster strategy is:
+ *
+ *   - background poll (force=false): a 5-min bucket. Within any given
+ *     5-min window the same `?t=N` value is reused, so the CDN can serve
+ *     a cached response and we don't burn bandwidth on every focus event.
+ *
+ *   - user-initiated fetch (force=true): a per-call millisecond timestamp.
+ *     Guarantees a CDN miss so a freshly-pushed announcement shows up the
+ *     moment the user clicks the megaphone or opens the modal — important
+ *     for the publish→see-it-immediately authoring loop.
  */
-async function fetchRemote(): Promise<RemoteAnnouncementFile | null> {
-  const cacheBuster = Math.floor(Date.now() / CACHE_TTL_MS);
+async function fetchRemote(force: boolean): Promise<RemoteAnnouncementFile | null> {
+  const cacheBuster = force ? `f${Date.now()}` : `b${Math.floor(Date.now() / CDN_BUST_WINDOW_MS)}`;
   const url = `${ANNOUNCEMENT_JSON_URL}?t=${cacheBuster}`;
   try {
     const res = await fetch(url, { credentials: 'omit', cache: 'no-cache' });
@@ -173,7 +193,7 @@ export async function refreshSnapshot(force = false): Promise<AnnouncementSnapsh
   if (fresh) {
     payload = cache!.payload;
   } else {
-    const remote = await fetchRemote();
+    const remote = await fetchRemote(force);
     if (remote) {
       payload = remote;
       await writeCache({ fetchedAt: Date.now(), payload });
