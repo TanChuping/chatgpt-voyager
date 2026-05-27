@@ -91,6 +91,8 @@ const {
   refreshSnapshot,
   markBubbleShown,
   markSeen,
+  getLastSnapshot,
+  subscribe,
   __resetAnnouncementServiceForTests,
 } = await import('../service');
 
@@ -233,5 +235,88 @@ describe('AnnouncementService — dedupe state machine', () => {
     } as unknown as RemoteAnnouncementFile;
     const snap = await refreshSnapshot();
     expect(snap.current).toBeNull();
+  });
+
+  // ---- 1.6.6+ contract: eager-mark + force-refresh ------------------
+
+  it('markBubbleShown refreshes lastSnapshot synchronously after the write', async () => {
+    // Pre-fix: markBubbleShown only wrote storage; callers had to wait
+    // on the chrome.storage.onChanged → refreshSnapshot round-trip for
+    // shouldPopBubble to flip false. In a rapid-navigate test loop the
+    // round-trip didn't complete before unload and the next page saw
+    // an empty flag, popping the bubble all over again.
+    setRemote(sample('A'));
+    const snap1 = await refreshSnapshot();
+    expect(snap1.shouldPopBubble).toBe(true);
+    await markBubbleShown('A');
+    expect(getLastSnapshot().shouldPopBubble).toBe(false);
+    expect(getLastSnapshot().hasUnread).toBe(true);
+    expect(local[StorageKeys.ANNOUNCEMENT_BUBBLE_SHOWN_FOR]).toBe('A');
+  });
+
+  it('markSeen refreshes lastSnapshot synchronously so the dot turns off immediately', async () => {
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    expect(getLastSnapshot().hasUnread).toBe(true);
+    await markSeen('A');
+    expect(getLastSnapshot().hasUnread).toBe(false);
+    expect(getLastSnapshot().shouldPopBubble).toBe(false);
+  });
+
+  it('markSeen notifies subscribers synchronously (host applySnapshot sees fresh state)', async () => {
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    const received: boolean[] = [];
+    subscribe(() => {
+      received.push(getLastSnapshot().hasUnread);
+    });
+    await markSeen('A');
+    // We expect at least one notify to have fired with hasUnread=false
+    // (could be more than one — chrome.storage.onChanged also re-fires
+    // refreshSnapshot; both notify with the same final state).
+    expect(received).toContain(false);
+  });
+
+  it('eager-mark contract: marking A as shown does NOT suppress a later push of new id B', async () => {
+    // The whole point of the eager write is to PREVENT same-id re-pop
+    // without harming the new-announcement workflow. Verify here that
+    // a publisher push of id B after we've eagerly marked A still pops.
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    await markBubbleShown('A');
+    expect(getLastSnapshot().shouldPopBubble).toBe(false);
+    // Publisher releases B.
+    setRemote(sample('B'));
+    const snap = await refreshSnapshot(true);
+    expect(snap.current?.id).toBe('B');
+    expect(snap.shouldPopBubble).toBe(true);
+    expect(snap.hasUnread).toBe(true);
+  });
+
+  it('eager-mark survives across simulated tab reload (storage persistence)', async () => {
+    // Tab 1: fetch + eagerly mark.
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    await markBubbleShown('A');
+    // Tab 2: simulate a fresh content-script bootstrap by resetting
+    // the module state (storage backing store stays). Cache should be
+    // reused (TTL fresh), flag should still be there, no re-pop.
+    __resetAnnouncementServiceForTests();
+    const tab2Snap = await refreshSnapshot();
+    expect(tab2Snap.current?.id).toBe('A');
+    expect(tab2Snap.shouldPopBubble).toBe(false);
+    expect(tab2Snap.hasUnread).toBe(true);
+  });
+
+  it('eager-mark is id-keyed: clearing the flag for one id does not affect another', async () => {
+    // Simulate the publisher having pushed B → user dismissed → then
+    // a future B' release. The B flag must NOT survive into B'.
+    setRemote(sample('B'));
+    await refreshSnapshot();
+    await markSeen('B');
+    setRemote(sample('B-prime'));
+    const snap = await refreshSnapshot(true);
+    expect(snap.shouldPopBubble).toBe(true);
+    expect(snap.hasUnread).toBe(true);
   });
 });

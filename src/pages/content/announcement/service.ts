@@ -215,21 +215,34 @@ export function getLastSnapshot(): AnnouncementSnapshot {
 /**
  * Mark the bubble as having auto-popped for `id`. Idempotent — calling
  * twice for the same id is a no-op storage-wise.
+ *
+ * Refreshes the snapshot synchronously after the write so any in-tab
+ * listener (e.g., applyUnreadState in the bootstrap) sees the new
+ * state without waiting on the chrome.storage.onChanged round-trip.
+ * Belt-and-suspenders with the existing onChanged listener — both
+ * fire applySnapshot, second one is a no-op.
  */
 export async function markBubbleShown(id: string): Promise<void> {
   await writeFlag(StorageKeys.ANNOUNCEMENT_BUBBLE_SHOWN_FOR, id);
+  await refreshSnapshot();
 }
 
 /**
  * Mark `id` as fully acknowledged. Called when the user clicks × on the
  * bubble or opens the detail modal. Updates both flags so any other tab
  * also dismisses immediately (via the storage.onChanged listener below).
+ *
+ * Force-refreshes the snapshot afterwards so the calling tab's dot
+ * turns off immediately without depending on the onChanged round-trip
+ * timing (which was previously prone to dropping the unread-state
+ * update if ChatGPT remounted the header in the same frame).
  */
 export async function markSeen(id: string): Promise<void> {
   await Promise.all([
     writeFlag(StorageKeys.ANNOUNCEMENT_SEEN_ID, id),
     writeFlag(StorageKeys.ANNOUNCEMENT_BUBBLE_SHOWN_FOR, id),
   ]);
+  await refreshSnapshot();
 }
 
 export function subscribe(cb: Listener): () => void {

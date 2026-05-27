@@ -35,6 +35,48 @@
 const TAG = 'data-gv-announcement-btn';
 const INDICATOR_CLASS = 'gv-announcement-btn__indicator';
 
+/**
+ * Last value passed to `applyUnreadState`. Held at module scope so that
+ * when the button is destroyed and re-injected (e.g., when ChatGPT
+ * remounts the header on SPA route change), the new button can be
+ * created already carrying the correct `--unread` class without
+ * having to wait on the next snapshot refresh. Pre-fix this caused
+ * the red dot to "disappear" until the next visibilitychange / poll
+ * tick fired applyUnreadState again.
+ */
+let currentUnread = false;
+
+/**
+ * Optional listener that fires when a fresh button has just been
+ * injected into the DOM (NOT on relocate/reorder). Set by the
+ * announcement bootstrap so it can:
+ *  - reapply unread state (`applyUnreadState`) against the new node
+ *  - retry `showBubbleFor` for any announcement that was pending
+ *    because the button wasn't ready on the first snapshot evaluation
+ *
+ * Pre-fix the bootstrap relied on a 2.5s setTimeout for this retry —
+ * which the user could navigate past, leaving `markBubbleShown` never
+ * called and the bubble re-popping on every page load.
+ */
+type ButtonAvailableListener = () => void;
+let buttonAvailableListener: ButtonAvailableListener | null = null;
+
+export function setAnnouncementButtonAvailableListener(
+  cb: ButtonAvailableListener | null,
+): void {
+  buttonAvailableListener = cb;
+  // Fire immediately if a button is already in the DOM. Lets the
+  // bootstrap recover state synchronously when it registers late
+  // (e.g., feature-init ordering puts other modules ahead of us).
+  if (cb && document.querySelector(`[${TAG}]`)) {
+    try {
+      cb();
+    } catch (err) {
+      console.warn('[GPT-Voyager] announcement button listener threw', err);
+    }
+  }
+}
+
 function buildMegaphoneIcon(): SVGSVGElement {
   const xmlns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(xmlns, 'svg');
@@ -206,7 +248,13 @@ function injectIfNeeded(): void {
   // Clone styling from a real `<button>` (never a wrapper div). See
   // the `Anchor.styleSource` doc for why this matters.
   const btn = document.createElement('button');
-  btn.className = `${styleSource.className || ''} gv-announcement-btn`.trim();
+  // Apply the remembered unread state UP-FRONT so a freshly-injected
+  // button (e.g., after ChatGPT remounts the header on SPA route
+  // change) carries the right `--unread` class without needing the
+  // bootstrap to re-call `applyUnreadState`. Pre-fix this caused the
+  // dot to "disappear" until the next snapshot refresh.
+  btn.className =
+    `${styleSource.className || ''} gv-announcement-btn${currentUnread ? ' gv-announcement-btn--unread' : ''}`.trim();
   btn.type = 'button';
   btn.setAttribute(TAG, '1');
   btn.setAttribute('aria-label', labelRef);
@@ -228,9 +276,21 @@ function injectIfNeeded(): void {
   });
 
   parent.insertBefore(btn, before);
+
+  // Notify the bootstrap that a fresh button is now available so it
+  // can retry any pending bubble-show whose first attempt landed
+  // before the header had finished mounting.
+  if (buttonAvailableListener) {
+    try {
+      buttonAvailableListener();
+    } catch (err) {
+      console.warn('[GPT-Voyager] announcement button listener threw', err);
+    }
+  }
 }
 
 export function applyUnreadState(unread: boolean): void {
+  currentUnread = unread;
   document.querySelectorAll<HTMLElement>(`[${TAG}]`).forEach((btn) => {
     btn.classList.toggle('gv-announcement-btn--unread', unread);
   });

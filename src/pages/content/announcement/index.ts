@@ -17,6 +17,7 @@ import { openAnnouncementModal } from './modal';
 import {
   applyUnreadState,
   getButtonElement,
+  setAnnouncementButtonAvailableListener,
   startTopBarAnnouncementButton,
   stopTopBarAnnouncementButton,
 } from './topBarButton';
@@ -32,6 +33,16 @@ import type { RemoteAnnouncement } from './types';
 
 let bubble: BubbleHandle | null = null;
 let started = false;
+
+/**
+ * Announcement we *intended* to surface but couldn't mount because the
+ * megaphone button hadn't been injected by `topBarButton` yet on the
+ * first snapshot evaluation. The button-available listener replays
+ * `showBubbleFor` against this when ChatGPT's header finally settles,
+ * so the bubble visibly pops at least once. Cleared once the bubble
+ * actually mounts OR when a later snapshot says the user has dismissed.
+ */
+let pendingAnnouncement: RemoteAnnouncement | null = null;
 
 function tt(key: string, fallback: string): string {
   try {
@@ -66,8 +77,35 @@ function openModalFor(announcement: RemoteAnnouncement): void {
 }
 
 function showBubbleFor(announcement: RemoteAnnouncement): void {
+  // EAGER MARK: write `BUBBLE_SHOWN_FOR` first, before touching the
+  // DOM. Reason: pre-fix this lived AFTER the `if (!anchor) return`
+  // bail-out, so if the megaphone button hadn't injected yet (very
+  // common on cold load — content-script feature-init order races
+  // ChatGPT's header mount), the mark NEVER ran. Each subsequent page
+  // load saw the flag empty and re-decided shouldPopBubble=true —
+  // meaning the bubble would pop on EVERY page load for that id, not
+  // exactly once as the CLAUDE.md contract requires.
+  //
+  // Trade-off: if the user closes the tab in the ~50ms before the
+  // button mounts and the retry fires, they may never visually see
+  // the bubble for this id. That's the lesser evil — the red dot
+  // still flags it, and the megaphone-click path still opens the
+  // modal. Annoyance from re-popping is much worse than missing one
+  // visual pop in a corner-case timing.
+  //
+  // The `current.id`-keyed flag means a NEW announcement (different
+  // id pushed to the support repo) STILL passes the shouldPopBubble
+  // check — eager write only locks in the *current* id.
+  void markBubbleShown(announcement.id);
+
   const anchor = getButtonElement();
-  if (!anchor) return; // button hasn't injected yet — observer will retrigger
+  if (!anchor) {
+    // Stash for the button-available listener to retry once the
+    // megaphone mounts. Don't return until we've recorded intent.
+    pendingAnnouncement = announcement;
+    return;
+  }
+  pendingAnnouncement = null;
   bubble?.destroy();
   bubble = mountBubble({
     anchor,
@@ -82,7 +120,48 @@ function showBubbleFor(announcement: RemoteAnnouncement): void {
       void markSeen(announcement.id);
     },
   });
-  void markBubbleShown(announcement.id);
+}
+
+/**
+ * Fires when `topBarButton` has just injected a fresh megaphone into
+ * the DOM. Two jobs:
+ *
+ *  1. Re-apply the current unread state to the new button, so the
+ *     red dot reflects `getLastSnapshot().hasUnread` immediately
+ *     (without waiting on the next snapshot refresh or storage
+ *     onChanged round-trip).
+ *
+ *  2. If we have a `pendingAnnouncement` whose first showBubbleFor
+ *     attempt landed before the button was ready, mount the bubble
+ *     now — subject to a fresh seen-state check so a cross-tab
+ *     dismiss between then and now still suppresses it.
+ */
+function onAnnouncementButtonAvailable(): void {
+  const snap = getLastSnapshot();
+  applyUnreadState(snap.hasUnread);
+  if (!pendingAnnouncement) return;
+  const pending = pendingAnnouncement;
+  pendingAnnouncement = null;
+  // If a cross-tab markSeen flipped hasUnread off between the eager
+  // write and now, don't surprise the user with a bubble. Same if
+  // the publisher swapped the announcement under us.
+  if (!snap.hasUnread || snap.current?.id !== pending.id) return;
+  const anchor = getButtonElement();
+  if (!anchor) return; // very unlikely — the listener says it's there
+  bubble?.destroy();
+  bubble = mountBubble({
+    anchor,
+    title: pending.title,
+    summary: pending.summary,
+    detailLabel: tt('announcementDetail', 'View details'),
+    closeLabel: tt('announcementClose', 'Close'),
+    onDetail: () => {
+      openModalFor(pending);
+    },
+    onClose: () => {
+      void markSeen(pending.id);
+    },
+  });
 }
 
 function applySnapshot(snapshot: AnnouncementSnapshot): void {
@@ -140,17 +219,28 @@ export function startAnnouncement(): void {
     },
   });
 
+  // Register BEFORE the first refreshSnapshot/applySnapshot so that
+  // if the button is *already* in the DOM by the time we get here
+  // (uncommon but possible if startAnnouncement is called late in
+  // feature-init), the listener fires immediately and re-syncs state.
+  setAnnouncementButtonAvailableListener(onAnnouncementButtonAvailable);
+
   installAnnouncementWatchers(applySnapshot);
 
-  // Kick off the first fetch + render pass. If the announcement button
-  // hasn't injected yet (ChatGPT header is still mounting), `showBubbleFor`
-  // is a no-op for this tick and the subsequent storage change /
-  // observer pass will re-run with the button in place.
+  // Kick off the first fetch + render pass. `showBubbleFor` now
+  // eagerly writes `markBubbleShown` even if the button isn't ready,
+  // and stashes the announcement to `pendingAnnouncement` for the
+  // button-available listener to surface visually when the megaphone
+  // finally mounts. No more "bubble pops on every page load" because
+  // the flag never got written in time.
   void refreshSnapshot().then(applySnapshot);
 
-  // Belt-and-suspenders: re-evaluate after a short delay so any late
-  // header mount doesn't leave the bubble unshown for the rest of the
-  // session.
+  // The old 2.5s setTimeout retry is now redundant (button-available
+  // listener covers the same case more responsively), but we keep a
+  // shorter version as a defense against the listener never firing —
+  // e.g., if ChatGPT removes the temp-toggle anchor entirely and our
+  // findAnchor returns null indefinitely. In that scenario the bubble
+  // can't visually appear anyway, but a snapshot re-eval is harmless.
   window.setTimeout(() => {
     const snap = getLastSnapshot();
     if (snap.shouldPopBubble && snap.current && !bubble) {
@@ -162,6 +252,8 @@ export function startAnnouncement(): void {
 export function stopAnnouncement(): void {
   bubble?.destroy();
   bubble = null;
+  pendingAnnouncement = null;
+  setAnnouncementButtonAvailableListener(null);
   stopTopBarAnnouncementButton();
   started = false;
 }

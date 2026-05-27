@@ -1495,5 +1495,92 @@
   },
   "favoritesUntitledConversation": {
     "message": "未命名对话"
+  },
+  "tempChatRegretButton": {
+    "message": "临时反悔"
+  },
+  "tempChatRegretButtonTooltip": {
+    "message": "把当前临时对话作为前情提要带到一段正式对话——抓取所有消息后会自动关闭临时模式并把衔接 prompt 填进输入框，由你决定是否发送。"
+  },
+  "tempChatRegretConfirmTitle": {
+    "message": "临时反悔"
+  },
+  "tempChatRegretConfirmBodyHead": {
+    "message": "即将把当前临时对话作为前情提要带到一段新的正式对话。"
+  },
+  "tempChatRegretConfirmBodyDetail": {
+    "message": "过程会需要几秒钟：先滚到顶部加载所有历史消息（约 {count}+ 条已在视野内），然后关闭临时模式、把衔接 prompt 填进输入框。期间请不要操作页面。"
+  },
+  "tempChatRegretConfirmBodyFooter": {
+    "message": "最后是否发送由你决定 —— prompt 会停在输入框等你审视。"
+  },
+  "tempChatRegretConfirmCancel": {
+    "message": "取消"
+  },
+  "tempChatRegretConfirmContinue": {
+    "message": "继续"
+  },
+  "tempChatRegretOverlayHint": {
+    "message": "请不要操作页面"
+  },
+  "tempChatRegretMsgLoading": {
+    "message": "正在加载历史消息…"
+  },
+  "tempChatRegretMsgLoaded": {
+    "message": "已加载 {count} 条消息…"
+  },
+  "tempChatRegretMsgExtracting": {
+    "message": "提取对话内容…"
+  },
+  "tempChatRegretMsgLeavingTemp": {
+    "message": "关闭临时模式…"
+  },
+  "tempChatRegretMsgFillingInline": {
+    "message": "填入衔接 prompt…"
+  },
+  "tempChatRegretMsgFillingAttachment": {
+    "message": "填入指令 + 上传 .txt…"
+  },
+  "tempChatRegretErrNotInTempMode": {
+    "message": "不在临时聊天模式"
+  },
+  "tempChatRegretErrNoMessages": {
+    "message": "临时对话还没有任何消息"
+  },
+  "tempChatRegretErrExtractFailed": {
+    "message": "没能从 DOM 里提取出任何消息（ChatGPT 的 DOM 结构可能变了）"
+  },
+  "tempChatRegretErrCantLeaveTemp": {
+    "message": "没能关闭临时模式，请手动点掉临时聊天图标后重试"
+  },
+  "tempChatRegretErrInputNotFound": {
+    "message": "找不到输入框，prompt 已复制到剪贴板"
+  },
+  "tempChatRegretErrFailed": {
+    "message": "操作失败"
+  },
+  "tempChatRegretErrPartial": {
+    "message": "部分内容注入失败，请检查输入框（已复制到剪贴板）"
+  },
+  "tempChatRegretOkInline": {
+    "message": "衔接 prompt 已就绪（{count} 条消息），点发送即可继续"
+  },
+  "tempChatRegretOkAttachment": {
+    "message": "衔接已就绪：指令 + {filename}（{count} 条消息），点发送即可继续"
+  },
+  "tempChatRegretDirectiveTitle": {
+    "message": "[来自临时对话的接力]"
+  },
+  "tempChatRegretDirectiveInlineBody": {
+    "message": "以下是我们刚刚在临时模式里的完整对话。请你扮演同样的角色、保持相同的语气、知识状态和上下文，无缝接续这次对话。\n\n第一步：把下面**最后一条 assistant 消息**逐字完整复述一遍作为衔接（让我看到熟悉的接续点）。复述完即停，等我下一条消息。"
+  },
+  "tempChatRegretDirectiveAttachmentBody": {
+    "message": "我们刚才在临时模式里的完整对话见**附件中的 .txt 文件**（按 ## User / ## Assistant 分段）。请你扮演同样的角色、保持相同的语气、知识状态和上下文，无缝接续这次对话。\n\n第一步：把附件里**最后一条 assistant 消息**逐字完整复述一遍作为衔接（让我看到熟悉的接续点）。复述完即停，等我下一条消息。"
+  },
+  "tempChatRegretTranscriptStart": {
+    "message": "—— 临时对话内容 ——"
+  },
+  "tempChatRegretTranscriptEnd": {
+    "message": "—— 结束 ——"
   }
 }

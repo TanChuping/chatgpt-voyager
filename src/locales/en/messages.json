@@ -1495,5 +1495,92 @@
   },
   "favoritesUntitledConversation": {
     "message": "Untitled conversation"
+  },
+  "tempChatRegretButton": {
+    "message": "Undo temp"
+  },
+  "tempChatRegretButtonTooltip": {
+    "message": "Capture this temporary chat as a continuation prompt for a fresh persistent conversation — scrolls to the top to load every message, auto-leaves temp mode, then pastes the prompt into the input box for you to review and send."
+  },
+  "tempChatRegretConfirmTitle": {
+    "message": "Regret temporary chat"
+  },
+  "tempChatRegretConfirmBodyHead": {
+    "message": "About to capture the current temporary chat as a continuation prompt and hand it off to a fresh persistent conversation."
+  },
+  "tempChatRegretConfirmBodyDetail": {
+    "message": "This takes a few seconds: scrolling to the top to load all history messages (~{count}+ already in view), then leaving temp mode and pasting the continuation prompt into the input box. Please don't touch the page during this."
+  },
+  "tempChatRegretConfirmBodyFooter": {
+    "message": "You decide whether to send — the prompt will wait in the input box for your review."
+  },
+  "tempChatRegretConfirmCancel": {
+    "message": "Cancel"
+  },
+  "tempChatRegretConfirmContinue": {
+    "message": "Continue"
+  },
+  "tempChatRegretOverlayHint": {
+    "message": "Please don't touch the page"
+  },
+  "tempChatRegretMsgLoading": {
+    "message": "Loading history messages…"
+  },
+  "tempChatRegretMsgLoaded": {
+    "message": "Loaded {count} messages…"
+  },
+  "tempChatRegretMsgExtracting": {
+    "message": "Extracting conversation…"
+  },
+  "tempChatRegretMsgLeavingTemp": {
+    "message": "Leaving temp mode…"
+  },
+  "tempChatRegretMsgFillingInline": {
+    "message": "Filling continuation prompt…"
+  },
+  "tempChatRegretMsgFillingAttachment": {
+    "message": "Filling instructions + uploading .txt…"
+  },
+  "tempChatRegretErrNotInTempMode": {
+    "message": "Not in temporary chat mode"
+  },
+  "tempChatRegretErrNoMessages": {
+    "message": "This temporary chat has no messages yet"
+  },
+  "tempChatRegretErrExtractFailed": {
+    "message": "Couldn't extract any messages from the DOM (ChatGPT layout may have changed)"
+  },
+  "tempChatRegretErrCantLeaveTemp": {
+    "message": "Couldn't leave temp mode — please toggle off the temporary-chat icon manually and retry"
+  },
+  "tempChatRegretErrInputNotFound": {
+    "message": "Input box not found — prompt has been copied to clipboard"
+  },
+  "tempChatRegretErrFailed": {
+    "message": "Operation failed"
+  },
+  "tempChatRegretErrPartial": {
+    "message": "Partial injection failed — please check the input box (also copied to clipboard)"
+  },
+  "tempChatRegretOkInline": {
+    "message": "Continuation prompt is ready ({count} messages). Click send to continue."
+  },
+  "tempChatRegretOkAttachment": {
+    "message": "Continuation is ready: instructions + {filename} ({count} messages). Click send to continue."
+  },
+  "tempChatRegretDirectiveTitle": {
+    "message": "[Hand-off from a temporary chat]"
+  },
+  "tempChatRegretDirectiveInlineBody": {
+    "message": "The following is our full conversation from temporary mode. Adopt the same persona, tone, knowledge state, and context, and continue seamlessly.\n\nStep 1: Repeat the LAST assistant message below **verbatim and in full** as the bridging line. Then stop and wait for my next message."
+  },
+  "tempChatRegretDirectiveAttachmentBody": {
+    "message": "The full conversation from temporary mode is in the **attached .txt file** (split into ## User / ## Assistant sections). Adopt the same persona, tone, knowledge state, and context, and continue seamlessly.\n\nStep 1: Repeat the LAST assistant message from the attachment **verbatim and in full** as the bridging line. Then stop and wait for my next message."
+  },
+  "tempChatRegretTranscriptStart": {
+    "message": "—— Conversation ——"
+  },
+  "tempChatRegretTranscriptEnd": {
+    "message": "—— End ——"
   }
 }

@@ -31,6 +31,7 @@ import { startQuoteReply } from './quoteReply/index';
 import { startSendBehavior } from './sendBehavior/index';
 import { startSidebarAutoHide } from './sidebarAutoHide';
 import { startSidebarWidthAdjuster } from './sidebarWidth';
+import { startTempChatExit } from './tempChatExit/index';
 import { startTimeline } from './timeline/index';
 import { startUserLatex } from './userLatex/index';
 
@@ -155,6 +156,7 @@ async function startChatGPTFeatures(): Promise<void> {
   await runFeatureStep('Canvas Export', () => startCanvasExport());
   await runFeatureStep('Single-Conversation Export', () => startSingleConversationExport());
   await runFeatureStep('Announcement', () => startAnnouncement());
+  await runFeatureStep('Temp Chat Regret', () => startTempChatExit());
 
   await runFeatureStep('Fork', async () => {
     if (await isForkFeatureEnabled()) forkCleanup = startFork();
