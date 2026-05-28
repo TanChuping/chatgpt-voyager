@@ -7,6 +7,10 @@ voyager-edge-v*.zip
 .entire/
 .npm-cache/
 
+# Local/temporary test scripts and probe artifacts (never commit)
+.tmp_*
+.tmp_*/
+
 # Vitest
 coverage/
 .vitest/
@@ -71,6 +75,7 @@ announcements.json
 .agent/
 LOCAL_DEVELOPMENT.md
 公式交接.md
+CLAUDE.md
 docs/plans/
 output/
 GPT-Voyager/diagnostics/

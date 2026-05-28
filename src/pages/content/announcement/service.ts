@@ -25,6 +25,36 @@ import type {
 } from './types';
 
 const CACHE_TTL_MS = 30 * 60 * 1000; // refetch at most every 30 min
+
+/**
+ * HARD COOLDOWN ON BUBBLE POPS (id-agnostic). At most one bubble per
+ * 14 days per device, period. This is a failsafe ABOVE the id-based
+ * `BUBBLE_SHOWN_FOR` flag — if that flag ever fails to commit, or a
+ * publisher accidentally bumps the id twice in a week, or any future
+ * detection bug flips `shouldPopBubble` back to true unexpectedly,
+ * this ceiling holds the line and protects users from annoyance.
+ *
+ * 14 days was chosen as "longer than any normal release cadence but
+ * short enough that genuinely-important news can still surface twice
+ * a month." If you ever raise this, leave a comment explaining why
+ * the previous cooldown wasn't long enough — the bias is to make it
+ * LONGER, not shorter.
+ */
+const BUBBLE_HARD_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
+
+/**
+ * HARD COOLDOWN ON DOT (id-agnostic). After the user explicitly
+ * acknowledges (× / detail / megaphone-open → markSeen), the red
+ * dot CANNOT light up again for 24 hours, even if a brand-new
+ * announcement id arrives. Paired with BUBBLE_HARD_COOLDOWN_MS so
+ * the "I just dealt with this, leave me alone" contract is enforced
+ * at the storage layer rather than relying on policy-only code paths.
+ *
+ * 24h is short enough that genuinely-new content surfaces by the
+ * next day, but long enough that a publisher mis-clicking republish
+ * doesn't immediately re-annoy a user who literally just clicked ×.
+ */
+const DOT_HARD_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 /**
  * Coarse cache-buster window for non-forced fetches. raw.githubusercontent.com
  * sits behind a CDN that aggressively caches GETs; without a buster a freshly-
@@ -115,6 +145,36 @@ async function writeFlag(key: string, value: string): Promise<void> {
 }
 
 /**
+ * Numeric flag readers/writers for the timestamp-based hard cooldowns.
+ * Stored as plain numbers (ms since epoch). Missing / non-number values
+ * read as 0 — i.e. "never set" — which lets the cooldown predicate
+ * `now - lastBubbleAt < BUBBLE_HARD_COOLDOWN_MS` correctly evaluate to
+ * FALSE for fresh installs (so the first bubble can pop).
+ */
+async function readTimestamp(key: string): Promise<number> {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage?.local?.get([key], (res) => {
+        const v = res?.[key];
+        resolve(typeof v === 'number' && isFinite(v) ? v : 0);
+      });
+    } catch {
+      resolve(0);
+    }
+  });
+}
+
+async function writeTimestamp(key: string, value: number): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage?.local?.set({ [key]: value }, () => resolve());
+    } catch {
+      resolve();
+    }
+  });
+}
+
+/**
  * Fetch the remote feed via plain GET. The cache-buster strategy is:
  *
  *   - background poll (force=false): a 5-min bucket. Within any given
@@ -158,14 +218,31 @@ async function evaluate(payload: RemoteAnnouncementFile | null): Promise<Announc
   if (!current) {
     return { current: null, shouldPopBubble: false, hasUnread: false };
   }
-  const [seenId, bubbleShownFor] = await Promise.all([
+  const [seenId, bubbleShownFor, lastBubbleAt, lastSeenAt] = await Promise.all([
     readFlag(StorageKeys.ANNOUNCEMENT_SEEN_ID),
     readFlag(StorageKeys.ANNOUNCEMENT_BUBBLE_SHOWN_FOR),
+    readTimestamp(StorageKeys.ANNOUNCEMENT_LAST_BUBBLE_AT),
+    readTimestamp(StorageKeys.ANNOUNCEMENT_LAST_SEEN_AT),
   ]);
+  const now = Date.now();
+
+  // ---- Detection layer (id-based) ----------------------------------
+  const idsSayShouldPop = current.id !== seenId && current.id !== bubbleShownFor;
+  const idsSayHasUnread = current.id !== seenId;
+
+  // ---- HARD GUARDS (timestamp-based, id-agnostic) ------------------
+  // These are absolute ceilings: even if the id-based detection above
+  // says "pop" or "light dot", the timestamp gates can VETO. The
+  // reverse never applies — guards can only suppress, never force.
+  // This makes the user-protection contract robust against any future
+  // detection bug.
+  const bubbleCooldownActive = now - lastBubbleAt < BUBBLE_HARD_COOLDOWN_MS;
+  const dotCooldownActive = now - lastSeenAt < DOT_HARD_COOLDOWN_MS;
+
   return {
     current,
-    shouldPopBubble: current.id !== seenId && current.id !== bubbleShownFor,
-    hasUnread: current.id !== seenId,
+    shouldPopBubble: idsSayShouldPop && !bubbleCooldownActive,
+    hasUnread: idsSayHasUnread && !dotCooldownActive,
   };
 }
 
@@ -223,7 +300,14 @@ export function getLastSnapshot(): AnnouncementSnapshot {
  * fire applySnapshot, second one is a no-op.
  */
 export async function markBubbleShown(id: string): Promise<void> {
-  await writeFlag(StorageKeys.ANNOUNCEMENT_BUBBLE_SHOWN_FOR, id);
+  // Two writes: the id-keyed flag (existing detection layer) AND the
+  // id-agnostic timestamp ceiling (hard cooldown). The cooldown wins
+  // ANY contention with the id-based logic — even if a new id arrives
+  // tomorrow, the bubble stays silent for the full 14-day window.
+  await Promise.all([
+    writeFlag(StorageKeys.ANNOUNCEMENT_BUBBLE_SHOWN_FOR, id),
+    writeTimestamp(StorageKeys.ANNOUNCEMENT_LAST_BUBBLE_AT, Date.now()),
+  ]);
   await refreshSnapshot();
 }
 
@@ -238,9 +322,22 @@ export async function markBubbleShown(id: string): Promise<void> {
  * update if ChatGPT remounted the header in the same frame).
  */
 export async function markSeen(id: string): Promise<void> {
+  // Four writes (parallel): the two id-keyed flags (existing detection),
+  // plus BOTH hard-cooldown timestamps. Explicit dismiss arms both
+  // ceilings:
+  //   - LAST_BUBBLE_AT (14 d): no bubble pops for 2 weeks regardless
+  //     of new ids — user told us they "saw it", honour that.
+  //   - LAST_SEEN_AT (24 h): no red dot for the next day even if a
+  //     brand-new id arrives — "I just dealt with this, leave me alone".
+  // Both ceilings are belt-and-suspenders on top of SEEN_ID. If
+  // SEEN_ID ever gets dropped or de-synced from current.id, the
+  // timestamps still hold the line for their respective windows.
+  const now = Date.now();
   await Promise.all([
     writeFlag(StorageKeys.ANNOUNCEMENT_SEEN_ID, id),
     writeFlag(StorageKeys.ANNOUNCEMENT_BUBBLE_SHOWN_FOR, id),
+    writeTimestamp(StorageKeys.ANNOUNCEMENT_LAST_BUBBLE_AT, now),
+    writeTimestamp(StorageKeys.ANNOUNCEMENT_LAST_SEEN_AT, now),
   ]);
   await refreshSnapshot();
 }
@@ -268,9 +365,16 @@ export function installAnnouncementWatchers(onChange: (snapshot: AnnouncementSna
     if (
       changes[StorageKeys.ANNOUNCEMENT_SEEN_ID] ||
       changes[StorageKeys.ANNOUNCEMENT_BUBBLE_SHOWN_FOR] ||
-      changes[StorageKeys.ANNOUNCEMENT_CACHE_V1]
+      changes[StorageKeys.ANNOUNCEMENT_CACHE_V1] ||
+      changes[StorageKeys.ANNOUNCEMENT_LAST_BUBBLE_AT] ||
+      changes[StorageKeys.ANNOUNCEMENT_LAST_SEEN_AT]
     ) {
-      void refreshSnapshot().then((snap) => onChange(snap));
+      // Don't chain .then(onChange) — refreshSnapshot's own notify()
+      // already fans out to every subscriber (including the one
+      // registered below pointing at `onChange`). A second call would
+      // race the eager-mark→refresh chain and produce the bubble-
+      // flashing regression. The notify path is enough.
+      void refreshSnapshot();
     }
   };
   try {

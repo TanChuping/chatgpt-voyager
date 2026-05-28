@@ -158,10 +158,29 @@ export const StorageKeys = {
    * `CACHE_V1` — lightly throttled cache of the remote JSON payload so
    *   we don't refetch on every tab open. Stored under `local` because
    *   the cache can be larger than sync's per-item cap.
+   *
+   * `LAST_BUBBLE_AT` — UNIX-ms timestamp of the most recent bubble pop,
+   *   id-agnostic. Belt-and-suspenders ceiling on top of the id-based
+   *   SEEN_ID / BUBBLE_SHOWN_FOR machinery: even if those flags get
+   *   corrupted / out of sync / hit a race, the bubble PHYSICALLY
+   *   CANNOT pop more than once per `BUBBLE_HARD_COOLDOWN_MS`
+   *   (currently 14 days). This is the failsafe so a buggy detection
+   *   path or a publisher mistakenly bumping the id twice can never
+   *   spam users.
+   *
+   * `LAST_SEEN_AT` — UNIX-ms timestamp of the most recent markSeen
+   *   (× / detail / megaphone-open). Hard guard for the red dot:
+   *   after the user explicitly acknowledges, the dot CANNOT light
+   *   up again for `DOT_HARD_COOLDOWN_MS` (currently 24 h), even if
+   *   a brand-new announcement id arrives. Pairs with LAST_BUBBLE_AT
+   *   so the don't-annoy-the-user contract is upheld at the storage
+   *   layer rather than being purely policy code.
    */
   ANNOUNCEMENT_SEEN_ID: 'gvAnnouncementSeenId',
   ANNOUNCEMENT_BUBBLE_SHOWN_FOR: 'gvAnnouncementBubbleShownFor',
   ANNOUNCEMENT_CACHE_V1: 'gvAnnouncementCacheV1',
+  ANNOUNCEMENT_LAST_BUBBLE_AT: 'gvAnnouncementLastBubbleAt',
+  ANNOUNCEMENT_LAST_SEEN_AT: 'gvAnnouncementLastSeenAt',
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];

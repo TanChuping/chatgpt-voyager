@@ -35,6 +35,21 @@ let bubble: BubbleHandle | null = null;
 let started = false;
 
 /**
+ * The announcement id our currently-mounted bubble belongs to. Used to
+ * make `showBubbleFor` idempotent: if applySnapshot fires twice for the
+ * same id (which it routinely does — notify + .then both call it on
+ * each refreshSnapshot), we MUST NOT re-call mountBubble because
+ * mountBubble starts with `querySelectorAll(.bubble).forEach(remove)`
+ * — i.e. it destroys the live bubble before recreating it. With
+ * eager-mark + multi-tab storage onChanged events, that destroy/create
+ * cascade visually looked like rapid flashing and also stole the × click
+ * before its handler could fire (the element was detached mid-click).
+ *
+ * Reset to null whenever the bubble is destroyed for any reason.
+ */
+let mountedBubbleId: string | null = null;
+
+/**
  * Announcement we *intended* to surface but couldn't mount because the
  * megaphone button hadn't been injected by `topBarButton` yet on the
  * first snapshot evaluation. The button-available listener replays
@@ -43,6 +58,17 @@ let started = false;
  * actually mounts OR when a later snapshot says the user has dismissed.
  */
 let pendingAnnouncement: RemoteAnnouncement | null = null;
+
+/**
+ * Single source of truth for bubble teardown — every code path that
+ * removes the bubble must go through here so `mountedBubbleId` stays
+ * in sync with the actual DOM state.
+ */
+function destroyBubble(): void {
+  bubble?.destroy();
+  bubble = null;
+  mountedBubbleId = null;
+}
 
 function tt(key: string, fallback: string): string {
   try {
@@ -58,8 +84,7 @@ function tt(key: string, fallback: string): string {
 
 function openModalFor(announcement: RemoteAnnouncement): void {
   // Close the bubble first so the modal isn't fighting it for attention.
-  bubble?.destroy();
-  bubble = null;
+  destroyBubble();
   openAnnouncementModal({
     announcement,
     closeLabel: tt('announcementClose', 'Close'),
@@ -98,6 +123,16 @@ function showBubbleFor(announcement: RemoteAnnouncement): void {
   // check — eager write only locks in the *current* id.
   void markBubbleShown(announcement.id);
 
+  // IDEMPOTENCY: applySnapshot fires twice per refresh (notify path +
+  // any redundant .then path) — and any cross-tab onChanged can fire
+  // more on top of that. If we already have a live bubble for this
+  // same id, do NOT re-mount: mountBubble's first line removes every
+  // existing `.gv-announcement-bubble` from the DOM, which produced
+  // the "rapid flashing + × button can't be clicked" regression (the
+  // × element was being detached mid-click between event dispatch and
+  // handler invocation).
+  if (mountedBubbleId === announcement.id && bubble) return;
+
   const anchor = getButtonElement();
   if (!anchor) {
     // Stash for the button-available listener to retry once the
@@ -106,7 +141,7 @@ function showBubbleFor(announcement: RemoteAnnouncement): void {
     return;
   }
   pendingAnnouncement = null;
-  bubble?.destroy();
+  destroyBubble();
   bubble = mountBubble({
     anchor,
     title: announcement.title,
@@ -120,6 +155,7 @@ function showBubbleFor(announcement: RemoteAnnouncement): void {
       void markSeen(announcement.id);
     },
   });
+  mountedBubbleId = announcement.id;
 }
 
 /**
@@ -146,9 +182,12 @@ function onAnnouncementButtonAvailable(): void {
   // write and now, don't surprise the user with a bubble. Same if
   // the publisher swapped the announcement under us.
   if (!snap.hasUnread || snap.current?.id !== pending.id) return;
+  // Same idempotency check as showBubbleFor — don't re-mount on top
+  // of an already-mounted bubble for the same id.
+  if (mountedBubbleId === pending.id && bubble) return;
   const anchor = getButtonElement();
   if (!anchor) return; // very unlikely — the listener says it's there
-  bubble?.destroy();
+  destroyBubble();
   bubble = mountBubble({
     anchor,
     title: pending.title,
@@ -162,6 +201,7 @@ function onAnnouncementButtonAvailable(): void {
       void markSeen(pending.id);
     },
   });
+  mountedBubbleId = pending.id;
 }
 
 function applySnapshot(snapshot: AnnouncementSnapshot): void {
@@ -170,9 +210,10 @@ function applySnapshot(snapshot: AnnouncementSnapshot): void {
     showBubbleFor(snapshot.current);
   } else if (!snapshot.hasUnread) {
     // Cross-tab acknowledgment: another tab just marked this seen —
-    // dismiss any bubble we still have hanging around.
-    bubble?.destroy();
-    bubble = null;
+    // dismiss any bubble we still have hanging around. Also clear
+    // mountedBubbleId so a fresh announcement (different id) can
+    // re-pop later.
+    destroyBubble();
   }
 }
 
@@ -227,13 +268,17 @@ export function startAnnouncement(): void {
 
   installAnnouncementWatchers(applySnapshot);
 
-  // Kick off the first fetch + render pass. `showBubbleFor` now
-  // eagerly writes `markBubbleShown` even if the button isn't ready,
-  // and stashes the announcement to `pendingAnnouncement` for the
-  // button-available listener to surface visually when the megaphone
-  // finally mounts. No more "bubble pops on every page load" because
-  // the flag never got written in time.
-  void refreshSnapshot().then(applySnapshot);
+  // Kick off the first fetch + render pass. Note: we DON'T chain
+  // `.then(applySnapshot)` here. `refreshSnapshot` internally calls
+  // `notify(snap)`, which fan-outs to every subscriber including the
+  // one `installAnnouncementWatchers` registered above pointing at
+  // `applySnapshot`. Calling .then(applySnapshot) would fire a SECOND
+  // applySnapshot with the same snapshot — and with eager-mark
+  // shouldPopBubble flipping true→false async, the two calls would
+  // race and each could call showBubbleFor, which (pre-fix) destroyed
+  // and re-mounted the bubble = visible flashing + × button stolen
+  // mid-click. The notify path is enough.
+  void refreshSnapshot();
 
   // The old 2.5s setTimeout retry is now redundant (button-available
   // listener covers the same case more responsively), but we keep a

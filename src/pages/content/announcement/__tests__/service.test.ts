@@ -152,10 +152,19 @@ describe('AnnouncementService — dedupe state machine', () => {
     expect(snap.hasUnread).toBe(false);
   });
 
-  it('server publishes a new id → bubble pops again', async () => {
+  it('server publishes a new id → bubble pops again ONCE the hard cooldowns have elapsed', async () => {
+    // Pre-1.6.6: bubble re-popped immediately for a new id after
+    // markSeen. Post-1.6.6: hard cooldowns veto for 14 days (bubble)
+    // and 24 hours (dot). We backdate both ceilings here so the test
+    // exercises the pure id-based "new id triggers pop" contract, not
+    // the cooldown veto. The dedicated cooldown tests below cover the
+    // veto path explicitly.
     setRemote(sample('A'));
     await refreshSnapshot();
     await markSeen('A');
+    // Step out of both cooldown windows.
+    local[StorageKeys.ANNOUNCEMENT_LAST_BUBBLE_AT] = Date.now() - 15 * 24 * 60 * 60 * 1000;
+    local[StorageKeys.ANNOUNCEMENT_LAST_SEEN_AT] = Date.now() - 25 * 60 * 60 * 1000;
     setRemote(sample('B'));
     const snap = await refreshSnapshot(true);
     expect(snap.current?.id).toBe('B');
@@ -277,14 +286,19 @@ describe('AnnouncementService — dedupe state machine', () => {
     expect(received).toContain(false);
   });
 
-  it('eager-mark contract: marking A as shown does NOT suppress a later push of new id B', async () => {
-    // The whole point of the eager write is to PREVENT same-id re-pop
-    // without harming the new-announcement workflow. Verify here that
-    // a publisher push of id B after we've eagerly marked A still pops.
+  it('eager-mark contract: marking A as shown does NOT suppress a later push of new id B (after cooldown)', async () => {
+    // The eager write must PREVENT same-id re-pop without permanently
+    // killing the new-announcement workflow. Under the 1.6.6+ hard
+    // cooldown the new pop is delayed by 14 d (bubble) / 24 h (dot)
+    // — after that, the new id surfaces normally. We backdate the
+    // ceilings to exercise that path here; the cooldown-VETO path
+    // is covered by its own test.
     setRemote(sample('A'));
     await refreshSnapshot();
     await markBubbleShown('A');
     expect(getLastSnapshot().shouldPopBubble).toBe(false);
+    // Step out of the cooldown window.
+    local[StorageKeys.ANNOUNCEMENT_LAST_BUBBLE_AT] = Date.now() - 15 * 24 * 60 * 60 * 1000;
     // Publisher releases B.
     setRemote(sample('B'));
     const snap = await refreshSnapshot(true);
@@ -308,15 +322,128 @@ describe('AnnouncementService — dedupe state machine', () => {
     expect(tab2Snap.hasUnread).toBe(true);
   });
 
-  it('eager-mark is id-keyed: clearing the flag for one id does not affect another', async () => {
-    // Simulate the publisher having pushed B → user dismissed → then
-    // a future B' release. The B flag must NOT survive into B'.
+  it('eager-mark is id-keyed: clearing the flag for one id does not affect another (post-cooldown)', async () => {
+    // Publisher pushed B → user dismissed → after cooldowns expire,
+    // a future B' release pops normally. The B id-flag must not
+    // survive into B'. Hard cooldowns backdated so we exercise the
+    // id-key contract, not the cooldown veto.
     setRemote(sample('B'));
     await refreshSnapshot();
     await markSeen('B');
+    local[StorageKeys.ANNOUNCEMENT_LAST_BUBBLE_AT] = Date.now() - 15 * 24 * 60 * 60 * 1000;
+    local[StorageKeys.ANNOUNCEMENT_LAST_SEEN_AT] = Date.now() - 25 * 60 * 60 * 1000;
     setRemote(sample('B-prime'));
     const snap = await refreshSnapshot(true);
     expect(snap.shouldPopBubble).toBe(true);
     expect(snap.hasUnread).toBe(true);
+  });
+
+  // ---- 1.6.6+ HARD COOLDOWNS (id-agnostic ceilings) -----------------
+  // These guarantee user-protection at the storage layer, not just by
+  // policy: even if the id-based detection above flips shouldPopBubble
+  // to true for any reason (race, corruption, publisher mistake), the
+  // bubble physically cannot pop more than once per 14 days, and the
+  // dot cannot light up within 24 hours of explicit dismiss.
+
+  it('bubble hard cooldown: same-id refresh in cooldown stays silent (existing contract)', async () => {
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    await markBubbleShown('A');
+    const snap = await refreshSnapshot();
+    expect(snap.shouldPopBubble).toBe(false);
+  });
+
+  it('bubble hard cooldown: VETOES a new-id pop if cooldown window is still active', async () => {
+    // Simulate "publisher accidentally bumps id" or "any future
+    // detection bug flips shouldPopBubble true again". The 14-day
+    // ceiling must win.
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    await markBubbleShown('A');
+    // Publisher bumps id immediately. id-based detection alone would
+    // happily pop; the hard cooldown is the safety net.
+    setRemote(sample('B'));
+    const snap = await refreshSnapshot(true);
+    expect(snap.current?.id).toBe('B');
+    // shouldPopBubble vetoed by hard cooldown even though current.id
+    // is different from both seenId (empty) and BUBBLE_SHOWN_FOR ('A').
+    expect(snap.shouldPopBubble).toBe(false);
+    // Dot still works as normal — that's the detection layer's job.
+    expect(snap.hasUnread).toBe(true);
+  });
+
+  it('bubble hard cooldown: pop allowed again once 14 days have elapsed', async () => {
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    await markBubbleShown('A');
+    // Backdate LAST_BUBBLE_AT by 15 days to step OUT of the cooldown.
+    local[StorageKeys.ANNOUNCEMENT_LAST_BUBBLE_AT] = Date.now() - 15 * 24 * 60 * 60 * 1000;
+    setRemote(sample('B'));
+    const snap = await refreshSnapshot(true);
+    expect(snap.shouldPopBubble).toBe(true);
+  });
+
+  it('dot hard cooldown: VETOES the dot for 24h after markSeen even if new id arrives', async () => {
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    await markSeen('A');
+    expect(getLastSnapshot().hasUnread).toBe(false);
+    // Publisher pushes a brand-new id 1 hour later. Detection would
+    // normally light the dot (new id != seenId 'A'). Cooldown vetoes.
+    setRemote(sample('B'));
+    const snap = await refreshSnapshot(true);
+    expect(snap.current?.id).toBe('B');
+    expect(snap.hasUnread).toBe(false);
+    // Also no bubble (hard cooldown still in 14-day window).
+    expect(snap.shouldPopBubble).toBe(false);
+  });
+
+  it('dot hard cooldown: dot lights up after 24h elapsed even with same dismiss state', async () => {
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    await markSeen('A');
+    // Backdate LAST_SEEN_AT by 25h, but new id 'B' arrives.
+    local[StorageKeys.ANNOUNCEMENT_LAST_SEEN_AT] = Date.now() - 25 * 60 * 60 * 1000;
+    setRemote(sample('B'));
+    const snap = await refreshSnapshot(true);
+    expect(snap.hasUnread).toBe(true);
+  });
+
+  it('hard cooldown ALSO survives an id-detection regression (corrupted BUBBLE_SHOWN_FOR flag)', async () => {
+    // Simulate the worst case: id-based flag got blown away somehow
+    // (extension upgrade migration bug, manual storage edit, etc.).
+    // The cooldown is the last line of defense.
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    await markBubbleShown('A');
+    // Sabotage the id-based flag.
+    delete local[StorageKeys.ANNOUNCEMENT_BUBBLE_SHOWN_FOR];
+    // Same id, fresh refresh — id detection alone would pop.
+    const snap = await refreshSnapshot(true);
+    expect(snap.shouldPopBubble).toBe(false);
+  });
+
+  it('refreshSnapshot notifies subscribers EXACTLY ONCE per call (no double-fire)', async () => {
+    // Regression guard for the index.ts flashing bug: pre-fix, the
+    // `void refreshSnapshot().then(applySnapshot)` pattern in
+    // startAnnouncement and onStorage caused applySnapshot to be
+    // invoked twice per refresh — once via notify→subscribe, once
+    // via .then. Two showBubbleFor calls back-to-back meant
+    // mountBubble ran twice, and its `forEach(b => b.remove())`
+    // destroyed the live bubble mid-click. The fix is to drop the
+    // redundant .then in index.ts/service.ts and rely on the
+    // notify→subscribe path alone. This test pins that contract
+    // at the service level: ONE refreshSnapshot = ONE subscriber
+    // call.
+    setRemote(sample('A'));
+    let calls = 0;
+    subscribe(() => {
+      calls++;
+    });
+    await refreshSnapshot();
+    expect(calls).toBe(1);
+    // Sanity: second refresh is also exactly one more call.
+    await refreshSnapshot();
+    expect(calls).toBe(2);
   });
 });
