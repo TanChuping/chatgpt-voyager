@@ -1298,6 +1298,12 @@
   "folderAsProject_description": {
     "message": "Attach reusable instructions to a folder and insert them into chats."
   },
+  "folderBelowProjects": {
+    "message": "Place folders below Projects"
+  },
+  "folderBelowProjects_description": {
+    "message": "Move the folder list out of its pinned top position to below Projects and above Recent, where it scrolls along with the chat list."
+  },
   "folderAsProject_noFolder": {
     "message": "No folder"
   },
@@ -1572,10 +1578,10 @@
     "message": "[Hand-off from a temporary chat]"
   },
   "tempChatRegretDirectiveInlineBody": {
-    "message": "The following is our full conversation from temporary mode. Adopt the same persona, tone, knowledge state, and context, and continue seamlessly.\n\nStep 1: Repeat the LAST assistant message below **verbatim and in full** as the bridging line. Then stop and wait for my next message."
+    "message": "The following is our full conversation from temporary mode (**Markdown source** — bold, code blocks, lists, math, headings, etc. are all there in raw syntax). Adopt the same persona, tone, knowledge state, and context, and continue seamlessly.\n\nStep 1: Repeat the LAST assistant message below **in full proper Markdown formatting**, verbatim, as the bridging line — **do not degrade to plain text just because the medium looks flat**; the original was Markdown. Then stop and wait for my next message.\n\nKeep using Markdown formatting in all subsequent replies, matching the assistant's formatting habits from the original conversation."
   },
   "tempChatRegretDirectiveAttachmentBody": {
-    "message": "The full conversation from temporary mode is in the **attached .txt file** (split into ## User / ## Assistant sections). Adopt the same persona, tone, knowledge state, and context, and continue seamlessly.\n\nStep 1: Repeat the LAST assistant message from the attachment **verbatim and in full** as the bridging line. Then stop and wait for my next message."
+    "message": "The full conversation from temporary mode is in the **attached .txt file** (split into ## User / ## Assistant sections).\n\n**Note: the file extension is `.txt` only because of upload constraints — its contents are Markdown source**: bold, code blocks, lists, math, headings, etc. are all present as raw Markdown syntax inside the text. Treat it as Markdown when reading.\n\nAdopt the same persona, tone, knowledge state, and context, and continue seamlessly.\n\nStep 1: Repeat the LAST assistant message from the attachment **in full proper Markdown formatting**, verbatim, as the bridging line — **do not degrade to plain text just because the file is .txt**; the original is Markdown. Then stop and wait for my next message.\n\nKeep using Markdown formatting in all subsequent replies, matching the assistant's formatting habits from the original conversation."
   },
   "tempChatRegretTranscriptStart": {
     "message": "—— Conversation ——"

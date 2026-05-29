@@ -288,6 +288,7 @@ export default function Popup() {
   const [folderFloating, setFolderFloating] = useState(false);
   const [hideArchived, setHideArchived] = useState(false);
   const [folderProjectEnabled, setFolderProjectEnabled] = useState(false);
+  const [folderBelowProjects, setFolderBelowProjects] = useState(false);
   const [folderSpacing, setFolderSpacing] = useState(FOLDER_SPACING.defaultValue);
   const [folderTreeIndent, setFolderTreeIndent] = useState(FOLDER_TREE_INDENT.defaultValue);
 
@@ -453,6 +454,7 @@ export default function Popup() {
         [StorageKeys.FOLDER_FLOATING_MODE_ENABLED]: false,
         [StorageKeys.FOLDER_HIDE_ARCHIVED_CONVERSATIONS]: false,
         [StorageKeys.FOLDER_PROJECT_ENABLED]: false,
+        [StorageKeys.GV_FOLDER_BELOW_PROJECTS]: false,
         [StorageKeys.GV_FOLDER_SPACING]: FOLDER_SPACING.defaultValue,
         [StorageKeys.GV_FOLDER_TREE_INDENT]: FOLDER_TREE_INDENT.defaultValue,
         [StorageKeys.CHAT_WIDTH_ENABLED]: false,
@@ -497,6 +499,7 @@ export default function Popup() {
         setFolderFloating(result[StorageKeys.FOLDER_FLOATING_MODE_ENABLED] === true);
         setHideArchived(result[StorageKeys.FOLDER_HIDE_ARCHIVED_CONVERSATIONS] === true);
         setFolderProjectEnabled(result[StorageKeys.FOLDER_PROJECT_ENABLED] === true);
+        setFolderBelowProjects(result[StorageKeys.GV_FOLDER_BELOW_PROJECTS] === true);
         setFolderSpacing(
           normalizeNumber(
             result[StorageKeys.GV_FOLDER_SPACING],
@@ -808,6 +811,15 @@ export default function Popup() {
             checked={folderProjectEnabled}
             onChange={(value) =>
               updateToggle(setFolderProjectEnabled, StorageKeys.FOLDER_PROJECT_ENABLED, value)
+            }
+          />
+          <ToggleRow
+            id="folder-below-projects"
+            title={t('folderBelowProjects')}
+            description={t('folderBelowProjects_description')}
+            checked={folderBelowProjects}
+            onChange={(value) =>
+              updateToggle(setFolderBelowProjects, StorageKeys.GV_FOLDER_BELOW_PROJECTS, value)
             }
           />
           <WidthSlider

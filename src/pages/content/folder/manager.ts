@@ -164,6 +164,8 @@ export class FolderManager {
   private longPressThreshold: number = 500; // Long-press duration in ms
   private folderEnabled: boolean = true; // Whether folder feature is enabled
   private folderProjectEnabled: boolean = false; // Whether Folder-as-Project feature is enabled
+  private folderBelowProjects: boolean = false; // Mount folder panel below Projects / above Recent (non-sticky) instead of pinned at top
+  private belowProjectsRelocateTries: number = 0; // Bounded-retry counter for relocating below Projects while the Recent list streams in
   private hideArchivedConversations: boolean = false; // Whether to hide conversations in folders
   private hideArchivedNudgeShown: boolean = false; // Whether the first-archive nudge has been shown/dismissed
   private folderTreeIndent: number = FOLDER_TREE_INDENT_DEFAULT; // Tree indentation width (px)
@@ -294,6 +296,7 @@ export class FolderManager {
       await this.loadFilterUserSetting();
       await this.loadFolderTreeIndentSetting();
       await this.loadFolderProjectEnabledSetting();
+      await this.loadFolderBelowProjectsSetting();
 
       // Set up storage change listener (always needed to respond to setting changes)
       this.setupStorageListener();
@@ -935,6 +938,18 @@ export class FolderManager {
       }
     }
 
+    // Opt-in alternate layout: relocate the folder panel out of the pinned nav
+    // block into the normal scroll flow, just above the "Recent" chat list
+    // (which sits directly below ChatGPT's "Projects" section). The Recent list
+    // streams in asynchronously, so this can't run reliably at first mount —
+    // tryRelocateBelowProjects() retries until the chats section appears. When
+    // the list is already present (e.g. a settings-toggle reinit) it relocates
+    // synchronously with no visible flash.
+    if (this.folderBelowProjects) {
+      this.belowProjectsRelocateTries = 0;
+      this.tryRelocateBelowProjects();
+    }
+
     // Initial active conversation highlight and route listeners
     this.highlightActiveConversationInFolders();
     this.installRouteChangeListener();
@@ -976,6 +991,76 @@ export class FolderManager {
       if (position === 'sticky' || position === 'relative') return candidate;
     }
     return null;
+  }
+
+  /**
+   * Locate the "Recent" chat-list section block — the direct child of the
+   * sidebar scrollport <nav> that holds the conversation links. ChatGPT lays
+   * the sidebar out as a flat list of sibling sections inside that nav:
+   * …  → [Projects expando] → [Recent expando (conversation links)] → spacer.
+   * We climb from the first `/c/<id>` conversation link until its parent is
+   * the <nav>; that ancestor IS the Recent section. Inserting our folder
+   * panel immediately before it places folders below Projects and above
+   * Recent, in normal (non-sticky) scroll flow. Returns null on layouts where
+   * no conversation link / nav ancestor exists (empty history, variant
+   * builds) — callers fall back to the default sticky mount.
+   */
+  private findChatGptChatsSectionBlock(): HTMLElement | null {
+    const sidebar = this.sidebarContainer;
+    if (!sidebar) return null;
+
+    const convLink = sidebar.querySelector<HTMLAnchorElement>('a[href*="/c/"]');
+    if (!convLink) return null;
+
+    let node: HTMLElement = convLink;
+    let parentEl: HTMLElement | null = node.parentElement;
+    while (parentEl) {
+      if (parentEl.tagName === 'NAV') {
+        return node;
+      }
+      // Don't escape the sidebar root if the nav is somehow absent.
+      if (parentEl === sidebar) break;
+      node = parentEl;
+      parentEl = node.parentElement;
+    }
+    return null;
+  }
+
+  /**
+   * Move the (already-mounted) folder container into the normal scroll flow,
+   * immediately above the Recent chat list — i.e. below the Projects section.
+   * The Recent list streams in after the sidebar shell, so the chats section
+   * may not exist on the first call; we retry on a short interval (bounded so
+   * a missing/variant layout can't loop forever) and bail quietly if it never
+   * appears, leaving the default sticky mount in place. Idempotent: if the
+   * container is already correctly placed it only normalizes its classes.
+   */
+  private tryRelocateBelowProjects(): void {
+    if (!this.folderBelowProjects || !this.containerElement) return;
+
+    const chatsBlock = this.findChatGptChatsSectionBlock();
+    if (!chatsBlock?.parentElement) {
+      if (this.belowProjectsRelocateTries < 12) {
+        this.belowProjectsRelocateTries++;
+        setTimeout(() => {
+          if (this.isDestroyed) return;
+          this.tryRelocateBelowProjects();
+        }, 500);
+      } else {
+        this.debug('below-projects relocate gave up — chats section never appeared');
+      }
+      return;
+    }
+
+    const alreadyPlaced =
+      this.containerElement.parentElement === chatsBlock.parentElement &&
+      this.containerElement.nextElementSibling === chatsBlock;
+
+    if (!alreadyPlaced) {
+      chatsBlock.parentElement.insertBefore(this.containerElement, chatsBlock);
+    }
+    this.containerElement.classList.add('gv-folder-container--below-projects');
+    this.containerElement.classList.remove('gv-folder-container--in-nav-block');
   }
 
   private findSidebarScrollContainer(): HTMLElement | null {
@@ -1481,7 +1566,7 @@ export class FolderManager {
     // Set icon based on conversation type
     let iconName = DEFAULT_CONVERSATION_ICON;
     if (conv.isGem && conv.gemId) {
-          iconName = getGPTIcon(conv.gemId);
+      iconName = getGPTIcon(conv.gemId);
     }
     icon.setAttribute('fonticon', iconName);
     icon.textContent = iconName;
@@ -5415,10 +5500,7 @@ export class FolderManager {
 
             if (conversationId && title && url) {
               this.lastClickedConversationInfo = { id: conversationId, title, url };
-              this.debug(
-        'Extracted conversation info on click:',
-                this.lastClickedConversationInfo,
-              );
+              this.debug('Extracted conversation info on click:', this.lastClickedConversationInfo);
             } else {
               this.debugWarn('鈿狅笍 Failed to extract complete conversation info on click', {
                 conversationId,
@@ -5746,15 +5828,19 @@ export class FolderManager {
     if (this.isConversationInDOM(conversationId)) {
       this.debug('  SKIPPED: Conversation still exists in DOM');
       this.debug(`    Likely a UI refresh, not a deletion`);
-      this.debug(`鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲\n`);
+      this.debug(
+        `鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲\n`,
+      );
       return;
     }
 
     // Conversation is truly deleted - remove from folders
-      this.debug('  CONFIRMED DELETION: Removing from all folders');
+    this.debug('  CONFIRMED DELETION: Removing from all folders');
     this.debug(`    Reason: Not in current URL and not found in DOM`);
     this.debug(`    Current URL: ${currentUrl}`);
-    this.debug(`鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲\n`);
+    this.debug(
+      `鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲\n`,
+    );
 
     this.removeConversationFromAllFolders(conversationId);
   }
@@ -6623,6 +6709,18 @@ export class FolderManager {
     }
   }
 
+  private async loadFolderBelowProjectsSetting(): Promise<void> {
+    try {
+      const result = await browser.storage.sync.get({
+        [StorageKeys.GV_FOLDER_BELOW_PROJECTS]: false,
+      });
+      this.folderBelowProjects = result[StorageKeys.GV_FOLDER_BELOW_PROJECTS] === true;
+      this.debug('Loaded folder below-projects setting:', this.folderBelowProjects);
+    } catch {
+      this.folderBelowProjects = false;
+    }
+  }
+
   private applyFolderTreeIndentSetting(value: unknown): void {
     const nextIndent = clampFolderTreeIndent(value);
     if (nextIndent === this.folderTreeIndent) return;
@@ -6721,6 +6819,18 @@ export class FolderManager {
         }
         if (changes[StorageKeys.FOLDER_PROJECT_ENABLED]) {
           this.folderProjectEnabled = changes[StorageKeys.FOLDER_PROJECT_ENABLED].newValue === true;
+        }
+        if (changes[StorageKeys.GV_FOLDER_BELOW_PROJECTS]) {
+          const next = changes[StorageKeys.GV_FOLDER_BELOW_PROJECTS].newValue === true;
+          if (next !== this.folderBelowProjects) {
+            this.folderBelowProjects = next;
+            this.debug('Folder below-projects setting changed:', next);
+            // Remount only matters for the sidebar layout. In floating mode the
+            // sidebar panel isn't mounted, so just remember the new value.
+            if (this.folderEnabled && !this.floatingModeEnabled) {
+              this.reinitializeFolderUI();
+            }
+          }
         }
         if (changes[StorageKeys.GV_ACCOUNT_ISOLATION_ENABLED]) {
           void (async () => {
@@ -6990,12 +7100,7 @@ export class FolderManager {
     ];
 
     // Placeholder strings ChatGPT may show before the chat is auto-titled.
-    const DISALLOWED_TITLES = new Set([
-      '',
-      'ChatGPT',
-      'New chat',
-      '\u65b0\u5bf9\u8bdd',
-    ]);
+    const DISALLOWED_TITLES = new Set(['', 'ChatGPT', 'New chat', '\u65b0\u5bf9\u8bdd']);
 
     let title: string | null = null;
     for (const sel of titleSelectors) {
@@ -8178,4 +8283,3 @@ export class FolderManager {
     }
   }
 }
-

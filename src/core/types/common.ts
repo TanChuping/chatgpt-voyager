@@ -113,6 +113,15 @@ export const StorageKeys = {
   // Folder spacing
   GV_FOLDER_SPACING: 'gvFolderSpacing',
   GV_FOLDER_TREE_INDENT: 'gvFolderTreeIndent',
+  /**
+   * Move the sidebar folder directory out of the pinned/sticky nav block and
+   * mount it as a normal, scrolling sibling positioned BELOW ChatGPT's
+   * "Projects" section and ABOVE the "Recent" chat list. When `false`
+   * (default) the folder panel keeps its original sticky-at-top position.
+   * Only affects sidebar mode (no effect in floating-panel mode).
+   * See FolderManager.createFolderUI / findChatGptChatsSectionBlock.
+   */
+  GV_FOLDER_BELOW_PROJECTS: 'gvFolderBelowProjects',
   GV_FOLDER_FILTER_USER_ONLY: 'gvFolderFilterUserOnly',
   GV_ACCOUNT_ISOLATION_ENABLED: 'gvAccountIsolationEnabled',
 

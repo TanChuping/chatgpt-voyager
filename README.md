@@ -18,7 +18,8 @@ Repository: [TanChuping/chatgpt-voyager](https://github.com/TanChuping/chatgpt-v
 
 - ChatGPT conversation timeline with dot navigation, preview, highlighting, and starred positions.
 - Timeline text pins for long answers: pin exact spots inside a message, switch pins within the selected timeline dot, select pins from the page, and delete pins with an inline delete control.
-- Sidebar folders for organizing conversations locally.
+- Sidebar folders for organizing conversations locally, with an optional layout that places the folder list below the Projects section (instead of pinned at the top) so it scrolls together with the chat list.
+- Undo a temporary chat: from inside a temporary chat, scrape the transcript and build a handoff prompt that continues it in a normal conversation (delivered inline, or auto-attached as a `.txt` for long chats).
 - Prompt Manager with tags, search, prompt import/export, compact/comfortable display modes, and click-to-copy or click-to-insert behavior.
 - Input enhancements, including input collapse, draft autosave, quote reply, Vim-style input option, Ctrl+Enter send option, and auto-scroll prevention.
 - Markdown, KaTeX/LaTeX, formula copy, and Mermaid rendering support, including mind maps.
@@ -69,6 +70,14 @@ npm run build:chrome
 Other platform build scripts are kept from the upstream project, but the actively maintained target for this fork is Chrome/Edge on ChatGPT.
 
 ## Recent Updates
+
+### 1.6.7
+
+- **Folder placement option.** A new setting (folder section of the popup) moves the sidebar folder list out of its pinned top position to below ChatGPT's "Projects" section and above "Recent", where it scrolls together with the chat list as a same-level section. Off by default — the folder panel keeps its original pinned-at-top behavior unless you opt in.
+
+### 1.6.6
+
+- **Undo temporary chat.** Temporary chats have no export API, so this works by DOM-scraping the on-screen transcript and assembling a handoff prompt that asks the model to continue the conversation in a normal (non-temporary) chat — preserving persona, tone, and context. Short transcripts are placed inline in the composer; longer ones are delivered via a synthetic paste event so ChatGPT auto-converts them to a `.txt` attachment (the prompt tells the model the attachment is Markdown source so replies keep their formatting). You review the result before sending.
 
 ### 1.6.1
 

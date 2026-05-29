@@ -4357,6 +4357,25 @@ body.light-theme {
   margin-block: 2px;
 }
 
+/* ── Opt-in "below Projects / above Recent" layout ──
+ * Mounted as a normal sibling section inside the scrollport nav, directly
+ * above the Recent chat list. It must NOT be sticky — it scrolls with the
+ * page like any other sidebar section, sitting at the same level as the
+ * native Projects / Recent expando sections. */
+.gv-folder-container.gv-folder-container--below-projects {
+  position: static;
+  top: auto;
+  z-index: auto;
+  margin: 0 0 var(--sidebar-expanded-section-margin-bottom, 8px);
+  padding: 0;
+  background: transparent;
+}
+
+.gv-folder-container.gv-folder-container--below-projects .gv-folder-header {
+  padding-inline: 6px;
+  margin-block: 2px;
+}
+
 .gv-folder-container mat-icon,
 .gv-folder-menu mat-icon,
 .gv-folder-container .google-symbols,

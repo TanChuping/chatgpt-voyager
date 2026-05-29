@@ -1298,6 +1298,12 @@
   "folderAsProject_description": {
     "message": "把文件夹作为项目入口使用。"
   },
+  "folderBelowProjects": {
+    "message": "文件夹放到项目下方"
+  },
+  "folderBelowProjects_description": {
+    "message": "把文件夹列表从顶部置顶位置移到「项目」下方、「最近」上方，与聊天列表一起滚动，不再固定置顶。"
+  },
   "folderAsProject_noFolder": {
     "message": "No folder"
   },
@@ -1572,10 +1578,10 @@
     "message": "[来自临时对话的接力]"
   },
   "tempChatRegretDirectiveInlineBody": {
-    "message": "以下是我们刚刚在临时模式里的完整对话。请你扮演同样的角色、保持相同的语气、知识状态和上下文，无缝接续这次对话。\n\n第一步：把下面**最后一条 assistant 消息**逐字完整复述一遍作为衔接（让我看到熟悉的接续点）。复述完即停，等我下一条消息。"
+    "message": "以下是我们刚刚在临时模式里的完整对话（**Markdown 源码**——原本带粗体、代码块、列表、公式、标题等格式）。请扮演同样的角色、保持相同的语气、知识状态和上下文，无缝接续这次对话。\n\n第一步：用**完整的 Markdown 排版**把下面**最后一条 assistant 消息**逐字复述一遍作为衔接，让我看到熟悉的接续点——**别因为载体看上去是纯文本就退化成无格式回复**，原本就是 Markdown。复述完即停，等我下一条消息。\n\n后续所有回复请保持 Markdown 排版风格，和原对话里 assistant 的格式习惯一致。"
   },
   "tempChatRegretDirectiveAttachmentBody": {
-    "message": "我们刚才在临时模式里的完整对话见**附件中的 .txt 文件**（按 ## User / ## Assistant 分段）。请你扮演同样的角色、保持相同的语气、知识状态和上下文，无缝接续这次对话。\n\n第一步：把附件里**最后一条 assistant 消息**逐字完整复述一遍作为衔接（让我看到熟悉的接续点）。复述完即停，等我下一条消息。"
+    "message": "我们刚才在临时模式里的完整对话见**附件中的 .txt 文件**（按 ## User / ## Assistant 分段）。\n\n**注意：附件后缀是 .txt 仅仅因为上传机制要求，文件内容其实是 Markdown 源码**——粗体、代码块、列表、公式、标题这些格式标记都以 Markdown 语法的形式存在文本里。请按 Markdown 阅读和理解。\n\n请扮演同样的角色、保持相同的语气、知识状态和上下文，无缝接续这次对话。\n\n第一步：用**完整的 Markdown 排版**把附件里**最后一条 assistant 消息**逐字复述一遍作为衔接——**别因为附件后缀是 .txt 就退化成纯文本回复**，原本就是 Markdown。复述完即停，等我下一条消息。\n\n后续所有回复请保持 Markdown 排版风格，和原对话里 assistant 的格式习惯一致。"
   },
   "tempChatRegretTranscriptStart": {
     "message": "—— 临时对话内容 ——"
