@@ -59,6 +59,45 @@
   "singleConvExportFormatSimpleHint": {
     "message": "只保留你的消息、模型最终回答和时间戳。"
   },
+  "singleConvExportMenuWhole": {
+    "message": "整个导出"
+  },
+  "singleConvExportSelectButton": {
+    "message": "选择导出"
+  },
+  "singleConvExportSelectButtonTooltip": {
+    "message": "勾选要导出的消息，只下载选中的部分（使用扩展弹窗里选定的格式）"
+  },
+  "singleConvExportSelectTitle": {
+    "message": "勾选要导出的消息"
+  },
+  "singleConvExportSelectAll": {
+    "message": "全选"
+  },
+  "singleConvExportSelectNone": {
+    "message": "清空"
+  },
+  "singleConvExportSelectUser": {
+    "message": "仅你"
+  },
+  "singleConvExportSelectAI": {
+    "message": "仅 ChatGPT"
+  },
+  "singleConvExportSelectSelected": {
+    "message": "已选"
+  },
+  "singleConvExportSelectDo": {
+    "message": "导出"
+  },
+  "singleConvExportSelectCancel": {
+    "message": "取消"
+  },
+  "singleConvExportSelectEmpty": {
+    "message": "请至少勾选一条消息再导出。"
+  },
+  "singleConvExportSelectNotReady": {
+    "message": "此对话尚未完全加载。请向上滚动加载更早的消息后再试。"
+  },
   "extDescription": {
     "message": "为 ChatGPT 提供时间线、文件夹、Prompt 管理和聊天导出。"
   },

@@ -24,7 +24,7 @@ Repository: [TanChuping/chatgpt-voyager](https://github.com/TanChuping/chatgpt-v
 - Input enhancements, including input collapse, draft autosave, quote reply, Vim-style input option, Ctrl+Enter send option, and auto-scroll prevention.
 - Markdown, KaTeX/LaTeX, formula copy, and Mermaid rendering support, including mind maps.
 - Conversation export and local backup/import for prompts, folders, settings, and timeline hierarchy.
-- One-click single-conversation export to Markdown or JSON from the chat header (piggybacks ChatGPT's own conversation fetch — no separate API call, no extra permissions).
+- One-click single-conversation export to Markdown or JSON from the chat header (piggybacks ChatGPT's own conversation fetch — no separate API call, no extra permissions). The export button opens a small menu: export the entire conversation, or pick individual messages and export only the selected subset.
 - Cross-conversation favorites: star any user message, jump back to it from the favorites panel even after switching conversations.
 - Layout controls for chat width, font size, input width, sidebar width, and folder spacing.
 - A small support popover with Ko-fi and optional payment QR codes.
@@ -70,6 +70,11 @@ npm run build:chrome
 Other platform build scripts are kept from the upstream project, but the actively maintained target for this fork is Chrome/Edge on ChatGPT.
 
 ## Recent Updates
+
+### 1.6.8
+
+- **Partial conversation export.** The top-bar export button now opens a small menu with two choices: *Entire conversation* (the existing one-click export) or *Select & export*. The latter enters a selection mode — tick individual messages (with "Select all" / "Only you" / "Only ChatGPT" helpers) and download only the chosen subset. Selection is keyed off the on-screen `data-message-id`, which maps 1:1 to the captured API messages, so it reuses the exact same exporters and format choice as the full export.
+- Hide ChatGPT's native right-edge "prompt table of contents" minimap while the Voyager timeline is active — the two pinned to the same edge and overlapped into a jagged bar. Disabling the timeline brings the native one back.
 
 ### 1.6.7
 

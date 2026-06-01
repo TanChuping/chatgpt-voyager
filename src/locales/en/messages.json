@@ -59,6 +59,45 @@
   "singleConvExportFormatSimpleHint": {
     "message": "Your messages, the model's final reply, and timestamps only."
   },
+  "singleConvExportMenuWhole": {
+    "message": "Entire conversation"
+  },
+  "singleConvExportSelectButton": {
+    "message": "Select & export"
+  },
+  "singleConvExportSelectButtonTooltip": {
+    "message": "Pick which messages to export, then download only the selected ones (uses the format chosen in the extension popup)"
+  },
+  "singleConvExportSelectTitle": {
+    "message": "Tick the messages to export"
+  },
+  "singleConvExportSelectAll": {
+    "message": "Select all"
+  },
+  "singleConvExportSelectNone": {
+    "message": "Clear"
+  },
+  "singleConvExportSelectUser": {
+    "message": "Only you"
+  },
+  "singleConvExportSelectAI": {
+    "message": "Only ChatGPT"
+  },
+  "singleConvExportSelectSelected": {
+    "message": "Selected"
+  },
+  "singleConvExportSelectDo": {
+    "message": "Export"
+  },
+  "singleConvExportSelectCancel": {
+    "message": "Cancel"
+  },
+  "singleConvExportSelectEmpty": {
+    "message": "Select at least one message to export."
+  },
+  "singleConvExportSelectNotReady": {
+    "message": "This conversation isn't fully loaded yet. Scroll up to load the earlier messages, then try again."
+  },
   "extDescription": {
     "message": "GPT-Voyager: timeline, folders, prompt vault, and chat export for ChatGPT."
   },

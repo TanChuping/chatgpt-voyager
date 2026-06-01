@@ -120,6 +120,18 @@
   pointer-events: none;
 }
 
+/* ChatGPT shipped its own native right-edge "prompt table of contents" minimap
+ * (a vertical stack of little dashes that expands on hover). It pins to the
+ * exact same right edge as our timeline, so the two overlap into a jagged bar.
+ * Our timeline is the richer version (indices + favorites), so hide the native
+ * TOC — but only while our timeline bar is actually mounted, so disabling the
+ * timeline gives ChatGPT's native nav back. Matched by its `data-toc-active` /
+ * `Prompt N` buttons so no other fixed element is touched. */
+body:has(.gpt-timeline-bar) .fixed.inset-e-4:has(button[data-toc-active]),
+body:has(.gpt-timeline-bar) .fixed.inset-e-4:has(button[aria-label^='Prompt']) {
+  display: none !important;
+}
+
 /* Visual background layer 鈥?width adjustable via edge drag, dots unaffected */
 .gpt-timeline-bar::before {
   content: '';
@@ -10904,6 +10916,168 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
   font-size: 0.875rem;
   line-height: 1;
   white-space: nowrap;
+}
+
+/* ── Partial export: "select & export" selection mode ─────────────────────
+ * Per-message checkbox + a floating action bar. The accent is a fixed purple
+ * (`--gv-export-accent`) so the selection affordances stand out from
+ * ChatGPT's own blue/green controls; neutral surfaces still use ChatGPT's
+ * design tokens so they adapt to light/dark. */
+.gv-export-pick-active {
+  --gv-export-accent: #8b5cf6;
+  --gv-export-accent-strong: #7c3aed;
+}
+.gv-export-pick-host {
+  position: relative !important;
+}
+.gv-export-pick-host--selected {
+  outline: 2px solid var(--gv-export-accent, #8b5cf6);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+/* Prominent, always-visible checkbox pinned to the message's top-left. */
+.gv-export-pick-checkbox {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 30;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 8px;
+  border: 2px solid var(--gv-export-accent, #8b5cf6);
+  background: var(--main-surface-primary, var(--sidebar-surface-primary, #fff));
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.92;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease,
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+.gv-export-pick-checkbox:hover {
+  opacity: 1;
+  transform: scale(1.08);
+}
+.gv-export-pick-checkbox::after {
+  content: '';
+  width: 13px;
+  height: 7px;
+  border-left: 2.5px solid currentColor;
+  border-bottom: 2.5px solid currentColor;
+  transform: translateY(-1px) rotate(-45deg) scale(0);
+  transition: transform 0.12s ease;
+}
+.gv-export-pick-checkbox[data-selected='true'] {
+  opacity: 1;
+  background: var(--gv-export-accent, #8b5cf6);
+  border-color: var(--gv-export-accent-strong, #7c3aed);
+}
+.gv-export-pick-checkbox[data-selected='true']::after {
+  transform: translateY(-1px) rotate(-45deg) scale(1);
+}
+
+.gv-export-pick-bar {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 24px);
+  overflow-x: auto;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--main-surface-primary, #1e1e1e);
+  color: var(--text-primary, inherit);
+  border: 1px solid var(--border-medium, rgba(127, 127, 127, 0.3));
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  font-size: 0.875rem;
+}
+.gv-export-pick-bar__title {
+  font-weight: 600;
+  white-space: nowrap;
+  margin-right: 2px;
+}
+.gv-export-pick-bar__count {
+  white-space: nowrap;
+  opacity: 0.8;
+  padding: 0 4px;
+}
+.gv-export-pick-bar__btn {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-medium, rgba(127, 127, 127, 0.35));
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+}
+.gv-export-pick-bar__btn:hover {
+  background: var(--main-surface-secondary, rgba(127, 127, 127, 0.12));
+}
+.gv-export-pick-bar__btn--primary {
+  background: var(--gv-export-accent, #8b5cf6);
+  border-color: var(--gv-export-accent, #8b5cf6);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 10px rgba(124, 58, 237, 0.4);
+}
+.gv-export-pick-bar__btn--primary:hover {
+  background: var(--gv-export-accent-strong, #7c3aed);
+  border-color: var(--gv-export-accent-strong, #7c3aed);
+}
+.gv-export-pick-bar__btn--ghost {
+  border-color: transparent;
+  opacity: 0.8;
+}
+
+/* ── Export menu (popover from the single top-bar Export button) ───────────*/
+.gv-export-menu {
+  position: fixed;
+  z-index: 2147483000;
+  min-width: 180px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--main-surface-primary, #1e1e1e);
+  color: var(--text-primary, inherit);
+  border: 1px solid var(--border-medium, rgba(127, 127, 127, 0.3));
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.9rem;
+}
+.gv-export-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  line-height: 1.1;
+}
+.gv-export-menu__item:hover {
+  background: var(--main-surface-secondary, rgba(127, 127, 127, 0.12));
+}
+.gv-export-menu__icon {
+  flex: 0 0 auto;
+  opacity: 0.85;
 }
 
 /* ----------------------------------------------------------------------

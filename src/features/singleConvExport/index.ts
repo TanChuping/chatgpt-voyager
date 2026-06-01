@@ -4,16 +4,16 @@
  * https://github.com/pionxzh/chatgpt-exporter
  */
 import {
-  getConversationCaptureService,
   type ConversationCaptureService,
+  getConversationCaptureService,
 } from '../conversationApi/ConversationCaptureService';
 import type { LinearConversation } from '../conversationApi/types';
-import { downloadBlob } from './downloadFile';
 import { toHtml } from './HtmlExporter';
 import { toJson } from './JsonExporter';
 import { toJsonSimple } from './JsonSimpleExporter';
 import { toMarkdown } from './MarkdownExporter';
 import { toMarkdownSimple } from './MarkdownSimpleExporter';
+import { downloadBlob } from './downloadFile';
 
 /**
  * Output formats the top-bar button can emit.
@@ -130,7 +130,8 @@ function readPending(): PendingExport | null {
     const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<PendingExport>;
-    if (!parsed || typeof parsed.convId !== 'string' || typeof parsed.format !== 'string') return null;
+    if (!parsed || typeof parsed.convId !== 'string' || typeof parsed.format !== 'string')
+      return null;
     if (parsed.format !== 'markdown' && parsed.format !== 'json') return null;
     return {
       convId: parsed.convId,
@@ -196,6 +197,42 @@ export function exportConversation(
   }
   window.location.href = target;
   return false;
+}
+
+/** Outcome of a subset export attempt, so the selection UI can react. */
+export type SubsetExportResult = 'ok' | 'not-captured' | 'empty';
+
+/**
+ * Export only a chosen subset of a conversation's messages.
+ *
+ * The selection UI collects the on-screen `data-message-id` values the user
+ * ticked; those UUIDs match `LinearMessage.messageId` 1:1 (ChatGPT renders the
+ * same id it returns from `/backend-api/conversation`). We keep the captured
+ * `LinearConversation` intact apart from narrowing `messages` to the selected
+ * set (original order preserved), then reuse the exact same exporters and
+ * filename builder as the whole-conversation path — so format quality, simple
+ * filtering and naming stay identical.
+ *
+ * Selection mode only ever runs while the user is viewing the conversation, so
+ * the payload is already captured; if it somehow isn't we report `not-captured`
+ * rather than navigating (which would tear down the selection UI).
+ */
+export function exportConversationSubset(
+  convId: string,
+  format: SingleConvExportFormat,
+  selectedMessageIds: ReadonlySet<string>,
+  options: ExportConversationOptions = {},
+): SubsetExportResult {
+  if (selectedMessageIds.size === 0) return 'empty';
+  const svc = options.captureService ?? getConversationCaptureService();
+  const linear = svc.getLatest(convId);
+  if (!linear) return 'not-captured';
+
+  const messages = linear.messages.filter((m) => selectedMessageIds.has(m.messageId));
+  if (messages.length === 0) return 'empty';
+
+  performExport({ ...linear, messages }, format);
+  return 'ok';
 }
 
 let resumeArmed = false;

@@ -10,14 +10,16 @@
  * Idempotent: tagged with `data-gv-export-btn` so reinsertions don't
  * double-inject.
  */
+import { StorageKeys } from '@/core/types/common';
 import {
   DEFAULT_SINGLE_CONV_EXPORT_FORMAT,
+  type SingleConvExportFormat,
   exportConversation,
   isSingleConvExportFormat,
-  type SingleConvExportFormat,
 } from '@/features/singleConvExport';
-import { StorageKeys } from '@/core/types/common';
 import { getTranslationSync } from '@/utils/i18n';
+
+import { enterSelectionMode } from './selectionMode';
 
 const TAG = 'data-gv-export-btn';
 
@@ -50,6 +52,28 @@ function buildDownloadIcon(): SVGSVGElement {
   return svg;
 }
 
+function buildSelectIcon(): SVGSVGElement {
+  // Checklist glyph: two ticked rows, signalling "pick which messages".
+  const xmlns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(xmlns, 'svg');
+  svg.setAttribute('width', '20');
+  svg.setAttribute('height', '20');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  const paths = ['M3 6l2 2 3-3', 'M3 16l2 2 3-3', 'M12 6h9', 'M12 17h9'];
+  for (const d of paths) {
+    const p = document.createElementNS(xmlns, 'path');
+    p.setAttribute('d', d);
+    svg.appendChild(p);
+  }
+  return svg;
+}
+
 function injectIfNeeded(): void {
   const share = document.querySelector<HTMLElement>('[data-testid="share-chat-button"]');
   if (!share) return;
@@ -67,6 +91,8 @@ function injectIfNeeded(): void {
   btn.className = `${share.className} gv-export-conv-topbar`;
   btn.type = 'button';
   btn.setAttribute(TAG, '1');
+  btn.setAttribute('aria-haspopup', 'menu');
+  btn.setAttribute('aria-expanded', 'false');
   btn.setAttribute('aria-label', label);
   btn.title = tooltip;
 
@@ -76,20 +102,111 @@ function injectIfNeeded(): void {
   labelEl.textContent = label;
   btn.replaceChildren(icon, labelEl);
 
+  // One top-bar button now opens a small menu so "export whole" and "select &
+  // export" share a single slot instead of crowding the header with two
+  // buttons at the same level.
   btn.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    const convId = currentConvIdFromUrl();
-    if (!convId) {
-      console.warn('[GPT-Voyager] export: no conversation ID in URL');
-      return;
-    }
-    // Resolve format from the popup setting at click time so a
-    // running ChatGPT tab picks up popup changes without a reload.
-    void resolveExportFormat().then((fmt) => exportConversation(convId, fmt));
+    toggleExportMenu(btn);
   });
 
   parent.insertBefore(btn, share.nextSibling);
+}
+
+// ─── Export menu (popover) ──────────────────────────────────────────────────
+let openMenuEl: HTMLElement | null = null;
+let openMenuAnchor: HTMLElement | null = null;
+let menuDismissHandlers: Array<() => void> = [];
+
+function closeExportMenu(): void {
+  openMenuAnchor?.setAttribute('aria-expanded', 'false');
+  openMenuAnchor = null;
+  openMenuEl?.remove();
+  openMenuEl = null;
+  menuDismissHandlers.forEach((off) => off());
+  menuDismissHandlers = [];
+}
+
+function makeMenuItem(label: string, onClick: () => void): HTMLButtonElement {
+  const item = document.createElement('button');
+  item.type = 'button';
+  item.className = 'gv-export-menu__item';
+  item.setAttribute('role', 'menuitem');
+  item.textContent = label;
+  item.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeExportMenu();
+    onClick();
+  });
+  return item;
+}
+
+function toggleExportMenu(anchor: HTMLElement): void {
+  if (openMenuEl) {
+    closeExportMenu();
+    return;
+  }
+  const convId = currentConvIdFromUrl();
+  if (!convId) {
+    console.warn('[GPT-Voyager] export: no conversation ID in URL');
+    return;
+  }
+
+  const menu = document.createElement('div');
+  menu.className = 'gv-export-menu';
+  menu.setAttribute('role', 'menu');
+
+  const wholeItem = makeMenuItem(getTranslationSync('singleConvExportMenuWhole'), () => {
+    // Resolve format from the popup setting at click time so a running ChatGPT
+    // tab picks up popup changes without a reload.
+    void resolveExportFormat().then((fmt) => exportConversation(convId, fmt));
+  });
+  const wholeIcon = buildDownloadIcon();
+  wholeIcon.classList.add('gv-export-menu__icon');
+  wholeItem.prepend(wholeIcon);
+
+  const selectItem = makeMenuItem(getTranslationSync('singleConvExportSelectButton'), () =>
+    enterSelectionMode(convId),
+  );
+  const selectIcon = buildSelectIcon();
+  selectIcon.classList.add('gv-export-menu__icon');
+  selectItem.prepend(selectIcon);
+
+  menu.append(wholeItem, selectItem);
+  document.body.appendChild(menu);
+  openMenuEl = menu;
+  openMenuAnchor = anchor;
+  anchor.setAttribute('aria-expanded', 'true');
+
+  // Position below the anchor, right-aligned, clamped to the viewport.
+  const rect = anchor.getBoundingClientRect();
+  const menuWidth = menu.offsetWidth || 200;
+  let left = rect.right - menuWidth;
+  if (left < 8) left = 8;
+  menu.style.top = `${Math.round(rect.bottom + 6)}px`;
+  menu.style.left = `${Math.round(left)}px`;
+
+  // Dismiss on outside click, Escape, scroll, or resize.
+  const onPointerDown = (e: Event) => {
+    if (menu.contains(e.target as Node) || anchor.contains(e.target as Node)) return;
+    closeExportMenu();
+  };
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') closeExportMenu();
+  };
+  const onReflow = () => closeExportMenu();
+  document.addEventListener('pointerdown', onPointerDown, true);
+  window.addEventListener('keydown', onKeyDown, true);
+  window.addEventListener('scroll', onReflow, true);
+  window.addEventListener('resize', onReflow, true);
+  menuDismissHandlers = [
+    () => document.removeEventListener('pointerdown', onPointerDown, true),
+    () => window.removeEventListener('keydown', onKeyDown, true),
+    () => window.removeEventListener('scroll', onReflow, true),
+    () => window.removeEventListener('resize', onReflow, true),
+  ];
 }
 
 /**
@@ -121,6 +238,7 @@ export function startTopBarExportButton(): void {
 }
 
 export function stopTopBarExportButton(): void {
+  closeExportMenu();
   observer?.disconnect();
   observer = null;
 }
