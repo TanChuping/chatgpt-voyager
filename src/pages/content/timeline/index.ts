@@ -47,6 +47,10 @@ function teardownTimelineInstance(): void {
     timelineManagerInstance = null;
   }
   removeTimelineDom();
+  // The `gv-timeline-active` body marker (which gates hiding ChatGPT's native
+  // prompt-TOC) is owned by the TimelineManager — added when it injects the bar,
+  // removed in its destroy() — so it tracks the bar's real presence and survives
+  // the async-init/teardown races at this lifecycle layer.
 }
 
 function initializeTimeline(previousUrl: string | null = null): void {

@@ -14,6 +14,8 @@ import {
 } from '@/core/utils/conversationIdentity';
 import { hashString } from '@/core/utils/hash';
 import { GV_RTL_CLASS, applyRTLClass } from '@/core/utils/rtl';
+import { installCachePrimerForManager } from '@/features/cachePrimer/CachePrimer';
+import { getConversationCaptureService } from '@/features/conversationApi/ConversationCaptureService';
 
 import { getTranslationSync, initI18n } from '../../../utils/i18n';
 import { makeStableTurnId } from '../fork/turnId';
@@ -41,8 +43,6 @@ import { findMatchingStarredMessages } from './starredLookup';
 import type { StarredMessage, StarredMessagesData } from './starredTypes';
 import { TurnTextCache, computeFingerprint } from './turnTextCache';
 import type { DotElement, MarkerLevel } from './types';
-import { getConversationCaptureService } from '@/features/conversationApi/ConversationCaptureService';
-import { installCachePrimerForManager } from '@/features/cachePrimer/CachePrimer';
 
 /** Accessibility prefixes injected by ChatGPT's DOM that should be stripped from previews. */
 const TURN_LABEL_PREFIXES =
@@ -584,8 +584,7 @@ export class TimelineManager {
     // single marker. Bail out of the fast path when offsetTop values look
     // degenerate (all zero on multi-element sets) and fall through to the
     // per-element bounding-rect path.
-    const allOffsetTopsZero =
-      elements.length > 1 && elements.every((el) => el.offsetTop === 0);
+    const allOffsetTopsZero = elements.length > 1 && elements.every((el) => el.offsetTop === 0);
     const sameOffsetParent =
       firstOffsetParent !== null &&
       !allOffsetTopsZero &&
@@ -1093,6 +1092,13 @@ export class TimelineManager {
       document.body.appendChild(bar);
     }
     bar.className = 'gpt-timeline-bar';
+    // Mark the body whenever our timeline bar is present so the stylesheet hides
+    // ChatGPT's overlapping native prompt-TOC. Tied to the bar's actual creation
+    // (the single source of truth) rather than the lifecycle wrapper, which can
+    // race with async init / teardown. Removed in destroy().
+    try {
+      document.body.classList.add('gv-timeline-active');
+    } catch {}
     this.ui.timelineBar = bar;
     let track = bar.querySelector('.timeline-track') as HTMLElement | null;
     if (!track) {
@@ -2061,10 +2067,8 @@ export class TimelineManager {
       const cached = this.turnTextCache.get(id);
       const hasLiveContent = liveSummary.length > 0 || liveAttachments.length > 0;
       const summary = hasLiveContent || !cached ? liveSummary : cached.summary;
-      const attachments =
-        hasLiveContent || !cached ? liveAttachments : cached.attachments;
-      const hasGeneratedImage =
-        hasLiveContent || !cached ? liveHasImage : cached.hasGeneratedImage;
+      const attachments = hasLiveContent || !cached ? liveAttachments : cached.attachments;
+      const hasGeneratedImage = hasLiveContent || !cached ? liveHasImage : cached.hasGeneratedImage;
 
       if (hasLiveContent) {
         const liveFingerprint = computeFingerprint(liveSummary, liveAttachments);
@@ -2072,11 +2076,7 @@ export class TimelineManager {
         // assistant regenerated it). Skip the trailing turn though: it's
         // currently streaming, and its summary mutates from "" → "I'm" →
         // "I'm thinking..." continuously, which isn't an edit signal.
-        if (
-          cached &&
-          cached.fingerprint !== liveFingerprint &&
-          idx < allEls.length - 1
-        ) {
+        if (cached && cached.fingerprint !== liveFingerprint && idx < allEls.length - 1) {
           editDetected = true;
         }
         this.turnTextCache.set({
@@ -2910,10 +2910,7 @@ export class TimelineManager {
     );
     const direction = Math.sign(distance) || 1;
     const overshootPx = 600;
-    const overshootPos = Math.max(
-      0,
-      Math.min(maxScroll, targetPosition + direction * overshootPx),
-    );
+    const overshootPos = Math.max(0, Math.min(maxScroll, targetPosition + direction * overshootPx));
     const overshootDelta = Math.abs(overshootPos - targetPosition);
     const overshootWorthwhile = overshootDelta > 200 && Math.abs(distance) > 400;
 
@@ -3344,7 +3341,8 @@ export class TimelineManager {
     let ownerIndex = 0;
     for (let i = 0; i < this.markers.length; i++) {
       const top =
-        currentMarkerTops[i] ?? this.computeElementTopInScrollContainer(anchorOfMarker(this.markers[i]));
+        currentMarkerTops[i] ??
+        this.computeElementTopInScrollContainer(anchorOfMarker(this.markers[i]));
       if (top <= clickTop) ownerIndex = i;
       else break;
     }
@@ -6273,6 +6271,11 @@ export class TimelineManager {
   }
 
   destroy(): void {
+    // Stop hiding ChatGPT's native prompt-TOC once our timeline goes away.
+    try {
+      document.body.classList.remove('gv-timeline-active');
+    } catch {}
+
     // Persist any pending text-cache writes before tearing the manager down
     // (URL change between conversations triggers destroy → new TimelineManager,
     // so an in-flight debounced save would otherwise drop on the floor).

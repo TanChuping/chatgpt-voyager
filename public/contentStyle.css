@@ -132,8 +132,13 @@
  * streaming/virtualising DOM that caused page-wide style-recalc jank (laggy
  * timeline hover + slow jump). A plain compound-class selector is resolved
  * during normal style matching with no `:has` invalidation cost. If ChatGPT
- * renames these utility classes the TOC simply reappears — graceful, no break. */
-.fixed.inset-e-4.top-1\/2.-translate-y-1\/2 {
+ * renames these utility classes the TOC simply reappears — graceful, no break.
+ *
+ * Gated on `body.gv-timeline-active` (added by the timeline lifecycle while our
+ * timeline is mounted) so the native TOC is hidden ONLY when our timeline is
+ * present — disable the timeline and ChatGPT's native nav comes back. The gate
+ * is a plain class, not `:has()`, so it stays cheap. */
+body.gv-timeline-active .fixed.inset-e-4.top-1\/2.-translate-y-1\/2 {
   display: none !important;
 }
 

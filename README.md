@@ -75,6 +75,7 @@ Other platform build scripts are kept from the upstream project, but the activel
 
 - **Performance fix.** The 1.6.8 rule that hides ChatGPT's native prompt-TOC minimap used a `body:has(…)` selector that re-evaluated on every DOM mutation — on ChatGPT's streaming/virtualising page this caused page-wide style-recalc jank (laggy timeline hover/preview, slow jump, occasional "message not loaded"). Replaced with a plain compound-class selector that carries no `:has()` invalidation cost.
 - **Timeline on/off toggle.** The popup's Timeline section now has a real *Enable timeline* switch (distinct from "Hide outer container", which only hid the background bar). Toggles live without a reload.
+- The native prompt-TOC is now hidden **only while our timeline is active** (gated on a body class the timeline owns) — disable the timeline and ChatGPT's native nav comes back, instead of leaving you with neither.
 
 ### 1.6.8
 
