@@ -548,6 +548,12 @@
   "timelineOptions": {
     "message": "时间线"
   },
+  "enableTimeline": {
+    "message": "启用时间线"
+  },
+  "enableTimelineDescription": {
+    "message": "显示右侧的小豆豆导航。关掉则完全移除（豆豆、预览、钉子 UI 都不再出现）。"
+  },
   "folderOptions": {
     "message": "Folder Options"
   },

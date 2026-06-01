@@ -548,6 +548,12 @@
   "timelineOptions": {
     "message": "Timeline"
   },
+  "enableTimeline": {
+    "message": "Enable timeline"
+  },
+  "enableTimelineDescription": {
+    "message": "Show the right-side dot navigation. Turn off to remove it entirely (dots, preview, pins UI)."
+  },
   "folderOptions": {
     "message": "Folder Options"
   },

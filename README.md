@@ -71,6 +71,11 @@ Other platform build scripts are kept from the upstream project, but the activel
 
 ## Recent Updates
 
+### 1.6.9
+
+- **Performance fix.** The 1.6.8 rule that hides ChatGPT's native prompt-TOC minimap used a `body:has(…)` selector that re-evaluated on every DOM mutation — on ChatGPT's streaming/virtualising page this caused page-wide style-recalc jank (laggy timeline hover/preview, slow jump, occasional "message not loaded"). Replaced with a plain compound-class selector that carries no `:has()` invalidation cost.
+- **Timeline on/off toggle.** The popup's Timeline section now has a real *Enable timeline* switch (distinct from "Hide outer container", which only hid the background bar). Toggles live without a reload.
+
 ### 1.6.8
 
 - **Partial conversation export.** The top-bar export button now opens a small menu with two choices: *Entire conversation* (the existing one-click export) or *Select & export*. The latter enters a selection mode — tick individual messages (with "Select all" / "Only you" / "Only ChatGPT" helpers) and download only the chosen subset. Selection is keyed off the on-screen `data-message-id`, which maps 1:1 to the captured API messages, so it reuses the exact same exporters and format choice as the full export.

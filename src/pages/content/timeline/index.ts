@@ -1,8 +1,18 @@
+import { StorageKeys } from '@/core/types/common';
+
 import { TimelineManager } from './manager';
 
 function isChatGPTConversationRoute(pathname = location.pathname): boolean {
   return /(?:^|\/)c(\/|$)/.test(pathname);
 }
+
+/**
+ * Master on/off for the whole timeline feature (popup setting
+ * `gptTimelineEnabled`, default true). The TimelineManager only exists while
+ * enabled, so this gate lives at the lifecycle level rather than inside the
+ * manager. Toggled live via storage.onChanged below.
+ */
+let timelineEnabled = true;
 
 type HistoryStateArgs = Parameters<History['pushState']>;
 
@@ -17,13 +27,7 @@ let historyPatched = false;
 let originalPushState: History['pushState'] | null = null;
 let originalReplaceState: History['replaceState'] | null = null;
 
-function initializeTimeline(previousUrl: string | null = null): void {
-  if (timelineManagerInstance) {
-    try {
-      timelineManagerInstance.destroy();
-    } catch {}
-    timelineManagerInstance = null;
-  }
+function removeTimelineDom(): void {
   try {
     document.querySelectorAll('.gpt-timeline-bar').forEach((el) => el.remove());
   } catch {}
@@ -33,6 +37,21 @@ function initializeTimeline(previousUrl: string | null = null): void {
   try {
     document.getElementById('gpt-timeline-tooltip')?.remove();
   } catch {}
+}
+
+function teardownTimelineInstance(): void {
+  if (timelineManagerInstance) {
+    try {
+      timelineManagerInstance.destroy();
+    } catch {}
+    timelineManagerInstance = null;
+  }
+  removeTimelineDom();
+}
+
+function initializeTimeline(previousUrl: string | null = null): void {
+  teardownTimelineInstance();
+  if (!timelineEnabled) return; // master switch off — stay torn down
   timelineManagerInstance = new TimelineManager({ previousUrl });
   timelineManagerInstance
     .init()
@@ -75,23 +94,7 @@ function handleUrlChange(): void {
     }, 500); // Wait for DOM to settle
   } else {
     console.log('[Timeline] URL changed to non-conversation route, cleaning up');
-    if (timelineManagerInstance) {
-      try {
-        timelineManagerInstance.destroy();
-      } catch {}
-      timelineManagerInstance = null;
-    }
-    try {
-      document
-        .querySelectorAll('.gpt-timeline-bar')
-        .forEach((el) => el.remove());
-    } catch {}
-    try {
-      document.querySelector('.timeline-left-slider')?.remove();
-    } catch {}
-    try {
-      document.getElementById('gpt-timeline-tooltip')?.remove();
-    } catch {}
+    teardownTimelineInstance();
   }
 }
 
@@ -182,34 +185,71 @@ function cleanup(): void {
   routeListenersAttached = false;
 }
 
+/** Init the timeline for the current page if the master switch allows it. */
+function maybeInitTimeline(): void {
+  if (!timelineEnabled) return;
+  if (isChatGPTConversationRoute() && !timelineManagerInstance) {
+    initializeTimeline();
+  }
+}
+
+/** React to the popup's enable/disable toggle without a page reload. */
+function applyTimelineEnabled(enabled: boolean): void {
+  if (enabled === timelineEnabled) return;
+  timelineEnabled = enabled;
+  if (enabled) maybeInitTimeline();
+  else teardownTimelineInstance();
+}
+
+function watchTimelineEnabledSetting(): void {
+  try {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'sync') return;
+      const change = changes[StorageKeys.TIMELINE_ENABLED];
+      if (change) applyTimelineEnabled(change.newValue !== false);
+    });
+  } catch {
+    /* storage unavailable — keep default-enabled behaviour */
+  }
+}
+
+async function loadTimelineEnabled(): Promise<void> {
+  try {
+    const result = await chrome.storage.sync.get({ [StorageKeys.TIMELINE_ENABLED]: true });
+    timelineEnabled = result[StorageKeys.TIMELINE_ENABLED] !== false;
+  } catch {
+    timelineEnabled = true;
+  }
+}
+
 export function startTimeline(): void {
+  watchTimelineEnabledSetting();
+
   const setup = (): void => {
     attachRouteListenersOnce();
-    if (isChatGPTConversationRoute() && !timelineManagerInstance) {
-      initializeTimeline();
-    }
+    maybeInitTimeline();
   };
 
-  if (document.body) {
-    setup();
-  } else {
-    const initialObserver = new MutationObserver(() => {
+  // Resolve the enable setting first so a disabled timeline never mounts even
+  // momentarily. Route listeners are always attached (cheap) so re-enabling
+  // mid-session picks up the current conversation.
+  void loadTimelineEnabled().finally(() => {
+    if (document.body) {
+      setup();
+      return;
+    }
+    const bodyObserver = new MutationObserver(() => {
       if (!document.body) return;
-
-      // Disconnect and remove from tracking
-      initialObserver.disconnect();
-      activeObservers = activeObservers.filter((obs) => obs !== initialObserver);
-
+      bodyObserver.disconnect();
+      activeObservers = activeObservers.filter((obs) => obs !== bodyObserver);
       setup();
     });
-
-    // Track observer for cleanup
-    activeObservers.push(initialObserver);
-    initialObserver.observe(document.documentElement || document.body, {
+    activeObservers.push(bodyObserver);
+    bodyObserver.observe(document.documentElement || document.body, {
       childList: true,
       subtree: true,
     });
-  }
+  });
 
   // Setup cleanup on page unload
   window.addEventListener('beforeunload', cleanup, { once: true });

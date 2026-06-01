@@ -124,11 +124,16 @@
  * (a vertical stack of little dashes that expands on hover). It pins to the
  * exact same right edge as our timeline, so the two overlap into a jagged bar.
  * Our timeline is the richer version (indices + favorites), so hide the native
- * TOC — but only while our timeline bar is actually mounted, so disabling the
- * timeline gives ChatGPT's native nav back. Matched by its `data-toc-active` /
- * `Prompt N` buttons so no other fixed element is touched. */
-body:has(.gpt-timeline-bar) .fixed.inset-e-4:has(button[data-toc-active]),
-body:has(.gpt-timeline-bar) .fixed.inset-e-4:has(button[aria-label^='Prompt']) {
+ * TOC.
+ *
+ * IMPORTANT: this is matched by the container's own class signature (a fixed,
+ * right-edge, vertically-centred box) — NOT by `:has()`. A `body:has(...)`
+ * rule re-evaluates on every DOM mutation, and on ChatGPT's constantly
+ * streaming/virtualising DOM that caused page-wide style-recalc jank (laggy
+ * timeline hover + slow jump). A plain compound-class selector is resolved
+ * during normal style matching with no `:has` invalidation cost. If ChatGPT
+ * renames these utility classes the TOC simply reappears — graceful, no break. */
+.fixed.inset-e-4.top-1\/2.-translate-y-1\/2 {
   display: none !important;
 }
 

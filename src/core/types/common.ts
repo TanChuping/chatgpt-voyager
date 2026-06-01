@@ -45,6 +45,13 @@ export const StorageKeys = {
   FOLDER_FLOATING_SIZE: 'gptFolderFloatingSize',
 
   // Timeline
+  /**
+   * Master on/off for the right-side timeline. When false, the timeline is
+   * never mounted (and is torn down at runtime if already mounted). Distinct
+   * from TIMELINE_HIDE_CONTAINER, which only hides the background bar while
+   * keeping the dots. Default true. See src/pages/content/timeline/index.ts.
+   */
+  TIMELINE_ENABLED: 'gptTimelineEnabled',
   TIMELINE_SCROLL_MODE: 'gptTimelineScrollMode',
   TIMELINE_HIDE_CONTAINER: 'gptTimelineHideContainer',
   TIMELINE_BAR_WIDTH: 'gptTimelineBarWidth',

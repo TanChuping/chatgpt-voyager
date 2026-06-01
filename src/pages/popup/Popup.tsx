@@ -277,6 +277,7 @@ export default function Popup() {
   const [showStarredHistory, setShowStarredHistory] = useState(false);
   const [extVersion, setExtVersion] = useState('');
 
+  const [timelineEnabled, setTimelineEnabled] = useState(true);
   const [timelineMode, setTimelineMode] = useState<ScrollMode>('flow');
   const [timelineHidden, setTimelineHidden] = useState(false);
   const [timelineDraggable, setTimelineDraggable] = useState(false);
@@ -444,6 +445,7 @@ export default function Popup() {
 
     void browser.storage.sync
       .get({
+        [StorageKeys.TIMELINE_ENABLED]: true,
         [StorageKeys.TIMELINE_SCROLL_MODE]: 'flow',
         [StorageKeys.TIMELINE_HIDE_CONTAINER]: false,
         [StorageKeys.TIMELINE_DRAGGABLE]: false,
@@ -488,6 +490,7 @@ export default function Popup() {
         [StorageKeys.SINGLE_CONV_EXPORT_FORMAT]: DEFAULT_SINGLE_CONV_EXPORT_FORMAT,
       })
       .then((result) => {
+        setTimelineEnabled(result[StorageKeys.TIMELINE_ENABLED] !== false);
         const mode = result[StorageKeys.TIMELINE_SCROLL_MODE];
         setTimelineMode(mode === 'jump' ? 'jump' : 'flow');
         setTimelineHidden(result[StorageKeys.TIMELINE_HIDE_CONTAINER] === true);
@@ -698,6 +701,15 @@ export default function Popup() {
 
       <div className="flex flex-col gap-4 p-5">
         <Section title={t('timelineOptions')}>
+          <ToggleRow
+            id="timeline-enabled"
+            title={t('enableTimeline')}
+            description={t('enableTimelineDescription')}
+            checked={timelineEnabled}
+            onChange={(value) =>
+              updateToggle(setTimelineEnabled, StorageKeys.TIMELINE_ENABLED, value)
+            }
+          />
           <div className="flex gap-2">
             <Button
               type="button"
