@@ -15,11 +15,14 @@
  * conversation, so as long as we install our wrapper before that fetch,
  * capture is silent and automatic.
  */
+import { installFiberReader } from './fiberReader';
+
 // Match the bare conversation endpoint only — NOT sub-resources like
 // `/conversation/<uuid>/stream_status` or `/conversation/<uuid>/textdocs`,
 // which also return JSON but with empty / unrelated payloads that would
 // overwrite our useful capture with garbage.
-const CONV_RE = /\/backend-api\/conversation\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:$|[?#])/i;
+const CONV_RE =
+  /\/backend-api\/conversation\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:$|[?#])/i;
 
 function extractConvId(url: string | URL | undefined | null): string | null {
   if (!url) return null;
@@ -103,9 +106,8 @@ function dispatchCaptured(convId: string, data: unknown, source: 'fetch' | 'xhr'
         this.addEventListener('load', () => {
           try {
             if (this.status >= 200 && this.status < 300) {
-              const text = this.responseType === '' || this.responseType === 'text'
-                ? this.responseText
-                : null;
+              const text =
+                this.responseType === '' || this.responseType === 'text' ? this.responseText : null;
               if (text) {
                 const parsed = JSON.parse(text);
                 dispatchCaptured(this.__gvConvId as string, parsed, 'xhr');
@@ -119,11 +121,11 @@ function dispatchCaptured(convId: string, data: unknown, source: 'fetch' | 'xhr'
     } catch {
       /* ignore */
     }
-    return originalOpen.call(
-      this,
-      method,
-      url as string,
-      ...(rest as [boolean, string?, string?]),
-    );
+    return originalOpen.call(this, method, url as string, ...(rest as [boolean, string?, string?]));
   } as typeof XMLHttpRequest.prototype.open;
 })();
+
+// React-fiber fallback reader: answers `gv-fiber-request` from the isolated
+// content script for conversations opened from client cache (no network
+// capture). Pull-on-demand, fully guarded — see fiberReader.ts.
+installFiberReader();

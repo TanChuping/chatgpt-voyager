@@ -516,7 +516,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           await chrome.action.openPopup();
           sendResponse({ ok: true });
         } catch (error) {
-          sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) });
+          sendResponse({
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
         return;
       }
@@ -579,7 +582,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({ ok: false, error: 'page_fetch_failed' });
           }
         } catch (error) {
-          sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) });
+          sendResponse({
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
         return;
       }
@@ -607,7 +613,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             base64: b64,
           });
         } catch (error) {
-          sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) });
+          sendResponse({
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
     } catch (error) {

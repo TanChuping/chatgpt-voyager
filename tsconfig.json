@@ -37,9 +37,5 @@
     "vite.config.firefox.ts",
     "vite.config.safari.ts"
   ],
-  "exclude": [
-    "**/__tests__/**",
-    "**/*.test.ts",
-    "**/*.test.tsx"
-  ]
+  "exclude": ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"]
 }

@@ -371,11 +371,7 @@ export class PDFPrintService {
   private static isMeaningfulConversationTitle(title: string | null | undefined): title is string {
     const t = (title || '').trim();
     if (!t) return false;
-    if (
-      t === 'Untitled Conversation' ||
-      t === 'ChatGPT' ||
-      t === 'New chat'
-    ) {
+    if (t === 'Untitled Conversation' || t === 'ChatGPT' || t === 'New chat') {
       return false;
     }
     if (t.startsWith('ChatGPT -')) return false;
@@ -1024,11 +1020,11 @@ export class PDFPrintService {
       const match = pathname.match(/\/(app|chat)\/([^/]+)/);
       if (match) {
         const id = match[2];
-      return `ChatGPT Conversation ${id.substring(0, 8)}`;
+        return `ChatGPT Conversation ${id.substring(0, 8)}`;
       }
-    return 'ChatGPT Conversation';
+      return 'ChatGPT Conversation';
     } catch {
-    return 'ChatGPT Conversation';
+      return 'ChatGPT Conversation';
     }
   }
 
@@ -1068,7 +1064,7 @@ export class PDFPrintService {
     const conversationTitle = this.normalizeConversationTitle(this.getConversationTitle());
 
     if (preferMetadataTitle) {
-    return metadataTitle || conversationTitle || 'ChatGPT Conversation';
+      return metadataTitle || conversationTitle || 'ChatGPT Conversation';
     }
 
     const base = conversationTitle || metadataTitle;

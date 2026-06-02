@@ -15,6 +15,10 @@ import {
 import { hashString } from '@/core/utils/hash';
 import { GV_RTL_CLASS, applyRTLClass } from '@/core/utils/rtl';
 import { installCachePrimerForManager } from '@/features/cachePrimer/CachePrimer';
+import {
+  installFiberFallbackForManager,
+  type FiberFallbackHandle,
+} from '@/features/cachePrimer/FiberFallback';
 import { getConversationCaptureService } from '@/features/conversationApi/ConversationCaptureService';
 
 import { getTranslationSync, initI18n } from '../../../utils/i18n';
@@ -153,6 +157,13 @@ export class TimelineManager {
   private turnTextCache: TurnTextCache = new TurnTextCache();
   private cachePrimerInstalled = false;
   private cachePrimerDispose: (() => void) | null = null;
+  // React-fiber gap-fill for "消息未加载" when no API capture is available.
+  private fiberFallback: FiberFallbackHandle | null = null;
+  // Set once destroy() runs. init() is async (it awaits findCriticalElements
+  // for up to 4s); a fast conversation switch can destroy this instance while
+  // its init() is still suspended, and the resumed init() would otherwise inject
+  // an orphaned bar/tooltip that no one owns or cleans up. Guard on it.
+  private destroyed = false;
   private activeTurnId: string | null = null;
   private ui: {
     timelineBar: HTMLElement | null;
@@ -246,6 +257,17 @@ export class TimelineManager {
   private onSliderUp: ((ev: PointerEvent) => void) | null = null;
   private sliderStartClientY = 0;
   private sliderStartTop = 0;
+  // Slider-drag rAF throttle + per-drag cached geometry. The drag's bar height,
+  // rail length and scroll range are constant for the duration of one drag, so
+  // we measure them once on pointerdown instead of forcing a layout
+  // (getBoundingClientRect) on every pointermove. pointermoves only stash the
+  // latest Y and schedule a single rAF, so the heavy virtualised re-render runs
+  // at most once per frame rather than 100+ times/second.
+  private sliderRafId: number | null = null;
+  private sliderLatestClientY = 0;
+  private sliderDragMaxTop = 0;
+  private sliderDragRange = 1;
+  private sliderDragTopOffset = 0;
   private markersVersion = 0;
   private resizeIdleTimer: number | null = null;
   private resizeIdleDelay = 140;
@@ -350,9 +372,12 @@ export class TimelineManager {
 
   async init(): Promise<void> {
     await initI18n();
+    if (this.destroyed) return;
     this.purgeLegacyLocalStorageKeys();
     const ok = await this.findCriticalElements();
-    if (!ok) return;
+    // A fast conversation switch may have destroyed us during the (up to 4s)
+    // findCriticalElements await — bail before injecting orphaned DOM.
+    if (!ok || this.destroyed) return;
     this.injectTimelineUI();
     this.setupEventListeners();
     this.setupObservers();
@@ -370,6 +395,18 @@ export class TimelineManager {
         this.cachePrimerDispose = handle.dispose;
       } catch (err) {
         console.warn('[GPT-Voyager] cache primer install failed', err);
+      }
+    }
+    // Fallback for conversations opened from client cache (no network capture):
+    // ask the page-world fiber reader to fill any unmounted-turn cache misses.
+    if (!this.fiberFallback) {
+      try {
+        this.fiberFallback = installFiberFallbackForManager(this.turnTextCache, {
+          getConversationId: () => this.turnTextCache.getConversationId(),
+          onPrimed: () => this.recalculateAndRenderMarkers(),
+        });
+      } catch (err) {
+        console.warn('[GPT-Voyager] fiber fallback install failed', err);
       }
     }
     this.loadTextPins();
@@ -2148,6 +2185,17 @@ export class TimelineManager {
     );
     // Inject timestamps after markers are ready
     this.injectMessageTimestamps().catch(() => {});
+
+    // If any turn is "unmounted" (no live DOM content AND no cached snapshot —
+    // same predicate the dot renderer uses for `timeline-dot--unmounted`), ask
+    // the page-world React-fiber reader to fill it. This only bites when the
+    // API capture path produced nothing (conversation opened from client
+    // cache). The fallback throttles + dedupes + stops once satisfied, so
+    // running this on every reconcile pass is cheap.
+    const hasUnmountedMiss = this.markers.some(
+      (mk) => !mk.summary && mk.attachments.length === 0 && !mk.hasGeneratedImage,
+    );
+    this.fiberFallback?.requestIfNeeded(hasUnmountedMiss);
   };
 
   private shouldDeferMarkerRecalculation(): boolean {
@@ -2214,6 +2262,17 @@ export class TimelineManager {
     const orderChanged =
       currentIds.length !== nextIds.length || currentIds.some((id, index) => nextIds[index] !== id);
     if (!orderChanged) return false;
+
+    // A pure append — every existing marker keeps its position and new turns
+    // are added only at the end — is not a *reorder*. It's the normal "user
+    // sent a new message / more turns hydrated" case, and deferring it would
+    // delay navigation to (and timestamp recording for) the freshly-appeared
+    // turn by a full confirmation cycle. Commit those immediately; only genuine
+    // reordering or removal of existing turn ids needs the debounce below.
+    const isAppendOnly =
+      nextIds.length > currentIds.length &&
+      currentIds.every((id, index) => nextIds[index] === id);
+    if (isAppendOnly) return false;
 
     const signature = nextIds.join('|');
     if (this.pendingMarkerOrderSignature === signature && !this.isScrollInteractionActive()) {
@@ -2666,9 +2725,29 @@ export class TimelineManager {
       this.sliderStartClientY = ev.clientY;
       const rect = this.ui.sliderHandle.getBoundingClientRect();
       this.sliderStartTop = rect.top;
-      this.onSliderMove = (e: PointerEvent) => this.handleSliderDrag(e);
+      // Cache the geometry that stays constant for this whole drag, so each
+      // pointermove avoids a forced layout.
+      const barH = this.ui.timelineBar?.getBoundingClientRect().height || 0;
+      const railLen =
+        parseFloat(this.ui.slider?.style.height || '0') ||
+        Math.max(120, Math.min(240, Math.floor(barH * 0.45)));
+      const handleH = rect.height || 22;
+      this.sliderDragMaxTop = Math.max(0, railLen - handleH);
+      this.sliderDragRange = Math.max(1, this.contentHeight - barH);
+      this.sliderDragTopOffset = parseFloat(this.ui.slider?.style.top || '0') || 0;
+      this.sliderLatestClientY = ev.clientY;
+      // Coalesce pointermoves into one rAF: stash the latest Y, render once/frame.
+      this.onSliderMove = (e: PointerEvent) => {
+        this.sliderLatestClientY = e.clientY;
+        if (this.sliderRafId == null) {
+          this.sliderRafId = requestAnimationFrame(() => {
+            this.sliderRafId = null;
+            this.applySliderDrag();
+          });
+        }
+      };
       this.onSliderUp = (e: PointerEvent) => this.endSliderDrag(e);
-      window.addEventListener('pointermove', this.onSliderMove);
+      window.addEventListener('pointermove', this.onSliderMove, { passive: true });
       window.addEventListener('pointerup', this.onSliderUp, { once: true });
     };
     this.ui.sliderHandle?.addEventListener('pointerdown', this.onSliderDown);
@@ -2845,26 +2924,49 @@ export class TimelineManager {
   }
 
   private correctScrollToElement(targetElement: HTMLElement, targetId?: string | null): void {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (!this.scrollContainer || !targetElement.isConnected) {
-          this.isScrolling = false;
-          this.scrollAnimationLockUntil = 0;
-          this.setActiveTurnFromNavigation(targetId);
-          return;
-        }
+    // Converge instead of correcting once. When jumping far in a long
+    // conversation, ChatGPT mounts the inner bodies of the turns we scroll past;
+    // those bodies grow after mounting, which keeps pushing the target off the
+    // spot we aimed for. A single correction lands while the layout is still
+    // settling, leaving the target 1–2 turns short (off-by-one highlight).
+    // Re-measure each frame and nudge toward the target until its position holds
+    // steady for a few consecutive frames, or we exhaust the frame budget.
+    const TOLERANCE_PX = 2;
+    const STABLE_FRAMES_NEEDED = 3;
+    const MAX_FRAMES = 32; // ~0.5s ceiling so we never fight the user for long
+    let frames = 0;
+    let stable = 0;
 
-        const correctedPosition = this.computeScrollTopForElement(targetElement);
-        if (Math.abs(this.scrollContainer.scrollTop - correctedPosition) > 2) {
-          this.scrollContainer.scrollTop = correctedPosition;
-        }
+    const finish = () => {
+      this.setActiveTurnFromNavigation(targetId);
+      this.isScrolling = false;
+      this.scrollAnimationLockUntil = 0;
+      this.scheduleScrollSync();
+    };
 
-        this.setActiveTurnFromNavigation(targetId);
-        this.isScrolling = false;
-        this.scrollAnimationLockUntil = 0;
-        this.scheduleScrollSync();
-      });
-    });
+    const step = () => {
+      if (!this.scrollContainer || !targetElement.isConnected) {
+        finish();
+        return;
+      }
+      const want = this.computeScrollTopForElement(targetElement);
+      const diff = want - this.scrollContainer.scrollTop;
+      if (Math.abs(diff) > TOLERANCE_PX) {
+        this.scrollContainer.scrollTop = want;
+        stable = 0;
+      } else {
+        stable += 1;
+      }
+      frames += 1;
+      if (stable >= STABLE_FRAMES_NEEDED || frames >= MAX_FRAMES) {
+        finish();
+        return;
+      }
+      requestAnimationFrame(step);
+    };
+
+    // Give layout one frame to start settling, then begin converging.
+    requestAnimationFrame(() => requestAnimationFrame(step));
   }
 
   private smoothScrollTo(
@@ -4836,29 +4938,38 @@ export class TimelineManager {
     }, this.sliderFadeDelay);
   }
 
-  private handleSliderDrag(e: PointerEvent): void {
-    if (!this.sliderDragging || !this.ui.timelineBar || !this.ui.track) return;
-    const barRect = this.ui.timelineBar.getBoundingClientRect();
-    const barH = barRect.height || 0;
-    const railLen =
-      parseFloat(this.ui.slider!.style.height || '0') ||
-      Math.max(120, Math.min(240, Math.floor(barH * 0.45)));
-    const handleH = this.ui.sliderHandle!.getBoundingClientRect().height || 22;
-    const maxTop = Math.max(0, railLen - handleH);
-    const delta = e.clientY - this.sliderStartClientY;
-    let top = Math.max(
+  // Runs at most once per animation frame (rAF-coalesced from pointermove). Uses
+  // the geometry cached at pointerdown — no getBoundingClientRect here — so the
+  // only per-frame cost is the scroll write + one virtualised re-render.
+  // updateVirtualRangeAndRender() also repositions the slider handle (via
+  // updateSlider) and keeps the slider visible, so the old per-move
+  // showSlider()/updateSlider() calls are no longer needed.
+  private applySliderDrag(): void {
+    if (!this.sliderDragging || !this.ui.track) return;
+    const maxTop = this.sliderDragMaxTop;
+    const delta = this.sliderLatestClientY - this.sliderStartClientY;
+    const top = Math.max(
       0,
-      Math.min(maxTop, this.sliderStartTop + delta - (parseFloat(this.ui.slider!.style.top) || 0)),
+      Math.min(maxTop, this.sliderStartTop + delta - this.sliderDragTopOffset),
     );
     const r = maxTop > 0 ? top / maxTop : 0;
-    const range = Math.max(1, this.contentHeight - barH);
-    this.ui.track.scrollTop = Math.round(r * range);
+    const nextScrollTop = Math.round(r * this.sliderDragRange);
+    // If the (rounded) scroll position is unchanged — the pointer barely moved,
+    // or the drag is clamped at an end — there's nothing new to show, so skip the
+    // re-render instead of redoing the full virtualised pass for this frame.
+    if (nextScrollTop === (this.ui.track.scrollTop || 0)) return;
+    this.ui.track.scrollTop = nextScrollTop;
     this.updateVirtualRangeAndRender();
-    this.showSlider();
-    this.updateSlider();
   }
 
   private endSliderDrag(_e: PointerEvent): void {
+    // Flush the final coalesced position before tearing down (while still
+    // "dragging", so applySliderDrag doesn't early-return).
+    if (this.sliderRafId != null) {
+      cancelAnimationFrame(this.sliderRafId);
+      this.sliderRafId = null;
+      this.applySliderDrag();
+    }
     this.sliderDragging = false;
     try {
       window.removeEventListener('pointermove', this.onSliderMove!);
@@ -6271,6 +6382,7 @@ export class TimelineManager {
   }
 
   destroy(): void {
+    this.destroyed = true;
     // Stop hiding ChatGPT's native prompt-TOC once our timeline goes away.
     try {
       document.body.classList.remove('gv-timeline-active');
@@ -6293,6 +6405,12 @@ export class TimelineManager {
         this.cachePrimerDispose();
       } catch {}
       this.cachePrimerDispose = null;
+    }
+    if (this.fiberFallback) {
+      try {
+        this.fiberFallback.dispose();
+      } catch {}
+      this.fiberFallback = null;
     }
 
     // Cleanup keyboard shortcuts
@@ -6431,6 +6549,17 @@ export class TimelineManager {
     try {
       this.ui.sliderHandle?.removeEventListener('pointerdown', this.onSliderDown!);
     } catch {}
+    // Cancel any in-flight slider drag (pending rAF + window move listener).
+    if (this.sliderRafId != null) {
+      try {
+        cancelAnimationFrame(this.sliderRafId);
+      } catch {}
+      this.sliderRafId = null;
+    }
+    try {
+      if (this.onSliderMove) window.removeEventListener('pointermove', this.onSliderMove);
+    } catch {}
+    this.sliderDragging = false;
     try {
       window.removeEventListener('resize', this.onWindowResize!);
     } catch {}

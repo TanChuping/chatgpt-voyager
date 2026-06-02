@@ -394,9 +394,7 @@ describe('TurnTextCache', () => {
         attachments: [{ name: 'old.pdf', type: 'pdf' as const }],
         hasGeneratedImage: false,
         lastSeenAt: Date.now(),
-        fingerprint: computeFingerprint('same text', [
-          { name: 'old.pdf', type: 'pdf' as const },
-        ]),
+        fingerprint: computeFingerprint('same text', [{ name: 'old.pdf', type: 'pdf' as const }]),
       });
       cache.set({
         id: 't2',
@@ -409,9 +407,7 @@ describe('TurnTextCache', () => {
 
       // User re-edits with a different file (text content identical).
       const cached = cache.get('t1');
-      const liveFp = computeFingerprint('same text', [
-        { name: 'new.pdf', type: 'pdf' as const },
-      ]);
+      const liveFp = computeFingerprint('same text', [{ name: 'new.pdf', type: 'pdf' as const }]);
       expect(cached?.fingerprint).not.toBe(liveFp);
     });
   });
@@ -468,16 +464,14 @@ describe('TurnTextCache', () => {
           }),
         );
       }
-      const before = enumerateStorageKeys()
-        .filter((k) => k.startsWith(STORAGE_PREFIX)).length;
+      const before = enumerateStorageKeys().filter((k) => k.startsWith(STORAGE_PREFIX)).length;
       expect(before).toBe(85);
 
       // Loading a fresh conversation should trigger eviction down to MAX (80).
       const cache = new TurnTextCache();
       cache.setConversation('gpt:conv:current');
 
-      const after = enumerateStorageKeys()
-        .filter((k) => k.startsWith(STORAGE_PREFIX)).length;
+      const after = enumerateStorageKeys().filter((k) => k.startsWith(STORAGE_PREFIX)).length;
       // 80 cap, plus the newly-bound conversation is exempt from eviction
       // (and would be added when we call set/flush). Since we haven't
       // written anything yet, just check the others got trimmed.

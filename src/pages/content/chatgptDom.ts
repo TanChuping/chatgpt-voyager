@@ -126,9 +126,7 @@ export function findChatGptHistoryContainer(sidebar: HTMLElement): HTMLElement |
   return best;
 }
 
-export function getChatGptConversationElements(
-  root: ParentNode = document,
-): HTMLElement[] {
+export function getChatGptConversationElements(root: ParentNode = document): HTMLElement[] {
   const seen = new Set<HTMLElement>();
   const result: HTMLElement[] = [];
 

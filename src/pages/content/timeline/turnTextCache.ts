@@ -23,7 +23,6 @@
  * Capped at MAX_ENTRIES per conversation (LRU by lastSeenAt). Saves are
  * debounced so a long scroll session doesn't hammer localStorage.
  */
-
 import type { AttachmentInfo } from './attachments';
 
 export interface TurnTextCacheEntry {

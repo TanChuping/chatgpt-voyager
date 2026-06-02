@@ -63,6 +63,34 @@ const initMermaid = async (): Promise<boolean> => {
 };
 
 /**
+ * Authoritatively validate that `code` is genuinely parseable Mermaid, using
+ * mermaid's own grammar — WITHOUT rendering (parse() injects no DOM, unlike
+ * render() which appends transient measuring nodes at the document root).
+ *
+ * This is the second gate after the cheap keyword pre-filter (`isMermaidCode`):
+ * keyword matching alone is just a prefix heuristic and can't tell a real
+ * diagram from prose that merely starts with "graph"/"architecture"/etc. Only
+ * code that actually parses gets wrapped/rendered, so false positives never
+ * produce a wrapper or a "Syntax error" box.
+ *
+ * Returns true on a clean parse, false otherwise. If parse() is unavailable
+ * (e.g. the legacy v9 build), we assume valid and let render() be the judge.
+ * @internal Exported for testing
+ */
+export const isParseableMermaid = async (code: string): Promise<boolean> => {
+  const mermaid = await loadMermaid();
+  const parse = (mermaid as { parse?: (t: string, o?: { suppressErrors?: boolean }) => unknown } | null)
+    ?.parse;
+  if (typeof parse !== 'function') return true;
+  try {
+    const result = await parse(code, { suppressErrors: true });
+    return result !== false && result != null;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Check if a code block contains Mermaid syntax and appears complete enough to render
  * @internal Exported for testing
  */
@@ -115,9 +143,21 @@ export const isMermaidCode = (code: string): boolean => {
     'treemap', // v11
   ];
 
+  // A keyword only counts when it sits at a word boundary. Without this, prose
+  // like "graphql", "blockchain", "requirements:" gets mistaken for a diagram
+  // purely because it shares a prefix. (Prose that genuinely reads
+  // "<keyword> <more words>" — e.g. "graph theory is…" — still slips past this
+  // cheap check, but is caught authoritatively by the mermaid.parse() gate in
+  // renderMermaid before anything is rendered or wrapped.)
+  const lower = codeTrimmed.toLowerCase();
   const startsWithKeyword =
     codeTrimmed.startsWith('%%') ||
-    keywords.some((keyword) => codeTrimmed.toLowerCase().startsWith(keyword.toLowerCase()));
+    keywords.some((keyword) => {
+      const kw = keyword.toLowerCase();
+      if (!lower.startsWith(kw)) return false;
+      const nextChar = lower.charAt(kw.length); // '' when keyword is the whole string
+      return nextChar === '' || !/[a-z0-9]/.test(nextChar);
+    });
 
   if (!startsWithKeyword) return false;
 
@@ -481,11 +521,21 @@ export const normalizeWhitespace = (code: string): string => {
 /**
  * Render Mermaid diagram for a code block
  */
-const renderMermaid = async (codeBlock: HTMLElement, code: string) => {
+const renderMermaid = async (
+  codeBlock: HTMLElement,
+  code: string,
+  options: { validate?: boolean } = {},
+) => {
   // Normalize whitespace before processing
   const normalizedCode = normalizeWhitespace(code);
   if (codeBlock.dataset.mermaidCode === normalizedCode) return;
   if (codeBlock.dataset.mermaidProcessing === 'true') return;
+  // Loop guard: skip if we just rendered this exact source moments ago (the
+  // code element may have been recreated, defeating the dataset guard above).
+  const nowTs = Date.now();
+  if (normalizedCode === lastMermaidRenderCode && nowTs - lastMermaidRenderAt < 1500) return;
+  lastMermaidRenderCode = normalizedCode;
+  lastMermaidRenderAt = nowTs;
 
   codeBlock.dataset.mermaidProcessing = 'true';
 
@@ -500,6 +550,18 @@ const renderMermaid = async (codeBlock: HTMLElement, code: string) => {
     const mermaid = await loadMermaid();
     if (!mermaid) {
       // Mermaid failed to load 鈥?gracefully degrade by showing raw code
+      codeBlock.dataset.mermaidProcessing = 'false';
+      return;
+    }
+
+    // Validation gate for CONTENT-DETECTED blocks (no explicit "mermaid" label):
+    // only proceed if the source actually parses as mermaid. This is what turns
+    // detection into more than a keyword guess — prose that merely starts with a
+    // keyword fails to parse and is left as a plain code block (no wrapper, no
+    // "Syntax error" box, and no transient measuring DOM from render()). Blocks
+    // the user explicitly labelled `mermaid` skip this and keep the friendly
+    // inline error on failure (their intent is unambiguous).
+    if (options.validate && !(await isParseableMermaid(normalizedCode))) {
       codeBlock.dataset.mermaidProcessing = 'false';
       return;
     }
@@ -640,6 +702,9 @@ function getCodeBlockContainer(codeEl: Element): HTMLElement | null {
   return codeEl.closest('code-block, .code-block, pre') as HTMLElement | null;
 }
 
+const CODE_BLOCK_SELECTOR =
+  'code[data-test-id="code-content"], code[data-testid="code-content"], code[class*="language-"], pre code';
+
 function getLanguageFromCodeClass(codeEl: Element): string | null {
   for (const className of Array.from(codeEl.classList)) {
     const match = className.match(/^language-(.+)$/i);
@@ -716,16 +781,7 @@ export const isGenericLanguageLabel = (language: string | null): boolean => {
  * Find and process code blocks
  */
 const processCodeBlocks = () => {
-  const codeElements = Array.from(
-    document.querySelectorAll(
-      [
-        'code[data-test-id="code-content"]',
-        'code[data-testid="code-content"]',
-        'code[class*="language-"]',
-        'pre code',
-      ].join(', '),
-    ),
-  );
+  const codeElements = Array.from(document.querySelectorAll(CODE_BLOCK_SELECTOR));
 
   codeElements.forEach((codeEl) => {
     if (!(codeEl instanceof HTMLElement)) return;
@@ -748,9 +804,12 @@ const processCodeBlocks = () => {
       return;
     }
 
-    // Case 3: No language label or generic label - use content detection
+    // Case 3: No language label or generic label - use content detection.
+    // `validate: true` makes renderMermaid run mermaid.parse() before touching
+    // the DOM, so prose that merely passes the keyword pre-filter is never
+    // wrapped or shown as a syntax error (we only *guessed* it was a diagram).
     if (isMermaidCode(codeText)) {
-      renderMermaid(codeEl, codeText);
+      renderMermaid(codeEl, codeText, { validate: true });
     }
   });
 };
@@ -760,6 +819,14 @@ const processCodeBlocks = () => {
  */
 let mermaidEnabled = true;
 let observer: MutationObserver | null = null;
+// Re-render loop guard: never re-render the SAME diagram source within this
+// window. mermaid.render() injects transient measuring nodes at the document
+// root and we wrap the code block — that DOM churn can re-trigger our own
+// observer and ChatGPT's React can recreate the code element, both defeating
+// the per-element dataset guard and spinning an infinite render loop that
+// flickers the page height / scrollbars.
+let lastMermaidRenderCode = '';
+let lastMermaidRenderAt = 0;
 
 /**
  * Start Mermaid feature
@@ -818,8 +885,35 @@ const initializeMermaid = async () => {
       timeout = setTimeout(processCodeBlocks, 1000);
     };
 
-    observer = new MutationObserver(() => {
-      debouncedProcess();
+    // Ignore mutations that are JUST our own Mermaid output — the transient
+    // `mermaid-*` / `dmermaid-*` measuring nodes mermaid.render injects at the
+    // document root, and churn inside our `.gv-mermaid-*` UI. Otherwise each
+    // render's DOM churn re-triggers this observer → debounce → re-render: an
+    // infinite loop that flickers the page height (and the scrollbars).
+    const isOwnEl = (el: Element | null): boolean =>
+      !!el &&
+      el.nodeType === 1 &&
+      (/^d?mermaid-/.test((el as HTMLElement).id || '') ||
+        !!el.closest('.gv-mermaid-wrapper, [id^="mermaid-"], [id^="dmermaid-"]'));
+    observer = new MutationObserver((mutations) => {
+      let relevant = false;
+      for (const m of mutations) {
+        const t = m.target as Node | null;
+        const tEl = t ? (t.nodeType === 1 ? (t as Element) : t.parentElement) : null;
+        if (isOwnEl(tEl)) continue;
+        const nodes: Node[] = [];
+        m.addedNodes.forEach((n) => nodes.push(n));
+        m.removedNodes.forEach((n) => nodes.push(n));
+        if (
+          nodes.length > 0 &&
+          nodes.every((n) => isOwnEl(n.nodeType === 1 ? (n as Element) : n.parentElement))
+        ) {
+          continue;
+        }
+        relevant = true;
+        break;
+      }
+      if (relevant) debouncedProcess();
     });
 
     observer.observe(document.body, {

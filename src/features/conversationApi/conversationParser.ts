@@ -7,6 +7,7 @@ import type {
   ApiAttachment,
   ApiContent,
   ApiConversation,
+  ConversationNode,
   ConversationNodeMessage,
   LinearAttachment,
   LinearConversation,
@@ -17,12 +18,12 @@ import { withTurnIdPrefix } from './types';
 /** Walk the mapping from current_node back to root via parent pointers, then reverse. */
 function walkChain(api: ApiConversation): ConversationNodeMessage[] {
   const result: ConversationNodeMessage[] = [];
-  const mapping = api.mapping || {};
+  const mapping: Record<string, ConversationNode> = api.mapping || {};
   let cursor: string | null | undefined = api.current_node;
   const visited = new Set<string>();
   while (cursor && !visited.has(cursor)) {
     visited.add(cursor);
-    const node = mapping[cursor];
+    const node: ConversationNode | undefined = mapping[cursor];
     if (!node) break;
     if (node.message) result.push(node.message);
     cursor = node.parent ?? null;
@@ -72,7 +73,10 @@ export function renderContent(content: ApiContent): string {
           const inner = p as Record<string, unknown>;
           if (typeof inner.text === 'string' && inner.text.length > 0) {
             out.push(inner.text);
-          } else if (typeof inner.content_type === 'string' && inner.content_type === 'image_asset_pointer') {
+          } else if (
+            typeof inner.content_type === 'string' &&
+            inner.content_type === 'image_asset_pointer'
+          ) {
             // Skip — we don't have a stable URL outside ChatGPT's signed CDN.
           }
         }
@@ -115,7 +119,8 @@ export function renderContent(content: ApiContent): string {
     }
     default: {
       if (typeof content.text === 'string') return content.text;
-      if (Array.isArray(content.parts)) return content.parts.map(asString).filter(Boolean).join('\n\n');
+      if (Array.isArray(content.parts))
+        return content.parts.map(asString).filter(Boolean).join('\n\n');
       return '';
     }
   }
@@ -170,7 +175,8 @@ export function walkMapping(api: ApiConversation): LinearConversation {
       createTime: msg.create_time ?? null,
       contentType:
         typeof msg.content?.content_type === 'string' ? msg.content.content_type : undefined,
-      channel: typeof msg.channel === 'string' ? msg.channel : msg.channel === null ? null : undefined,
+      channel:
+        typeof msg.channel === 'string' ? msg.channel : msg.channel === null ? null : undefined,
     });
   }
 
@@ -182,4 +188,3 @@ export function walkMapping(api: ApiConversation): LinearConversation {
     messages,
   };
 }
-

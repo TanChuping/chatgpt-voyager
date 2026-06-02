@@ -320,9 +320,7 @@ function extractAssistantText(el: HTMLElement): string {
   const matchesReasonToggle = (txt: string): boolean => {
     const s = normalizeText(txt).toLowerCase();
     if (!s) return false;
-    return (
-      /^(show\s*(thinking|reasoning)|hide\s*(thinking|reasoning))$/i.test(s)
-    );
+    return /^(show\s*(thinking|reasoning)|hide\s*(thinking|reasoning))$/i.test(s);
   };
   const shouldDrop = (node: HTMLElement): boolean => {
     const role = (node.getAttribute('role') || '').toLowerCase();
@@ -630,11 +628,7 @@ async function loadDictionaries(): Promise<Record<AppLanguage, Record<string, st
 function isMeaningfulConversationTitle(title: string | null | undefined): title is string {
   const t = (title || '').trim();
   if (!t) return false;
-  if (
-    t === 'Untitled Conversation' ||
-    t === 'ChatGPT' ||
-    t === 'New chat'
-  ) {
+  if (t === 'Untitled Conversation' || t === 'ChatGPT' || t === 'New chat') {
     return false;
   }
   if (t.startsWith('ChatGPT -')) return false;
@@ -1830,9 +1824,11 @@ function getResponseCopyImageTexts(lang: AppLanguage): ResponseCopyImageTexts {
     return {
       label: '\u590d\u5236\u56de\u590d\u4e3a\u56fe\u7247',
       copied: '\u56de\u590d\u56fe\u7247\u5df2\u590d\u5236',
-      downloaded: '\u5df2\u4e0b\u8f7d\u56de\u590d\u56fe\u7247\uff08Safari \u526a\u8d34\u677f\u9650\u5236\uff09',
+      downloaded:
+        '\u5df2\u4e0b\u8f7d\u56de\u590d\u56fe\u7247\uff08Safari \u526a\u8d34\u677f\u9650\u5236\uff09',
       failed: '\u590d\u5236\u56de\u590d\u56fe\u7247\u5931\u8d25',
-      unsupported: '\u5f53\u524d\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u590d\u5236\u56fe\u7247\u5230\u526a\u8d34\u677f',
+      unsupported:
+        '\u5f53\u524d\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u590d\u5236\u56fe\u7247\u5230\u526a\u8d34\u677f',
       targetMissing: '\u65e0\u6cd5\u5b9a\u4f4d\u56de\u590d\u5185\u5bb9',
     };
   }
@@ -2236,7 +2232,7 @@ export async function startExportButton(): Promise<void> {
   });
 
   // 闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸?DOM recovery (resize / print) 闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑?
-        // The host page may re-render the logo/header area (and thus destroy the wrapper
+  // The host page may re-render the logo/header area (and thus destroy the wrapper
   // + export button) during window resize or window.print().  We use a
   // single debounced handler that fires on resize, afterprint, and our own
   // gv-print-cleanup event.  It checks whether the button is still attached
@@ -2245,7 +2241,7 @@ export async function startExportButton(): Promise<void> {
   let reinjectTimer: ReturnType<typeof setTimeout> | null = null;
 
   const reinjectExportButtonIfNeeded = () => {
-      // Debounce host page mutations during resize; wait until it
+    // Debounce host page mutations during resize; wait until it
     // settles before we attempt re-injection.
     if (reinjectTimer !== null) clearTimeout(reinjectTimer);
     reinjectTimer = setTimeout(() => {
@@ -2258,7 +2254,7 @@ export async function startExportButton(): Promise<void> {
         const staleWrapper = document.querySelector('.gv-logo-dropdown-wrapper');
         if (staleWrapper) staleWrapper.remove();
 
-      // Re-find the logo element; the host page may have created a fresh one.
+        // Re-find the logo element; the host page may have created a fresh one.
         const newLogo =
           document.querySelector('[data-test-id="logo"]') ?? document.querySelector('.logo');
         if (!newLogo) return;

@@ -10,7 +10,10 @@ export interface AccountContext {
   email?: string;
 }
 
-export function detectAccountContextFromDocument(_pageUrl?: string, _doc?: Document): AccountContext {
+export function detectAccountContextFromDocument(
+  _pageUrl?: string,
+  _doc?: Document,
+): AccountContext {
   return {};
 }
 

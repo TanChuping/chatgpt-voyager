@@ -35,7 +35,9 @@ function msg(partial: Partial<LinearMessage>): LinearMessage {
 
 describe('isSimpleVisibleMessage', () => {
   it('keeps user messages regardless of content_type', () => {
-    expect(isSimpleVisibleMessage(msg({ role: 'user', text: 'hi', contentType: 'text' }))).toBe(true);
+    expect(isSimpleVisibleMessage(msg({ role: 'user', text: 'hi', contentType: 'text' }))).toBe(
+      true,
+    );
     expect(
       isSimpleVisibleMessage(msg({ role: 'user', text: 'hi', contentType: 'multimodal_text' })),
     ).toBe(true);
@@ -43,20 +45,29 @@ describe('isSimpleVisibleMessage', () => {
 
   it('keeps assistant text on channel final or null', () => {
     expect(
-      isSimpleVisibleMessage(msg({ role: 'assistant', text: 'a', contentType: 'text', channel: 'final' })),
+      isSimpleVisibleMessage(
+        msg({ role: 'assistant', text: 'a', contentType: 'text', channel: 'final' }),
+      ),
     ).toBe(true);
     expect(
-      isSimpleVisibleMessage(msg({ role: 'assistant', text: 'a', contentType: 'text', channel: null })),
+      isSimpleVisibleMessage(
+        msg({ role: 'assistant', text: 'a', contentType: 'text', channel: null }),
+      ),
     ).toBe(true);
-    expect(
-      isSimpleVisibleMessage(msg({ role: 'assistant', text: 'a', contentType: 'text' })),
-    ).toBe(true); // channel undefined → also visible (legacy)
+    expect(isSimpleVisibleMessage(msg({ role: 'assistant', text: 'a', contentType: 'text' }))).toBe(
+      true,
+    ); // channel undefined → also visible (legacy)
   });
 
   it('drops assistant pre-tool commentary narration', () => {
     expect(
       isSimpleVisibleMessage(
-        msg({ role: 'assistant', text: 'about to do x', contentType: 'text', channel: 'commentary' }),
+        msg({
+          role: 'assistant',
+          text: 'about to do x',
+          contentType: 'text',
+          channel: 'commentary',
+        }),
       ),
     ).toBe(false);
   });
@@ -71,14 +82,20 @@ describe('isSimpleVisibleMessage', () => {
 
   it('drops assistant thoughts / reasoning_recap / model_editable_context', () => {
     for (const ct of ['thoughts', 'reasoning_recap', 'model_editable_context'] as const) {
-      expect(isSimpleVisibleMessage(msg({ role: 'assistant', text: 'x', contentType: ct }))).toBe(false);
+      expect(isSimpleVisibleMessage(msg({ role: 'assistant', text: 'x', contentType: ct }))).toBe(
+        false,
+      );
     }
   });
 
   it('drops tool and system roles', () => {
     expect(
       isSimpleVisibleMessage(
-        msg({ role: 'tool', text: 'Created: /mnt/data/file.html', contentType: 'execution_output' }),
+        msg({
+          role: 'tool',
+          text: 'Created: /mnt/data/file.html',
+          contentType: 'execution_output',
+        }),
       ),
     ).toBe(false);
     expect(isSimpleVisibleMessage(msg({ role: 'system', text: 'noise' }))).toBe(false);
@@ -114,7 +131,8 @@ describe('filterForSimple', () => {
     // 1 assistant code, 1 tool execution_output, 8 thoughts, 8 reasoning_recap,
     // 2 model_editable_context, 15 hidden system (already pre-stripped by parser).
     const live: LinearMessage[] = [];
-    for (let i = 0; i < 9; i++) live.push(msg({ role: 'user', text: `u${i}`, contentType: 'text' }));
+    for (let i = 0; i < 9; i++)
+      live.push(msg({ role: 'user', text: `u${i}`, contentType: 'text' }));
     for (let i = 0; i < 8; i++)
       live.push(msg({ role: 'assistant', text: `a${i}`, contentType: 'text', channel: 'final' }));
     live.push(msg({ role: 'assistant', text: 'legacy', contentType: 'text', channel: null }));
@@ -126,9 +144,12 @@ describe('filterForSimple', () => {
     live.push(
       msg({ role: 'tool', text: 'Created: /mnt/data/x.html', contentType: 'execution_output' }),
     );
-    for (let i = 0; i < 8; i++) live.push(msg({ role: 'assistant', text: 't', contentType: 'thoughts' }));
-    for (let i = 0; i < 8; i++) live.push(msg({ role: 'assistant', text: 'r', contentType: 'reasoning_recap' }));
-    for (let i = 0; i < 2; i++) live.push(msg({ role: 'assistant', text: 'm', contentType: 'model_editable_context' }));
+    for (let i = 0; i < 8; i++)
+      live.push(msg({ role: 'assistant', text: 't', contentType: 'thoughts' }));
+    for (let i = 0; i < 8; i++)
+      live.push(msg({ role: 'assistant', text: 'r', contentType: 'reasoning_recap' }));
+    for (let i = 0; i < 2; i++)
+      live.push(msg({ role: 'assistant', text: 'm', contentType: 'model_editable_context' }));
     const out = filterForSimple(conv(live));
     expect(out.messages.length).toBe(9 + 8 + 1);
     const roles = out.messages.map((m) => m.role);
@@ -140,7 +161,13 @@ describe('filterForSimple', () => {
     const out = filterForSimple(
       conv([
         msg({ role: 'user', text: '   ', attachments: [] }),
-        msg({ role: 'assistant', text: '', contentType: 'text', channel: 'final', attachments: [] }),
+        msg({
+          role: 'assistant',
+          text: '',
+          contentType: 'text',
+          channel: 'final',
+          attachments: [],
+        }),
       ]),
     );
     expect(out.messages.length).toBe(0);

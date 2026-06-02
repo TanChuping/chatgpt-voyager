@@ -51,7 +51,11 @@ function fakeCache(): TurnTextCache & {
   };
 }
 
-function userMsg(turnId: string, text: string, attachments: { name: string }[] = []): LinearMessage {
+function userMsg(
+  turnId: string,
+  text: string,
+  attachments: { name: string }[] = [],
+): LinearMessage {
   return {
     turnId,
     messageId: turnId.replace(/^u-/, ''),
@@ -164,6 +168,71 @@ describe('CachePrimer', () => {
     expect(cache.pruneSpy).not.toHaveBeenCalled();
   });
 
+  // --- Fiber fallback options: { prune:false, fillMissingOnly:true } ---
+
+  it('with prune:false, never prunes even when orphan turns exist', () => {
+    const cache = fakeCache();
+    cache.entries.set('u-keep', {
+      id: 'u-keep',
+      summary: 'pre-existing API snapshot',
+      attachments: [],
+      hasGeneratedImage: false,
+      lastSeenAt: 0,
+      fingerprint: computeFingerprint('pre-existing API snapshot', []),
+    });
+    const primed = primeCacheFromLinear(cache, [userMsg('u-new', 'fiber text')], {
+      prune: false,
+    });
+    expect(primed).toBe(1);
+    expect(cache.entries.has('u-new')).toBe(true);
+    // The orphan must survive — fiber data must never delete good snapshots.
+    expect(cache.entries.has('u-keep')).toBe(true);
+    expect(cache.pruneSpy).not.toHaveBeenCalled();
+  });
+
+  it('with fillMissingOnly:true, does not overwrite an existing snapshot', () => {
+    const cache = fakeCache();
+    cache.entries.set('u-1', {
+      id: 'u-1',
+      summary: 'authoritative API text',
+      attachments: [],
+      hasGeneratedImage: false,
+      lastSeenAt: 123,
+      fingerprint: computeFingerprint('authoritative API text', []),
+    });
+    const primed = primeCacheFromLinear(
+      cache,
+      [userMsg('u-1', 'inferior fiber text'), userMsg('u-2', 'fiber gap fill')],
+      { prune: false, fillMissingOnly: true },
+    );
+    // Only the missing turn is written; the cached one is left untouched.
+    expect(primed).toBe(1);
+    expect(cache.entries.get('u-1')?.summary).toBe('authoritative API text');
+    expect(cache.entries.get('u-2')?.summary).toBe('fiber gap fill');
+  });
+
+  it('fiber combo fills gaps without touching existing entries or pruning', () => {
+    const cache = fakeCache();
+    cache.entries.set('u-a', {
+      id: 'u-a',
+      summary: 'A from API',
+      attachments: [],
+      hasGeneratedImage: false,
+      lastSeenAt: 0,
+      fingerprint: computeFingerprint('A from API', []),
+    });
+    const primed = primeCacheFromLinear(
+      cache,
+      [userMsg('u-a', 'A from fiber'), userMsg('u-b', 'B from fiber')],
+      { prune: false, fillMissingOnly: true },
+    );
+    expect(primed).toBe(1);
+    expect(cache.entries.get('u-a')?.summary).toBe('A from API');
+    expect(cache.entries.get('u-b')?.summary).toBe('B from fiber');
+    expect(cache.pruneSpy).not.toHaveBeenCalled();
+    expect(cache.entries.size).toBe(2);
+  });
+
   describe('installCachePrimerForManager', () => {
     function makeApi(convId: string, msgs: string[]): ApiConversation {
       const mapping: ApiConversation['mapping'] = {};
@@ -193,7 +262,7 @@ describe('CachePrimer', () => {
       };
     }
 
-    it('ONLY primes when the captured convId matches the cache\'s bound conversation', () => {
+    it("ONLY primes when the captured convId matches the cache's bound conversation", () => {
       const cache = fakeCache();
       // Cache pretends to be bound to "conv-x"
       (cache as unknown as { getConversationId: () => string }).getConversationId = () => 'conv-x';

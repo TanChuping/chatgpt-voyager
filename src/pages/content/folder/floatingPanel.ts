@@ -862,7 +862,6 @@ export function mountFloatingPanel({
   const headerActions = document.createElement('div');
   headerActions.className = `${FLOATING_PANEL_CLASS}__header-actions`;
 
-
   const createBtn = createIconButton('create', 'floatingPanelCreateFolder', '+', (e) => {
     e.stopPropagation();
     setInlineEditor({ mode: 'create', parentId: null });

@@ -68,8 +68,11 @@ export function extractAttachments(element: HTMLElement | null): AttachmentInfo[
     '[role="group"][aria-label], [class*="file-tile"][aria-label], [data-testid*="file-attachment"]',
   );
   for (const tile of Array.from(tiles)) {
-    const raw =
-      (tile.getAttribute('aria-label') || tile.getAttribute('aria-roledescription') || '').trim();
+    const raw = (
+      tile.getAttribute('aria-label') ||
+      tile.getAttribute('aria-roledescription') ||
+      ''
+    ).trim();
     if (!raw) continue;
     // ChatGPT also uses role=group for sibling-grouping. Heuristic: an
     // attachment tile's aria-label always carries a recognisable file

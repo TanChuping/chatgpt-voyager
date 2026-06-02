@@ -134,10 +134,7 @@ describe('chatFontSize', () => {
 
     expect(getInjectedCodeStyle()).toBeNull();
 
-    storageChangeListeners[0](
-      { [CODE_ENABLED_KEY]: { oldValue: false, newValue: true } },
-      'sync',
-    );
+    storageChangeListeners[0]({ [CODE_ENABLED_KEY]: { oldValue: false, newValue: true } }, 'sync');
     storageChangeListeners[0]({ [CODE_VALUE_KEY]: { oldValue: 110, newValue: 130 } }, 'sync');
 
     expect(getInjectedCodeStyle()?.textContent ?? '').toContain('font-size: 130% !important');

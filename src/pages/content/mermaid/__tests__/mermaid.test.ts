@@ -1,18 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import mermaid from 'mermaid';
+
 import {
   _resetMermaidLoader,
   isGenericLanguageLabel,
   isMermaidCode,
+  isParseableMermaid,
   loadMermaid,
   normalizeWhitespace,
 } from '../index';
 
-// Mock the dynamic import of 'mermaid'
+// Mock the dynamic import of 'mermaid'. `parse` is included so the parse-gate
+// (isParseableMermaid) can be exercised; the real mermaid exposes it too.
 vi.mock('mermaid', () => ({
   default: {
     initialize: vi.fn(),
     render: vi.fn(),
+    parse: vi.fn(),
   },
 }));
 
@@ -287,6 +292,33 @@ describe('Mermaid dynamic loading', () => {
         C --> D[Done]`;
       expect(isMermaidCode(code)).toBe(true);
     });
+
+    // Word-boundary guard: a keyword glued to more letters/digits is a
+    // different word, not a diagram declaration.
+    it('should reject "graphql" (keyword glued to more letters)', () => {
+      const code = `graphql query language reference
+        type Query { user(id: ID!): User }`;
+      expect(isMermaidCode(code)).toBe(false);
+    });
+
+    it('should reject "blockchain" prose', () => {
+      const code = `blockchain is a distributed ledger
+        that records transactions across many computers`;
+      expect(isMermaidCode(code)).toBe(false);
+    });
+
+    it('should reject "requirements" (plural, not the requirement keyword)', () => {
+      const code = `requirements for the project
+        must be gathered before implementation begins`;
+      expect(isMermaidCode(code)).toBe(false);
+    });
+
+    it('should still detect block-beta after the boundary tightening', () => {
+      const code = `block-beta
+        columns 3
+        a["A"] b["B"] c["C"]`;
+      expect(isMermaidCode(code)).toBe(true);
+    });
   });
 
   describe('normalizeWhitespace', () => {
@@ -374,7 +406,7 @@ describe('Mermaid dynamic loading', () => {
     });
 
     it('should return true for "mermaid" as it is in the generic set... wait no', () => {
-      // "mermaid" is NOT in the generic set 鈥?it's handled separately in processCodeBlocks
+      // "mermaid" is NOT in the generic set — it's handled separately in processCodeBlocks
       expect(isGenericLanguageLabel('mermaid')).toBe(false);
     });
 
@@ -382,6 +414,54 @@ describe('Mermaid dynamic loading', () => {
       expect(isGenericLanguageLabel('Code')).toBe(true);
       expect(isGenericLanguageLabel('TEXT')).toBe(true);
       expect(isGenericLanguageLabel('Plaintext')).toBe(true);
+    });
+  });
+
+  describe('isParseableMermaid (parse gate)', () => {
+    beforeEach(() => {
+      _resetMermaidLoader();
+      vi.clearAllMocks();
+    });
+
+    it('returns true and uses suppressErrors when mermaid.parse accepts the code', async () => {
+      vi.mocked(mermaid.parse).mockResolvedValue(true as never);
+      await expect(isParseableMermaid('graph TD\n  A --> B')).resolves.toBe(true);
+      expect(mermaid.parse).toHaveBeenCalledWith('graph TD\n  A --> B', { suppressErrors: true });
+    });
+
+    it('returns false when mermaid.parse throws (genuinely invalid syntax)', async () => {
+      vi.mocked(mermaid.parse).mockRejectedValue(new Error('Parse error'));
+      await expect(isParseableMermaid('graph theory is a topic')).resolves.toBe(false);
+    });
+
+    it('returns false when mermaid.parse resolves false (suppressErrors soft-fail)', async () => {
+      vi.mocked(mermaid.parse).mockResolvedValue(false as never);
+      await expect(isParseableMermaid('not a diagram')).resolves.toBe(false);
+    });
+
+    it('returns false when mermaid.parse resolves null', async () => {
+      vi.mocked(mermaid.parse).mockResolvedValue(null as never);
+      await expect(isParseableMermaid('not a diagram')).resolves.toBe(false);
+    });
+
+    it('falls back to true when the loaded mermaid has no parse() (legacy v9 build)', async () => {
+      const realParse = (mermaid as { parse?: unknown }).parse;
+      (mermaid as { parse?: unknown }).parse = undefined;
+      try {
+        await expect(isParseableMermaid('graph TD\n  A --> B')).resolves.toBe(true);
+      } finally {
+        (mermaid as { parse?: unknown }).parse = realParse;
+      }
+    });
+
+    // The two gates compose: the cheap keyword pre-filter lets "<keyword> <prose>"
+    // slip through, but the parse gate authoritatively rejects it so prose that
+    // merely starts with "graph"/"block"/etc. is never wrapped or rendered.
+    it('rejects keyword-prefixed prose that slips past the isMermaidCode pre-filter', async () => {
+      const prose = 'graph theory is a branch of mathematics\nthat studies pairwise relations';
+      expect(isMermaidCode(prose)).toBe(true); // cheap filter: a false positive
+      vi.mocked(mermaid.parse).mockRejectedValue(new Error('Parse error'));
+      await expect(isParseableMermaid(prose)).resolves.toBe(false); // authoritative reject
     });
   });
 });

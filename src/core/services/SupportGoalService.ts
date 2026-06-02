@@ -59,7 +59,10 @@ function normalizeSupportGoal(raw: unknown): SupportGoalData {
   const item = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const target = Math.max(1, toFiniteNumber(item.target, DEFAULT_SUPPORT_GOAL.target));
   const current = Math.max(0, toFiniteNumber(item.current, DEFAULT_SUPPORT_GOAL.current));
-  const titleZh = toSafeString(item.titleZh, toSafeString(item.title, DEFAULT_SUPPORT_GOAL.titleZh));
+  const titleZh = toSafeString(
+    item.titleZh,
+    toSafeString(item.title, DEFAULT_SUPPORT_GOAL.titleZh),
+  );
   const titleEn = toSafeString(item.titleEn, DEFAULT_SUPPORT_GOAL.titleEn);
   const descriptionZh = toSafeString(
     item.descriptionZh,

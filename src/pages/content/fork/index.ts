@@ -335,9 +335,7 @@ function extractConversationIdFromHref(href: string): string | null {
 }
 
 function findSidebarConversationLinkById(conversationId: string): HTMLAnchorElement | null {
-  const links = Array.from(
-    document.querySelectorAll<HTMLAnchorElement>('a[href*="/c/"]'),
-  );
+  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/c/"]'));
   for (const link of links) {
     if (extractConversationIdFromHref(link.href) === conversationId) return link;
   }

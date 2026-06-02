@@ -3,6 +3,7 @@ node_modules/
 /dist_firefox/
 /dist_safari/
 store_packages/
+firefox_release/
 voyager-edge-v*.zip
 .entire/
 .npm-cache/

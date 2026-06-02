@@ -92,8 +92,8 @@ describe('TimelineManager summary extraction', () => {
     turn.innerHTML = `
       <span class="horizontal-container">
         <div role="heading" aria-level="2" class="query-text gds-body-l" dir="ltr">
-          <span class="cdk-visually-hidden">浣犺浜?/span>
-          <p class="query-text-line"> 鍡棷锛?</p>
+          <span class="cdk-visually-hidden">你说</span>
+          <p class="query-text-line">嗯嗯，好的</p>
         </div>
       </span>
     `;
@@ -104,7 +104,7 @@ describe('TimelineManager summary extraction', () => {
     internal.recalculateAndRenderMarkers();
 
     expect(internal.markers).toHaveLength(1);
-    expect(internal.markers[0]?.summary).toBe('鍡棷锛?);
+    expect(internal.markers[0]?.summary).toBe('嗯嗯，好的');
     manager.destroy();
   });
 
@@ -133,12 +133,12 @@ describe('TimelineManager summary extraction', () => {
 
     const first = document.createElement('div');
     first.className = 'user-query-bubble-with-background';
-    first.innerHTML = '<p>濂界殑锛岀户缁墽琛屼笅涓€姝?/p>';
+    first.innerHTML = '<p>好的，继续执行下一步</p>';
     setElementTop(first, 0);
 
     const second = document.createElement('div');
     second.className = 'user-query-bubble-with-background';
-    second.innerHTML = '<p>濂界殑锛岀户缁墽琛屼笅涓€姝?/p>';
+    second.innerHTML = '<p>好的，继续执行下一步</p>';
     setElementTop(second, 200);
 
     container.appendChild(first);
@@ -149,8 +149,8 @@ describe('TimelineManager summary extraction', () => {
 
     expect(internal.markers).toHaveLength(2);
     expect(internal.markers[0]?.id).not.toBe(internal.markers[1]?.id);
-    expect(internal.markers[0]?.summary).toBe('濂界殑锛岀户缁墽琛屼笅涓€姝?);
-    expect(internal.markers[1]?.summary).toBe('濂界殑锛岀户缁墽琛屼笅涓€姝?);
+    expect(internal.markers[0]?.summary).toBe('好的，继续执行下一步');
+    expect(internal.markers[1]?.summary).toBe('好的，继续执行下一步');
     manager.destroy();
   });
 
@@ -158,7 +158,7 @@ describe('TimelineManager summary extraction', () => {
     const container = document.createElement('div');
     const first = document.createElement('div');
     first.className = 'user-query-bubble-with-background';
-    first.innerHTML = '<span class="cdk-visually-hidden">浣犺浜?/span><p>same content</p>';
+    first.innerHTML = '<span class="cdk-visually-hidden">你说</span><p>same content</p>';
     setElementTop(first, 0);
 
     const second = document.createElement('div');

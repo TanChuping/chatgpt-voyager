@@ -72,7 +72,7 @@ export interface CachePrimerHandle {
  * tolerant of both shapes so a future refactor of either side doesn't
  * silently re-introduce the namespace-mismatch bug.
  */
-function normaliseConvIdForCompare(id: string | null | undefined): string | null {
+export function normaliseConvIdForCompare(id: string | null | undefined): string | null {
   if (!id) return null;
   // Strip a leading `gpt:conv:` prefix if present.
   const m = /(?:^|:)([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i.exec(id);
@@ -112,11 +112,38 @@ export function installCachePrimerForManager(
 }
 
 /**
- * Walk a linear conversation and write a snapshot into the cache for every
- * user turn. Exposed for tests + for the "prime on read" path.
+ * Options for {@link primeCacheFromLinear}.
  *
- * After writing, prunes any cached turn-id that wasn't in this linear
- * conversation. This mirrors TimelineManager's edit-detection prune:
+ * The defaults reproduce the original (API-capture) behaviour exactly, so
+ * existing two-argument callers are unaffected. The non-default combination
+ * (`prune:false` + `fillMissingOnly:true`) is what the React-fiber fallback
+ * uses: fiber is a *gap-fill* source for conversations opened from ChatGPT's
+ * client cache (no `/backend-api/conversation` fetch fires), so it must be
+ * purely additive — it may never delete a cached snapshot and must never
+ * overwrite the authoritative API-derived one.
+ */
+export interface PrimeCacheOptions {
+  /**
+   * After writing, remove any cached turn-id absent from `messages`
+   * (edit/branch invalidation). Default `true`. The fiber fallback passes
+   * `false` — an incomplete or stale fiber read must not wipe good snapshots.
+   */
+  prune?: boolean;
+  /**
+   * Only write a turn that isn't already in the cache; never overwrite an
+   * existing snapshot. Default `false`. The fiber fallback passes `true` so
+   * the more-accurate API capture always wins when both are present.
+   */
+  fillMissingOnly?: boolean;
+}
+
+/**
+ * Walk a linear conversation and write a snapshot into the cache for every
+ * user turn. Exposed for tests + for the "prime on read" path + the fiber
+ * fallback.
+ *
+ * By default, after writing, prunes any cached turn-id that wasn't in this
+ * linear conversation. This mirrors TimelineManager's edit-detection prune:
  * if the user edits a message, ChatGPT forks the conversation and assigns
  * fresh turn-ids to every subsequent turn — the old ids never appear in
  * the API response again. Pruning here means the timeline preview panel
@@ -125,16 +152,22 @@ export function installCachePrimerForManager(
  *
  * The cache's own `prune` has a transient-empty-DOM guard, but it allows
  * normal pruning for a sane-sized linear set, which is what we have here.
+ *
+ * Returns the number of turns actually written.
  */
 export function primeCacheFromLinear(
   turnTextCache: TurnTextCache,
   messages: ReadonlyArray<LinearMessage>,
+  options: PrimeCacheOptions = {},
 ): number {
+  const { prune = true, fillMissingOnly = false } = options;
   let primed = 0;
   const now = Date.now();
   const userTurnIds = new Set<string>();
   for (const m of messages) {
     if (m.role !== 'user') continue;
+    // Fiber gap-fill never overwrites an existing (API-derived) snapshot.
+    if (fillMissingOnly && turnTextCache.get(m.turnId)) continue;
     const summary = normalizeTextForCache(m.text);
     const attachments = toAttachmentInfos(m.attachments);
     if (!summary && attachments.length === 0) continue;
@@ -152,7 +185,7 @@ export function primeCacheFromLinear(
   }
   // Edit/branch invalidation. Only prune if we actually saw user turns
   // (a malformed API response with 0 user turns shouldn't wipe the cache).
-  if (userTurnIds.size > 0) {
+  if (prune && userTurnIds.size > 0) {
     turnTextCache.prune(userTurnIds);
   }
   return primed;

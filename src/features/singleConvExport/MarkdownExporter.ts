@@ -31,7 +31,9 @@ function roleHeading(message: LinearMessage): string {
 
 function renderAttachments(message: LinearMessage): string {
   if (!message.attachments.length) return '';
-  const lines = message.attachments.map((a) => `- ${a.name}${a.mimeType ? ` (${a.mimeType})` : ''}`);
+  const lines = message.attachments.map(
+    (a) => `- ${a.name}${a.mimeType ? ` (${a.mimeType})` : ''}`,
+  );
   return ['**Attachments**', ...lines].join('\n');
 }
 
@@ -76,5 +78,10 @@ export function toMarkdown(linear: LinearConversation): string {
     out.push('');
   }
 
-  return out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
+  return (
+    out
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trimEnd() + '\n'
+  );
 }

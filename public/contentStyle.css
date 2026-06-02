@@ -1,3 +1,18 @@
+/* Kill the spurious page-level HORIZONTAL scrollbar.
+ *
+ * ChatGPT's root layout container uses `w-screen` (width: 100vw). 100vw counts
+ * the vertical scrollbar's width, so the moment the page's vertical scrollbar
+ * appears (e.g. a transient content-height bump), that 100vw becomes ~11px
+ * wider than the usable width and a horizontal scrollbar flashes in — taking a
+ * visible layout flicker with it. ChatGPT never needs page-level horizontal
+ * scrolling, so clip it. `clip` (not `hidden`) does NOT create a scroll
+ * container, so it leaves overflow-y / scrolling / position:sticky untouched.
+ * Verified live: removes the horizontal scrollbar; timeline + vertical scroll
+ * unaffected. */
+html {
+  overflow-x: clip !important;
+}
+
 .gv-pm-panel,
 .gv-pm-trigger,
 .gv-pm-header,

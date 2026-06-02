@@ -191,7 +191,9 @@ describe('TimelineManager message timestamps', () => {
   });
 
   it('adopts draft-route timestamps for the first turn after conversation creation', async () => {
-    history.replaceState({}, '', '/app/abc123');
+    // Simulate ChatGPT minting a real conversation route (`/c/<id>`) right after
+    // the first message was sent from the draft (new-chat) page.
+    history.replaceState({}, '', '/c/abc123');
 
     const main = document.createElement('main');
     document.body.appendChild(main);
@@ -229,7 +231,7 @@ describe('TimelineManager message timestamps', () => {
     timelineBar.appendChild(trackContent);
     document.body.appendChild(timelineBar);
 
-    const draftConversationId = buildConversationIdFromUrl('https://gemini.google.com/app');
+    const draftConversationId = buildConversationIdFromUrl('https://chatgpt.com/');
     const liveTimestamps = new Map<string, Map<string, number>>([
       [draftConversationId, new Map([['u-1', Date.now()]])],
     ]);
@@ -252,7 +254,7 @@ describe('TimelineManager message timestamps', () => {
       }),
     } as unknown as TimestampService;
 
-    const manager = new TimelineManager({ previousUrl: 'https://gemini.google.com/app' });
+    const manager = new TimelineManager({ previousUrl: 'https://chatgpt.com/' });
     const internal = manager as unknown as {
       conversationContainer: HTMLElement | null;
       scrollContainer: HTMLElement | null;

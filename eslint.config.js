@@ -74,4 +74,3 @@ export default [
   // This MUST be the last config to override other rules
   prettierConfig,
 ];
-

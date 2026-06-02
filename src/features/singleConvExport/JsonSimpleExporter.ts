@@ -60,7 +60,9 @@ function isoOrNull(epochSeconds: number | null | undefined): string | null {
 
 function shapeAttachments(attachments: LinearAttachment[]): SimpleAttachment[] | undefined {
   if (!attachments.length) return undefined;
-  return attachments.map((a) => (a.mimeType ? { name: a.name, mimeType: a.mimeType } : { name: a.name }));
+  return attachments.map((a) =>
+    a.mimeType ? { name: a.name, mimeType: a.mimeType } : { name: a.name },
+  );
 }
 
 export function toJsonSimple(linear: LinearConversation): string {
@@ -70,7 +72,10 @@ export function toJsonSimple(linear: LinearConversation): string {
     title: filtered.title || 'Untitled conversation',
     createTime: isoOrNull(filtered.createTime),
     messages: filtered.messages
-      .filter((m): m is typeof m & { role: 'user' | 'assistant' } => m.role === 'user' || m.role === 'assistant')
+      .filter(
+        (m): m is typeof m & { role: 'user' | 'assistant' } =>
+          m.role === 'user' || m.role === 'assistant',
+      )
       .map((m) => {
         const msg: SimpleMessage = {
           role: m.role,

@@ -30,4 +30,3 @@
 
   console.log('[GPT-Voyager] KaTeX configuration applied - Unicode warnings suppressed');
 })();
-
