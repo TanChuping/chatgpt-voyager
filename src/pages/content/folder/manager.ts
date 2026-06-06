@@ -1979,6 +1979,10 @@ export class FolderManager {
     // Long-press detection for entering multi-select mode
     let longPressTriggered = false;
     let longPressTimeoutId: number | null = null;
+    // The row actually picked up in the most recent dragstart (resolved from the
+    // event target), so dragend can un-dim the right element when this listener
+    // is attached to a container rather than a single row.
+    let lastDragSourceEl: HTMLElement | null = null;
 
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return; // Only left mouse button
@@ -2059,11 +2063,20 @@ export class FolderManager {
     ); // Use capture phase to intercept before navigation
 
     element.addEventListener('dragstart', (e) => {
-      const title = this.extractConversationTitleForDrag(element);
-      const conversationId = this.extractConversationId(element);
+      // Resolve the conversation from the ACTUAL drag target, not the closed-over
+      // `element`. This listener can also be attached to a *container* (the
+      // sidebar MutationObserver makes wrapper nodes draggable, and the event
+      // bubbles up to them), whose first link is always the topmost conversation
+      // — so using `element` here dragged the topmost row no matter which one the
+      // user grabbed. `e.target` is the row the user actually picked up.
+      const dragEl = this.resolveDragSourceElement(e) ?? element;
+      lastDragSourceEl = dragEl;
+
+      const title = this.extractConversationTitleForDrag(dragEl);
+      const conversationId = this.extractConversationId(dragEl);
 
       // Extract URL and conversation metadata together
-      const conversationData = this.extractConversationData(element);
+      const conversationData = this.extractConversationData(dragEl);
 
       // Restrict to move-only to prevent Chrome from triggering split-screen/tab tiling
       if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
@@ -2075,12 +2088,12 @@ export class FolderManager {
       //     Clearing here would silently throw away every other selection.
       //   - Not in multi-select mode → exclusive single-select (Gemini parity).
       if (!this.selectedConversations.has(conversationId)) {
-        const snapshot = this.captureNativeConversationSnapshot(element);
+        const snapshot = this.captureNativeConversationSnapshot(dragEl);
         if (!this.isMultiSelectMode) {
           this.clearSelection();
         }
         this.selectConversation(conversationId, snapshot ?? undefined);
-        element.classList.add('gv-conversation-selected');
+        dragEl.classList.add('gv-conversation-selected');
         this.updateConversationSelectionUI();
       }
 
@@ -2153,7 +2166,7 @@ export class FolderManager {
         };
 
         e.dataTransfer?.setData('application/json', JSON.stringify(dragData));
-        element.style.opacity = '0.5';
+        dragEl.style.opacity = '0.5';
       }
     });
 
@@ -2165,8 +2178,11 @@ export class FolderManager {
           if (el) el.style.opacity = '1';
         });
       } else {
-        element.style.opacity = '1';
+        // Restore the row we actually dimmed (may differ from `element` when the
+        // listener fired on a container — see dragstart's resolveDragSourceElement).
+        (lastDragSourceEl ?? element).style.opacity = '1';
       }
+      lastDragSourceEl = null;
 
       // If we are not in multi-select mode, clear the temporary selection
       if (!this.isMultiSelectMode) {
@@ -2174,6 +2190,28 @@ export class FolderManager {
         this.cleanupSelectionArtifacts();
       }
     });
+  }
+
+  /**
+   * Resolve the conversation row the user actually grabbed for a drag, from the
+   * event target — NOT from the listener's closed-over element. A dragstart
+   * listener may sit on a container (the sidebar observer makes wrapper nodes
+   * draggable and the event bubbles up), and a container's first `/c/` link is
+   * always the topmost conversation, so the closed-over element would drag the
+   * wrong row. Returns the nearest single-conversation row to `e.target`, or
+   * null (caller falls back to its own element) when the target isn't a
+   * recognisable single-conversation row.
+   */
+  private resolveDragSourceElement(e: DragEvent): HTMLElement | null {
+    const target = e.target as HTMLElement | null;
+    if (!target?.closest) return null;
+    const row = target.closest<HTMLElement>(
+      'li, [data-testid*="history" i], [data-testid="conversation"], [data-test-id="conversation"], [role="listitem"], [role="treeitem"]',
+    );
+    // Trust the row only when it holds exactly one conversation link — i.e. it's
+    // a real row, not a multi-conversation container.
+    if (row && row.querySelectorAll('a[href*="/c/"]').length === 1) return row;
+    return null;
   }
 
   // Helper method to find conversation element by ID
@@ -2403,7 +2441,17 @@ export class FolderManager {
         mutation.addedNodes.forEach((node) => {
           if (node instanceof HTMLElement) {
             const conversations = getChatGptConversationElements(node);
-            if (getChatGptConversationId(node)) conversations.unshift(node);
+            // Only treat the added node itself as a draggable conversation when
+            // it is a SINGLE-conversation row. Adding a multi-conversation
+            // container here made the whole list draggable, and the container's
+            // first link (the topmost conversation) became the drag payload no
+            // matter which row the user grabbed.
+            if (
+              getChatGptConversationId(node) &&
+              node.querySelectorAll('a[href*="/c/"]').length === 1
+            ) {
+              conversations.unshift(node);
+            }
             conversations.forEach((convElement) => {
               this.makeConversationDraggable(convElement);
               this.applyHideArchivedToConversation(convElement);
