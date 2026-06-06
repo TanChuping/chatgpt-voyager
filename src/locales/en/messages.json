@@ -99,7 +99,7 @@
     "message": "This conversation isn't fully loaded yet. Scroll up to load the earlier messages, then try again."
   },
   "extDescription": {
-    "message": "GPT-Voyager: timeline, folders, prompt vault, and chat export for ChatGPT."
+    "message": "timeline, folders, latex copy, export chat, temp-chat remember, prompt, font, mermaid for ChatGPT"
   },
   "scrollMode": {
     "message": "Timeline scroll mode"
