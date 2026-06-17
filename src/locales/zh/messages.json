@@ -1505,6 +1505,15 @@
   "markdownOptions": {
     "message": "Markdown / 公式"
   },
+  "appearanceOptions": {
+    "message": "外观"
+  },
+  "gentleDarkMode": {
+    "message": "更温和的深色模式"
+  },
+  "gentleDarkModeHint": {
+    "message": "深色模式下，把纯黑背景换成柔和的深灰，看着不那么刺眼。"
+  },
   "favoritesSidebarTitle": {
     "message": "收藏夹"
   },

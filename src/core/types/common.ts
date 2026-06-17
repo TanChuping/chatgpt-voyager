@@ -86,6 +86,12 @@ export const StorageKeys = {
   EDIT_INPUT_WIDTH_ENABLED: 'gvEditInputWidthEnabled',
   SIDEBAR_WIDTH: 'gptSidebarWidth',
   SIDEBAR_WIDTH_ENABLED: 'gvSidebarWidthEnabled',
+  /**
+   * Gentle dark mode: when true (and ChatGPT is in dark mode), replaces the
+   * pure-black dark surfaces with softer dark grays. Default false.
+   * See src/pages/content/gentleDarkMode/index.ts.
+   */
+  GENTLE_DARK_ENABLED: 'gvGentleDarkMode',
 
   // Prompt Manager
   PROMPT_ITEMS: 'gvPromptItems',

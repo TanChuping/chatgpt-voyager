@@ -21,6 +21,7 @@ import { startFolderProject } from './folderProject/index';
 import { startFolderSpacingAdjuster } from './folderSpacing/index';
 import { isForkFeatureEnabledValue } from './fork/featureFlag';
 import { startFork } from './fork/index';
+import { startGentleDarkMode } from './gentleDarkMode/index';
 import { startInputCollapse } from './inputCollapse/index';
 import { initKaTeXConfig } from './katexConfig';
 import { startMarkdownPatcher } from './markdownPatcher/index';
@@ -131,6 +132,7 @@ async function startChatGPTFeatures(): Promise<void> {
   await runFeatureStep('Chat Font Family Adjuster', () => startChatFontFamilyAdjuster());
   await runFeatureStep('Edit Input Width Adjuster', () => startEditInputWidthAdjuster());
   await runFeatureStep('Sidebar Width Adjuster', () => startSidebarWidthAdjuster());
+  await runFeatureStep('Gentle Dark Mode', () => startGentleDarkMode());
   await runFeatureStep('Sidebar Auto Hide', () => startSidebarAutoHide());
   await runFeatureStep('Input Collapse', () => startInputCollapse());
 

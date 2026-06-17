@@ -334,6 +334,7 @@ export default function Popup() {
     DEFAULT_SINGLE_CONV_EXPORT_FORMAT,
   );
   const [mermaidEnabled, setMermaidEnabled] = useState(true);
+  const [gentleDarkEnabled, setGentleDarkEnabled] = useState(false);
   const [promptHidden, setPromptHidden] = useState(false);
   const [promptInsertOnClick, setPromptInsertOnClick] = useState(false);
   const [promptViewMode, setPromptViewMode] = useState<PromptViewMode>('comfortable');
@@ -483,6 +484,7 @@ export default function Popup() {
         [StorageKeys.QUOTE_REPLY_ENABLED]: true,
         gvFormulaCopyFormat: 'latex',
         [StorageKeys.MERMAID_ENABLED]: true,
+        [StorageKeys.GENTLE_DARK_ENABLED]: false,
         [StorageKeys.HIDE_PROMPT_MANAGER]: false,
         [StorageKeys.PROMPT_INSERT_ON_CLICK]: false,
         [StorageKeys.PROMPT_VIEW_MODE]: 'comfortable',
@@ -590,6 +592,7 @@ export default function Popup() {
             : 'latex',
         );
         setMermaidEnabled(result[StorageKeys.MERMAID_ENABLED] !== false);
+        setGentleDarkEnabled(result[StorageKeys.GENTLE_DARK_ENABLED] === true);
         setPromptHidden(result[StorageKeys.HIDE_PROMPT_MANAGER] === true);
         setPromptInsertOnClick(result[StorageKeys.PROMPT_INSERT_ON_CLICK] === true);
         setPromptViewMode(
@@ -1146,6 +1149,18 @@ export default function Popup() {
               </label>
             ))}
           </div>
+        </Section>
+
+        <Section title={t('appearanceOptions')}>
+          <ToggleRow
+            id="gentle-dark"
+            title={t('gentleDarkMode')}
+            description={t('gentleDarkModeHint')}
+            checked={gentleDarkEnabled}
+            onChange={(value) =>
+              updateToggle(setGentleDarkEnabled, StorageKeys.GENTLE_DARK_ENABLED, value)
+            }
+          />
         </Section>
 
         <Section title={t('singleConvExportOptions')}>

@@ -1505,6 +1505,15 @@
   "markdownOptions": {
     "message": "Markdown"
   },
+  "appearanceOptions": {
+    "message": "Appearance"
+  },
+  "gentleDarkMode": {
+    "message": "Gentler dark mode"
+  },
+  "gentleDarkModeHint": {
+    "message": "In dark mode, replaces ChatGPT's pure-black background with soft dark grays for a gentler, less harsh look."
+  },
   "favoritesSidebarTitle": {
     "message": "Favorites"
   },
