@@ -74,10 +74,18 @@ export function containsMath(root: ParentNode): boolean {
 }
 
 /**
- * Replace every rendered-math node in `root` with a text node holding the
- * recovered LaTeX (wrapped via `wrap`). Outer containers are processed first
- * so a display formula collapses to a single `$$…$$` node rather than leaving
- * the inner `.katex` behind. Returns the number of formulas replaced.
+ * Replace every rendered-math node in `root` with the recovered LaTeX
+ * (wrapped via `wrap`). Outer containers are processed first so a display
+ * formula collapses to a single `$$…$$` node rather than leaving the inner
+ * `.katex` behind. Returns the number of formulas replaced.
+ *
+ * Inline formulas become a plain text node (they sit mid-sentence). Display
+ * formulas are wrapped in a block element instead — a rendered `.katex-display`
+ * is block-level, so a plain text node would let `innerText` run consecutive
+ * display formulas together on one line (e.g. 20 stacked equations collapsing
+ * into `$$a$$ $$b$$ $$c$$ …`). The block element preserves the line break each
+ * display formula had, so each lands on its own line. `textContent`-based
+ * readers are unaffected (the block adds no characters).
  *
  * Mutates `root` in place — pass a cloned fragment, never live page DOM.
  */
@@ -97,7 +105,15 @@ export function replaceMathWithLatex(
       const latex = extractLatexFromNode(node);
       if (!latex) continue;
       const display = isDisplayMath(node);
-      node.replaceWith(node.ownerDocument!.createTextNode(wrap(latex, display)));
+      const doc = node.ownerDocument!;
+      const wrapped = wrap(latex, display);
+      if (display) {
+        const block = doc.createElement('div');
+        block.textContent = wrapped;
+        node.replaceWith(block);
+      } else {
+        node.replaceWith(doc.createTextNode(wrapped));
+      }
       replaced++;
     }
   }

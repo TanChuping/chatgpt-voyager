@@ -97,6 +97,24 @@ describe('replaceMathWithLatex', () => {
     );
   });
 
+  it('wraps each display formula in its own block element (so they do not collapse to one line)', () => {
+    // Regression: a long answer with many stacked display equations must not
+    // serialise to "$$a$$ $$b$$ $$c$$ …" on one line — each needs its own line.
+    const f = frag(`${DISPLAY_KATEX}${DISPLAY_KATEX}${DISPLAY_KATEX}`);
+    replaceMathWithLatex(f);
+    const host = document.createElement('div');
+    host.appendChild(f);
+    const blocks = host.querySelectorAll('div');
+    expect(blocks.length).toBe(3); // one block per display formula
+    expect(blocks[0].textContent).toBe('$$x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}$$');
+    // inline math, by contrast, stays a bare text node (no wrapper block)
+    const inlineFrag = frag(`a ${INLINE_KATEX} b`);
+    replaceMathWithLatex(inlineFrag);
+    const inlineHost = document.createElement('div');
+    inlineHost.appendChild(inlineFrag);
+    expect(inlineHost.querySelector('div')).toBeNull();
+  });
+
   it('honors a custom wrapper (e.g. notion $$ for all)', () => {
     const f = frag(INLINE_KATEX);
     replaceMathWithLatex(f, (latex) => `$$${latex}$$`);

@@ -1,6 +1,6 @@
 {
   "name": "chatgpt-voyager",
-  "version": "1.6.13",
+  "version": "1.6.14",
   "description": "A GPL-3.0 browser extension workbench for adapting Voyager-style chat tools to ChatGPT.",
   "license": "GPL-3.0",
   "author": "GPT Voyager contributors",
