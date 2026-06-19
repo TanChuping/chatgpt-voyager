@@ -2,6 +2,7 @@ import browser from 'webextension-polyfill';
 
 import { StorageKeys } from '@/core/types/common';
 import { getBrowserName } from '@/core/utils/browser';
+import { containsMath, replaceMathWithLatex } from '@/core/utils/latexFromDom';
 
 import { getTranslationSync } from '../../../utils/i18n';
 import { findChatInput } from '../chatInput/index';
@@ -203,42 +204,20 @@ function focusChatInput(input: HTMLElement | HTMLTextAreaElement): void {
 }
 
 /**
- * Replace math elements in a cloned DOM tree with LaTeX text nodes.
- * ChatGPT uses `.math-inline` / `.math-block` containers with `[data-math]` children.
- */
-function replaceMathWithLatex(root: DocumentFragment): void {
-  // 1. Replace .math-inline / .math-block containers
-  for (const container of Array.from(root.querySelectorAll('.math-inline, .math-block'))) {
-    const dataMathEl = container.querySelector('[data-math]');
-    const latex = dataMathEl?.getAttribute('data-math');
-    if (latex) {
-      const isBlock = container.classList.contains('math-block');
-      container.replaceWith(document.createTextNode(isBlock ? `$$${latex}$$` : `$${latex}$`));
-    }
-  }
-
-  // 2. Handle any remaining [data-math] elements not inside a container
-  for (const el of Array.from(root.querySelectorAll('[data-math]'))) {
-    const latex = el.getAttribute('data-math');
-    if (latex) {
-      el.replaceWith(document.createTextNode(`$${latex}$`));
-    }
-  }
-}
-
-/**
  * Extract text from a Range, preserving LaTeX math syntax.
  *
  * `Range.toString()` returns visually rendered text, which loses LaTeX
- * delimiters (e.g. `U鈭圼0,1)` instead of `$U \in [0, 1)$`). This function
- * clones the range contents, replaces math elements with their `$...$` /
- * `$$...$$` LaTeX source, then returns the resulting text.
+ * delimiters (e.g. `U鈭圼0,1)` instead of `$U \in [0, 1)$`, or the mangled
+ * `𝑥 = − 𝑏 ± …` glyph soup for ChatGPT's KaTeX). This function clones the
+ * range contents, replaces math nodes (KaTeX annotations and legacy
+ * `[data-math]` containers) with their `$...$` / `$$...$$` source via the
+ * shared recovery helper, then returns the resulting text.
  */
 function extractTextWithLatex(range: Range): string {
   const fragment = range.cloneContents();
 
-  // Short-circuit: no math elements 鈫?use native Range.toString()
-  if (!fragment.querySelector('.math-inline, .math-block, [data-math]')) {
+  // Short-circuit: no math nodes → use native Range.toString()
+  if (!containsMath(fragment)) {
     return range.toString();
   }
 

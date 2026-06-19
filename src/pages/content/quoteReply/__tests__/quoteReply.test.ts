@@ -512,4 +512,64 @@ describe('quote reply', () => {
 
     cleanup();
   });
+
+  it('preserves inline KaTeX (ChatGPT) annotation LaTeX in quoted text', () => {
+    const cleanup = startQuoteReply();
+    const source = document.getElementById('source');
+    if (!source) throw new Error('Expected source element.');
+
+    source.innerHTML =
+      'Euler’s identity is <span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>e</mi></mrow><annotation encoding="application/x-tex">e^{i\\pi}+1=0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true">e iπ +1=0</span></span> done';
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(source);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    document.dispatchEvent(new MouseEvent('mouseup'));
+    vi.runAllTimers();
+
+    const quoteButton = document.querySelector<HTMLElement>('.gv-quote-btn');
+    if (!quoteButton) throw new Error('Expected quote button.');
+    quoteButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    vi.runAllTimers();
+
+    const input = document.getElementById('input');
+    if (!input) throw new Error('Expected input element.');
+
+    expect(input.textContent).toContain('$e^{i\\pi}+1=0$');
+
+    cleanup();
+  });
+
+  it('preserves display KaTeX (ChatGPT) annotation LaTeX in quoted text', () => {
+    const cleanup = startQuoteReply();
+    const source = document.getElementById('source');
+    if (!source) throw new Error('Expected source element.');
+
+    source.innerHTML =
+      'Formula: <span class="katex-display"><span class="katex"><span class="katex-mathml"><math display="block"><semantics><mrow><mi>x</mi></mrow><annotation encoding="application/x-tex">x=\\frac{1}{2}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true">x= 1 2</span></span></span>';
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(source);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    document.dispatchEvent(new MouseEvent('mouseup'));
+    vi.runAllTimers();
+
+    const quoteButton = document.querySelector<HTMLElement>('.gv-quote-btn');
+    if (!quoteButton) throw new Error('Expected quote button.');
+    quoteButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    vi.runAllTimers();
+
+    const input = document.getElementById('input');
+    if (!input) throw new Error('Expected input element.');
+
+    expect(input.textContent).toContain('$$x=\\frac{1}{2}$$');
+
+    cleanup();
+  });
 });

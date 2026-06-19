@@ -15,6 +15,7 @@
  * conversation, so as long as we install our wrapper before that fetch,
  * capture is silent and automatic.
  */
+import { installClipboardLatexFix } from './clipboardLatexFix';
 import { installFiberReader } from './fiberReader';
 
 // Match the bare conversation endpoint only — NOT sub-resources like
@@ -129,3 +130,8 @@ function dispatchCaptured(convId: string, data: unknown, source: 'fetch' | 'xhr'
 // content script for conversations opened from client cache (no network
 // capture). Pull-on-demand, fully guarded — see fiberReader.ts.
 installFiberReader();
+
+// Repair math delimiters in ChatGPT's own "copy message" output (it strips the
+// backslash off \[ \] / \( \), breaking the LaTeX). Fully guarded — see
+// clipboardLatexFix.ts.
+installClipboardLatexFix();

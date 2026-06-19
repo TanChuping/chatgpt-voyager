@@ -9,6 +9,7 @@ import browser from 'webextension-polyfill';
 import { logger } from '@/core';
 import { StorageKeys } from '@/core/types/common';
 import type { ILogger } from '@/core/types/common';
+import { containsMath, replaceMathWithLatex } from '@/core/utils/latexFromDom';
 
 /**
  * Formula copy format options
@@ -132,6 +133,11 @@ export class FormulaCopyService {
     }
 
     document.addEventListener('click', this.handleClick, true);
+    // Selection-copy fix: a plain Ctrl+C / right-click-Copy over rendered math
+    // serialises to mangled glyphs because the browser walks the KaTeX DOM
+    // instead of the source annotation. We rewrite the clipboard with clean
+    // `$…$` LaTeX whenever the selection contains a formula.
+    document.addEventListener('copy', this.handleCopy, true);
     this.isInitialized = true;
     this.logger.info('Formula copy service initialized');
   }
@@ -153,6 +159,7 @@ export class FormulaCopyService {
     }
 
     document.removeEventListener('click', this.handleClick, true);
+    document.removeEventListener('copy', this.handleCopy, true);
     this.removeCopyToast();
     this.isInitialized = false;
     this.logger.info('Formula copy service destroyed');
@@ -183,6 +190,78 @@ export class FormulaCopyService {
     this.copyFormula(text, html, event.clientX, event.clientY);
     event.stopPropagation();
   };
+
+  /**
+   * Rewrite a selection copy so rendered math comes out as clean LaTeX.
+   *
+   * Fires for Ctrl+C, ⌘C and the right-click "Copy" menu (all dispatch a
+   * `copy` event). We only intervene when the selection actually contains a
+   * formula — otherwise we leave the event untouched so ordinary text copies
+   * exactly as before. (ChatGPT's own message-copy button bypasses the `copy`
+   * event entirely; that path is handled separately in the page world.)
+   */
+  private handleCopy = (event: ClipboardEvent): void => {
+    if (!event.clipboardData) return;
+
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+
+    let hasMath = false;
+    let plain = '';
+    let html = '';
+    // Serialise every range so multi-range selections (Firefox Ctrl-select)
+    // keep their non-math parts; only ranges that contain a formula get the
+    // LaTeX substitution. If no range has math we bail and let the browser do
+    // its native copy untouched.
+    for (let i = 0; i < selection.rangeCount; i++) {
+      const fragment = selection.getRangeAt(i).cloneContents();
+      if (containsMath(fragment)) {
+        hasMath = true;
+        replaceMathWithLatex(fragment, (latex, display) => this.wrapForSelection(latex, display));
+      }
+      const rendered = this.renderFragment(fragment);
+      plain += rendered.text;
+      html += rendered.html;
+    }
+
+    if (!hasMath) return;
+
+    event.preventDefault();
+    event.clipboardData.setData('text/plain', plain);
+    event.clipboardData.setData('text/html', html);
+  };
+
+  /**
+   * Delimiter style for math embedded in a larger text selection. Word-only
+   * MathML (`unicodemath`) makes no sense inline, so it degrades to LaTeX;
+   * the other formats map straight through.
+   */
+  private wrapForSelection(latex: string, isDisplayMode: boolean): string {
+    if (this.currentFormat === 'no-dollar') return latex;
+    if (this.currentFormat === 'notion') return `$$${latex}$$`;
+    return isDisplayMode ? `$$${latex}$$` : `$${latex}$`;
+  }
+
+  /**
+   * Serialise a (math-substituted) fragment to plain text + html. innerText
+   * needs layout, so we briefly attach an off-screen host; textContent is the
+   * fallback for non-rendering environments (tests).
+   */
+  private renderFragment(fragment: DocumentFragment): { text: string; html: string } {
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;pointer-events:none;';
+    host.appendChild(fragment);
+    const html = host.innerHTML;
+    let text: string;
+    if (document.body) {
+      document.body.appendChild(host);
+      text = host.innerText || host.textContent || '';
+      host.remove();
+    } else {
+      text = host.textContent || '';
+    }
+    return { text, html };
+  }
 
   /**
    * Extract LaTeX source from a math element

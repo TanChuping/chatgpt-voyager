@@ -75,6 +75,18 @@ describe('startUserLatex DOM integration', () => {
     expect(leaf.querySelector('.gv-user-latex-display')).not.toBeNull();
   });
 
+  it('keeps the x-tex annotation so the rendered formula stays copyable', () => {
+    // Regression: rendering with output:"html" dropped the MathML annotation,
+    // so clicking / selecting a rendered user formula copied nothing — there
+    // was no TeX source left in the DOM to recover.
+    const leaf = mountUserBubble('Solve $E=mc^2$ please.');
+    startUserLatex();
+
+    const annotation = leaf.querySelector('annotation[encoding="application/x-tex"]');
+    expect(annotation).not.toBeNull();
+    expect(annotation?.textContent).toBe('E=mc^2');
+  });
+
   it('marks a non-math user bubble as processed without mutating content', () => {
     const leaf = mountUserBubble('Just a plain question, no math here.');
     startUserLatex();

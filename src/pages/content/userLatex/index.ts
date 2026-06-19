@@ -199,10 +199,17 @@ function processElement(el: HTMLElement): void {
       const span = document.createElement('span');
       span.className = seg.display ? 'gv-user-latex-display' : 'gv-user-latex-inline';
       try {
+        // `htmlAndMathml` (not `html`) so the rendered formula keeps its TeX
+        // source in a hidden `<annotation encoding="application/x-tex">` — the
+        // MathML is visually clipped by KaTeX's CSS, but the annotation lets
+        // the copy features (click-to-copy + selection copy) recover clean
+        // `$…$` source from a user-message formula, exactly like they do for
+        // ChatGPT's own assistant-side KaTeX. Without it, clicking a rendered
+        // user formula silently copied nothing (no source to read).
         span.innerHTML = katex.renderToString(seg.value, {
           displayMode: seg.display,
           throwOnError: false,
-          output: 'html',
+          output: 'htmlAndMathml',
         });
       } catch {
         // Fallback: show original delimiters

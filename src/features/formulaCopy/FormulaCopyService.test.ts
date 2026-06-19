@@ -491,4 +491,51 @@ describe('FormulaCopyService', () => {
     document.body.removeChild(inlineMath);
     document.body.removeChild(displayMath);
   });
+
+  describe('selection copy (copy event)', () => {
+    const INLINE_KATEX = `<span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>e</mi></mrow><annotation encoding="application/x-tex">e^{i\\pi}+1=0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true">e iπ +1=0</span></span>`;
+
+    function fakeCopyEvent(fragment: DocumentFragment) {
+      const setData = vi.fn();
+      const preventDefault = vi.fn();
+      vi.spyOn(window, 'getSelection').mockReturnValue({
+        isCollapsed: false,
+        rangeCount: 1,
+        getRangeAt: () => ({ cloneContents: () => fragment }) as unknown as Range,
+      } as unknown as Selection);
+      const event = { clipboardData: { setData }, preventDefault } as unknown as ClipboardEvent;
+      return { event, setData, preventDefault };
+    }
+
+    function fragmentOf(html: string): DocumentFragment {
+      const t = document.createElement('template');
+      t.innerHTML = html;
+      return t.content;
+    }
+
+    it('rewrites a math-containing selection to clean $…$ LaTeX', () => {
+      service.initialize();
+      const { event, setData, preventDefault } = fakeCopyEvent(
+        fragmentOf(`Euler’s identity is ${INLINE_KATEX}.`),
+      );
+
+      (service as unknown as { handleCopy: (e: ClipboardEvent) => void }).handleCopy(event);
+
+      expect(preventDefault).toHaveBeenCalled();
+      const plain = setData.mock.calls.find((c) => c[0] === 'text/plain')?.[1];
+      expect(plain).toBe('Euler’s identity is $e^{i\\pi}+1=0$.');
+    });
+
+    it('leaves a plain-text selection untouched (no preventDefault)', () => {
+      service.initialize();
+      const { event, setData, preventDefault } = fakeCopyEvent(
+        fragmentOf('just some prose with (a, b) and [1, 2]'),
+      );
+
+      (service as unknown as { handleCopy: (e: ClipboardEvent) => void }).handleCopy(event);
+
+      expect(preventDefault).not.toHaveBeenCalled();
+      expect(setData).not.toHaveBeenCalled();
+    });
+  });
 });
