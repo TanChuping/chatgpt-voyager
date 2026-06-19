@@ -227,6 +227,13 @@ export class FormulaCopyService {
     if (!hasMath) return;
 
     event.preventDefault();
+    // ChatGPT registers its own `copy` listeners and re-writes clipboardData
+    // after us — on a *real* Ctrl+C (not a synthetic dispatch) it would
+    // clobber our clean `$…$` text back to rendered-glyph soup. Stop the event
+    // here so ours is the final word. Scoped to math selections only (we
+    // already returned above when the selection has no formula), so ordinary
+    // text copies still flow through ChatGPT's handlers untouched.
+    event.stopImmediatePropagation();
     event.clipboardData.setData('text/plain', plain);
     event.clipboardData.setData('text/html', html);
   };

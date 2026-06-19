@@ -498,13 +498,18 @@ describe('FormulaCopyService', () => {
     function fakeCopyEvent(fragment: DocumentFragment) {
       const setData = vi.fn();
       const preventDefault = vi.fn();
+      const stopImmediatePropagation = vi.fn();
       vi.spyOn(window, 'getSelection').mockReturnValue({
         isCollapsed: false,
         rangeCount: 1,
         getRangeAt: () => ({ cloneContents: () => fragment }) as unknown as Range,
       } as unknown as Selection);
-      const event = { clipboardData: { setData }, preventDefault } as unknown as ClipboardEvent;
-      return { event, setData, preventDefault };
+      const event = {
+        clipboardData: { setData },
+        preventDefault,
+        stopImmediatePropagation,
+      } as unknown as ClipboardEvent;
+      return { event, setData, preventDefault, stopImmediatePropagation };
     }
 
     function fragmentOf(html: string): DocumentFragment {
@@ -515,26 +520,30 @@ describe('FormulaCopyService', () => {
 
     it('rewrites a math-containing selection to clean $…$ LaTeX', () => {
       service.initialize();
-      const { event, setData, preventDefault } = fakeCopyEvent(
+      const { event, setData, preventDefault, stopImmediatePropagation } = fakeCopyEvent(
         fragmentOf(`Euler’s identity is ${INLINE_KATEX}.`),
       );
 
       (service as unknown as { handleCopy: (e: ClipboardEvent) => void }).handleCopy(event);
 
       expect(preventDefault).toHaveBeenCalled();
+      // Must stop propagation so ChatGPT's own copy listeners can't re-write
+      // the clipboard back to glyph soup on a real Ctrl+C.
+      expect(stopImmediatePropagation).toHaveBeenCalled();
       const plain = setData.mock.calls.find((c) => c[0] === 'text/plain')?.[1];
       expect(plain).toBe('Euler’s identity is $e^{i\\pi}+1=0$.');
     });
 
-    it('leaves a plain-text selection untouched (no preventDefault)', () => {
+    it('leaves a plain-text selection untouched (no preventDefault / no stop)', () => {
       service.initialize();
-      const { event, setData, preventDefault } = fakeCopyEvent(
+      const { event, setData, preventDefault, stopImmediatePropagation } = fakeCopyEvent(
         fragmentOf('just some prose with (a, b) and [1, 2]'),
       );
 
       (service as unknown as { handleCopy: (e: ClipboardEvent) => void }).handleCopy(event);
 
       expect(preventDefault).not.toHaveBeenCalled();
+      expect(stopImmediatePropagation).not.toHaveBeenCalled();
       expect(setData).not.toHaveBeenCalled();
     });
   });
