@@ -73,15 +73,71 @@ function collectSources(): string[] {
 }
 
 /**
+ * Never rewrite payloads beyond this size — a pathological page could make the
+ * per-source regex passes take long enough to jank the copy gesture, and huge
+ * payloads are exactly where a subtle mismatch would do the most damage.
+ */
+const MAX_REWRITE_LENGTH = 1_000_000;
+
+/**
+ * Verify a rewrite only ever touched delimiters. We strip every character the
+ * transform is ALLOWED to change — the delimiter alphabet (`$ \ [ ] ( )`), all
+ * whitespace, and (html mode) `<br>`/`&nbsp;` — from both input and output; the
+ * remainders must be byte-identical. Any difference means the rewrite bled into
+ * real content (e.g. ChatGPT changed its copy format under us), so the caller
+ * must fall back to the original payload.
+ *
+ * Additionally reject outputs that introduce a run of 3+ `$` — that's the
+ * signature of delimiter soup (`$$$x+p$^2$$`) from a mis-anchored rewrite,
+ * which the strip-comparison alone cannot see (all `$` are stripped).
+ */
+function isSafeRewrite(input: string, output: string, html: boolean): boolean {
+  const dollarRuns = (s: string): number => (s.match(/\${3,}/g) || []).length;
+  if (dollarRuns(output) > dollarRuns(input)) return false;
+
+  const strip = (s: string): string => {
+    let t = s;
+    if (html) t = t.replace(/<br\s*\/?>|&nbsp;/gi, '');
+    return t.replace(/[\s$\\()[\]]/g, '');
+  };
+  return strip(input) === strip(output);
+}
+
+/**
  * Rewrite the broken delimiters around known formula sources.
  * `html` mode makes the whitespace matcher `<br>`-aware and escapes the
  * source the way the markup does, so it also lands in the text/html payload.
+ *
+ * Guardrails (the extension is patching ChatGPT's OWN copy button, so the only
+ * acceptable failure mode is ChatGPT's unmodified baseline — never garbage):
+ *
+ * - Replacements go through opaque placeholder tokens first, so a shorter
+ *   source can never match INSIDE an earlier formula's rewritten body (e.g.
+ *   sources `(x+p)^2` and `x+p` on the same page used to nest into
+ *   `$$$x+p$^2$$`).
+ * - After the rewrite, `isSafeRewrite` proves the output differs from the
+ *   input only in delimiter/whitespace characters; if ChatGPT ever changes its
+ *   copy serialisation in a way that trips the regexes into mangling content,
+ *   we return the ORIGINAL payload untouched.
+ * - Payloads containing NUL (would collide with the placeholder alphabet) or
+ *   larger than MAX_REWRITE_LENGTH are passed through untouched.
  */
 export function fixDelimiters(input: string, sources: string[], html: boolean): string {
   if (!input || sources.length === 0) return input;
-  const gap = html ? '(?:\\s|<br\\s*/?>|&nbsp;)*' : '\\s*';
-  let out = input;
+  if (input.length > MAX_REWRITE_LENGTH || input.includes('\u0000')) return input;
 
+  const gap = html ? '(?:\\s|<br\\s*/?>|&nbsp;)*' : '\\s*';
+
+  // Stash replacements as `\u0000<n>\u0000` tokens; the token alphabet contains
+  // no delimiter/source characters, so later regex passes cannot see into
+  // already-rewritten formulas. Restored in one pass at the end.
+  const stashed: string[] = [];
+  const stash = (replacement: string): string => {
+    stashed.push(replacement);
+    return `\u0000${stashed.length - 1}\u0000`;
+  };
+
+  let out = input;
   for (const src of sources) {
     if (!looksLikeMath(src)) continue; // never rewrite prose like "(a)" / "[x]"
     const prepared = html ? htmlEscape(src) : src;
@@ -93,12 +149,18 @@ export function fixDelimiters(input: string, sources: string[], html: boolean): 
     const displayRepl = html ? `$$${htmlEscape(clean)}$$` : `$$${clean}$$`;
 
     // Display: [ … ]  (optionally still backslash-escaped)
-    out = out.replace(new RegExp(`\\\\?\\[${gap}${body}${gap}\\\\?\\]`, 'g'), () => displayRepl);
+    out = out.replace(new RegExp(`\\\\?\\[${gap}${body}${gap}\\\\?\\]`, 'g'), () =>
+      stash(displayRepl),
+    );
     // Inline: ( … )
-    out = out.replace(new RegExp(`\\\\?\\(${gap}${body}${gap}\\\\?\\)`, 'g'), () => inlineRepl);
+    out = out.replace(new RegExp(`\\\\?\\(${gap}${body}${gap}\\\\?\\)`, 'g'), () =>
+      stash(inlineRepl),
+    );
   }
 
-  return out;
+  out = out.replace(/\u0000(\d+)\u0000/g, (_, i: string) => stashed[Number(i)] ?? '');
+
+  return isSafeRewrite(input, out, html) ? out : input;
 }
 
 /** Build a replacement ClipboardItem with math delimiters repaired. */

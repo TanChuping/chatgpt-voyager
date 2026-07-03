@@ -71,3 +71,41 @@ describe('fixDelimiters (text/html)', () => {
     expect(out).not.toMatch(/<br>\]/);
   });
 });
+
+describe('fixDelimiters guardrails', () => {
+  it('never rewrites a shorter source inside an already-fixed formula body', () => {
+    // Both formulas exist on the page: the display one CONTAINS "(x+p)" which
+    // is also a standalone inline formula. Without placeholder isolation the
+    // second pass would nest into `$$$x+p$^2…$$` delimiter soup.
+    const DISPLAY = '(x+p)^2=x^2+2px+p^2';
+    const INLINE = 'x+p';
+    const input = `Complete the square:\n[\n${DISPLAY}\n]\nwhere (${INLINE}) shifts the root.`;
+    const out = fixDelimiters(input, [DISPLAY, INLINE], false);
+    expect(out).toBe(`Complete the square:\n$$${DISPLAY}$$\nwhere $${INLINE}$ shifts the root.`);
+    expect(out).not.toMatch(/\${3,}/);
+  });
+
+  it('falls back to the ORIGINAL payload when the rewrite would create $$$ soup', () => {
+    // A literal "$" directly before a display bracket would merge into "$$$".
+    // The guardrail must prefer ChatGPT's unmodified baseline over garbage.
+    const input = 'price$[ a+b ]';
+    expect(fixDelimiters(input, ['a+b'], false)).toBe(input);
+  });
+
+  it('passes NUL-containing payloads through untouched (placeholder alphabet)', () => {
+    const input = 'weird ' + String.fromCharCode(0) + ' payload [ a+b ]';
+    expect(fixDelimiters(input, ['a+b'], false)).toBe(input);
+  });
+
+  it('passes oversized payloads through untouched', () => {
+    const input = `[ a+b ]` + 'x'.repeat(1_000_001);
+    expect(fixDelimiters(input, ['a+b'], false)).toBe(input);
+  });
+
+  it('is a no-op when ChatGPT already emits dollar delimiters', () => {
+    // Future-proofing: if ChatGPT starts writing $$…$$ itself, nothing matches
+    // and the payload flows through byte-identical.
+    const input = `Already fixed: $$${QUAD}$$ and $${EULER}$.`;
+    expect(fixDelimiters(input, [QUAD, EULER], false)).toBe(input);
+  });
+});
