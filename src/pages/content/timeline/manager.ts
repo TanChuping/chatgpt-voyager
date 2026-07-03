@@ -3072,36 +3072,6 @@ export class TimelineManager {
     }, settleMs);
   }
 
-  private easeInOutQuad(t: number, b: number, c: number, d: number): number {
-    // Overridable via spring profile
-    const spring = (() => {
-      try {
-        return localStorage.getItem('gptTimelineSpring') || 'ios';
-      } catch {
-        return 'ios';
-      }
-    })();
-    const clamp = (x: number) => Math.max(0, Math.min(1, x));
-    const u = clamp(t / d);
-    if (spring === 'snappy') {
-      // Ease out back a bit then settle
-      const s = 1.15; // overshoot
-      const x = u < 0.6 ? u / 0.6 : 1 + (0.6 - u) * 0.15;
-      return b + c * clamp(x * s - (s - 1));
-    }
-    if (spring === 'gentle') {
-      // Smooth cubic ease-in-out
-      return b + c * (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
-    }
-    // iOS-like spring-ish: ease out with slight acceleration then decel
-    const k1 = 0.42,
-      k2 = 0.58; // pseudo cubic bezier
-    const s = u * u * (3 - 2 * u); // smoothstep baseline
-    const mix = (a: number, b: number, m: number) => a + (b - a) * m;
-    const shaped = mix(Math.pow(u, k1), Math.pow(u, k2), 0.5) * 0.15 + s * 0.85;
-    return b + c * clamp(shaped);
-  }
-
   private updateActiveDotUI(): void {
     this.ensureActiveDotVisible();
     this.updateActiveDotStateOnly();
@@ -3908,7 +3878,6 @@ export class TimelineManager {
     const target = Math.max(0, Math.min(maxScroll, targetPosition));
     const startPosition = this.scrollContainer.scrollTop;
     const distance = target - startPosition;
-    let startTime: number | null = null;
 
     this.isScrolling = true;
     this.setProgrammaticScrollLock(duration);
@@ -3926,24 +3895,35 @@ export class TimelineManager {
       return;
     }
 
-    const animation = (currentTime: number) => {
-      if (!this.scrollContainer) return;
-      if (startTime === null) startTime = currentTime;
-      const timeElapsed = currentTime - startTime;
-      const run = this.easeInOutQuad(timeElapsed, startPosition, distance, duration);
-      this.scrollContainer.scrollTop = run;
-      this.schedulePinBadgePositionUpdate();
-      if (timeElapsed < duration) {
-        requestAnimationFrame(animation);
-      } else {
+    // Native compositor smooth scroll — the SAME technique the dot path
+    // (smoothScrollTo) uses. The previous hand-rolled requestAnimationFrame +
+    // easeInOutQuad loop wrote scrollTop on the MAIN thread every frame, so when
+    // ChatGPT mounted a virtualised turn mid-scroll the layout work stalled the
+    // loop and the jump "scrolled halfway, hitched once, then continued" — worse
+    // the longer the distance (more turns crossed). The native scroll runs on
+    // the compositor and is immune to that main-thread work, staying smooth
+    // across long jumps exactly like the dots. isScrolling keeps our per-frame
+    // scroll listener short-circuited throughout; the badges settle once on the
+    // timer below instead of being re-measured every frame.
+    if (typeof this.scrollContainer.scrollTo === 'function') {
+      try {
+        this.scrollContainer.scrollTo({ top: target, behavior: 'smooth' });
+      } catch {
         this.scrollContainer.scrollTop = target;
-        this.isScrolling = false;
-        this.scrollAnimationLockUntil = 0;
-        this.scheduleScrollSync();
-        this.schedulePinBadgePositionUpdate();
       }
-    };
-    requestAnimationFrame(animation);
+    } else {
+      this.scrollContainer.scrollTop = target;
+    }
+    // Native smooth scroll exposes no completion callback; settle on an
+    // estimated timer, then release the lock and position the badges once.
+    const settleMs = Math.max(250, duration + 80);
+    window.setTimeout(() => {
+      if (!this.scrollContainer) return;
+      this.isScrolling = false;
+      this.scrollAnimationLockUntil = 0;
+      this.scheduleScrollSync();
+      this.schedulePinBadgePositionUpdate();
+    }, settleMs);
   }
 
   private static readonly SEARCH_HIGHLIGHT_CLASS = 'timeline-search-highlight';

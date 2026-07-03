@@ -32,6 +32,8 @@
  * down and re-mount the header on every navigation, and our static
  * injection wouldn't survive.
  */
+import { buildClonedButtonClassName } from '../shared/clonedButtonClass';
+
 const TAG = 'data-gv-announcement-btn';
 const INDICATOR_CLASS = 'gv-announcement-btn__indicator';
 
@@ -253,8 +255,14 @@ function injectIfNeeded(): void {
   // change) carries the right `--unread` class without needing the
   // bootstrap to re-call `applyUnreadState`. Pre-fix this caused the
   // dot to "disappear" until the next snapshot refresh.
-  btn.className =
-    `${styleSource.className || ''} gv-announcement-btn${currentUnread ? ' gv-announcement-btn--unread' : ''}`.trim();
+  // Strip the reference button's transient disabled classes (`opacity-50`,
+  // `cursor-not-allowed`) so our always-functional button never renders dimmed
+  // with a not-allowed cursor.
+  btn.className = buildClonedButtonClassName(
+    styleSource.className,
+    'gv-announcement-btn',
+    currentUnread && 'gv-announcement-btn--unread',
+  );
   btn.type = 'button';
   btn.setAttribute(TAG, '1');
   btn.setAttribute('aria-label', labelRef);

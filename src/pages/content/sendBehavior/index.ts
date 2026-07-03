@@ -53,6 +53,19 @@ const EDITABLE_SELECTORS = '[contenteditable="true"], [role="textbox"], textarea
 /** Log prefix for consistent logging */
 const LOG_PREFIX = '[SendBehavior]';
 
+/**
+ * Send-verification tuning.
+ *
+ * Right after page load ChatGPT's React composer may not have wired its click
+ * handler yet, or may replace the send-button node mid-hydration — a single
+ * synthetic `.click()` then silently does nothing while we've already
+ * swallowed the keystroke. We instead click, poll for the composer clearing
+ * (ChatGPT's own signal that a send actually fired), and retry within a short
+ * window; if it never takes we fall back to a native Enter the app handles.
+ */
+const SEND_VERIFY_TIMEOUT_MS = 800;
+const SEND_RETRY_INTERVAL_MS = 150;
+
 // ============================================================================
 // State
 // ============================================================================
@@ -60,6 +73,12 @@ const LOG_PREFIX = '[SendBehavior]';
 let isCtrlEnterSendEnabled = false;
 let isSafariEnterFixEnabled = false;
 let isListenersActive = false;
+/**
+ * Set only while we synthesize a fallback Enter so our own capture-phase
+ * listener lets it pass straight through to ChatGPT instead of re-intercepting
+ * it (which would recurse). Reset synchronously after the dispatch returns.
+ */
+let isDispatchingFallbackEnter = false;
 let observer: MutationObserver | null = null;
 let cleanupFns: (() => void)[] = [];
 let storageListener:
@@ -218,6 +237,89 @@ function insertNewlineInTextarea(textarea: HTMLTextAreaElement): void {
   textarea.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+/**
+ * Whether the composer is empty. ChatGPT clears it synchronously the moment a
+ * send actually fires, so an empty composer shortly after we click is our
+ * ground-truth signal that the message went out.
+ */
+function isInputCleared(input: HTMLElement): boolean {
+  if (input instanceof HTMLTextAreaElement) return input.value.trim() === '';
+  return (input.textContent ?? '').trim() === '';
+}
+
+/** A send button we can actually click (present, not disabled). */
+function isClickableSendButton(btn: HTMLElement | null): btn is HTMLElement {
+  return !!btn && !btn.hasAttribute('disabled') && btn.getAttribute('aria-disabled') !== 'true';
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Click the send button and confirm the message actually went out.
+ *
+ * Re-queries the button every round: during the initial-load hydration window
+ * React can swap the composer subtree, so a button captured a moment ago may be
+ * detached and its `.click()` a no-op. Once a real send fires, ChatGPT swaps
+ * the send button into a disabled/stop button, so `isClickableSendButton`
+ * stops matching and we never double-click — the same guard that makes retry
+ * safe also prevents a double-send.
+ *
+ * @returns true if the composer cleared (message sent), false if it never did.
+ */
+async function clickSendWithVerify(inputEl: HTMLElement): Promise<boolean> {
+  const deadline = performance.now() + SEND_VERIFY_TIMEOUT_MS;
+  while (performance.now() < deadline) {
+    const btn = findSendButton(inputEl);
+    if (isClickableSendButton(btn)) btn.click();
+
+    await sleep(SEND_RETRY_INTERVAL_MS);
+
+    if (isInputCleared(inputEl)) return true;
+  }
+  return isInputCleared(inputEl);
+}
+
+/**
+ * Last-resort recovery when our synthetic click never took effect: dispatch a
+ * plain Enter and let it through (via `isDispatchingFallbackEnter`) so
+ * ChatGPT's own handler sends. Guarded so we never send an empty composer, and
+ * if even this fails the user's text is still sitting untouched in the box.
+ */
+function dispatchFallbackEnter(target: HTMLElement): void {
+  if (isInputCleared(target)) return;
+  isDispatchingFallbackEnter = true;
+  try {
+    target.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  } finally {
+    isDispatchingFallbackEnter = false;
+  }
+}
+
+/**
+ * Send via the button, then verify + recover if the click was a no-op.
+ * `event.preventDefault()`/`stopPropagation()` must already have run
+ * synchronously before this is invoked.
+ */
+function triggerSend(inputEl: HTMLElement): void {
+  void clickSendWithVerify(inputEl).then((sent) => {
+    if (!sent) {
+      console.warn(`${LOG_PREFIX} send click did not take effect; falling back to native Enter`);
+      dispatchFallbackEnter(inputEl);
+    }
+  });
+}
+
 // ============================================================================
 // Event Handlers
 // ============================================================================
@@ -232,6 +334,9 @@ function insertNewlineInTextarea(textarea: HTMLTextAreaElement): void {
  * If both modes are enabled, Ctrl+Enter Send takes priority.
  */
 function handleKeyDown(event: KeyboardEvent): void {
+  // Let our own fallback Enter pass straight through to ChatGPT.
+  if (isDispatchingFallbackEnter) return;
+
   // Early exit if no mode is active (should not happen, but defensive check)
   if (!isCtrlEnterSendEnabled && !isSafariEnterFixEnabled) return;
 
@@ -260,7 +365,7 @@ function handleKeyDown(event: KeyboardEvent): void {
       if (sendButton) {
         event.preventDefault();
         event.stopPropagation();
-        sendButton.click();
+        triggerSend(target);
       }
       return;
     }
@@ -292,7 +397,7 @@ function handleKeyDown(event: KeyboardEvent): void {
     if (sendButton) {
       event.preventDefault();
       event.stopPropagation();
-      sendButton.click();
+      triggerSend(target);
     }
   }
 }

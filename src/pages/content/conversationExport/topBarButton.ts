@@ -19,6 +19,7 @@ import {
 } from '@/features/singleConvExport';
 import { getTranslationSync } from '@/utils/i18n';
 
+import { buildClonedButtonClassName } from '../shared/clonedButtonClass';
 import { enterSelectionMode } from './selectionMode';
 
 const TAG = 'data-gv-export-btn';
@@ -88,7 +89,9 @@ function injectIfNeeded(): void {
   // Clone styling from Share so we inherit ChatGPT-native padding / rounding /
   // hover state. We add our own marker class for a small gap between the icon
   // and the label (ChatGPT's native icon-only buttons don't need one).
-  btn.className = `${share.className} gv-export-conv-topbar`;
+  // Strip Share's transient disabled classes so our (always-functional) button
+  // never renders dimmed with a not-allowed cursor.
+  btn.className = buildClonedButtonClassName(share.className, 'gv-export-conv-topbar');
   btn.type = 'button';
   btn.setAttribute(TAG, '1');
   btn.setAttribute('aria-haspopup', 'menu');

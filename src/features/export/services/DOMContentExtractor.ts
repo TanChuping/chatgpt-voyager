@@ -384,7 +384,7 @@ export class DOMContentExtractor {
         continue;
       }
 
-        // Search result images
+      // Search result images
       // Structure: <div.attachment-container.search-images> > <response-element> >
       //   <single-image> > <div.image-container[data-full-size-image-uri]> > ... > <img>
       {
@@ -557,7 +557,7 @@ export class DOMContentExtractor {
       element.classList.contains('table-footer') ||
       element.classList.contains('export-sheets-button') ||
       element.classList.contains('thoughts-header') ||
-        // Inline source/citation container
+      // Inline source/citation container
       element.classList.contains('source-inline-chip-container') ||
       // NanoBanana watermark remover indicator (馃崒 emoji)
       element.classList.contains('nanobanana-indicator') ||

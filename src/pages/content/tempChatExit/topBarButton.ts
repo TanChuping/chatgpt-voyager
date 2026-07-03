@@ -21,6 +21,7 @@
  * helper, so a user running the extension in Chinese sees "临时反悔"
  * and an English user sees "Regret temp chat" — no bilingual cramming.
  */
+import { buildClonedButtonClassName } from '../shared/clonedButtonClass';
 import { t } from './i18n';
 import { runTempChatRegret } from './orchestrator';
 
@@ -166,7 +167,9 @@ function injectIfNeeded(): void {
   }
 
   const btn = document.createElement('button');
-  btn.className = `${styleSource.className || ''} gv-temp-regret-btn`.trim();
+  // Strip the toggle's transient disabled classes so our button never renders
+  // dimmed with a not-allowed cursor.
+  btn.className = buildClonedButtonClassName(styleSource.className, 'gv-temp-regret-btn');
   btn.type = 'button';
   btn.setAttribute(TAG, '1');
   const label = t('tempChatRegretButton');

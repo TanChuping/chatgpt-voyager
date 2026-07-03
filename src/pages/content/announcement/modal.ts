@@ -14,9 +14,6 @@
  * unlike the bubble which is deliberately not. The bubble surfaces the
  * announcement; the modal is the user's explicit "read it" gesture.
  */
-import DOMPurify from 'dompurify';
-import { marked } from 'marked';
-
 import type { RemoteAnnouncement } from './types';
 
 const MODAL_CLASS = 'gv-announcement-modal';
@@ -103,24 +100,22 @@ export function openAnnouncementModal(args: OpenModalArgs): ModalHandle {
 
   const md = document.createElement('div');
   md.className = `${MODAL_CLASS}__markdown gv-md`;
-  // `marked.parse` returns sync or async depending on configuration —
-  // we treat both shapes and sanitize before injecting.
-  try {
-    const out = marked.parse(args.announcement.bodyMarkdown);
-    if (typeof out === 'string') {
+  // Render markdown with `marked` + `DOMPurify`, both loaded on demand so they
+  // stay out of the eager content bundle. Show the raw text immediately as a
+  // fallback, then upgrade to sanitized HTML once the libraries resolve.
+  md.textContent = args.announcement.bodyMarkdown;
+  void (async () => {
+    try {
+      const [{ marked }, { default: DOMPurify }] = await Promise.all([
+        import('marked'),
+        import('dompurify'),
+      ]);
+      const out = await marked.parse(args.announcement.bodyMarkdown);
       md.innerHTML = DOMPurify.sanitize(out, { ADD_ATTR: ['target', 'rel'] });
-    } else {
-      out
-        .then((html: string) => {
-          md.innerHTML = DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'rel'] });
-        })
-        .catch(() => {
-          md.textContent = args.announcement.bodyMarkdown;
-        });
+    } catch {
+      md.textContent = args.announcement.bodyMarkdown;
     }
-  } catch {
-    md.textContent = args.announcement.bodyMarkdown;
-  }
+  })();
   // Open links in a new tab — same pattern as the prompt-manager modal.
   md.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;

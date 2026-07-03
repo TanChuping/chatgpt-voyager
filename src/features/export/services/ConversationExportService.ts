@@ -3,7 +3,6 @@
  * Unified service for exporting conversations in multiple formats
  * Uses Strategy pattern for format-specific implementations
  */
-import JSZip from 'jszip';
 
 import { isSafari } from '@/core/utils/browser';
 
@@ -400,6 +399,10 @@ export class ConversationExportService {
       return normalizedFilename;
     }
 
+    // Load JSZip on demand — only markdown exports that actually bundle images
+    // reach this branch, so the ~95 kB library stays out of the eager content
+    // bundle and off every page load.
+    const { default: JSZip } = await import('jszip');
     const zip = new JSZip();
     const assetsFolder = zip.folder('assets');
     const mapping = new Map<string, string>();

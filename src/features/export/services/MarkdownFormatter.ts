@@ -239,7 +239,7 @@ export class MarkdownFormatter {
       const urlObj = new URL(url);
       const pathname = urlObj.pathname;
 
-    // Extract from ChatGPT URL pattern.
+      // Extract from ChatGPT URL pattern.
       // e.g., /app/conversation-id or /chat/conversation-id
       const match = pathname.match(/\/(app|chat)\/([^/]+)/);
       if (match) {
@@ -247,9 +247,9 @@ export class MarkdownFormatter {
         return `ChatGPT Conversation ${id.substring(0, 8)}`;
       }
 
-    return 'ChatGPT Conversation';
+      return 'ChatGPT Conversation';
     } catch {
-    return 'ChatGPT Conversation';
+      return 'ChatGPT Conversation';
     }
   }
 

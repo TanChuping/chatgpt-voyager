@@ -1167,11 +1167,11 @@ function updateCursorMotion(cursor: HTMLElement, box: NonNullable<typeof lastCur
 function isUsableRect(rect: DOMRect | undefined): rect is DOMRect {
   return Boolean(
     rect &&
-      Number.isFinite(rect.left) &&
-      Number.isFinite(rect.top) &&
-      Number.isFinite(rect.width) &&
-      Number.isFinite(rect.height) &&
-      rect.width + rect.height > 0,
+    Number.isFinite(rect.left) &&
+    Number.isFinite(rect.top) &&
+    Number.isFinite(rect.width) &&
+    Number.isFinite(rect.height) &&
+    rect.width + rect.height > 0,
   );
 }
 

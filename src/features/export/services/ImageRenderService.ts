@@ -1,5 +1,3 @@
-import { toBlob } from 'html-to-image';
-
 const TRANSPARENT_IMAGE_PLACEHOLDER =
   'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 const DEFAULT_OFFSCREEN_LEFT = '-100000px';
@@ -49,6 +47,9 @@ export function isImageResourceRenderError(error: unknown): boolean {
 
 async function renderTargetToBlob(target: HTMLElement): Promise<Blob> {
   stripXmlIllegalChars(target);
+  // Load html-to-image on demand — image export is a user action, so the
+  // library stays out of the eager content bundle.
+  const { toBlob } = await import('html-to-image');
   const blob = await toBlob(target, {
     cacheBust: true,
     pixelRatio: 1.2,

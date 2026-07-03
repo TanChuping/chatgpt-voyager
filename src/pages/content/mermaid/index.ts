@@ -5,6 +5,7 @@
  */
 let mermaidInstance: Awaited<typeof import('mermaid')>['default'] | null = null;
 let mermaidLoadFailed = false;
+let mermaidConfigured = false;
 
 /**
  * Reset internal loader state. Only for testing.
@@ -13,6 +14,7 @@ let mermaidLoadFailed = false;
 export const _resetMermaidLoader = () => {
   mermaidInstance = null;
   mermaidLoadFailed = false;
+  mermaidConfigured = false;
 };
 
 /**
@@ -39,27 +41,37 @@ export const loadMermaid = async (): Promise<typeof mermaidInstance> => {
 };
 
 /**
- * Initialize Mermaid configuration
+ * Load Mermaid (if not already) and apply our configuration exactly once.
+ *
+ * This replaces the old eager init: the library is now pulled — and configured
+ * — only when a real diagram is about to render, so pages with no mermaid code
+ * never download or parse the ~426 kB bundle. Reading the theme here (at first
+ * render) rather than at page-init is also strictly more accurate.
+ *
+ * Returns the configured instance, or null if the library failed to load.
  */
-const initMermaid = async (): Promise<boolean> => {
+const ensureMermaidReady = async (): Promise<typeof mermaidInstance> => {
   const mermaid = await loadMermaid();
-  if (!mermaid) return false;
+  if (!mermaid) return null;
 
-  const isDarkMode =
-    document.body.classList.contains('dark-theme') ||
-    document.body.getAttribute('data-theme') === 'dark' ||
-    document.documentElement.classList.contains('dark') ||
-    window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (!mermaidConfigured) {
+    const isDarkMode =
+      document.body.classList.contains('dark-theme') ||
+      document.body.getAttribute('data-theme') === 'dark' ||
+      document.documentElement.classList.contains('dark') ||
+      window.matchMedia('(prefers-color-scheme: dark)').matches;
 
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: isDarkMode ? 'dark' : 'default',
-    securityLevel: 'loose',
-    fontFamily: 'Google Sans, Roboto, sans-serif',
-    logLevel: 5, // 5 = fatal, only log fatal errors (v9.x uses numbers)
-  });
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: isDarkMode ? 'dark' : 'default',
+      securityLevel: 'loose',
+      fontFamily: 'Google Sans, Roboto, sans-serif',
+      logLevel: 5, // 5 = fatal, only log fatal errors (v9.x uses numbers)
+    });
+    mermaidConfigured = true;
+  }
 
-  return true;
+  return mermaid;
 };
 
 /**
@@ -546,8 +558,8 @@ const renderMermaid = async (
       return;
     }
 
-    // Ensure Mermaid is loaded before rendering
-    const mermaid = await loadMermaid();
+    // Ensure Mermaid is loaded AND configured before rendering
+    const mermaid = await ensureMermaidReady();
     if (!mermaid) {
       // Mermaid failed to load 鈥?gracefully degrade by showing raw code
       codeBlock.dataset.mermaidProcessing = 'false';
@@ -868,12 +880,10 @@ export const startMermaid = () => {
 const initializeMermaid = async () => {
   createStyles();
 
-  const loaded = await initMermaid();
-  if (!loaded) {
-    console.warn('[GPT-Voyager] Mermaid library failed to load, diagrams will show as code');
-    return;
-  }
-
+  // NOTE: we intentionally do NOT load the Mermaid library here. `createStyles`
+  // is cheap CSS; the ~426 kB library is pulled on demand by `renderMermaid`
+  // (via `ensureMermaidReady`) the first time an actual diagram is detected, so
+  // pages with no mermaid code never pay the download/parse cost on load.
   processCodeBlocks();
 
   // Only create observer if not already exists
