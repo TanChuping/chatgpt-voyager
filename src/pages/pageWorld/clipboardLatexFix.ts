@@ -104,6 +104,30 @@ function isSafeRewrite(input: string, output: string, html: boolean): boolean {
 }
 
 /**
+ * Collapse ChatGPT's corrupted "equals runs" inside display math back to one
+ * `=`. When the assistant writes a multi-line `\begin{aligned}...\end{aligned}`,
+ * ChatGPT's own copy-to-markdown drops the `\` line breaks and turns the `&=`
+ * alignment markers into a RUN of equals signs (confirmed live 2026-07 - this
+ * is ChatGPT's own bug, present without the extension too; the true source
+ * still lives in the DOM annotation):
+ *
+ *   $$...\frac{b^2}{4a^2}===============-\frac{c}{a}...$$
+ *
+ * A run of 3+ `=` is never valid math, so collapsing it to a single `=`
+ * recovers a correct, renderable equation without needing the source. Scoped
+ * strictly to `$$...$$` / `\[...\]` blocks so prose (setext headings `====`,
+ * `---` rules, ASCII art) is never touched. `$$`/`=` are not escaped in either
+ * the text/plain or text/html payload, so no html-specific handling is needed.
+ */
+function collapseMathEqualsRuns(input: string): string {
+  if (!input.includes('===')) return input;
+  const fixBlock = (body: string): string => body.replace(/={3,}/g, '=');
+  return input
+    .replace(/\$\$([\s\S]*?)\$\$/g, (_, b: string) => `$$${fixBlock(b)}$$`)
+    .replace(/\\\[([\s\S]*?)\\\]/g, (_, b: string) => `\\[${fixBlock(b)}\\]`);
+}
+
+/**
  * Rewrite the broken delimiters around known formula sources.
  * `html` mode makes the whitespace matcher `<br>`-aware and escapes the
  * source the way the markup does, so it also lands in the text/html payload.
@@ -123,7 +147,7 @@ function isSafeRewrite(input: string, output: string, html: boolean): boolean {
  *   larger than MAX_REWRITE_LENGTH are passed through untouched.
  */
 export function fixDelimiters(input: string, sources: string[], html: boolean): string {
-  if (!input || sources.length === 0) return input;
+  if (!input) return input;
   if (input.length > MAX_REWRITE_LENGTH || input.includes('\u0000')) return input;
 
   const gap = html ? '(?:\\s|<br\\s*/?>|&nbsp;)*' : '\\s*';
@@ -160,7 +184,11 @@ export function fixDelimiters(input: string, sources: string[], html: boolean): 
 
   out = out.replace(/\u0000(\d+)\u0000/g, (_, i: string) => stashed[Number(i)] ?? '');
 
-  return isSafeRewrite(input, out, html) ? out : input;
+  const repaired = isSafeRewrite(input, out, html) ? out : input;
+  // Step 2: fix ChatGPT's own aligned-collapse "=====" corruption inside
+  // display math (source-free; runs even when we had no sources to anchor on,
+  // because ChatGPT keeps the $$ delimiters and mangles only the body).
+  return collapseMathEqualsRuns(repaired);
 }
 
 /** Build a replacement ClipboardItem with math delimiters repaired. */

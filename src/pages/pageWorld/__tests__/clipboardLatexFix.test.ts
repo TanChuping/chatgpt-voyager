@@ -109,3 +109,35 @@ describe('fixDelimiters guardrails', () => {
     expect(fixDelimiters(input, [QUAD, EULER], false)).toBe(input);
   });
 });
+
+describe('fixDelimiters — ChatGPT aligned-collapse "=====" repair', () => {
+  it('collapses a run of equals inside a $$…$$ block back to one =', () => {
+    // ChatGPT flattens a multi-line \begin{aligned} and turns the &= alignment
+    // into a run of equals. Runs even with NO sources (delimiters already $$).
+    const input = '$$x^2+\\frac{b}{a}x=================-\\frac{c}{a}$$';
+    expect(fixDelimiters(input, [], false)).toBe('$$x^2+\\frac{b}{a}x=-\\frac{c}{a}$$');
+  });
+
+  it('collapses multiple equals-runs in one block (chained equation)', () => {
+    expect(fixDelimiters('$$a====b=====c$$', [], false)).toBe('$$a=b=c$$');
+  });
+
+  it('also repairs \\[ … \\] display blocks', () => {
+    expect(fixDelimiters('\\[ a======b \\]', [], false)).toBe('\\[ a=b \\]');
+  });
+
+  it('NEVER touches equals runs in prose (setext headings / rules)', () => {
+    const input = 'Section Title\n=========\n\nbody text';
+    expect(fixDelimiters(input, [], false)).toBe(input);
+  });
+
+  it('leaves a single = inside math alone', () => {
+    expect(fixDelimiters('$$a=b$$', [], false)).toBe('$$a=b$$');
+  });
+
+  it('composes with delimiter repair: fixes delimiters AND the equals run', () => {
+    // Native copy stripped the bracket AND mangled the body's alignment.
+    const input = `[ ${QUAD} ] then $$a=====b$$`;
+    expect(fixDelimiters(input, [QUAD], false)).toBe(`$$${QUAD}$$ then $$a=b$$`);
+  });
+});
