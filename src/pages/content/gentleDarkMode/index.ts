@@ -16,6 +16,7 @@
  */
 
 const STYLE_ID = 'gv-gentle-dark-style';
+const CODEX_STYLE_ID = 'gv-gentle-dark-codex-style';
 const STORAGE_KEY = 'gvGentleDarkMode';
 const DEFAULT_ENABLED = false;
 
@@ -56,23 +57,79 @@ const CSS = `
   }
 `;
 
-function applyStyle(): void {
-  let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+/**
+ * Codex (`chatgpt.com/codex/*`) is a separate React-Router route module inside
+ * the same ChatGPT app, and its dark theme drives surfaces from a DIFFERENT set
+ * of tokens than the chat UI — these three resolve to pure black (#000) and are
+ * NOT touched by the base override above, so Codex pages come out half-gentle,
+ * half-black (issue #4). Overriding them to the gentle base color recolors the
+ * whole Codex surface stack (main scroll area, top bar, its own sidebar).
+ *
+ * This block is injected ONLY on `/codex` paths (see `isCodexPage`), so it adds
+ * zero weight to normal chat pages — the rules never exist in the DOM there.
+ */
+const CODEX_CSS = `
+  html.dark,
+  html.dark body {
+    --bg-secondary-surface: #1f1f1e !important;
+    --sidebar-surface: #1f1f1e !important;
+    --component-sidebar-bg: #1f1f1e !important;
+  }
+`;
+
+function injectStyle(id: string, css: string): void {
+  let style = document.getElementById(id) as HTMLStyleElement | null;
   if (!style) {
     style = document.createElement('style');
-    style.id = STYLE_ID;
+    style.id = id;
     (document.head || document.documentElement).appendChild(style);
   }
-  style.textContent = CSS;
+  style.textContent = css;
+}
+
+function applyStyle(): void {
+  injectStyle(STYLE_ID, CSS);
 }
 
 function removeStyle(): void {
   document.getElementById(STYLE_ID)?.remove();
 }
 
+/** True while the user is anywhere under the Codex section of the app. */
+function isCodexPage(): boolean {
+  return location.pathname.startsWith('/codex');
+}
+
+function removeCodexStyle(): void {
+  document.getElementById(CODEX_STYLE_ID)?.remove();
+}
+
+/**
+ * Add the Codex overrides when (and only when) gentle mode is on AND we are on a
+ * Codex page; otherwise make sure they are gone. Called at start-up and on
+ * history navigation so entering / leaving Codex flips the extra rules on / off.
+ */
+function refreshCodexStyle(enabled: boolean): void {
+  if (enabled && isCodexPage()) injectStyle(CODEX_STYLE_ID, CODEX_CSS);
+  else removeCodexStyle();
+}
+
 export function startGentleDarkMode(): void {
+  let enabled = DEFAULT_ENABLED;
+
+  const setEnabled = (next: boolean): void => {
+    enabled = next;
+    if (next) {
+      applyStyle();
+      refreshCodexStyle(true);
+    } else {
+      removeStyle();
+      removeCodexStyle();
+    }
+  };
+
   chrome.storage?.sync?.get({ [STORAGE_KEY]: DEFAULT_ENABLED }, (res) => {
-    if (res?.[STORAGE_KEY] === true) applyStyle();
+    if (res?.[STORAGE_KEY] === true) setEnabled(true);
   });
 
   const storageChangeHandler = (
@@ -80,17 +137,26 @@ export function startGentleDarkMode(): void {
     area: string,
   ) => {
     if (area === 'sync' && changes[STORAGE_KEY]) {
-      if (changes[STORAGE_KEY].newValue === true) applyStyle();
-      else removeStyle();
+      setEnabled(changes[STORAGE_KEY].newValue === true);
     }
   };
 
   chrome.storage?.onChanged?.addListener(storageChangeHandler);
 
+  // Codex sub-navigation (tasks ↔ settings ↔ archive) is client-side routing
+  // that keeps the `/codex` prefix, so the style injected at start-up stays
+  // valid; a `popstate` re-check is a cheap safety net for back/forward moves
+  // across the Codex boundary. No polling / MutationObserver — the whole
+  // Codex path stays dormant until the user is actually inside Codex.
+  const onPopState = (): void => refreshCodexStyle(enabled);
+  window.addEventListener('popstate', onPopState);
+
   window.addEventListener(
     'beforeunload',
     () => {
       removeStyle();
+      removeCodexStyle();
+      window.removeEventListener('popstate', onPopState);
       try {
         chrome.storage?.onChanged?.removeListener(storageChangeHandler);
       } catch {

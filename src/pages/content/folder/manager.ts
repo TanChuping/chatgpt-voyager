@@ -894,6 +894,15 @@ export class FolderManager {
   }
 
   private createFolderUI(): void {
+    // Folders organize the sidebar's ChatGPT conversations (its `/c/…` links).
+    // The Codex section (chatgpt.com/codex/*) has no such list — its layout is
+    // entirely different — so the anchor search latches onto the wrong element
+    // and drops an empty "No folders yet" panel into Codex's own UI (issue #4).
+    // Skip building the panel on `/codex` pages. The surrounding observers stay
+    // active, so folders still appear the moment the user navigates back to a
+    // real chat page (createFolderUI runs again there with the guard cleared).
+    if (location.pathname.startsWith('/codex')) return;
+
     if (!this.recentSection) return;
 
     // Create folder container
