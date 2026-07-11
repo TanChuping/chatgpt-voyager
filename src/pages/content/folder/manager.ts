@@ -175,6 +175,13 @@ export class FolderManager {
   private activeStorageKey: string = STORAGE_KEY; // Storage key currently used for folder data
   private navPoller: number | null = null;
   private lastPathname: string | null = null;
+  // Debounced "container still attached?" check (set up in initializeFolderUI).
+  // Stored on the instance so the route-change listener can invoke it too:
+  // ChatGPT's 2026-07 redesign re-renders the whole sidebar when entering
+  // routes like /library, detaching the folder container AND every observer
+  // bound to the old DOM — without a route-driven check the panel stayed dead
+  // until a window resize.
+  private domRecoveryCheck: (() => void) | null = null;
   private saveInProgress: boolean = false; // Lock to prevent concurrent saves
   private pendingTitleUpdates: Map<string, string> = new Map(); // Buffer title updates during render
   private pendingRemovals: Map<string, number> = new Map(); // Pending conversation removals with timer IDs
@@ -533,6 +540,9 @@ export class FolderManager {
       domRecoveryTimer = setTimeout(() => {
         domRecoveryTimer = null;
         if (this.isDestroyed) return;
+        // Codex has no folder panel by design (see createFolderUI) — a missing
+        // container there is expected, not a loss to recover from.
+        if (location.pathname.startsWith('/codex')) return;
         this.updateVisibilityBasedOnSideNav();
         if (
           this.containerElement &&
@@ -558,9 +568,14 @@ export class FolderManager {
     window.addEventListener('resize', domRecoveryCheck);
     window.addEventListener('gv-print-cleanup', domRecoveryCheck);
     window.addEventListener('afterprint', domRecoveryCheck);
+    // Expose to the route-change listener (installRouteChangeListener) so SPA
+    // navigations run the same recovery pass — the debounce + attached-check
+    // make repeated calls cheap and idempotent.
+    this.domRecoveryCheck = domRecoveryCheck;
 
     this.addCleanupTask(() => {
       if (domRecoveryTimer !== null) clearTimeout(domRecoveryTimer);
+      this.domRecoveryCheck = null;
       window.removeEventListener('resize', domRecoveryCheck);
       window.removeEventListener('gv-print-cleanup', domRecoveryCheck);
       window.removeEventListener('afterprint', domRecoveryCheck);
@@ -7400,6 +7415,11 @@ export class FolderManager {
         if (currentConversationId) {
           this.markConversationAsRecentlyOpened(currentConversationId);
         }
+        // Some routes (e.g. /library since the 2026-07 redesign) re-render the
+        // sidebar wholesale, detaching the folder container and orphaning its
+        // observers. Run the DOM-recovery pass on every route change so the
+        // panel comes back without waiting for a window resize.
+        this.domRecoveryCheck?.();
       }, 0);
     };
 
