@@ -66,9 +66,28 @@ export function listTurnContainers(root: ParentNode = document): HTMLElement[] {
   return all.filter((el) => el.getAttribute('data-turn-id-container') !== CLIENT_ROOT_ID);
 }
 
-/** True when ChatGPT still has this turn's real content mounted. */
-function isMounted(container: HTMLElement): boolean {
-  return container.querySelector('[data-testid^="conversation-turn"]') !== null;
+/**
+ * True when ChatGPT has virtualised this turn away. A placeholder wrapper is
+ * literally empty (`<div data-turn-id-container … ></div>`); a mounted one holds
+ * the `<section>`. Checked via `childElementCount` rather than a descendant
+ * query — this runs for every turn on every reconcile, and a `querySelector`
+ * per turn is a real cost on a 250-turn thread.
+ */
+function isVirtualised(container: HTMLElement): boolean {
+  return container.childElementCount === 0;
+}
+
+export interface AnchorSyncResult {
+  /** Wrappers carrying the user-turn tag afterwards. */
+  tagged: number;
+  /**
+   * Wrappers we can neither classify nor read: virtualised AND not tagged as a
+   * user turn. A non-zero count means the conversation data hasn't reached us
+   * yet — the signal that has to drive the React-fiber fallback, because the
+   * pre-2026-07 predicate only noticed *empty markers*, and a turn that never
+   * became a marker at all is invisible to it.
+   */
+  unresolved: number;
 }
 
 /**
@@ -78,12 +97,13 @@ function isMounted(container: HTMLElement): boolean {
  * `ensureTurnId` keeps allocating the same marker id the cache/pins are stored
  * under.
  *
- * Returns how many wrappers carry the tag afterwards.
+ * Counts unresolved wrappers in the SAME pass — both numbers are needed on
+ * every reconcile, and walking the turn list twice doubled the cost for nothing.
  */
 export function syncUserTurnAnchors(
   userTurnIds: Iterable<string>,
   root: ParentNode = document,
-): number {
+): AnchorSyncResult {
   const wanted = new Set<string>();
   for (const turnId of userTurnIds) {
     const messageId = messageIdFromTurnId(turnId);
@@ -91,6 +111,7 @@ export function syncUserTurnAnchors(
   }
 
   let tagged = 0;
+  let unresolved = 0;
   for (const container of listTurnContainers(root)) {
     const id = (container.getAttribute('data-turn-id-container') ?? '').toLowerCase();
     if (id && wanted.has(id)) {
@@ -102,29 +123,12 @@ export function syncUserTurnAnchors(
         /* dataset unavailable — the anchor attribute alone is enough to select it */
       }
       tagged++;
-    } else if (container.hasAttribute(ANCHOR_ATTR)) {
-      container.removeAttribute(ANCHOR_ATTR);
+      continue;
     }
+    if (container.hasAttribute(ANCHOR_ATTR)) container.removeAttribute(ANCHOR_ATTR);
+    if (isVirtualised(container)) unresolved++;
   }
-  return tagged;
-}
-
-/**
- * Turn wrappers we can neither classify nor read: virtualised (no mounted
- * section) *and* not tagged as a user turn. A non-zero count means the
- * conversation data hasn't reached us yet — the signal that makes the
- * React-fiber fallback fire even though every marker we currently have looks
- * healthy (the pre-2026-07 miss predicate only noticed *empty* markers, and a
- * turn that never became a marker at all is invisible to it).
- */
-export function countUnresolvedTurnContainers(root: ParentNode = document): number {
-  let unresolved = 0;
-  for (const container of listTurnContainers(root)) {
-    if (container.getAttribute(ANCHOR_ATTR) === '1') continue;
-    if (isMounted(container)) continue;
-    unresolved++;
-  }
-  return unresolved;
+  return { tagged, unresolved };
 }
 
 /** Prepend the anchor selector to a user-turn selector, without duplicating it. */

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   USER_TURN_ANCHOR_SELECTOR,
-  countUnresolvedTurnContainers,
   listTurnContainers,
   messageIdFromTurnId,
   syncUserTurnAnchors,
@@ -92,7 +91,7 @@ describe('syncUserTurnAnchors', () => {
   it('tags the wrapper of a virtualised user turn so it becomes selectable', () => {
     expect(document.querySelectorAll(USER_TURN_ANCHOR_SELECTOR)).toHaveLength(0);
 
-    const tagged = syncUserTurnAnchors([`u-${USER_A}`, `u-${USER_B}`]);
+    const { tagged } = syncUserTurnAnchors([`u-${USER_A}`, `u-${USER_B}`]);
 
     expect(tagged).toBe(2);
     const anchored = Array.from(document.querySelectorAll(USER_TURN_ANCHOR_SELECTOR));
@@ -104,9 +103,7 @@ describe('syncUserTurnAnchors', () => {
 
   it('mirrors the marker id onto data-turn-id so cached pins/stars keep matching', () => {
     syncUserTurnAnchors([`u-${USER_A}`]);
-    const wrapper = document.querySelector<HTMLElement>(
-      `div[data-turn-id-container="${USER_A}"]`,
-    );
+    const wrapper = document.querySelector<HTMLElement>(`div[data-turn-id-container="${USER_A}"]`);
     expect(wrapper?.dataset.turnId).toBe(`u-${USER_A}`);
   });
 
@@ -131,11 +128,11 @@ describe('syncUserTurnAnchors', () => {
   });
 
   it('ignores ids with no wrapper in the DOM', () => {
-    expect(syncUserTurnAnchors(['u-00000000-0000-4000-8000-000000000000'])).toBe(0);
+    expect(syncUserTurnAnchors(['u-00000000-0000-4000-8000-000000000000']).tagged).toBe(0);
   });
 });
 
-describe('countUnresolvedTurnContainers', () => {
+describe('syncUserTurnAnchors — unresolved count', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
     buildThread();
@@ -143,12 +140,11 @@ describe('countUnresolvedTurnContainers', () => {
 
   it('counts virtualised wrappers we cannot classify yet', () => {
     // Both placeholders are unidentified until the conversation data lands.
-    expect(countUnresolvedTurnContainers()).toBe(2);
+    expect(syncUserTurnAnchors([]).unresolved).toBe(2);
   });
 
   it('stops counting a placeholder once it is tagged as a user turn', () => {
-    syncUserTurnAnchors([`u-${USER_A}`]);
-    expect(countUnresolvedTurnContainers()).toBe(1);
+    expect(syncUserTurnAnchors([`u-${USER_A}`]).unresolved).toBe(1);
   });
 
   it('never counts a mounted turn — its role is readable from the DOM', () => {
@@ -156,7 +152,11 @@ describe('countUnresolvedTurnContainers', () => {
     const root = document.createElement('div');
     root.append(mounted(USER_B, 'user', 7), mounted(ASSISTANT_B, 'assistant', 8));
     document.body.appendChild(root);
-    expect(countUnresolvedTurnContainers()).toBe(0);
+    expect(syncUserTurnAnchors([]).unresolved).toBe(0);
+  });
+
+  it('reports zero unresolved once every wrapper is classified', () => {
+    expect(syncUserTurnAnchors([`u-${USER_A}`, `u-${ASSISTANT_A}`]).unresolved).toBe(0);
   });
 });
 

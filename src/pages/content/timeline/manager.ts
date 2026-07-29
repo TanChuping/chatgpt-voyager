@@ -16,8 +16,8 @@ import { hashString } from '@/core/utils/hash';
 import { GV_RTL_CLASS, applyRTLClass } from '@/core/utils/rtl';
 import { installCachePrimerForManager } from '@/features/cachePrimer/CachePrimer';
 import {
-  installFiberFallbackForManager,
   type FiberFallbackHandle,
+  installFiberFallbackForManager,
 } from '@/features/cachePrimer/FiberFallback';
 import { getConversationCaptureService } from '@/features/conversationApi/ConversationCaptureService';
 
@@ -46,8 +46,8 @@ import {
 import { findMatchingStarredMessages } from './starredLookup';
 import type { StarredMessage, StarredMessagesData } from './starredTypes';
 import {
+  type AnchorSyncResult,
   USER_TURN_ANCHOR_SELECTOR,
-  countUnresolvedTurnContainers,
   syncUserTurnAnchors,
   withUserTurnAnchors,
 } from './turnAnchors';
@@ -2043,7 +2043,7 @@ export class TimelineManager {
     // Tag the wrappers of every user turn we know about BEFORE selecting, so a
     // turn ChatGPT has virtualised away still contributes a marker. No-op until
     // the API capture / fiber read has populated the cache.
-    this.syncUserTurnAnchorsFromCache();
+    const anchorSync = this.syncUserTurnAnchorsFromCache();
     const userTurnNodeList = this.conversationContainer.querySelectorAll(this.userTurnSelector);
     this.visibleRange = { start: 0, end: -1 };
     if (userTurnNodeList.length === 0) {
@@ -2241,7 +2241,7 @@ export class TimelineManager {
     // produces NO marker at all rather than an empty one — invisible to the
     // predicate above. Count those placeholders too, otherwise the fallback
     // never fires on the very conversations that need it most.
-    const hasUnmountedMiss = hasEmptyMarker || countUnresolvedTurnContainers() > 0;
+    const hasUnmountedMiss = hasEmptyMarker || anchorSync.unresolved > 0;
     this.fiberFallback?.requestIfNeeded(hasUnmountedMiss);
   };
 
@@ -2250,14 +2250,16 @@ export class TimelineManager {
    * for, so `userTurnSelector` can reach turns ChatGPT has virtualised away.
    * The ids come from the turn-text cache, which the `/backend-api/conversation`
    * capture and the React-fiber fallback both prime.
+   *
+   * Also reports how many turn wrappers we still can't classify — computed in
+   * the same walk, since both numbers are needed on every reconcile.
    */
-  private syncUserTurnAnchorsFromCache(): void {
+  private syncUserTurnAnchorsFromCache(): AnchorSyncResult {
     try {
-      const ids = this.turnTextCache.turnIds();
-      if (ids.length === 0) return;
-      syncUserTurnAnchors(ids);
+      return syncUserTurnAnchors(this.turnTextCache.turnIds());
     } catch {
       /* tagging is an enhancement — the mounted-section selector still works */
+      return { tagged: 0, unresolved: 0 };
     }
   }
 
@@ -2333,8 +2335,7 @@ export class TimelineManager {
     // turn by a full confirmation cycle. Commit those immediately; only genuine
     // reordering or removal of existing turn ids needs the debounce below.
     const isAppendOnly =
-      nextIds.length > currentIds.length &&
-      currentIds.every((id, index) => nextIds[index] === id);
+      nextIds.length > currentIds.length && currentIds.every((id, index) => nextIds[index] === id);
     if (isAppendOnly) return false;
 
     const signature = nextIds.join('|');
