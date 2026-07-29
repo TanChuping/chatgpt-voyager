@@ -45,6 +45,12 @@ import {
 } from './hierarchyTypes';
 import { findMatchingStarredMessages } from './starredLookup';
 import type { StarredMessage, StarredMessagesData } from './starredTypes';
+import {
+  USER_TURN_ANCHOR_SELECTOR,
+  countUnresolvedTurnContainers,
+  syncUserTurnAnchors,
+  withUserTurnAnchors,
+} from './turnAnchors';
 import { TurnTextCache, computeFingerprint } from './turnTextCache';
 import type { DotElement, MarkerLevel } from './types';
 
@@ -52,6 +58,13 @@ import type { DotElement, MarkerLevel } from './types';
 const TURN_LABEL_PREFIXES =
   /^[\u200B\u200C\u200D\u200E\u200F\uFEFF]*(?:you said|you wrote|user message|your prompt|you asked)[:\s]*/i;
 const VISUALLY_HIDDEN_CLASS_FRAGMENT = 'visually-hidden';
+/**
+ * Tailwind's screen-reader-only class, which is what ChatGPT actually uses —
+ * e.g. `<h4 class="sr-only select-none">你说：</h4>` in front of every user
+ * message. Matched exactly, because `not-sr-only` (Tailwind's un-hide utility)
+ * marks content that IS visible and must not be stripped.
+ */
+const SCREEN_READER_ONLY_CLASS = 'sr-only';
 const INJECTED_UI_SELECTOR = '.gv-fork-btn, .gv-fork-confirm, .gv-fork-indicator-group';
 
 /**
@@ -391,6 +404,7 @@ export class TimelineManager {
         const handle = installCachePrimerForManager(
           this.turnTextCache,
           getConversationCaptureService(),
+          () => this.recalculateAndRenderMarkers(),
         );
         this.cachePrimerDispose = handle.dispose;
       } catch (err) {
@@ -1016,13 +1030,16 @@ export class TimelineManager {
       autoDetected = localStorage.getItem('gptTimelineUserTurnSelectorAuto') || '';
     } catch {}
     const defaultCandidates = [
-      // FIRST PRIORITY: outer <section data-testid="conversation-turn-N"
-      // data-turn="user">. ChatGPT keeps this wrapper in the DOM with
-      // stable offsetTop + data-turn-id UUID even when virtualising the
-      // inner body for off-viewport turns. Picking it as the marker
-      // element means every user turn always has a real, click-able
-      // marker — the long-message-disappears bug goes away. Inner
-      // selectors below stay as fallbacks for older / variant layouts.
+      // FIRST PRIORITY: the turn wrapper we tagged ourselves via
+      // `syncUserTurnAnchors`. Since ChatGPT's 2026-07 rewrite an off-screen
+      // turn is unmounted *whole* — no section, no role, no text — leaving
+      // only `div[data-turn-id-container]`. That wrapper is the only element
+      // that exists for every turn, so once we know which wrappers are user
+      // turns it is the correct marker element. See `turnAnchors.ts`.
+      USER_TURN_ANCHOR_SELECTOR,
+      // Outer <section data-testid="conversation-turn-N" data-turn="user">.
+      // Still correct for every turn ChatGPT currently has mounted, and the
+      // whole story on layouts that don't virtualise.
       '[data-testid^="conversation-turn"][data-turn="user"]',
       // ChatGPT user bubble selectors
       '.user-query-bubble-with-background',
@@ -1053,7 +1070,12 @@ export class TimelineManager {
     if (found) {
       firstTurn = found.element;
       matchedSelector = found.selector;
-      this.userTurnSelector = matchedSelector;
+      // Always union in the anchor selector, whichever selector won the race.
+      // On a cold load nothing is tagged yet, so the mounted-section selector
+      // matches first — but the moment the conversation data lands and
+      // `syncUserTurnAnchors` tags the virtualised wrappers, the very same
+      // `userTurnSelector` has to pick them up without re-running detection.
+      this.userTurnSelector = withUserTurnAnchors(matchedSelector);
     }
     if (!firstTurn) {
       this.conversationContainer =
@@ -1066,9 +1088,10 @@ export class TimelineManager {
       //   b) auto-detected selector suggests Angular-based user query DOM (contains 'user-query')
       // - Otherwise, scope to the immediate parent for performance
       const looksAngularUserQuery = /user-query/i.test(matchedSelector || '');
-      const looksChatGptUserMessage = /data-message-author-role|data-author|data-turn/i.test(
-        matchedSelector || '',
-      );
+      const looksChatGptUserMessage =
+        /data-message-author-role|data-author|data-turn|data-gv-user-turn/i.test(
+          matchedSelector || '',
+        );
       if (
         (userOverride && matchedSelector === userOverride) ||
         looksAngularUserQuery ||
@@ -1333,7 +1356,9 @@ export class TimelineManager {
   private hasVisuallyHiddenClass(el: Element): boolean {
     if (!(el instanceof HTMLElement) || el.classList.length === 0) return false;
     for (const cls of el.classList) {
-      if (cls.toLowerCase().includes(VISUALLY_HIDDEN_CLASS_FRAGMENT)) return true;
+      const lower = cls.toLowerCase();
+      if (lower.includes(VISUALLY_HIDDEN_CLASS_FRAGMENT)) return true;
+      if (lower === SCREEN_READER_ONLY_CLASS) return true;
     }
     return false;
   }
@@ -1578,6 +1603,15 @@ export class TimelineManager {
       : (el.closest('[data-testid^="conversation-turn"]') as HTMLElement | null);
     const outerTurnId = outer?.dataset?.turnId;
     if (outerTurnId && this.looksLikeUuid(outerTurnId)) return outerTurnId;
+
+    // Fully virtualised turn: the only thing left is the wrapper's
+    // `data-turn-id-container`, which for a user turn IS the message uuid.
+    // Only trusted on a wrapper we positively identified as a user turn —
+    // an assistant wrapper carries its turn id there, not a message id.
+    if (el.getAttribute('data-gv-user-turn') === '1') {
+      const containerId = el.getAttribute('data-turn-id-container') || '';
+      if (this.looksLikeUuid(containerId)) return containerId;
+    }
     return null;
   }
 
@@ -1606,6 +1640,9 @@ export class TimelineManager {
       // exact-equals matching was the original bug that hid this signal.
       const turnSection =
         turnElement.closest<HTMLElement>('[data-testid^="conversation-turn"]') ??
+        // Marker elements are now the outer `div[data-turn-id-container]`
+        // wrapper, so the section is a DESCENDANT, not an ancestor.
+        turnElement.querySelector<HTMLElement>('[data-testid^="conversation-turn"]') ??
         turnElement.closest<HTMLElement>('article') ??
         turnElement;
 
@@ -2003,6 +2040,10 @@ export class TimelineManager {
       !this.userTurnSelector
     )
       return;
+    // Tag the wrappers of every user turn we know about BEFORE selecting, so a
+    // turn ChatGPT has virtualised away still contributes a marker. No-op until
+    // the API capture / fiber read has populated the cache.
+    this.syncUserTurnAnchorsFromCache();
     const userTurnNodeList = this.conversationContainer.querySelectorAll(this.userTurnSelector);
     this.visibleRange = { start: 0, end: -1 };
     if (userTurnNodeList.length === 0) {
@@ -2192,11 +2233,33 @@ export class TimelineManager {
     // API capture path produced nothing (conversation opened from client
     // cache). The fallback throttles + dedupes + stops once satisfied, so
     // running this on every reconcile pass is cheap.
-    const hasUnmountedMiss = this.markers.some(
+    const hasEmptyMarker = this.markers.some(
       (mk) => !mk.summary && mk.attachments.length === 0 && !mk.hasGeneratedImage,
     );
+    // Since ChatGPT's 2026-07 rewrite a virtualised turn leaves only an
+    // unlabelled `div[data-turn-id-container]` placeholder, so a missing turn
+    // produces NO marker at all rather than an empty one — invisible to the
+    // predicate above. Count those placeholders too, otherwise the fallback
+    // never fires on the very conversations that need it most.
+    const hasUnmountedMiss = hasEmptyMarker || countUnresolvedTurnContainers() > 0;
     this.fiberFallback?.requestIfNeeded(hasUnmountedMiss);
   };
+
+  /**
+   * Stamp `data-gv-user-turn` on the wrapper of every user turn we have an id
+   * for, so `userTurnSelector` can reach turns ChatGPT has virtualised away.
+   * The ids come from the turn-text cache, which the `/backend-api/conversation`
+   * capture and the React-fiber fallback both prime.
+   */
+  private syncUserTurnAnchorsFromCache(): void {
+    try {
+      const ids = this.turnTextCache.turnIds();
+      if (ids.length === 0) return;
+      syncUserTurnAnchors(ids);
+    } catch {
+      /* tagging is an enhancement — the mounted-section selector still works */
+    }
+  }
 
   private shouldDeferMarkerRecalculation(): boolean {
     if (this.markers.length === 0) return false;

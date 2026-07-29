@@ -111,6 +111,15 @@ export class TurnTextCache {
   }
 
   /**
+   * Every cached turn id for the bound conversation. Used to re-anchor the
+   * timeline onto turns ChatGPT has virtualised out of the DOM — the cache is
+   * the only place that still knows they exist.
+   */
+  turnIds(): string[] {
+    return Array.from(this.map.keys());
+  }
+
+  /**
    * Insert/refresh a snapshot. Should only be called when the live DOM
    * (or the API capture) produced non-empty content for this turn —
    * caching an empty snapshot would mask the fallback mechanism.

@@ -1,0 +1,104 @@
+/**
+ * Where to inject an icon button into ChatGPT's conversation header.
+ *
+ * ChatGPT's 2026-07 header does NOT lay its right-side actions out as one flat
+ * row. Verified live inside `#conversation-header-actions`:
+ *
+ *   div#conversation-header-actions        (flex row, gap-2)
+ *     ├ div.-me-2                          36×36 — nested plain DIVs wrapping a
+ *     │   └ div > div > span[data-state]         Radix tooltip <span>, which is
+ *     │        └ button[share-chat-button]       `display: inline`
+ *     └ div.flex.items-center              the genuinely horizontal group:
+ *          ├ span > button (read aloud)
+ *          └ div.relative > button[conversation-options-button]   ("…")
+ *
+ * The Share button's wrapper `<span>` is `display: inline`, so a second
+ * block-level button placed beside it does NOT sit next to it — it stacks
+ * underneath, and both then overflow the 52px header (one clipped above, one
+ * below). That is what made the announcement and export buttons render on their
+ * own lines after the redesign.
+ *
+ * So: anchor on `[data-testid="conversation-options-button"]`, whose parent IS
+ * a real horizontal flex row, and insert before its wrapper. Everything falls
+ * back to the older anchors for layouts that don't have it.
+ */
+
+export interface HeaderActionSlot {
+  /** Element to `insertBefore` into. */
+  parent: HTMLElement;
+  /** Reference node; our button goes immediately before it (i.e. to its left). */
+  before: Element | null;
+  /** Native button to clone styling from — always a real button, never a wrapper. */
+  styleSource: HTMLElement;
+}
+
+/**
+ * The horizontal action row that holds the "…" conversation-options button.
+ * Returns null outside a conversation (or on layouts without that button).
+ */
+export function findOptionsButtonRow(): HeaderActionSlot | null {
+  const options = document.querySelector<HTMLElement>(
+    '[data-testid="conversation-options-button"]',
+  );
+  if (!options) return null;
+  // ChatGPT wraps the button in a positioning div; the row is one level up.
+  const slot = options.parentElement;
+  const row = slot?.parentElement;
+  if (!slot || !row) return null;
+  return { parent: row, before: slot, styleSource: options };
+}
+
+/**
+ * True when block-level children of `el` would stack vertically rather than
+ * flow in a row. Our injected buttons are `display: flex` (block-level), so any
+ * container that isn't a confirmed horizontal row will stack them.
+ */
+export function wouldStackVertically(el: HTMLElement): boolean {
+  const cs = getComputedStyle(el);
+  if (cs.display === 'flex' || cs.display === 'inline-flex') {
+    return cs.flexDirection === 'column' || cs.flexDirection === 'column-reverse';
+  }
+  // Grid placement is unpredictable; inline wrappers (ChatGPT's Radix tooltip
+  // spans) put block-level children into stacked anonymous blocks.
+  return true;
+}
+
+/**
+ * Walk up from `start` to the nearest ancestor that lays children out
+ * horizontally, returning that ancestor plus the child on the path back to
+ * `start` — so `insertBefore(btn, child)` lands to the LEFT of the cluster.
+ *
+ * Bounded by depth and by width (≤ half the viewport) so we never drift up into
+ * the full-width page header and land beside the model picker.
+ */
+export function findHorizontalRowAncestor(
+  start: HTMLElement,
+  maxDepth = 5,
+): { parent: HTMLElement; before: HTMLElement } | null {
+  const widthLimit = Math.max(window.innerWidth * 0.5, 320);
+  let child: HTMLElement = start;
+  let parent: HTMLElement | null = start.parentElement;
+  let depth = 0;
+  while (parent && parent !== document.body && depth < maxDepth) {
+    if (parent.getBoundingClientRect().width > widthLimit) break;
+    if (!wouldStackVertically(parent)) return { parent, before: child };
+    child = parent;
+    parent = parent.parentElement;
+    depth++;
+  }
+  return null;
+}
+
+/**
+ * Best available slot next to ChatGPT's Share button, escaping any wrapper that
+ * would stack us underneath it.
+ */
+export function findShareButtonSlot(): HeaderActionSlot | null {
+  const share = document.querySelector<HTMLElement>('[data-testid="share-chat-button"]');
+  if (!share || !share.parentElement) return null;
+  const horizontal = findHorizontalRowAncestor(share);
+  if (horizontal) {
+    return { parent: horizontal.parent, before: horizontal.before, styleSource: share };
+  }
+  return { parent: share.parentElement, before: share, styleSource: share };
+}

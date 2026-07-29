@@ -97,13 +97,19 @@ export function normaliseConvIdForCompare(id: string | null | undefined): string
 export function installCachePrimerForManager(
   turnTextCache: TurnTextCache,
   captureService: ConversationCaptureService,
+  onPrimed?: () => void,
 ): CachePrimerHandle {
   const off = captureService.on('captured', (convId, entry) => {
     const boundId = normaliseConvIdForCompare(turnTextCache.getConversationId());
     const captureId = normaliseConvIdForCompare(convId);
     if (!boundId || !captureId || boundId !== captureId) return;
     try {
-      primeCacheFromLinear(turnTextCache, entry.linear.messages);
+      const primed = primeCacheFromLinear(turnTextCache, entry.linear.messages);
+      // A fresh capture may reveal turns ChatGPT has virtualised out of the
+      // DOM entirely; the timeline can only anchor onto them once it knows
+      // their ids, so nudge it to reconcile instead of waiting for the next
+      // DOM mutation (a fully-hydrated thread may not produce one).
+      if (primed > 0) onPrimed?.();
     } catch (err) {
       console.warn('[GPT-Voyager] cache primer failed', err);
     }

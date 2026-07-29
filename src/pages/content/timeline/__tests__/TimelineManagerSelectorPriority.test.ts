@@ -1,6 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TimelineManager } from '../manager';
+import { USER_TURN_ANCHOR_SELECTOR } from '../turnAnchors';
+
+/**
+ * `findCriticalElements` always unions the virtualised-turn anchor selector in
+ * front of whichever selector won detection (see `withUserTurnAnchors`), so
+ * these assertions check the *resolved* selector, not the raw string.
+ */
+const resolved = (selector: string): string =>
+  selector.startsWith(`${USER_TURN_ANCHOR_SELECTOR},`)
+    ? selector.slice(USER_TURN_ANCHOR_SELECTOR.length + 1)
+    : selector;
 
 describe('TimelineManager selector priority compatibility', () => {
   beforeEach(() => {
@@ -33,7 +44,7 @@ describe('TimelineManager selector priority compatibility', () => {
 
     const ok = await internal.findCriticalElements();
     expect(ok).toBe(true);
-    expect(internal.userTurnSelector).toBe('.user-query-bubble-with-background');
+    expect(resolved(internal.userTurnSelector)).toBe('.user-query-bubble-with-background');
     expect(localStorage.getItem('gptTimelineUserTurnSelectorAuto')).toBe(
       '.user-query-bubble-with-background',
     );
@@ -63,6 +74,6 @@ describe('TimelineManager selector priority compatibility', () => {
 
     const ok = await internal.findCriticalElements();
     expect(ok).toBe(true);
-    expect(internal.userTurnSelector).toBe('.custom-user-turn');
+    expect(resolved(internal.userTurnSelector)).toBe('.custom-user-turn');
   });
 });

@@ -20,6 +20,7 @@ import {
 import { getTranslationSync } from '@/utils/i18n';
 
 import { buildClonedButtonClassName } from '../shared/clonedButtonClass';
+import { findOptionsButtonRow, findShareButtonSlot } from '../shared/headerActionSlot';
 import { enterSelectionMode } from './selectionMode';
 
 const TAG = 'data-gv-export-btn';
@@ -75,12 +76,23 @@ function buildSelectIcon(): SVGSVGElement {
   return svg;
 }
 
+/**
+ * True when the button we clone styling from shows an icon and nothing else.
+ * Read off the live reference rather than hard-coding ChatGPT's current class
+ * names, so a future header restyle doesn't need a code change here.
+ */
+export function isIconOnly(reference: HTMLElement): boolean {
+  return (reference.textContent || '').trim().length === 0;
+}
+
 function injectIfNeeded(): void {
-  const share = document.querySelector<HTMLElement>('[data-testid="share-chat-button"]');
-  if (!share) return;
-  const parent = share.parentElement;
-  if (!parent) return;
-  if (parent.querySelector(`[${TAG}]`)) return;
+  // See `headerActionSlot.ts`: Share's wrapper is a `display: inline` Radix
+  // span, so anything inserted beside it stacks underneath instead of sitting
+  // in the row. Anchor on the "…" options row, which is a real flex row.
+  const site = findOptionsButtonRow() ?? findShareButtonSlot();
+  if (!site) return;
+  const { parent: host, before, styleSource } = site;
+  if (host.querySelector(`[${TAG}]`)) return;
 
   const label = getTranslationSync('singleConvExportButton');
   const tooltip = getTranslationSync('singleConvExportButtonTooltip');
@@ -91,7 +103,7 @@ function injectIfNeeded(): void {
   // and the label (ChatGPT's native icon-only buttons don't need one).
   // Strip Share's transient disabled classes so our (always-functional) button
   // never renders dimmed with a not-allowed cursor.
-  btn.className = buildClonedButtonClassName(share.className, 'gv-export-conv-topbar');
+  btn.className = buildClonedButtonClassName(styleSource.className, 'gv-export-conv-topbar');
   btn.type = 'button';
   btn.setAttribute(TAG, '1');
   btn.setAttribute('aria-haspopup', 'menu');
@@ -100,10 +112,21 @@ function injectIfNeeded(): void {
   btn.title = tooltip;
 
   const icon = buildDownloadIcon();
-  const labelEl = document.createElement('span');
-  labelEl.className = 'gv-export-conv-topbar__label';
-  labelEl.textContent = label;
-  btn.replaceChildren(icon, labelEl);
+  // ChatGPT's 2026-07 header renders these actions as FIXED-SIZE icon-only
+  // buttons (`flex h-9 w-9 items-center justify-center`). We clone that class
+  // list, so appending a text label overflows the 36×36 box and the label
+  // spills onto its own line under the icon — the "被换行了很丑" report.
+  // Mirror the reference button instead: no text on Share ⇒ no text on ours,
+  // with the localised label carried by `aria-label` + `title`. If ChatGPT ever
+  // goes back to labelled header buttons, this flips back on its own.
+  if (isIconOnly(styleSource)) {
+    btn.replaceChildren(icon);
+  } else {
+    const labelEl = document.createElement('span');
+    labelEl.className = 'gv-export-conv-topbar__label';
+    labelEl.textContent = label;
+    btn.replaceChildren(icon, labelEl);
+  }
 
   // One top-bar button now opens a small menu so "export whole" and "select &
   // export" share a single slot instead of crowding the header with two
@@ -114,7 +137,7 @@ function injectIfNeeded(): void {
     toggleExportMenu(btn);
   });
 
-  parent.insertBefore(btn, share.nextSibling);
+  host.insertBefore(btn, before);
 }
 
 // ─── Export menu (popover) ──────────────────────────────────────────────────

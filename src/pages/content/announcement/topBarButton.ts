@@ -33,6 +33,11 @@
  * injection wouldn't survive.
  */
 import { buildClonedButtonClassName } from '../shared/clonedButtonClass';
+import {
+  findHorizontalRowAncestor,
+  findOptionsButtonRow,
+  findShareButtonSlot,
+} from '../shared/headerActionSlot';
 
 const TAG = 'data-gv-announcement-btn';
 const INDICATOR_CLASS = 'gv-announcement-btn__indicator';
@@ -63,9 +68,7 @@ let currentUnread = false;
 type ButtonAvailableListener = () => void;
 let buttonAvailableListener: ButtonAvailableListener | null = null;
 
-export function setAnnouncementButtonAvailableListener(
-  cb: ButtonAvailableListener | null,
-): void {
+export function setAnnouncementButtonAvailableListener(cb: ButtonAvailableListener | null): void {
   buttonAvailableListener = cb;
   // Fire immediately if a button is already in the DOM. Lets the
   // bootstrap recover state synchronously when it registers late
@@ -116,7 +119,7 @@ interface Anchor {
   /** Container we insertBefore() into. */
   parent: HTMLElement;
   /** Direct child of `parent` we sit immediately to the LEFT of. */
-  before: HTMLElement;
+  before: Element | null;
   /**
    * The actual native button to clone styling from (padding, hover,
    * border radius). Always a `<button>` — never a wrapper element,
@@ -127,78 +130,31 @@ interface Anchor {
   styleSource: HTMLElement;
 }
 
-/**
- * Return TRUE if appending a NEW `<button display:flex>` sibling into
- * `container` would lay out top-to-bottom (visual vertical stacking),
- * which we want to avoid because the surrounding header is only 52px
- * tall and the two stacked buttons (36px each) overflow above/below.
- *
- * Cases:
- *   - `display: flex` row → side-by-side (false)
- *   - `display: flex` column → stacked (true)
- *   - `display: block` (most common offender — that `<span>` wrapping
- *     the temp-chat toggle) → block-level children stack (true)
- *   - `display: inline-block` → block-level kids still stack (true)
- *   - `display: grid` → can't tell without measuring, treat as
- *     non-stacking to avoid walking too far
- */
-function wouldStackVertically(container: HTMLElement): boolean {
-  const cs = window.getComputedStyle(container);
-  if (cs.display === 'flex' || cs.display === 'inline-flex') {
-    return cs.flexDirection === 'column' || cs.flexDirection === 'column-reverse';
-  }
-  if (cs.display === 'grid' || cs.display === 'inline-grid') return false;
-  // block / inline-block / list-item / flow-root / table-* — sibling
-  // block-level children (our flex buttons are block-level) stack.
-  // `inline` is the only safe one (children flow inline), but it's
-  // unusual for a ChatGPT layout wrapper. Treat anything that isn't a
-  // confirmed horizontal-row mode as stacking.
-  if (cs.display === 'inline') return false;
-  return true;
-}
-
-/**
- * Walk up the parent chain from `start` until we find an ancestor that
- * does NOT stack vertically — i.e. a real horizontal flex row. Returns
- * that ancestor + the direct child of it on the path back to `start`,
- * so the caller can `insertBefore(newBtn, that child)` and end up
- * immediately to the LEFT of the existing icon cluster.
- *
- * Bounded depth (5) + a width cap (≤ half viewport) so we don't drift
- * up into the page header row and land next to the model picker on
- * the opposite side.
- */
-function findHorizontalRowAncestor(
-  start: HTMLElement,
-): { parent: HTMLElement; before: HTMLElement } | null {
-  const widthLimit = Math.max(window.innerWidth * 0.5, 320);
-  let child: HTMLElement = start;
-  let parent: HTMLElement | null = start.parentElement;
-  let depth = 0;
-  while (parent && parent !== document.body && depth < 5) {
-    const pr = parent.getBoundingClientRect();
-    if (pr.width > widthLimit) break;
-    if (!wouldStackVertically(parent)) {
-      return { parent, before: child };
-    }
-    child = parent;
-    parent = parent.parentElement;
-    depth++;
-  }
-  return null;
-}
-
 function findAnchor(): Anchor | null {
-  // In a conversation: anchor on the share button, but if our 1.6.0
-  // export button (`data-gv-export-btn`) is to its left we anchor on
-  // that instead so we end up further left.
-  const share = document.querySelector<HTMLElement>('[data-testid="share-chat-button"]');
-  if (share && share.parentElement) {
-    const exportBtn = share.parentElement.querySelector<HTMLElement>('[data-gv-export-btn]');
+  // In a conversation, anchor on the "…" options row — a REAL horizontal flex
+  // row. We used to insert next to the Share button, but since ChatGPT's
+  // 2026-07 redesign Share lives inside a Radix tooltip `<span>` whose computed
+  // display is `inline`; a block-level `<button>` dropped in there becomes an
+  // anonymous block and stacks UNDER Share, with both then overflowing the 52px
+  // header (megaphone clipped above, Share clipped below). See
+  // `shared/headerActionSlot.ts`. Sit to the left of our own export button when
+  // it's already there, so the two stay grouped.
+  const optionsRow = findOptionsButtonRow();
+  if (optionsRow) {
+    const exportBtn = optionsRow.parent.querySelector<HTMLElement>('[data-gv-export-btn]');
     return {
-      parent: share.parentElement,
-      before: exportBtn ?? share,
-      styleSource: share,
+      parent: optionsRow.parent,
+      before: exportBtn ?? optionsRow.before,
+      styleSource: optionsRow.styleSource,
+    };
+  }
+  const shareSlot = findShareButtonSlot();
+  if (shareSlot) {
+    const exportBtn = shareSlot.parent.querySelector<HTMLElement>('[data-gv-export-btn]');
+    return {
+      parent: shareSlot.parent,
+      before: exportBtn ?? shareSlot.before,
+      styleSource: shareSlot.styleSource,
     };
   }
   // Outside a conversation, find the temporary-chat toggle. ChatGPT
