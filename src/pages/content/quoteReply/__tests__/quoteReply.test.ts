@@ -430,7 +430,7 @@ describe('quote reply', () => {
     if (!source) throw new Error('Expected source element.');
 
     source.innerHTML =
-      'Variable <span class="math-inline"><span data-math="U \\in [0, 1)">U鈭圼0,1)</span></span> is uniform';
+      'Variable <span class="math-inline"><span data-math="U \\in [0, 1)">U∈[0,1)</span></span> is uniform';
 
     const selection = window.getSelection();
     const range = document.createRange();
@@ -460,7 +460,7 @@ describe('quote reply', () => {
     if (!source) throw new Error('Expected source element.');
 
     source.innerHTML =
-      'Equation: <span class="math-block"><span data-math="E = mc^2">E=mc虏</span></span>';
+      'Equation: <span class="math-block"><span data-math="E = mc^2">E=mc²</span></span>';
 
     const selection = window.getSelection();
     const range = document.createRange();
@@ -489,7 +489,7 @@ describe('quote reply', () => {
     const source = document.getElementById('source');
     if (!source) throw new Error('Expected source element.');
 
-    source.innerHTML = 'Value <span data-math="x^2">x虏</span> here';
+    source.innerHTML = 'Value <span data-math="x^2">x²</span> here';
 
     const selection = window.getSelection();
     const range = document.createRange();

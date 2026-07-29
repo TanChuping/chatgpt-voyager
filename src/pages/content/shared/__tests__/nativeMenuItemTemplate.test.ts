@@ -58,8 +58,8 @@ describe('nativeMenuItemTemplate', () => {
       menuContent,
       injectedClassName: 'gv-export-conversation-menu-btn',
       iconName: 'download',
-      label: '瀵煎嚭瀵硅瘽璁板綍',
-      tooltip: '瀵煎嚭瀵硅瘽璁板綍',
+      label: '导出对话记录',
+      tooltip: '导出对话记录',
     });
 
     expect(button).toBeTruthy();
@@ -74,14 +74,14 @@ describe('nativeMenuItemTemplate', () => {
       menuContent,
       injectedClassName: 'gv-export-conversation-menu-btn',
       iconName: 'download',
-      label: '瀵煎嚭瀵硅瘽璁板綍',
-      tooltip: '瀵煎嚭瀵硅瘽璁板綍',
+      label: '导出对话记录',
+      tooltip: '导出对话记录',
     });
 
     expect(button).toBeTruthy();
     const textInner = button?.querySelector('.mat-mdc-menu-item-text > .menu-text');
     expect(textInner).toBeTruthy();
-    expect(textInner?.textContent).toBe('瀵煎嚭瀵硅瘽璁板綍');
+    expect(textInner?.textContent).toBe('导出对话记录');
   });
 
   it('keeps native menu-text wrapper when updating existing button label', () => {
@@ -97,10 +97,10 @@ describe('nativeMenuItemTemplate', () => {
     expect(button).toBeTruthy();
     if (!button) return;
 
-    updateMenuItemTemplateLabel(button, '瀵煎嚭瀵硅瘽璁板綍', '瀵煎嚭瀵硅瘽璁板綍');
+    updateMenuItemTemplateLabel(button, '导出对话记录', '导出对话记录');
     const textInner = button.querySelector('.mat-mdc-menu-item-text > .menu-text');
     expect(textInner).toBeTruthy();
-    expect(textInner?.textContent).toBe('瀵煎嚭瀵硅瘽璁板綍');
+    expect(textInner?.textContent).toBe('导出对话记录');
   });
 
   it('still finds nested native template when direct buttons are excluded', () => {

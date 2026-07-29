@@ -569,7 +569,7 @@ describe('input Vim mode', () => {
       1: { left: 89, top: 10, width: 18 },
       2: { left: 107, top: 10, width: 9 },
     });
-    const input = createQuestionInput('a浣燽');
+    const input = createQuestionInput('a你b');
     setContentEditableSelection(input, 1);
 
     const { startInputVimMode } = await import('../vimMode');

@@ -559,7 +559,7 @@ export class DOMContentExtractor {
       element.classList.contains('thoughts-header') ||
       // Inline source/citation container
       element.classList.contains('source-inline-chip-container') ||
-      // NanoBanana watermark remover indicator (馃崒 emoji)
+      // NanoBanana watermark remover indicator (🍌 emoji)
       element.classList.contains('nanobanana-indicator') ||
       // Generated image overlay controls (share/copy/download buttons)
       element.classList.contains('generated-image-controls') ||

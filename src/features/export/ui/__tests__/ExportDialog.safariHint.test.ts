@@ -27,7 +27,7 @@ describe('ExportDialog (Safari hint)', () => {
       title: 'Export',
       selectFormat: 'Select',
       warning: 'Warning',
-      safariCmdpHint: 'Safari tip: press 鈱楶.',
+      safariCmdpHint: 'Safari tip: press ⌘P.',
       safariMarkdownHint: 'Safari tip: use PDF.',
       cancel: 'Cancel',
       export: 'Export',
@@ -51,7 +51,7 @@ describe('ExportDialog (Safari hint)', () => {
     vi.restoreAllMocks();
   });
 
-  it('appends 鈱楶 hint to PDF option description on Safari', () => {
+  it('appends ⌘P hint to PDF option description on Safari', () => {
     setUserAgentVendor(
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
       'Apple Computer, Inc.',
@@ -72,7 +72,7 @@ describe('ExportDialog (Safari hint)', () => {
     expect(desc?.textContent || '').toContain(baseOptions.translations.safariCmdpHint);
   });
 
-  it('does not append 鈱楶 hint on non-Safari browsers', () => {
+  it('does not append ⌘P hint on non-Safari browsers', () => {
     setUserAgentVendor(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Google Inc.',

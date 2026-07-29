@@ -165,11 +165,11 @@ describe('PDFPrintService', () => {
       url: 'https://gemini.google.com/app/x',
       exportedAt: new Date().toISOString(),
       count: 1,
-      title: '鎴胯捶杩樻鏂瑰紡瀵规瘮鍒嗘瀽 - Gemini',
+      title: '房贷还款方式对比分析 - ChatGPT',
     });
 
     const coverTitle = document.querySelector('.gv-print-cover-title');
-    expect(coverTitle?.textContent).toBe('鎴胯捶杩樻鏂瑰紡瀵规瘮鍒嗘瀽');
+    expect(coverTitle?.textContent).toBe('房贷还款方式对比分析');
   });
 
   it('extracts title from native sidebar by conversation id and restores page title after print', async () => {
@@ -185,7 +185,7 @@ describe('PDFPrintService', () => {
     link.setAttribute('href', '/app/abc12345');
     const text = document.createElement('span');
     text.className = 'conversation-title-text';
-    text.textContent = '鎴胯捶杩樻鏂瑰紡瀵规瘮鍒嗘瀽';
+    text.textContent = '房贷还款方式对比分析';
     link.appendChild(text);
     nativeConversation.appendChild(link);
     document.body.appendChild(nativeConversation);
@@ -201,8 +201,8 @@ describe('PDFPrintService', () => {
     await exportPromise;
 
     const coverTitle = document.querySelector('.gv-print-cover-title');
-    expect(coverTitle?.textContent).toBe('鎴胯捶杩樻鏂瑰紡瀵规瘮鍒嗘瀽');
-    expect(document.title).toBe('鎴胯捶杩樻鏂瑰紡瀵规瘮鍒嗘瀽 - Gemini');
+    expect(coverTitle?.textContent).toBe('鎴胯捶杩樻方式对比分析');
+    expect(document.title).toBe('鎴胯捶杩樻方式对比分析 - Gemini');
 
     window.dispatchEvent(new Event('afterprint'));
     expect(document.title).toBe('Google Gemini');

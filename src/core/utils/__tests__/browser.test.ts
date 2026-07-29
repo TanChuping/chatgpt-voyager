@@ -121,9 +121,9 @@ describe('isMac', () => {
 });
 
 describe('getModifierKey', () => {
-  it('returns 鈱?on macOS', () => {
+  it('returns ⌘ on macOS', () => {
     vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel');
-    expect(getModifierKey()).toBe('鈱?);
+    expect(getModifierKey()).toBe('⌘');
   });
 
   it('returns Ctrl on Windows', () => {

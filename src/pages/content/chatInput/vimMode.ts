@@ -94,7 +94,7 @@ const SEND_BUTTON_SELECTOR = [
   '.send-button',
   'button[aria-label*="Update"]',
   'button[aria-label*="Save"]',
-  'button[aria-label*="鏇存柊"]',
+  'button[aria-label*="更新"]',
 ].join(',');
 
 const state: VimState = {
@@ -997,9 +997,9 @@ function queryHudMountCandidates(): HTMLElement[] {
     '[class*="toolbox-drawer"] button',
     'button[aria-label*="Tools"]',
     'button[aria-label*="tools"]',
-    'button[aria-label*="宸ュ叿"]',
-    'button[aria-label*="銉勩兗銉?]',
-    'button[aria-label*="霃勱惮"]',
+    'button[aria-label*="工具"]',
+    'button[aria-label*="ツール"]',
+    'button[aria-label*="도구"]',
   ];
 
   const candidates: HTMLElement[] = [];

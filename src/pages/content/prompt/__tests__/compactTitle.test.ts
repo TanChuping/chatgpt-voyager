@@ -9,7 +9,7 @@ describe('extractPlainTitle', () => {
   });
 
   it('strips a leading H1 marker', () => {
-    expect(extractPlainTitle('# 璇戝\n鑻辨枃鍏ュ銆?)).toBe('璇戝');
+    expect(extractPlainTitle('# 译文\n英文入门。')).toBe('译文');
   });
 
   it('strips higher-level heading markers', () => {
@@ -34,12 +34,12 @@ describe('extractPlainTitle', () => {
   });
 
   it('skips blank leading lines and uses the first non-empty line', () => {
-    expect(extractPlainTitle('\n\n\n瀹為檯鏍囬\n鏇村鍐呭')).toBe('瀹為檯鏍囬');
+    expect(extractPlainTitle('\n\n\n实际标题\n更多内容')).toBe('实际标题');
   });
 
   it('preserves inner punctuation and content', () => {
-    expect(extractPlainTitle('# Translate: English 鈫?Chinese')).toBe(
-      'Translate: English 鈫?Chinese',
+    expect(extractPlainTitle('# Translate: English → Chinese')).toBe(
+      'Translate: English → Chinese',
     );
   });
 
@@ -54,6 +54,6 @@ describe('extractPlainTitle', () => {
   });
 
   it('returns the first plaintext line when the prompt starts with no markers', () => {
-    expect(extractPlainTitle('缈昏瘧\n鑻辨枃娈佃惤')).toBe('缈昏瘧');
+    expect(extractPlainTitle('翻译\n英文段落')).toBe('翻译');
   });
 });

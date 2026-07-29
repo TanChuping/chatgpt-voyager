@@ -20,7 +20,7 @@ export function buildForkMarkdown(
   lines.push('');
 
   for (const turn of normalizedTurns) {
-    lines.push('### 馃懁 User');
+    lines.push('### 👤 User');
     lines.push('');
     lines.push(turn.user || '');
     lines.push('');

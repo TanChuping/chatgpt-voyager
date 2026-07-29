@@ -4,8 +4,8 @@ import { composeForkInputWithContext } from '../forkContext';
 
 describe('composeForkInputWithContext', () => {
   it('should use Chinese context when language is zh', () => {
-    const output = composeForkInputWithContext('# title\n\n### 馃懁 User\n\nhello', 'zh');
-    expect(output).toContain('# 鍒嗘敮涓婁笅鏂?);
+    const output = composeForkInputWithContext('# title\n\n### 👤 User\n\nhello', 'zh');
+    expect(output).toContain('# 分支上下文');
     expect(output).toContain('# Conversation History');
   });
 

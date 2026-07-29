@@ -41,10 +41,10 @@ describe('resolveSidebarConversationTarget', () => {
     sidebar.setAttribute('data-test-id', 'overflow-container');
     document.body.appendChild(sidebar);
 
-    createConversation('abc123', 'A鑲EG浼板€间笌SEPA绛栫暐');
+    createConversation('abc123', 'A股ESG估值与SEPA策略');
     const trigger = document.createElement('button');
     trigger.setAttribute('data-test-id', 'actions-menu-button');
-    trigger.setAttribute('aria-label', 'More options for A鑲EG浼板€间笌SEPA绛栫暐');
+    trigger.setAttribute('aria-label', 'More options for A股ESG估值与SEPA策略');
     sidebar.appendChild(trigger);
 
     const target = resolveSidebarConversationTarget(trigger);

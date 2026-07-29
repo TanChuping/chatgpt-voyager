@@ -246,7 +246,7 @@ describe('FormulaCopyService', () => {
 
     const inner = document.createElement('span');
     inner.setAttribute('data-math', 'x^2');
-    inner.textContent = 'x虏';
+    inner.textContent = 'x²';
     container.appendChild(inner);
     document.body.appendChild(container);
 
@@ -320,9 +320,9 @@ describe('FormulaCopyService', () => {
     const mrow = document.createElementNS('http://www.w3.org/1998/Math/MathML', 'mrow');
     const msub = document.createElementNS('http://www.w3.org/1998/Math/MathML', 'msub');
     const mi1 = document.createElementNS('http://www.w3.org/1998/Math/MathML', 'mi');
-    mi1.textContent = '蟺';
+    mi1.textContent = 'π';
     const mi2 = document.createElementNS('http://www.w3.org/1998/Math/MathML', 'mi');
-    mi2.textContent = '胃';
+    mi2.textContent = 'θ';
     msub.appendChild(mi1);
     msub.appendChild(mi2);
     mrow.appendChild(msub);
@@ -340,7 +340,7 @@ describe('FormulaCopyService', () => {
     const katexHtml = document.createElement('span');
     katexHtml.classList.add('katex-html');
     katexHtml.setAttribute('aria-hidden', 'true');
-    katexHtml.innerHTML = '<span class="base"><span class="mord">蟺<sub>胃</sub></span></span>';
+    katexHtml.innerHTML = '<span class="base"><span class="mord">π<sub>θ</sub></span></span>';
 
     katexSpan.appendChild(katexMathml);
     katexSpan.appendChild(katexHtml);

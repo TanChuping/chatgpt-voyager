@@ -110,7 +110,7 @@ describe('extractConversationInfoFromPage', () => {
     const hexId = 'a1b2c3d4e5f6a7b8';
     window.history.pushState({}, '', `/app/${hexId}`);
 
-    // No title element in DOM 鈥?simulate document.title set by Gemini
+    // No title element in DOM — simulate document.title set by the host page
     Object.defineProperty(document, 'title', {
       value: 'Async Title - Gemini',
       writable: true,
@@ -176,15 +176,15 @@ describe('extractConversationInfoFromPage', () => {
   });
 
   it.each([
-    '鏂板璇?,
-    '鏂板皪瑭?,
-    '鏂般仐銇勩儊銉ｃ儍銉?,
-    '靸?毂勴寘',
+    '新对话',
+    '新對話',
+    '新しいチャット',
+    '새 채팅',
     'Nuevo chat',
     'Nouveau chat',
     'Novo chat',
-    '袧芯胁褘泄 褔邪褌',
-    '賲丨丕丿孬丞 噩丿賷丿丞',
+    'Новый чат',
+    'محادثة جديدة',
   ])('ignores localized "New chat" placeholder: %s', (placeholder) => {
     const hexId = 'a1b2c3d4e5f6a7b8';
     window.history.pushState({}, '', `/app/${hexId}`);

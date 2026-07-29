@@ -3485,7 +3485,7 @@ export class FolderManager {
       this.debug('Moving from folder:', dragData.sourceFolderId);
       this.removeConversationFromFolder(dragData.sourceFolderId, dragData.conversationId!);
       // Note: removeConversationFromFolder calls saveData() and refresh(), so we don't need to call them again
-      // Folder鈫抐older move is not a "first archive"; skip the nudge.
+      // Folder→folder move is not a "first archive"; skip the nudge.
       return;
     }
 
@@ -3564,7 +3564,7 @@ export class FolderManager {
     this.refresh();
     // Trigger nudge only if at least one conversation was actually added from
     // outside. If the whole batch came from another folder (sourceFolderId set),
-    // it's a folder鈫抐older move and not a "first archive" event.
+    // it's a folder→folder move and not a "first archive" event.
     if (addedCount > 0 && !sourceFolderId) {
       this.maybeShowHideArchivedNudge();
     }
@@ -5574,7 +5574,7 @@ export class FolderManager {
               this.lastClickedConversationInfo = { id: conversationId, title, url };
               this.debug('Extracted conversation info on click:', this.lastClickedConversationInfo);
             } else {
-              this.debugWarn('鈿狅笍 Failed to extract complete conversation info on click', {
+              this.debugWarn('⚠️ Failed to extract complete conversation info on click', {
                 conversationId,
                 title,
                 url,
@@ -5901,7 +5901,7 @@ export class FolderManager {
       this.debug('  SKIPPED: Conversation still exists in DOM');
       this.debug(`    Likely a UI refresh, not a deletion`);
       this.debug(
-        `鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲\n`,
+        `════════════════════════════════════════════════\n`,
       );
       return;
     }
@@ -5911,7 +5911,7 @@ export class FolderManager {
     this.debug(`    Reason: Not in current URL and not found in DOM`);
     this.debug(`    Current URL: ${currentUrl}`);
     this.debug(
-      `鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲\n`,
+      `════════════════════════════════════════════════\n`,
     );
 
     this.removeConversationFromAllFolders(conversationId);

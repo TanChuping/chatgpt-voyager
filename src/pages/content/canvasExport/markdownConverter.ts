@@ -4,7 +4,7 @@
  * The ProseMirror tree uses ordinary HTML elements (h1-h6, p, strong, em, code,
  * ul/ol/li, blockquote, pre > code, a, img, hr, br), so we walk the DOM and emit
  * CommonMark-style text.  We keep the converter minimal on purpose: Canvas currently only produces these primitives, and a full HTML-to-Markdown library would add unnecessary bundle weight.
- * currently only produces these primitives, and leaning on a full HTML鈫扢D library
+ * currently only produces these primitives, and leaning on a full HTML→MD library
  * would pull unnecessary weight into the content script bundle.
  */
 

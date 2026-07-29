@@ -44,7 +44,7 @@ const SEND_BUTTON_SELECTORS = [
   // Fallback selectors
   'button[aria-label*="Update"]',
   'button[aria-label*="Save"]',
-  'button[aria-label*="鏇存柊"]',
+  'button[aria-label*="更新"]',
 ] as const;
 
 /** Selector for editable elements */

@@ -296,7 +296,7 @@ describe('applyPendingFolderSelection', () => {
     document.body.innerHTML = '';
     chip = document.createElement('button');
     chip.className = 'gv-fp-chip';
-    chip.textContent = 'Select folder鈥?;
+    chip.textContent = 'Select folder…';
     // Clear call history on local storage mocks
     (chrome.storage.local.get as unknown as ReturnType<typeof vi.fn>).mockClear();
     (chrome.storage.local.remove as unknown as ReturnType<typeof vi.fn>).mockClear();
@@ -326,7 +326,7 @@ describe('applyPendingFolderSelection', () => {
       chip,
     );
 
-    expect(chip.textContent).toBe('馃搧 Work');
+    expect(chip.textContent).toBe('📁 Work');
     expect(chip.dataset.selected).toBe('folder-1');
     expect(chrome.storage.local.remove).toHaveBeenCalledWith([
       StorageKeys.FOLDER_PROJECT_PENDING_FOLDER_ID,
@@ -348,7 +348,7 @@ describe('applyPendingFolderSelection', () => {
       chip,
     );
 
-    expect(chip.textContent).toBe('Select folder鈥?);
+    expect(chip.textContent).toBe('Select folder…');
     expect(chrome.storage.local.remove).not.toHaveBeenCalled();
   });
 
@@ -372,7 +372,7 @@ describe('applyPendingFolderSelection', () => {
       chip,
     );
 
-    expect(chip.textContent).toBe('Select folder鈥?);
+    expect(chip.textContent).toBe('Select folder…');
     expect(chrome.storage.local.remove).toHaveBeenCalledWith([
       StorageKeys.FOLDER_PROJECT_PENDING_FOLDER_ID,
     ]);

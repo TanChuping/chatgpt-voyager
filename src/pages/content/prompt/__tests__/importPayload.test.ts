@@ -36,11 +36,11 @@ describe('parsePromptImportPayload', () => {
   it('preserves an optional name field when round-tripping an exported item', () => {
     const result = parsePromptImportPayload({
       format: 'gpt-voyager.prompts.v1',
-      items: [{ text: 'Translate EN鈫抁H', tags: ['translate'], name: 'Translator' }],
+      items: [{ text: 'Translate EN→ZH', tags: ['translate'], name: 'Translator' }],
     });
     expect(result).toEqual({
       status: 'ok',
-      items: [{ text: 'Translate EN鈫抁H', tags: ['translate'], name: 'Translator' }],
+      items: [{ text: 'Translate EN→ZH', tags: ['translate'], name: 'Translator' }],
     });
   });
 

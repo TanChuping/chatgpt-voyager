@@ -165,7 +165,7 @@ describe('TimelinePreviewPanel', () => {
       const markers: PreviewMarkerData[] = [
         {
           id: 'turn-ar',
-          summary: '賲乇丨亘丕 亘賰賲 賮賷 GPT-Voyager',
+          summary: 'مرحبا بكم في GPT-Voyager',
           index: 0,
           starred: false,
         },

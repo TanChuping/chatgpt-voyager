@@ -40,7 +40,7 @@ describe('TimelineManager tooltip direction', () => {
 
     const dot = document.createElement('button') as DotElement;
     dot.className = 'timeline-dot';
-    dot.setAttribute('aria-label', '賲乇丨亘丕 亘丕賱毓丕賱賲');
+    dot.setAttribute('aria-label', 'مرحبا بالعالم');
     dot.dataset.targetTurnId = 'turn-1';
     document.body.appendChild(dot);
 

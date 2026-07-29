@@ -2059,7 +2059,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
           // Extension context invalidated, show fallback message
           setNotice(
             i18n.t('pm_settings_fallback') ||
-              '璇风偣鍑绘祻瑙堝櫒宸ュ叿鏍忎腑鐨勬墿灞曞浘鏍囨墦寮€璁剧疆',
+              '请点击浏览器工具栏中的扩展图标打开设置',
             'err',
           );
           return;
@@ -2073,7 +2073,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
           // If programmatic opening failed, show a helpful message
           setNotice(
             i18n.t('pm_settings_fallback') ||
-              '璇风偣鍑绘祻瑙堝櫒宸ュ叿鏍忎腑鐨勬墿灞曞浘鏍囨墦寮€璁剧疆',
+              '请点击浏览器工具栏中的扩展图标打开设置',
             'err',
           );
         }
@@ -2082,7 +2082,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
         if (isExtensionContextInvalidatedError(err)) {
           setNotice(
             i18n.t('pm_settings_fallback') ||
-              '璇风偣鍑绘祻瑙堝櫒宸ュ叿鏍忎腑鐨勬墿灞曞浘鏍囨墦寮€璁剧疆',
+              '请点击浏览器工具栏中的扩展图标打开设置',
             'err',
           );
           return;
@@ -2090,7 +2090,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
         console.warn('[PromptManager] Failed to open settings:', err);
         setNotice(
           i18n.t('pm_settings_fallback') ||
-            '璇风偣鍑绘祻瑙堝櫒宸ュ叿鏍忎腑鐨勬墿灞曞浘鏍囨墦寮€璁剧疆',
+            '请点击浏览器工具栏中的扩展图标打开设置',
           'err',
         );
       }

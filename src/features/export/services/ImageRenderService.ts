@@ -5,7 +5,7 @@ const DEFAULT_SANITIZE_SELECTOR = 'img, video, iframe, canvas, svg image';
 const DEFAULT_RENDER_WIDTH = 720;
 
 /**
- * XML 1.0 搂2.2 legal chars: #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
+ * XML 1.0 §2.2 legal chars: #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
  * html-to-image serializes DOM into SVG (XML 1.0). Control characters outside the legal set
  * cause the serialization to fail silently (img error Event).
  */

@@ -1001,7 +1001,7 @@ async function injectForkIndicators(): Promise<void> {
       const deleteBtn = document.createElement('button');
       deleteBtn.className = FORK_INDICATOR_DELETE_CLASS;
       deleteBtn.type = 'button';
-      deleteBtn.textContent = '脳';
+      deleteBtn.textContent = '×';
       deleteBtn.title = getTranslationSync('forkDeleteData');
       deleteBtn.setAttribute('aria-label', getTranslationSync('forkDeleteData'));
       deleteBtn.addEventListener('click', async (e) => {

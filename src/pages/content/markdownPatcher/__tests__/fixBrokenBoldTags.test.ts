@@ -85,18 +85,18 @@ describe('fixBrokenBoldTags', () => {
   // ===== Issue #507: Consecutive bold groups across split nodes =====
 
   describe('consecutive split-node bolds (#507)', () => {
-    it('two split-node bolds with short connector: **A** elem "**鍜?*" elem **B**', () => {
-      // DOM: TextNode("**") Elem(A) TextNode("**鍜?*") Elem(B) TextNode("**")
-      // Expected: <strong>A</strong>鍜?strong>B</strong>
-      const t1 = document.createTextNode('鐮旂┒**');
+    it('two split-node bolds with short connector: **A** elem "**和**" elem **B**', () => {
+      // DOM: TextNode("**") Elem(A) TextNode("**和**") Elem(B) TextNode("**")
+      // Expected: <strong>A</strong>和<strong>B</strong>
+      const t1 = document.createTextNode('研究**');
       const e1 = document.createElement('b');
       e1.setAttribute('data-path-to-node', '0,1');
       e1.textContent = 'Centralized ETC';
-      const t2 = document.createTextNode('**鍜?*');
+      const t2 = document.createTextNode('**和**');
       const e2 = document.createElement('b');
       e2.setAttribute('data-path-to-node', '0,2');
       e2.textContent = 'Centralized UCB';
-      const t3 = document.createTextNode('**鏃?);
+      const t3 = document.createTextNode('**时');
 
       container.append(t1, e1, t2, e2, t3);
       fixBrokenBoldTags(container);
@@ -105,20 +105,20 @@ describe('fixBrokenBoldTags', () => {
       expect(strongs.length).toBe(2);
       expect(strongs[0].textContent).toBe('Centralized ETC');
       expect(strongs[1].textContent).toBe('Centralized UCB');
-      expect(container.textContent).toBe('鐮旂┒Centralized ETC鍜孋entralized UCB鏃?);
+      expect(container.textContent).toBe('研究Centralized ETC和Centralized UCB时');
     });
 
     it('two split-node bolds with multi-char connector', () => {
-      // DOM: TextNode("鍓嶇紑**") Elem(A) TextNode("**锛屽悓鏃?*") Elem(B) TextNode("**鍚庣紑")
-      const t1 = document.createTextNode('鍓嶇紑**');
+      // DOM: TextNode("前缀**") Elem(A) TextNode("**，同时**") Elem(B) TextNode("**后缀")
+      const t1 = document.createTextNode('前缀**');
       const e1 = document.createElement('b');
       e1.setAttribute('data-path-to-node', '0,1');
       e1.textContent = 'AlphaContent';
-      const t2 = document.createTextNode('**锛屽悓鏃?*');
+      const t2 = document.createTextNode('**，同时**');
       const e2 = document.createElement('b');
       e2.setAttribute('data-path-to-node', '0,2');
       e2.textContent = 'BetaContent';
-      const t3 = document.createTextNode('**鍚庣紑');
+      const t3 = document.createTextNode('**后缀');
 
       container.append(t1, e1, t2, e2, t3);
       fixBrokenBoldTags(container);
@@ -127,20 +127,20 @@ describe('fixBrokenBoldTags', () => {
       expect(strongs.length).toBe(2);
       expect(strongs[0].textContent).toBe('AlphaContent');
       expect(strongs[1].textContent).toBe('BetaContent');
-      expect(container.textContent).toBe('鍓嶇紑AlphaContent锛屽悓鏃禕etaContent鍚庣紑');
+      expect(container.textContent).toBe('前缀AlphaContent，同时BetaContent后缀');
     });
 
     it('three consecutive split-node bolds', () => {
-      // **A**銆?*B**鍜?*C**
+      // **A**、**B**和**C**
       const t1 = document.createTextNode('**');
       const e1 = document.createElement('b');
       e1.setAttribute('data-path-to-node', '0,1');
       e1.textContent = 'AAA';
-      const t2 = document.createTextNode('**銆?*');
+      const t2 = document.createTextNode('**、**');
       const e2 = document.createElement('b');
       e2.setAttribute('data-path-to-node', '0,2');
       e2.textContent = 'BBB';
-      const t3 = document.createTextNode('**鍜?*');
+      const t3 = document.createTextNode('**和**');
       const e3 = document.createElement('b');
       e3.setAttribute('data-path-to-node', '0,3');
       e3.textContent = 'CCC';
@@ -154,7 +154,7 @@ describe('fixBrokenBoldTags', () => {
       expect(strongs[0].textContent).toBe('AAA');
       expect(strongs[1].textContent).toBe('BBB');
       expect(strongs[2].textContent).toBe('CCC');
-      expect(container.textContent).toBe('AAA銆丅BB鍜孋CC');
+      expect(container.textContent).toBe('AAA、BBB和CCC');
     });
 
     it('split-node bold with multiple intermediate elements', () => {
@@ -200,21 +200,21 @@ describe('fixBrokenBoldTags', () => {
     });
 
     it('exact issue #507 scenario: long content with injected nodes', () => {
-      // Simulates: 鐮旂┒**涓績鍖栨帰绱笌鍒╃敤绠楁硶锛圕entralized ETC锛?*鍜?*涓績鍖栫疆淇′笂闄愮畻娉曪紙Centralized UCB锛?*鏃?      // DOM split by Gemini into:
-      //   TextNode("鐮旂┒**")
-      //   <b data-path-to-node>涓績鍖栨帰绱笌鍒╃敤绠楁硶锛圕entralized ETC锛?/b>
-      //   TextNode("**鍜?*")
-      //   <b data-path-to-node>涓績鍖栫疆淇′笂闄愮畻娉曪紙Centralized UCB锛?/b>
-      //   TextNode("**鏃?)
-      const t1 = document.createTextNode('鐮旂┒**');
+      // Simulates: 研究**中心化探索与利用算法（Centralized ETC）**和**中心化置信上限算法（Centralized UCB）**时
+      //   TextNode("研究**")
+      //   <b data-path-to-node>中心化探索与利用算法（Centralized ETC）</b>
+      //   TextNode("**和**")
+      //   <b data-path-to-node>中心化置信上限算法（Centralized UCB）</b>
+      //   TextNode("**时")
+      const t1 = document.createTextNode('研究**');
       const e1 = document.createElement('b');
       e1.setAttribute('data-path-to-node', '0,0,1');
-      e1.textContent = '涓績鍖栨帰绱笌鍒╃敤绠楁硶锛圕entralized ETC锛?;
-      const t2 = document.createTextNode('**鍜?*');
+      e1.textContent = '中心化探索与利用算法（Centralized ETC）';
+      const t2 = document.createTextNode('**和**');
       const e2 = document.createElement('b');
       e2.setAttribute('data-path-to-node', '0,0,2');
-      e2.textContent = '涓績鍖栫疆淇′笂闄愮畻娉曪紙Centralized UCB锛?;
-      const t3 = document.createTextNode('**鏃?);
+      e2.textContent = '中心化置信上限算法（Centralized UCB）';
+      const t3 = document.createTextNode('**时');
 
       container.append(t1, e1, t2, e2, t3);
       fixBrokenBoldTags(container);
@@ -226,7 +226,7 @@ describe('fixBrokenBoldTags', () => {
       // No ** markers should remain visible
       expect(container.textContent).not.toContain('**');
       expect(container.textContent).toBe(
-        '鐮旂┒涓績鍖栨帰绱笌鍒╃敤绠楁硶锛圕entralized ETC锛夊拰涓績鍖栫疆淇′笂闄愮畻娉曪紙Centralized UCB锛夋椂',
+        '研究中心化探索与利用算法（Centralized ETC）和中心化置信上限算法（Centralized UCB）时',
       );
     });
   });

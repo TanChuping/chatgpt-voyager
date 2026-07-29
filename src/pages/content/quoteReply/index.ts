@@ -207,7 +207,7 @@ function focusChatInput(input: HTMLElement | HTMLTextAreaElement): void {
  * Extract text from a Range, preserving LaTeX math syntax.
  *
  * `Range.toString()` returns visually rendered text, which loses LaTeX
- * delimiters (e.g. `U鈭圼0,1)` instead of `$U \in [0, 1)$`, or the mangled
+ * delimiters (e.g. `U∈[0,1)` instead of `$U \in [0, 1)$`, or the mangled
  * `𝑥 = − 𝑏 ± …` glyph soup for ChatGPT's KaTeX). This function clones the
  * range contents, replaces math nodes (KaTeX annotations and legacy
  * `[data-math]` containers) with their `$...$` / `$$...$$` source via the

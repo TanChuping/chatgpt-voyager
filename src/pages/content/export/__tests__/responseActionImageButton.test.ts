@@ -150,16 +150,16 @@ describe('responseActionImageButton', () => {
       onClick,
     });
     const second = injectResponseActionCopyImageButtons(document, {
-      label: '澶嶅埗鍥炲涓哄浘鐗?,
-      tooltip: '澶嶅埗鍥炲涓哄浘鐗?,
+      label: '复制回复为图片',
+      tooltip: '复制回复为图片',
       onClick,
     });
 
     expect(first).toHaveLength(1);
     expect(second).toHaveLength(1);
     expect(second[0]).toBe(first[0]);
-    expect(second[0].getAttribute('aria-label')).toBe('澶嶅埗鍥炲涓哄浘鐗?);
-    expect(second[0].title).toBe('澶嶅埗鍥炲涓哄浘鐗?);
+    expect(second[0].getAttribute('aria-label')).toBe('复制回复为图片');
+    expect(second[0].title).toBe('复制回复为图片');
   });
 
   it('does not duplicate click handlers after repeated reinjection', () => {

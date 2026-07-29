@@ -244,8 +244,8 @@ describe('conversationMenuInjection', () => {
     const pinText = pin.querySelector('.mat-mdc-menu-item-text > span');
 
     const button = injectConversationMenuExportButton(panel, {
-      label: '瀵煎嚭瀵硅瘽璁板綍',
-      tooltip: '瀵煎嚭瀵硅瘽璁板綍',
+      label: '导出对话记录',
+      tooltip: '导出对话记录',
       onClick,
     });
 
@@ -254,7 +254,7 @@ describe('conversationMenuInjection', () => {
     const text = button?.querySelector('.mat-mdc-menu-item-text > span');
     expect(icon?.className).toBe(pinIcon?.className);
     expect(text?.className).toBe(pinText?.className);
-    expect(text?.textContent).toBe('瀵煎嚭瀵硅瘽璁板綍');
+    expect(text?.textContent).toBe('导出对话记录');
   });
 
   it('does not force fonticon when native icon uses ligature text only', () => {
@@ -262,8 +262,8 @@ describe('conversationMenuInjection', () => {
     const onClick = vi.fn();
 
     const button = injectConversationMenuExportButton(panel, {
-      label: '瀵煎嚭瀵硅瘽璁板綍',
-      tooltip: '瀵煎嚭瀵硅瘽璁板綍',
+      label: '导出对话记录',
+      tooltip: '导出对话记录',
       onClick,
     });
 
@@ -370,13 +370,13 @@ describe('conversationMenuInjection', () => {
     document.body.appendChild(responseMoreTrigger);
 
     const first = injectResponseMenuExportButton(panel, {
-      label: '瀵煎嚭瀵硅瘽璁板綍',
-      tooltip: '瀵煎嚭瀵硅瘽璁板綍',
+      label: '导出对话记录',
+      tooltip: '导出对话记录',
       onClick,
     });
     const second = injectResponseMenuExportButton(panel, {
-      label: '瀵煎嚭瀵硅瘽璁板綍',
-      tooltip: '瀵煎嚭瀵硅瘽璁板綍',
+      label: '导出对话记录',
+      tooltip: '导出对话记录',
       onClick,
     });
 
