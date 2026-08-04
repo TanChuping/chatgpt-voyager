@@ -26,7 +26,7 @@
 ## 安装
 
 下载 `chatgpt-voyager-1.8.0-chrome.zip`，解压后在 `chrome://extensions` 打开开发者模式，选择
-“加载已解压的扩展程序”。建议升级前先使用 Folder 的导出功能保存一份本地 JSON 备份。
+“加载已解压的扩展程序”。
 
 Chrome / Edge 商店版预计在 **2026 年 8 月 8 日前**通过审核；审核期间可先使用 GitHub 版本。
 

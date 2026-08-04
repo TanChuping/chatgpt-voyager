@@ -81,7 +81,6 @@ Other platform build scripts are kept from the upstream project, but the activel
 - Added reply-completion system notifications (enabled by default), optional long-code-block collapse, and chat line/paragraph spacing controls. These additions use small on-demand modules where practical.
 - Fixed the chat composer shifting left when the chat-width adjuster was enabled, and hardened the background notification listener for browsers where the Notifications API is unavailable.
 - Chrome/Edge package and full release notes: [v1.8.0](https://github.com/TanChuping/chatgpt-voyager/releases/tag/v1.8.0). The store build is expected to pass review by August 8, 2026.
-- Before upgrading, exporting a Folder JSON backup is recommended as a normal precaution.
 
 ### 1.6.9
 
