@@ -35,6 +35,17 @@ let cleanupHandlers: (() => void)[] = [];
 let historyPatched = false;
 let originalPushState: History['pushState'] | null = null;
 let originalReplaceState: History['replaceState'] | null = null;
+let timelineStarted = false;
+let timelineGeneration = 0;
+let timelineStorageChangeHandler:
+  | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
+  | null = null;
+let timelineBeforeUnloadHandler: (() => void) | null = null;
+let timelineSuspendHandler: (() => void) | null = null;
+
+function isActiveTimelineGeneration(generation: number): boolean {
+  return timelineStarted && generation === timelineGeneration;
+}
 
 function removeTimelineDom(): void {
   // Remove ALL matches, not just the first: an init()-after-destroy race (fast
@@ -68,6 +79,7 @@ function teardownTimelineInstance(): void {
 }
 
 function initializeTimeline(previousUrl: string | null = null): void {
+  if (!timelineStarted) return;
   teardownTimelineInstance();
   if (!timelineEnabled) return; // master switch off — stay torn down
   const instance = new TimelineManager({ previousUrl });
@@ -86,6 +98,7 @@ function initializeTimeline(previousUrl: string | null = null): void {
 let urlChangeTimer: number | null = null;
 
 function handleUrlChange(): void {
+  if (!timelineStarted) return;
   if (location.href === currentUrl) return;
 
   const previousUrl = currentUrl;
@@ -113,9 +126,10 @@ function handleUrlChange(): void {
     // Add delay to allow DOM to update after SPA navigation
     console.log('[Timeline] URL changed to conversation route, scheduling initialization');
     urlChangeTimer = window.setTimeout(() => {
+      urlChangeTimer = null;
+      if (!timelineStarted) return;
       console.log('[Timeline] Initializing timeline after URL change');
       initializeTimeline(previousUrl);
-      urlChangeTimer = null;
     }, 500); // Wait for DOM to settle
   } else {
     console.log('[Timeline] URL changed to non-conversation route, cleaning up');
@@ -153,7 +167,7 @@ function patchHistoryOnce(): void {
 }
 
 function attachRouteListenersOnce(): void {
-  if (routeListenersAttached) return;
+  if (!timelineStarted || routeListenersAttached) return;
   routeListenersAttached = true;
   patchHistoryOnce();
   window.addEventListener('popstate', handleUrlChange);
@@ -220,7 +234,7 @@ function cleanup(): void {
 
 /** Init the timeline for the current page if the master switch allows it. */
 function maybeInitTimeline(): void {
-  if (!timelineEnabled) return;
+  if (!timelineStarted || !timelineEnabled) return;
   if (isChatGPTConversationRoute() && !timelineManagerInstance) {
     initializeTimeline();
   }
@@ -251,7 +265,7 @@ function timelineBarPresent(): boolean {
  * and this is a no-op.
  */
 function ensureTimelineHealthy(): void {
-  if (!timelineEnabled) return;
+  if (!timelineStarted || !timelineEnabled) return;
   if (initInProgress) return;
   // Only ever (re)inject on a real conversation route — never on the new-chat
   // landing (`/`), search, or any non-`/c/` page.
@@ -274,65 +288,121 @@ function ensureTimelineHealthy(): void {
 function applyTimelineEnabled(enabled: boolean): void {
   if (enabled === timelineEnabled) return;
   timelineEnabled = enabled;
-  if (enabled) maybeInitTimeline();
-  else teardownTimelineInstance();
+  if (enabled) {
+    currentUrl = location.href;
+    currentPathAndSearch = location.pathname + location.search;
+    setupTimelineWhenBodyReady(timelineGeneration);
+  } else {
+    cleanup();
+    teardownTimelineInstance();
+    initInProgress = false;
+  }
 }
 
-function watchTimelineEnabledSetting(): void {
+function setupTimelineWhenBodyReady(generation: number): void {
+  if (!isActiveTimelineGeneration(generation) || !timelineEnabled) return;
+  if (document.body) {
+    attachRouteListenersOnce();
+    maybeInitTimeline();
+    return;
+  }
+
+  const bodyObserver = new MutationObserver(() => {
+    if (!isActiveTimelineGeneration(generation) || !timelineEnabled) {
+      bodyObserver.disconnect();
+      activeObservers = activeObservers.filter((obs) => obs !== bodyObserver);
+      return;
+    }
+    if (!document.body) return;
+    bodyObserver.disconnect();
+    activeObservers = activeObservers.filter((obs) => obs !== bodyObserver);
+    attachRouteListenersOnce();
+    maybeInitTimeline();
+  });
+  activeObservers.push(bodyObserver);
+  bodyObserver.observe(document.documentElement || document.body, {
+    childList: true,
+    subtree: true,
+  });
+}
+
+function watchTimelineEnabledSetting(generation: number): void {
+  if (!isActiveTimelineGeneration(generation) || timelineStorageChangeHandler) return;
   try {
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== 'sync') return;
+    timelineStorageChangeHandler = (changes, area) => {
+      if (!isActiveTimelineGeneration(generation) || area !== 'sync') return;
       const change = changes[StorageKeys.TIMELINE_ENABLED];
       if (change) applyTimelineEnabled(change.newValue !== false);
-    });
+    };
+    chrome.storage.onChanged.addListener(timelineStorageChangeHandler);
   } catch {
+    timelineStorageChangeHandler = null;
     /* storage unavailable — keep default-enabled behaviour */
   }
 }
 
-async function loadTimelineEnabled(): Promise<void> {
+async function loadTimelineEnabled(): Promise<boolean> {
   try {
     const result = await chrome.storage.sync.get({ [StorageKeys.TIMELINE_ENABLED]: true });
-    timelineEnabled = result[StorageKeys.TIMELINE_ENABLED] !== false;
+    return result?.[StorageKeys.TIMELINE_ENABLED] !== false;
   } catch {
-    timelineEnabled = true;
+    return true;
   }
 }
 
-export function startTimeline(): void {
-  watchTimelineEnabledSetting();
+export function stopTimeline(): void {
+  timelineStarted = false;
+  timelineGeneration += 1;
 
-  const setup = (): void => {
-    attachRouteListenersOnce();
-    maybeInitTimeline();
-  };
+  if (timelineStorageChangeHandler) {
+    try {
+      chrome.storage?.onChanged?.removeListener(timelineStorageChangeHandler);
+    } catch {}
+    timelineStorageChangeHandler = null;
+  }
+
+  if (timelineBeforeUnloadHandler) {
+    window.removeEventListener('beforeunload', timelineBeforeUnloadHandler);
+    timelineBeforeUnloadHandler = null;
+  }
+  if (timelineSuspendHandler) {
+    try {
+      chrome.runtime?.onSuspend?.removeListener?.(timelineSuspendHandler);
+    } catch {}
+    timelineSuspendHandler = null;
+  }
+
+  cleanup();
+  teardownTimelineInstance();
+  initInProgress = false;
+}
+
+export function startTimeline(): () => void {
+  if (timelineStarted) return stopTimeline;
+  timelineStarted = true;
+  const generation = ++timelineGeneration;
+  currentUrl = location.href;
+  currentPathAndSearch = location.pathname + location.search;
 
   // Resolve the enable setting first so a disabled timeline never mounts even
-  // momentarily. Route listeners are always attached (cheap) so re-enabling
-  // mid-session picks up the current conversation.
-  void loadTimelineEnabled().finally(() => {
-    if (document.body) {
-      setup();
-      return;
-    }
-    const bodyObserver = new MutationObserver(() => {
-      if (!document.body) return;
-      bodyObserver.disconnect();
-      activeObservers = activeObservers.filter((obs) => obs !== bodyObserver);
-      setup();
-    });
-    activeObservers.push(bodyObserver);
-    bodyObserver.observe(document.documentElement || document.body, {
-      childList: true,
-      subtree: true,
-    });
+  // momentarily. While disabled, only the storage bridge stays installed;
+  // re-enabling attaches route infrastructure against the current URL.
+  void loadTimelineEnabled().then((enabled) => {
+    if (!isActiveTimelineGeneration(generation)) return;
+    timelineEnabled = enabled;
+    watchTimelineEnabledSetting(generation);
+    if (timelineEnabled) setupTimelineWhenBodyReady(generation);
   });
 
   // Setup cleanup on page unload
-  window.addEventListener('beforeunload', cleanup, { once: true });
+  timelineBeforeUnloadHandler = () => stopTimeline();
+  window.addEventListener('beforeunload', timelineBeforeUnloadHandler, { once: true });
 
   // Also cleanup on extension unload (if content script is removed)
   if (typeof chrome !== 'undefined' && chrome.runtime) {
-    chrome.runtime.onSuspend?.addListener?.(cleanup);
+    timelineSuspendHandler = () => stopTimeline();
+    chrome.runtime.onSuspend?.addListener?.(timelineSuspendHandler);
   }
+
+  return stopTimeline;
 }

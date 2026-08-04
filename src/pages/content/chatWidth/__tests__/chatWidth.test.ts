@@ -23,7 +23,7 @@ function expectTableRuleWidth(styleText: string, percent: number): void {
   const px = percentToPixels(percent);
   const escapedWidth = px.toString();
   const tableRulePattern = new RegExp(
-    String.raw`\/\* Gemini table containers \*\/[\s\S]*table-block,[\s\S]*\.table-block,[\s\S]*\.table-block \.table-content[\s\S]*\{[\s\S]*max-width: ${escapedWidth}px !important;[\s\S]*width: min\(100%, ${escapedWidth}px\) !important;`,
+    String.raw`\/\* Table containers \*\/[\s\S]*table-block,[\s\S]*\.table-block,[\s\S]*\.table-block \.table-content[\s\S]*\{[\s\S]*max-width: ${escapedWidth}px !important;[\s\S]*width: min\(100%, ${escapedWidth}px\) !important;`,
   );
   expect(styleText).toMatch(tableRulePattern);
 }

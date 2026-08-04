@@ -1,6 +1,6 @@
 /**
- * Applies a user-selected font family to ChatGPT message text and the
- * composer.
+ * Applies a user-selected font family across the ChatGPT interface while
+ * preserving the native typefaces used by code editors and rendered math.
  *
  * Presets (storage key: gvChatFontFamily):
  *   - 'default' →  no override (ChatGPT's own Söhne stack)
@@ -20,14 +20,8 @@
  * gracefully degrades to the system fallback for "custom" until they
  * import the font again.
  *
- * Adapted from claude-voyager's chatFontFamily, retargeted at ChatGPT's
- * live DOM (verified 2026-05):
- *   - user bubble:        [data-message-author-role="user"] .user-message-bubble-color
- *   - assistant markdown: [data-message-author-role="assistant"] .markdown
- *   - composer:           #prompt-textarea (a ProseMirror contenteditable div)
- *
- * Code blocks deliberately keep their monospace — overriding font-family
- * there breaks alignment and readability for snippet output.
+ * Code blocks deliberately keep their monospace, and KaTeX/MathJax keep
+ * their specialist glyph fonts.
  */
 
 const STYLE_ID = 'gv-chat-font-family';
@@ -141,34 +135,39 @@ function applyStyles(stack: string | null, fontFace: string | null) {
   }
 
   styleEl.textContent = `
-    /* ChatGPT — user message bubble. Scoped under the user-role container
-       so we never override anything inside an assistant turn. */
-    [data-message-author-role="user"] .user-message-bubble-color,
-    [data-message-author-role="user"] .user-message-bubble-color * {
+    /* Apply to the whole ChatGPT surface: sidebar, headers, menus, dialogs,
+       conversation content, composer, and Voyager-injected controls. */
+    html,
+    body,
+    body :not(
+      pre,
+      pre *,
+      code,
+      code *,
+      kbd,
+      kbd *,
+      samp,
+      samp *,
+      .cm-editor,
+      .cm-editor *,
+      .cm-content,
+      .cm-content *,
+      .hljs,
+      .hljs *,
+      .katex,
+      .katex *,
+      math,
+      math *,
+      mjx-container,
+      mjx-container *,
+      [class*="font-mono"],
+      [class*="font-mono"] *
+    ) {
       font-family: ${stack} !important;
     }
 
-    /* ChatGPT — assistant response markdown body. The :not() chain
-       excludes inline code, fenced code, and the CodeMirror-rendered
-       blocks ChatGPT uses for syntax-highlighted snippets — those must
-       keep their monospace or alignment breaks. */
-    [data-message-author-role="assistant"] .markdown,
-    [data-message-author-role="assistant"] .markdown *:not(pre):not(code):not(.cm-content):not(.cm-content *):not(.hljs):not(.hljs *) {
-      font-family: ${stack} !important;
-    }
-
-    /* Composer (ProseMirror contenteditable). #prompt-textarea is the
-       stable id ChatGPT puts on the editor root; we also catch the
-       .ProseMirror class in case ChatGPT renames the id later. */
-    #prompt-textarea,
-    #prompt-textarea *,
-    .ProseMirror,
-    .ProseMirror * {
-      font-family: ${stack} !important;
-    }
-
-    /* Code blocks and inline code intentionally keep their monospace —
-       overriding font-family there would break alignment + readability. */
+    /* Code and math are intentionally excluded so alignment and glyph
+       rendering continue to use ChatGPT's native specialist fonts. */
   `;
 }
 
@@ -196,6 +195,16 @@ let sync: SyncState = {
 };
 
 let localState: LocalState = { customData: null };
+let started = false;
+let lifecycleGeneration = 0;
+let storageChangeHandler:
+  | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
+  | null = null;
+let beforeUnloadHandler: (() => void) | null = null;
+
+function isActiveGeneration(generation: number): boolean {
+  return started && generation === lifecycleGeneration;
+}
 
 function normalizeDataUrl(data: string, format: string): string {
   if (data.startsWith('data:')) return data;
@@ -221,44 +230,56 @@ function reapply() {
   }
   const stack = buildAppliedStack(sync.preset, sync.customName);
   let fontFace: string | null = null;
-  if (
-    sync.preset === 'custom' &&
-    localState.customData &&
-    sync.customName &&
-    sync.customFormat
-  ) {
+  if (sync.preset === 'custom' && localState.customData && sync.customName && sync.customFormat) {
     const url = normalizeDataUrl(localState.customData, sync.customFormat);
     fontFace = buildFontFaceCss(sync.customName, sync.customFormat, url);
   }
   applyStyles(stack, fontFace);
 }
 
-export function startChatFontFamilyAdjuster(): void {
+export function stopChatFontFamilyAdjuster(): void {
+  started = false;
+  lifecycleGeneration += 1;
+  if (storageChangeHandler) {
+    try {
+      chrome.storage?.onChanged?.removeListener(storageChangeHandler);
+    } catch {}
+    storageChangeHandler = null;
+  }
+  if (beforeUnloadHandler) {
+    window.removeEventListener('beforeunload', beforeUnloadHandler);
+    beforeUnloadHandler = null;
+  }
+  removeStyles();
+}
+
+export function startChatFontFamilyAdjuster(): () => void {
+  if (started) return stopChatFontFamilyAdjuster;
+  started = true;
+  const generation = ++lifecycleGeneration;
   // Initial load — sync side first, then local.
   chrome.storage?.sync?.get(
     [ENABLED_KEY, FAMILY_KEY, CUSTOM_NAME_KEY, CUSTOM_FORMAT_KEY],
     (res) => {
+      if (!isActiveGeneration(generation)) return;
       sync = {
         enabled: res?.[ENABLED_KEY] === true,
         preset: isValidPreset(res?.[FAMILY_KEY]) ? res[FAMILY_KEY] : 'default',
         customName: typeof res?.[CUSTOM_NAME_KEY] === 'string' ? res[CUSTOM_NAME_KEY] : null,
-        customFormat:
-          typeof res?.[CUSTOM_FORMAT_KEY] === 'string' ? res[CUSTOM_FORMAT_KEY] : null,
+        customFormat: typeof res?.[CUSTOM_FORMAT_KEY] === 'string' ? res[CUSTOM_FORMAT_KEY] : null,
       };
       chrome.storage?.local?.get([CUSTOM_DATA_KEY], (lres) => {
+        if (!isActiveGeneration(generation)) return;
         localState = {
-          customData:
-            typeof lres?.[CUSTOM_DATA_KEY] === 'string' ? lres[CUSTOM_DATA_KEY] : null,
+          customData: typeof lres?.[CUSTOM_DATA_KEY] === 'string' ? lres[CUSTOM_DATA_KEY] : null,
         };
         reapply();
       });
     },
   );
 
-  const storageChangeHandler = (
-    changes: Record<string, chrome.storage.StorageChange>,
-    area: string,
-  ) => {
+  storageChangeHandler = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+    if (!isActiveGeneration(generation)) return;
     if (area === 'sync') {
       let touched = false;
       if (changes[ENABLED_KEY]) {
@@ -296,18 +317,13 @@ export function startChatFontFamilyAdjuster(): void {
     }
   };
 
-  chrome.storage?.onChanged?.addListener(storageChangeHandler);
+  try {
+    chrome.storage?.onChanged?.addListener(storageChangeHandler);
+  } catch {
+    storageChangeHandler = null;
+  }
 
-  window.addEventListener(
-    'beforeunload',
-    () => {
-      removeStyles();
-      try {
-        chrome.storage?.onChanged?.removeListener(storageChangeHandler);
-      } catch {
-        /* ignore — extension context can be torn down before this fires */
-      }
-    },
-    { once: true },
-  );
+  beforeUnloadHandler = () => stopChatFontFamilyAdjuster();
+  window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
+  return stopChatFontFamilyAdjuster;
 }

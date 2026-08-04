@@ -1,6 +1,19 @@
+import { StorageKeys } from '@/core/types/common';
 import { isExtensionContextInvalidatedError } from '@/core/utils/extensionContext';
 
 const GV_BRIDGE_ID = 'gv-prevent-auto-scroll-bridge';
+const GV_SCRIPT_ID = 'gv-prevent-auto-scroll-script';
+
+let started = false;
+let lifecycleGeneration = 0;
+let storageChangeHandler:
+  | ((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void)
+  | null = null;
+let injectedScript: HTMLScriptElement | null = null;
+
+function isActiveGeneration(generation: number): boolean {
+  return started && generation === lifecycleGeneration;
+}
 
 function getBridgeElement(): HTMLElement {
   let bridge = document.getElementById(GV_BRIDGE_ID);
@@ -19,52 +32,72 @@ function notifyScript(enabled: boolean): void {
 }
 
 function injectScript(): void {
-  const scriptId = 'gv-prevent-auto-scroll-script';
-  if (document.getElementById(scriptId)) return;
+  const existing = document.getElementById(GV_SCRIPT_ID);
+  if (existing) {
+    injectedScript = existing as HTMLScriptElement;
+    return;
+  }
 
   const script = document.createElement('script');
-  script.id = scriptId;
+  script.id = GV_SCRIPT_ID;
   script.src = chrome.runtime.getURL('prevent-auto-scroll.js');
-  script.onload = () => {
-    script.remove(); // Clean up after injection
+  const removeLoadedScript = () => {
+    if (injectedScript === script) injectedScript = null;
+    script.remove();
   };
+  script.addEventListener('load', removeLoadedScript, { once: true });
+  script.addEventListener('error', removeLoadedScript, { once: true });
+  injectedScript = script;
   (document.head || document.documentElement).appendChild(script);
 }
 
-export async function startPreventAutoScroll(): Promise<void> {
+export function stopPreventAutoScroll(): void {
+  started = false;
+  lifecycleGeneration += 1;
+
+  if (storageChangeHandler) {
+    try {
+      chrome.storage?.onChanged?.removeListener(storageChangeHandler);
+    } catch {}
+    storageChangeHandler = null;
+  }
+
+  injectedScript?.remove();
+  injectedScript = null;
+  document.getElementById(GV_SCRIPT_ID)?.remove();
+  document.getElementById(GV_BRIDGE_ID)?.remove();
+}
+
+export async function startPreventAutoScroll(): Promise<() => void> {
+  if (started) return stopPreventAutoScroll;
+  started = true;
+  const generation = ++lifecycleGeneration;
+
   try {
-    // Initialize bridge element first
-    getBridgeElement();
+    const result = await chrome.storage?.sync?.get({
+      [StorageKeys.PREVENT_AUTO_SCROLL_ENABLED]: false,
+    });
+    if (!isActiveGeneration(generation)) return stopPreventAutoScroll;
 
-    // Check if feature is enabled, default to true or false?
-    // Probably default to true since it's a helpful feature, but typically
-    // we let user turn it on/off in popup.
-    const result = await chrome.storage?.sync?.get({ gvPreventAutoScrollEnabled: false });
-    const isEnabled = result?.gvPreventAutoScrollEnabled !== false; // wait, if default is false, then !== false is true...
-    // Let's set default to false for new feature to not surprise users unless they turn it on.
-
-    // Ah, wait. Usually settings default to false or true.
-    // Let's make it default to false so they have to opt-in, or true if requested.
-    // The user requested: "I hope we can have a feature to prevent jump". Let's make it default false to be safe.
-
-    // Wait, let's fix the logic:
-    // const isEnabled = result?.gvPreventAutoScrollEnabled === true;
-
-    notifyScript(result?.gvPreventAutoScrollEnabled === true);
+    notifyScript(result?.[StorageKeys.PREVENT_AUTO_SCROLL_ENABLED] === true);
     injectScript();
 
-    // Listen for storage changes to update the bridge dynamically
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === 'sync' && changes.gvPreventAutoScrollEnabled) {
-        notifyScript(changes.gvPreventAutoScrollEnabled.newValue === true);
-      }
-    });
+    storageChangeHandler = (changes, areaName) => {
+      if (!isActiveGeneration(generation) || areaName !== 'sync') return;
+      const change = changes[StorageKeys.PREVENT_AUTO_SCROLL_ENABLED];
+      if (!change) return;
+      notifyScript(change.newValue === true);
+    };
+    chrome.storage?.onChanged?.addListener(storageChangeHandler);
 
     console.log('[GPT-Voyager] Prevent auto scroll initialized');
   } catch (error) {
-    if (isExtensionContextInvalidatedError(error)) {
-      return;
+    const wasActive = isActiveGeneration(generation);
+    if (wasActive) stopPreventAutoScroll();
+    if (wasActive && !isExtensionContextInvalidatedError(error)) {
+      console.error('[GPT-Voyager] Prevent auto scroll initialization failed:', error);
     }
-    console.error('[GPT-Voyager] Prevent auto scroll initialization failed:', error);
   }
+
+  return stopPreventAutoScroll;
 }

@@ -71,6 +71,26 @@ let storageListener:
 let inputListener: ((event: Event) => void) | null = null;
 let attachedInput: HTMLElement | null = null;
 let hasRestoredForCurrentPath = false;
+let started = false;
+let lifecycleGeneration = 0;
+const pendingLifecycleTimers = new Set<ReturnType<typeof setTimeout>>();
+
+function isActiveGeneration(generation: number): boolean {
+  return started && lifecycleGeneration === generation;
+}
+
+function scheduleLifecycleTimer(generation: number, callback: () => void, delay: number): void {
+  const timer = setTimeout(() => {
+    pendingLifecycleTimers.delete(timer);
+    if (isActiveGeneration(generation)) callback();
+  }, delay);
+  pendingLifecycleTimers.add(timer);
+}
+
+function clearLifecycleTimers(): void {
+  for (const timer of pendingLifecycleTimers) clearTimeout(timer);
+  pendingLifecycleTimers.clear();
+}
 
 // ============================================================================
 // Helpers
@@ -79,7 +99,7 @@ let hasRestoredForCurrentPath = false;
 /**
  * Get the conversation path for use as a draft key.
  * Strips hash and query, keeps the path.
- * e.g. "/app/abc123" or "/u/0/app/abc123"
+ * e.g. "/c/abc123" (query strings and hashes are already excluded)
  */
 function getConversationPath(): string {
   return window.location.pathname;
@@ -256,6 +276,8 @@ function handleInputChange(): void {
   if (saveTimer) clearTimeout(saveTimer);
 
   saveTimer = setTimeout(() => {
+    saveTimer = null;
+    if (!started || !isEnabled) return;
     const input = findChatInput();
     if (!input) return;
 
@@ -301,12 +323,13 @@ function detachInputListener(): void {
  * Start polling to detect when a message is sent.
  * When the input becomes empty after having content, the draft is cleared.
  */
-function startSendDetection(): void {
+function startSendDetection(generation: number): void {
   if (sendCheckTimer) return;
 
   let wasNonEmpty = false;
 
   sendCheckTimer = setInterval(() => {
+    if (!isActiveGeneration(generation) || !isEnabled) return;
     const input = findChatInput();
     if (!input) return;
 
@@ -340,11 +363,12 @@ function stopSendDetection(): void {
 /**
  * Attempt to restore a draft for the current conversation.
  */
-async function restoreDraft(): Promise<void> {
+async function restoreDraft(generation: number): Promise<void> {
   const path = getConversationPath();
   if (hasRestoredForCurrentPath && path === currentPath) return;
 
   const savedContent = await loadDraft(path);
+  if (!isActiveGeneration(generation) || !isEnabled) return;
   const content = savedContent ? stripInstructionBlock(savedContent).trim() : null;
   if (!content) {
     hasRestoredForCurrentPath = true;
@@ -353,6 +377,7 @@ async function restoreDraft(): Promise<void> {
 
   // Wait for the input to be available
   const tryRestore = (attempts: number) => {
+    if (!isActiveGeneration(generation) || !isEnabled) return;
     const input = findChatInput();
     if (input && isInputEffectivelyEmpty(input)) {
       setInputText(input, content);
@@ -368,7 +393,7 @@ async function restoreDraft(): Promise<void> {
     }
 
     if (attempts > 0) {
-      setTimeout(() => tryRestore(attempts - 1), RESTORE_DELAY_MS);
+      scheduleLifecycleTimer(generation, () => tryRestore(attempts - 1), RESTORE_DELAY_MS);
     }
   };
 
@@ -382,12 +407,13 @@ async function restoreDraft(): Promise<void> {
 /**
  * Watch for URL changes (SPA navigation) and restore drafts.
  */
-function startUrlWatcher(): void {
+function startUrlWatcher(generation: number): void {
   if (urlCheckTimer) return;
 
   currentPath = getConversationPath();
 
   urlCheckTimer = setInterval(() => {
+    if (!isActiveGeneration(generation) || !isEnabled) return;
     const newPath = getConversationPath();
     if (newPath !== currentPath) {
       // Save current draft before navigation (in case debounce hasn't fired)
@@ -404,7 +430,7 @@ function startUrlWatcher(): void {
       hasRestoredForCurrentPath = false;
 
       // Restore draft for the new page after a short delay
-      setTimeout(() => restoreDraft(), RESTORE_DELAY_MS);
+      scheduleLifecycleTimer(generation, () => void restoreDraft(generation), RESTORE_DELAY_MS);
     }
   }, 500);
 }
@@ -426,10 +452,11 @@ function stopUrlWatcher(): void {
 /**
  * Setup observer to watch for dynamically added input elements.
  */
-function setupObserver(): void {
+function setupObserver(generation: number): void {
   if (observer) return;
 
   observer = new MutationObserver(() => {
+    if (!isActiveGeneration(generation) || !isEnabled) return;
     const input = findChatInput();
     if (input) {
       attachInputListener(input);
@@ -459,8 +486,8 @@ function disconnectObserver(): void {
 /**
  * Enable the feature.
  */
-function enableFeature(): void {
-  if (isEnabled) return;
+function enableFeature(generation: number): void {
+  if (!isActiveGeneration(generation) || isEnabled) return;
 
   isEnabled = true;
   currentPath = getConversationPath();
@@ -473,20 +500,18 @@ function enableFeature(): void {
     attachInputListener(input);
   }
 
-  setupObserver();
-  startSendDetection();
-  startUrlWatcher();
+  setupObserver(generation);
+  startSendDetection(generation);
+  startUrlWatcher(generation);
 
   // Restore draft for the current page
-  restoreDraft();
+  void restoreDraft(generation);
 }
 
 /**
  * Disable the feature.
  */
 function disableFeature(): void {
-  if (!isEnabled) return;
-
   isEnabled = false;
 
   if (saveTimer) {
@@ -498,6 +523,7 @@ function disableFeature(): void {
   disconnectObserver();
   stopSendDetection();
   stopUrlWatcher();
+  clearLifecycleTimers();
 }
 
 // ============================================================================
@@ -532,17 +558,18 @@ async function loadSettings(): Promise<boolean> {
 /**
  * Setup storage change listener.
  */
-function setupStorageListener(): void {
+function setupStorageListener(generation: number): void {
   if (storageListener) return;
 
   storageListener = (changes, areaName) => {
+    if (!isActiveGeneration(generation)) return;
     if (areaName !== 'sync') return;
     if (!(StorageKeys.DRAFT_AUTO_SAVE in changes)) return;
 
     const newValue = changes[StorageKeys.DRAFT_AUTO_SAVE].newValue === true;
 
     if (newValue && !isEnabled) {
-      enableFeature();
+      enableFeature(generation);
     } else if (!newValue && isEnabled) {
       disableFeature();
     }
@@ -559,7 +586,9 @@ function setupStorageListener(): void {
 /**
  * Cleanup all resources.
  */
-function cleanup(): void {
+export function stopDraftSave(): void {
+  started = false;
+  lifecycleGeneration += 1;
   disableFeature();
 
   if (storageListener) {
@@ -581,12 +610,16 @@ function cleanup(): void {
  * @returns A cleanup function to be called on unmount
  */
 export async function startDraftSave(): Promise<() => void> {
-  setupStorageListener();
+  if (started) return stopDraftSave;
+  started = true;
+  const generation = ++lifecycleGeneration;
+  setupStorageListener(generation);
 
   const initialEnabled = await loadSettings();
+  if (!isActiveGeneration(generation)) return stopDraftSave;
   if (initialEnabled) {
-    enableFeature();
+    enableFeature(generation);
   }
 
-  return cleanup;
+  return stopDraftSave;
 }

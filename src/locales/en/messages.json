@@ -389,6 +389,24 @@
   "chatFontSizeLarge": {
     "message": "Large"
   },
+  "chatLineHeight": {
+    "message": "Chat line height"
+  },
+  "chatLineHeightTight": {
+    "message": "Tight"
+  },
+  "chatLineHeightLoose": {
+    "message": "Loose"
+  },
+  "chatParagraphSpacing": {
+    "message": "Paragraph spacing"
+  },
+  "chatParagraphSpacingCompact": {
+    "message": "Compact"
+  },
+  "chatParagraphSpacingSpacious": {
+    "message": "Spacious"
+  },
   "chatFontFamily": {
     "message": "Chat font"
   },
@@ -449,8 +467,47 @@
   "formulaCopyFormatNotion": {
     "message": "Notion ($$)"
   },
-  "folder_filter_current_user": {
-    "message": "Filter current user"
+  "folder_search_placeholder": {
+    "message": "Search folders and chats"
+  },
+  "folder_search_expand": {
+    "message": "Expand search"
+  },
+  "folder_search_collapse": {
+    "message": "Collapse search"
+  },
+  "folder_search_mode_folder": {
+    "message": "Folders only"
+  },
+  "folder_search_empty": {
+    "message": "No matching folders or chats"
+  },
+  "folder_settings": {
+    "message": "Folder settings"
+  },
+  "folder_sort": {
+    "message": "Chat order"
+  },
+  "folder_sort_manual": {
+    "message": "Manual"
+  },
+  "folder_sort_recent": {
+    "message": "Recently opened"
+  },
+  "folder_item_font_size": {
+    "message": "Font size"
+  },
+  "folder_item_font_size_decrease": {
+    "message": "Decrease"
+  },
+  "folder_item_font_size_increase": {
+    "message": "Increase"
+  },
+  "folder_hide_section": {
+    "message": "Hide folder contents"
+  },
+  "folder_show_section": {
+    "message": "Show folder contents"
   },
   "folder_export": {
     "message": "Export folders"
@@ -1480,6 +1537,30 @@
   },
   "mermaidRenderingHint": {
     "message": "Render Mermaid code blocks as diagrams."
+  },
+  "longCodeBlockCollapse": {
+    "message": "Long code block collapse"
+  },
+  "longCodeBlockCollapseHint": {
+    "message": "Add an expand/collapse button to long ChatGPT code blocks."
+  },
+  "responseCompleteNotification": {
+    "message": "Reply-complete notification"
+  },
+  "responseCompleteNotificationHint": {
+    "message": "Show a system notification when ChatGPT finishes a reply. Clicking it returns to that conversation."
+  },
+  "responseCompleteNotificationTitle": {
+    "message": "ChatGPT reply complete"
+  },
+  "responseCompleteNotificationMessage": {
+    "message": "The reply is ready."
+  },
+  "codeBlockExpand": {
+    "message": "Expand code block"
+  },
+  "codeBlockCollapse": {
+    "message": "Collapse code block"
   },
   "quoteReplyHint": {
     "message": "Reply with selected text as quoted context."

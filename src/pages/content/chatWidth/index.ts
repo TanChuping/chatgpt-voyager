@@ -92,12 +92,12 @@ function applyWidth(widthPercent: number) {
   const GAP_PX = 10;
 
   style.textContent = `
-    /* ChatGPT current thread containers */
-    [class*="--thread-content-max-width"],
-    [class*="group/turn-messages"] {
+    /* ChatGPT current thread and unified-composer width hosts.
+       Only replace ChatGPT's width variable so its native max-width and
+       mx-auto rules keep both surfaces centered within the current main pane. */
+    [class*="group/turn-messages"],
+    #thread-bottom [class*="--thread-content-max-width"]:has(form[data-type="unified-composer"]) {
       --thread-content-max-width: ${widthValue} !important;
-      max-width: ${widthValue} !important;
-      width: min(100%, ${widthValue}) !important;
     }
 
     /* Remove width constraints from outer containers that contain conversations */
@@ -243,13 +243,56 @@ function removeStyles() {
 
 const ENABLED_KEY = 'gvChatWidthEnabled';
 
-export function startChatWidthAdjuster() {
-  let currentWidthPercent = DEFAULT_PERCENT;
-  let enabled = false;
+let started = false;
+let lifecycleGeneration = 0;
+let currentWidthPercent = DEFAULT_PERCENT;
+let enabled = false;
+let storageChangeHandler:
+  | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
+  | null = null;
+let widthObserver: MutationObserver | null = null;
+let debounceTimer: number | null = null;
+let beforeUnloadHandler: (() => void) | null = null;
+
+function isActiveGeneration(generation: number): boolean {
+  return started && generation === lifecycleGeneration;
+}
+
+export function stopChatWidthAdjuster(): void {
+  started = false;
+  lifecycleGeneration += 1;
+  enabled = false;
+
+  if (debounceTimer !== null) {
+    window.clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  widthObserver?.disconnect();
+  widthObserver = null;
+  if (storageChangeHandler) {
+    try {
+      chrome.storage?.onChanged?.removeListener(storageChangeHandler);
+    } catch {}
+    storageChangeHandler = null;
+  }
+  if (beforeUnloadHandler) {
+    window.removeEventListener('beforeunload', beforeUnloadHandler);
+    beforeUnloadHandler = null;
+  }
+  removeStyles();
+}
+
+export function startChatWidthAdjuster(): () => void {
+  if (started) return stopChatWidthAdjuster;
+  started = true;
+  const generation = ++lifecycleGeneration;
+  currentWidthPercent = DEFAULT_PERCENT;
+  enabled = false;
 
   // Load initial state 鈥?request keys without defaults so we can distinguish
   // "key never existed" (upgrade) from "explicitly set to false"
   chrome.storage?.sync?.get(['gptChatWidth', ENABLED_KEY], (res) => {
+    if (!isActiveGeneration(generation)) return;
     const storedWidth = res?.gptChatWidth;
     const numericStoredWidth = typeof storedWidth === 'number' ? storedWidth : DEFAULT_PERCENT;
     const normalized = normalizePercent(numericStoredWidth, DEFAULT_PERCENT);
@@ -285,10 +328,8 @@ export function startChatWidthAdjuster() {
   });
 
   // Listen for changes from storage
-  const storageChangeHandler = (
-    changes: Record<string, chrome.storage.StorageChange>,
-    area: string,
-  ) => {
+  storageChangeHandler = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+    if (!isActiveGeneration(generation)) return;
     if (area !== 'sync') return;
 
     if (changes[ENABLED_KEY]) {
@@ -320,45 +361,38 @@ export function startChatWidthAdjuster() {
     }
   };
 
-  chrome.storage?.onChanged?.addListener(storageChangeHandler);
+  try {
+    chrome.storage?.onChanged?.addListener(storageChangeHandler);
+  } catch {
+    storageChangeHandler = null;
+  }
 
   // Re-apply styles when DOM changes (for dynamic content)
   // Use debouncing and cache the width to avoid storage reads
-  let debounceTimer: number | null = null;
-  const observer = new MutationObserver(() => {
+  widthObserver = new MutationObserver(() => {
+    if (!isActiveGeneration(generation)) return;
     if (debounceTimer !== null) {
-      clearTimeout(debounceTimer);
+      window.clearTimeout(debounceTimer);
     }
     debounceTimer = window.setTimeout(() => {
+      debounceTimer = null;
+      if (!isActiveGeneration(generation)) return;
       if (enabled) {
         applyWidth(currentWidthPercent);
       }
-      debounceTimer = null;
     }, 200);
   });
 
   // Observe the main conversation area for changes
   const main = document.querySelector('main');
   if (main) {
-    observer.observe(main, {
+    widthObserver.observe(main, {
       childList: true,
       subtree: true,
     });
   }
 
-  // Clean up on unload to prevent memory leaks
-  window.addEventListener(
-    'beforeunload',
-    () => {
-      observer.disconnect();
-      removeStyles();
-      // Remove storage listener
-      try {
-        chrome.storage?.onChanged?.removeListener(storageChangeHandler);
-      } catch (e) {
-        console.error('[GPT-Voyager] Failed to remove storage listener on unload:', e);
-      }
-    },
-    { once: true },
-  );
+  beforeUnloadHandler = () => stopChatWidthAdjuster();
+  window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
+  return stopChatWidthAdjuster;
 }

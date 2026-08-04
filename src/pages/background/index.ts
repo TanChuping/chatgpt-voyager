@@ -5,9 +5,159 @@ import { StorageKeys } from '@/core/types/common';
 import { isFirefox } from '@/core/utils/browser';
 import type { ForkNode, ForkNodesData } from '@/pages/content/fork/forkTypes';
 import type { StarredMessage, StarredMessagesData } from '@/pages/content/timeline/starredTypes';
+import { getTranslation } from '@/utils/i18n';
 
 const CUSTOM_CONTENT_SCRIPT_ID = 'gv-custom-content-script';
 const CUSTOM_WEBSITE_KEY = StorageKeys.PROMPT_CUSTOM_WEBSITES;
+const RESPONSE_NOTIFICATION_PREFIX = 'gv-response-complete:';
+const CHATGPT_HOSTS = new Set(['chatgpt.com', 'chat.openai.com']);
+const recentResponseNotifications = new Map<string, number>();
+
+interface ResponseNotificationPayload {
+  completionId: string;
+  conversationTitle: string;
+  conversationUrl: string;
+  userPrompt: string;
+}
+
+function normalizeChatGptUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || !CHATGPT_HOSTS.has(url.hostname.toLowerCase())) return null;
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function isSameChatGptPage(left: string, right: string): boolean {
+  try {
+    const leftUrl = new URL(left);
+    const rightUrl = new URL(right);
+    const normalizePath = (pathname: string) => pathname.replace(/\/+$/, '') || '/';
+    return (
+      leftUrl.origin === rightUrl.origin &&
+      normalizePath(leftUrl.pathname) === normalizePath(rightUrl.pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function trimNotificationText(value: unknown, maxLength: number): string {
+  if (typeof value !== 'string') return '';
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength - 1)}…`;
+}
+
+function parseResponseNotificationPayload(value: unknown): ResponseNotificationPayload | null {
+  if (!value || typeof value !== 'object') return null;
+  const payload = value as Record<string, unknown>;
+  const conversationUrl = normalizeChatGptUrl(payload.conversationUrl);
+  const completionId = trimNotificationText(payload.completionId, 320);
+  if (!conversationUrl || !completionId) return null;
+
+  return {
+    completionId,
+    conversationTitle: trimNotificationText(payload.conversationTitle, 80),
+    conversationUrl,
+    userPrompt: trimNotificationText(payload.userPrompt, 180),
+  };
+}
+
+function responseNotificationId(tabId: number, conversationUrl: string): string {
+  return `${RESPONSE_NOTIFICATION_PREFIX}${tabId}:${Date.now()}:${encodeURIComponent(conversationUrl)}`;
+}
+
+function parseResponseNotificationTarget(
+  notificationId: string,
+): { tabId: number; conversationUrl: string } | null {
+  if (!notificationId.startsWith(RESPONSE_NOTIFICATION_PREFIX)) return null;
+  const match = notificationId.slice(RESPONSE_NOTIFICATION_PREFIX.length).match(/^(\d+):\d+:(.+)$/);
+  if (!match) return null;
+  const conversationUrl = normalizeChatGptUrl(decodeURIComponent(match[2]));
+  if (!conversationUrl) return null;
+  return { tabId: Number(match[1]), conversationUrl };
+}
+
+async function showResponseCompleteNotification(
+  payloadValue: unknown,
+  sender: { tab?: { id?: number; url?: string } },
+): Promise<{ ok: boolean; error?: string }> {
+  const payload = parseResponseNotificationPayload(payloadValue);
+  const tabId = sender.tab?.id;
+  const senderUrl = normalizeChatGptUrl(sender.tab?.url);
+  if (!payload || typeof tabId !== 'number' || !senderUrl) {
+    return { ok: false, error: 'invalid_sender_or_payload' };
+  }
+
+  const enabled = await browser.storage.sync.get({
+    [StorageKeys.RESPONSE_COMPLETE_NOTIFICATION_ENABLED]: true,
+  });
+  if (enabled[StorageKeys.RESPONSE_COMPLETE_NOTIFICATION_ENABLED] === false) {
+    return { ok: false, error: 'disabled' };
+  }
+
+  const notifications = browser.notifications;
+  if (!notifications?.create) return { ok: false, error: 'notification_api_unavailable' };
+
+  const hasPermission = await browser.permissions.contains({ permissions: ['notifications'] });
+  if (!hasPermission) return { ok: false, error: 'permission_required' };
+
+  const dedupeKey = `${tabId}|${payload.completionId}`;
+  const now = Date.now();
+  for (const [key, createdAt] of recentResponseNotifications) {
+    if (now - createdAt > 60_000) recentResponseNotifications.delete(key);
+  }
+  if (recentResponseNotifications.has(dedupeKey)) return { ok: true };
+  recentResponseNotifications.set(dedupeKey, now);
+
+  const fallbackTitle = await getTranslation('responseCompleteNotificationTitle');
+  const completedMessage = await getTranslation('responseCompleteNotificationMessage');
+  const title = payload.conversationTitle
+    ? `GPT-Voyager · ${payload.conversationTitle}`
+    : `GPT-Voyager · ${fallbackTitle}`;
+  const message = payload.userPrompt
+    ? `${completedMessage}\n${payload.userPrompt}`
+    : completedMessage;
+
+  await notifications.create(responseNotificationId(tabId, payload.conversationUrl), {
+    type: 'basic',
+    iconUrl: browser.runtime.getURL('icon-128.png'),
+    title,
+    message,
+  });
+  return { ok: true };
+}
+
+const notifications = browser.notifications;
+if (notifications?.onClicked) {
+  notifications.onClicked.addListener((notificationId) => {
+    const target = parseResponseNotificationTarget(notificationId);
+    if (!target) return;
+
+    void (async () => {
+      await notifications.clear(notificationId).catch(() => false);
+      try {
+        const tab = await browser.tabs.get(target.tabId);
+        const currentUrl = normalizeChatGptUrl(tab.url);
+        if (!currentUrl || !isSameChatGptPage(currentUrl, target.conversationUrl)) {
+          await browser.tabs.create({ url: target.conversationUrl });
+          return;
+        }
+        await browser.tabs.update(target.tabId, { active: true });
+        if (typeof tab.windowId === 'number') {
+          await browser.windows.update(tab.windowId, { focused: true });
+        }
+      } catch {
+        await browser.tabs.create({ url: target.conversationUrl });
+      }
+    })();
+  });
+}
 
 function isStarredMessagesData(value: unknown): value is StarredMessagesData {
   if (typeof value !== 'object' || value === null) return false;
@@ -421,6 +571,11 @@ const forkNodesManager = new ForkNodesManager();
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     try {
+      if (message?.type === 'gv.responseComplete.notify') {
+        sendResponse(await showResponseCompleteNotification(message.payload, sender));
+        return;
+      }
+
       if (message && message.type && message.type.startsWith('gv.starred.')) {
         switch (message.type) {
           case 'gv.starred.add':

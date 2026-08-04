@@ -33,63 +33,17 @@ function applyFontSize(percent: number) {
   }
 
   style.textContent = `
-    /* User message inner text elements (ChatGPT sets font-size on these directly) */
-    .query-text,
-    .query-text-line,
-    user-query-content .gds-body-l,
-    user-query .gds-body-l,
-    .user-query-bubble-with-background .gds-body-l,
-    div[aria-label="User message"] .gds-body-l,
-    [data-message-author-role="user"] .gds-body-l {
+    /*
+     * Scale mutually-exclusive non-code text roots. The assistant selector
+     * deliberately lands on innermost text blocks instead of .markdown/.prose:
+     * code blocks live inside those containers and have an independent scale.
+     * No percentage-sized text root may therefore contain a code-size root.
+    */
+    [data-message-author-role="user"]:not(:has(pre, .cm-content)),
+    [data-message-author-role="assistant"] :is(p, li, td, th, blockquote, .whitespace-pre-wrap):not(pre *, .cm-content *):not(:has(p, li, td, th, blockquote, .whitespace-pre-wrap, pre, .cm-content)),
+    [data-message-author-role="assistant"] :is(.markdown, .prose):not(:is(.markdown, .prose) :is(.markdown, .prose)):not(:has(p, li, td, th, blockquote, .whitespace-pre-wrap, pre, .cm-content)) {
       font-size: ${sizeValue} !important;
-      line-height: 1.6 !important;
     }
-
-    /* Model response inner text elements */
-    message-content,
-    .response-content,
-    model-response .markdown,
-    model-response .markdown-main-panel,
-    .model-response .markdown,
-    .model-response .markdown-main-panel,
-    response-container .markdown,
-    response-container .markdown-main-panel,
-    .response-container .markdown,
-    .response-container .markdown-main-panel,
-    .presented-response-container .markdown,
-    .presented-response-container .markdown-main-panel,
-    [data-message-author-role="assistant"] .markdown,
-    [data-message-author-role="assistant"] .prose,
-    [data-message-author-role="assistant"] p,
-    [data-message-author-role="assistant"] li,
-    article[data-testid^="conversation-turn-"] .markdown,
-    article[data-testid^="conversation-turn-"] .prose,
-    [data-message-author-role="model"] .markdown {
-      font-size: ${sizeValue} !important;
-      line-height: 1.6 !important;
-    }
-
-    /* Markdown block elements that may have their own font-size */
-    model-response p,
-    model-response li,
-    model-response td,
-    model-response th,
-    .model-response p,
-    .model-response li,
-    .model-response td,
-    .model-response th,
-    message-content p,
-    message-content li,
-    message-content td,
-    message-content th,
-    [data-message-author-role] p,
-    [data-message-author-role] li,
-    [data-message-author-role] td,
-    [data-message-author-role] th {
-      font-size: ${sizeValue} !important;
-      line-height: 1.6 !important;
-    }
-
   `;
 }
 
@@ -105,36 +59,29 @@ function applyCodeFontSize(percent: number) {
   }
 
   style.textContent = `
-    /* ChatGPT code blocks, including the current CodeMirror-backed cm-content renderer. */
+    /* Scale each code-block root once; its code/span descendants inherit. */
     pre.cm-content,
-    pre.cm-content code,
-    .cm-content,
-    .cm-content code,
+    .cm-content:not(pre .cm-content),
     code-block pre,
-    code-block code,
     .code-container pre,
-    .code-container code,
     .formatted-code-block-internal-container pre,
-    .formatted-code-block-internal-container code,
-    [data-message-author-role] pre,
-    [data-message-author-role] pre code,
-    model-response pre,
-    model-response pre code,
-    .model-response pre,
-    .model-response pre code,
-    message-content pre,
-    message-content pre code {
+    [data-message-author-role] pre {
       font-size: ${sizeValue} !important;
-      line-height: 1.5 !important;
     }
 
+    pre.cm-content code,
     pre.cm-content span,
+    .cm-content code,
     .cm-content span,
+    code-block pre code,
     code-block pre span,
+    .code-container pre code,
+    .code-container pre span,
+    .formatted-code-block-internal-container pre code,
     .formatted-code-block-internal-container pre span,
+    [data-message-author-role] pre code,
     [data-message-author-role] pre span {
       font-size: inherit !important;
-      line-height: inherit !important;
     }
   `;
 }
@@ -153,122 +100,156 @@ function removeCodeStyles() {
   }
 }
 
+type FontSettingKey =
+  | typeof VALUE_KEY
+  | typeof ENABLED_KEY
+  | typeof CODE_VALUE_KEY
+  | typeof CODE_ENABLED_KEY;
+
+const FONT_SETTING_KEYS: FontSettingKey[] = [
+  VALUE_KEY,
+  ENABLED_KEY,
+  CODE_VALUE_KEY,
+  CODE_ENABLED_KEY,
+];
+
+let started = false;
+let active = false;
+let lifecycleGeneration = 0;
+let settingsRevision = 0;
+let settingRevisions: Record<FontSettingKey, number> = {
+  [VALUE_KEY]: 0,
+  [ENABLED_KEY]: 0,
+  [CODE_VALUE_KEY]: 0,
+  [CODE_ENABLED_KEY]: 0,
+};
+let currentPercent = DEFAULT_PERCENT;
+let enabled = false;
+let currentCodePercent = DEFAULT_PERCENT;
+let codeEnabled = false;
+let storageChangeHandler:
+  | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
+  | null = null;
+let beforeUnloadHandler: (() => void) | null = null;
+
+function updateBeforeUnloadHandler(): void {
+  const needsLifecycleCleanup = enabled || codeEnabled;
+  if (needsLifecycleCleanup && !beforeUnloadHandler) {
+    beforeUnloadHandler = () => stopChatFontSizeAdjuster();
+    window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
+  } else if (!needsLifecycleCleanup && beforeUnloadHandler) {
+    window.removeEventListener('beforeunload', beforeUnloadHandler);
+    beforeUnloadHandler = null;
+  }
+}
+
+function applySettingValue(key: FontSettingKey, value: unknown): void {
+  switch (key) {
+    case VALUE_KEY: {
+      const normalized = normalizePercent(
+        typeof value === 'number' ? value : DEFAULT_PERCENT,
+        DEFAULT_PERCENT,
+      );
+      currentPercent = normalized;
+      if (enabled) applyFontSize(currentPercent);
+      if (typeof value === 'number' && value !== normalized) {
+        try {
+          chrome.storage?.sync?.set({ [VALUE_KEY]: normalized });
+        } catch {}
+      }
+      break;
+    }
+    case ENABLED_KEY: {
+      const wasEnabled = enabled;
+      enabled = value === true;
+      if (enabled) applyFontSize(currentPercent);
+      else if (wasEnabled) removeStyles();
+      break;
+    }
+    case CODE_VALUE_KEY: {
+      const normalized = normalizePercent(
+        typeof value === 'number' ? value : DEFAULT_PERCENT,
+        DEFAULT_PERCENT,
+      );
+      currentCodePercent = normalized;
+      if (codeEnabled) applyCodeFontSize(currentCodePercent);
+      if (typeof value === 'number' && value !== normalized) {
+        try {
+          chrome.storage?.sync?.set({ [CODE_VALUE_KEY]: normalized });
+        } catch {}
+      }
+      break;
+    }
+    case CODE_ENABLED_KEY: {
+      const wasEnabled = codeEnabled;
+      codeEnabled = value === true;
+      if (codeEnabled) applyCodeFontSize(currentCodePercent);
+      else if (wasEnabled) removeCodeStyles();
+      break;
+    }
+  }
+}
+
+export function stopChatFontSizeAdjuster(): void {
+  if (!started && !active) return;
+
+  active = false;
+  lifecycleGeneration += 1;
+  removeStyles();
+  removeCodeStyles();
+
+  if (storageChangeHandler) {
+    try {
+      chrome.storage?.onChanged?.removeListener(storageChangeHandler);
+    } catch {}
+    storageChangeHandler = null;
+  }
+
+  if (beforeUnloadHandler) {
+    window.removeEventListener('beforeunload', beforeUnloadHandler);
+    beforeUnloadHandler = null;
+  }
+
+  started = false;
+  enabled = false;
+  codeEnabled = false;
+}
+
 export function startChatFontSizeAdjuster() {
-  let currentPercent = DEFAULT_PERCENT;
-  let enabled = false;
-  let currentCodePercent = DEFAULT_PERCENT;
-  let codeEnabled = false;
-
-  // Load initial state
-  chrome.storage?.sync?.get([VALUE_KEY, ENABLED_KEY, CODE_VALUE_KEY, CODE_ENABLED_KEY], (res) => {
-    const storedValue = res?.[VALUE_KEY];
-    const numericValue = typeof storedValue === 'number' ? storedValue : DEFAULT_PERCENT;
-    const normalized = normalizePercent(numericValue, DEFAULT_PERCENT);
-    currentPercent = normalized;
-
-    enabled = res?.[ENABLED_KEY] === true;
-
-    if (enabled) {
-      applyFontSize(currentPercent);
-    }
-
-    const storedCodeValue = res?.[CODE_VALUE_KEY];
-    const numericCodeValue =
-      typeof storedCodeValue === 'number' ? storedCodeValue : DEFAULT_PERCENT;
-    const normalizedCode = normalizePercent(numericCodeValue, DEFAULT_PERCENT);
-    currentCodePercent = normalizedCode;
-
-    codeEnabled = res?.[CODE_ENABLED_KEY] === true;
-
-    if (codeEnabled) {
-      applyCodeFontSize(currentCodePercent);
-    }
-
-    if (typeof storedValue === 'number' && storedValue !== normalized) {
-      try {
-        chrome.storage?.sync?.set({ [VALUE_KEY]: normalized });
-      } catch {}
-    }
-
-    if (typeof storedCodeValue === 'number' && storedCodeValue !== normalizedCode) {
-      try {
-        chrome.storage?.sync?.set({ [CODE_VALUE_KEY]: normalizedCode });
-      } catch {}
-    }
-  });
+  if (started) return;
+  started = true;
+  active = true;
+  const generation = ++lifecycleGeneration;
+  const requestRevision = settingsRevision;
 
   // Listen for changes from storage
-  const storageChangeHandler = (
-    changes: Record<string, chrome.storage.StorageChange>,
-    area: string,
-  ) => {
-    if (area !== 'sync') return;
+  storageChangeHandler = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+    if (!active || area !== 'sync') return;
 
-    if (changes[ENABLED_KEY]) {
-      enabled = changes[ENABLED_KEY].newValue === true;
-      if (enabled) {
-        applyFontSize(currentPercent);
-      } else {
-        removeStyles();
-      }
+    const changedKeys = FONT_SETTING_KEYS.filter((key) => changes[key] !== undefined);
+    if (changedKeys.length === 0) return;
+
+    const revision = ++settingsRevision;
+    for (const key of changedKeys) {
+      settingRevisions[key] = revision;
+      applySettingValue(key, changes[key].newValue);
     }
-
-    if (changes[VALUE_KEY]) {
-      const newValue = changes[VALUE_KEY].newValue;
-      if (typeof newValue === 'number') {
-        const normalized = normalizePercent(newValue, DEFAULT_PERCENT);
-        currentPercent = normalized;
-        if (enabled) {
-          applyFontSize(currentPercent);
-        }
-
-        if (normalized !== newValue) {
-          try {
-            chrome.storage?.sync?.set({ [VALUE_KEY]: normalized });
-          } catch {}
-        }
-      }
-    }
-
-    if (changes[CODE_ENABLED_KEY]) {
-      codeEnabled = changes[CODE_ENABLED_KEY].newValue === true;
-      if (codeEnabled) {
-        applyCodeFontSize(currentCodePercent);
-      } else {
-        removeCodeStyles();
-      }
-    }
-
-    if (changes[CODE_VALUE_KEY]) {
-      const newValue = changes[CODE_VALUE_KEY].newValue;
-      if (typeof newValue === 'number') {
-        const normalized = normalizePercent(newValue, DEFAULT_PERCENT);
-        currentCodePercent = normalized;
-        if (codeEnabled) {
-          applyCodeFontSize(currentCodePercent);
-        }
-
-        if (normalized !== newValue) {
-          try {
-            chrome.storage?.sync?.set({ [CODE_VALUE_KEY]: normalized });
-          } catch {}
-        }
-      }
-    }
+    updateBeforeUnloadHandler();
   };
 
   chrome.storage?.onChanged?.addListener(storageChangeHandler);
 
-  // Clean up on unload
-  window.addEventListener(
-    'beforeunload',
-    () => {
-      removeStyles();
-      removeCodeStyles();
-      try {
-        chrome.storage?.onChanged?.removeListener(storageChangeHandler);
-      } catch {}
-    },
-    { once: true },
-  );
+  // Load the initial state after installing the listener. Per-key revisions
+  // let an in-flight snapshot fill unchanged fields without overwriting a
+  // newer onChanged value for another field.
+  chrome.storage?.sync?.get(FONT_SETTING_KEYS, (res) => {
+    if (!active || generation !== lifecycleGeneration) return;
+
+    for (const key of FONT_SETTING_KEYS) {
+      if (settingRevisions[key] <= requestRevision) {
+        applySettingValue(key, res?.[key]);
+      }
+    }
+    updateBeforeUnloadHandler();
+  });
 }

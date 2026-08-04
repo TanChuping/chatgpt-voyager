@@ -9,6 +9,7 @@ import { StorageKeys } from '@/core/types/common';
 import { getTranslationSyncUnsafe } from '@/utils/i18n';
 
 import { findChatInput } from '../chatInput/index';
+import { extractChatGptConversationIdFromUrl } from '../chatgptDom';
 import { getFolderColor, isDarkMode } from '../folder/folderColors';
 import type { FolderManager } from '../folder/manager';
 import { setInputText } from '../utils/inputHelper';
@@ -36,11 +37,26 @@ let pendingSend = false;
 let pendingSendResetTimer: ReturnType<typeof setTimeout> | null = null;
 let sendClickListener: ((e: Event) => void) | null = null;
 let sendKeydownListener: ((e: KeyboardEvent) => void) | null = null;
+let started = false;
+let lifecycleGeneration = 0;
+let activationGeneration = 0;
+let storageChangeHandler:
+  | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
+  | null = null;
+let beforeUnloadHandler: (() => void) | null = null;
 
 const SEND_BUTTON_SELECTOR =
   'button[aria-label*="Send"], button[aria-label*="send"], ' +
   'button[data-tooltip*="Send"], button[data-tooltip*="send"], ' +
   '[data-send-button], .send-button';
+
+function isCurrentLifecycle(generation: number): boolean {
+  return started && generation === lifecycleGeneration;
+}
+
+function isActiveActivation(generation: number): boolean {
+  return started && featureInitialized && generation === activationGeneration;
+}
 
 // ============================================================================
 // i18n helper
@@ -54,6 +70,12 @@ function t(key: string): string {
 // URL helpers
 // ============================================================================
 
+function stripChatGptLocalePrefix(path: string): string {
+  const pathname = (path.split(/[?#]/, 1)[0] || '/').replace(/^([^/])/, '/$1');
+  const withoutLocale = pathname.replace(/^\/[a-z]{2}(?:-[a-z0-9]{2,8})?(?=\/|$)/i, '');
+  return withoutLocale || '/';
+}
+
 /**
  * Returns true when the current pathname is a new empty chat page, i.e. no conversation ID is present yet.
  *
@@ -62,8 +84,8 @@ function t(key: string): string {
  * @param path - `window.location.pathname` to test
  */
 export function isNewChatPath(path: string): boolean {
-  const normalized = path.replace(/^\/[a-z]{2}(?:[A-Z]{2})(?=\/)/, '');
-  return normalized === '/' || /^\/g\/[^/]+\/?$/.test(normalized);
+  const normalized = stripChatGptLocalePrefix(path);
+  return normalized === '/' || /^\/g\/(?!create(?:\/|$))[^/]+\/?$/.test(normalized);
 }
 
 /**
@@ -73,9 +95,13 @@ export function isNewChatPath(path: string): boolean {
  * @returns Conversation ID string, or null if none present
  */
 export function extractConvId(path: string): string | null {
-  const normalized = path.replace(/^\/[a-z]{2}(?:[A-Z]{2})(?=\/)/, '');
-  const chatMatch = normalized.match(/(?:^|\/)c\/([^/?#]+)/);
-  return chatMatch?.[1] ?? null;
+  return extractChatGptConversationIdFromUrl(path);
+}
+
+/** Return the custom GPT id from `/g/:gptId/c/:conversationId` routes. */
+export function extractCustomGptId(path: string): string | null {
+  const normalized = stripChatGptLocalePrefix(path);
+  return normalized.match(/^\/g\/([^/]+)\/c\/[^/?#]+\/?$/)?.[1] ?? null;
 }
 
 // ============================================================================
@@ -89,8 +115,16 @@ export function extractConvId(path: string): string | null {
  * @param timeoutMs - Maximum wait time in milliseconds
  * @returns Matched element, or null on timeout
  */
-export function waitForElement(selector: string, timeoutMs: number): Promise<HTMLElement | null> {
+export function waitForElement(
+  selector: string,
+  timeoutMs: number,
+  shouldContinue: () => boolean = () => true,
+): Promise<HTMLElement | null> {
   return new Promise((resolve) => {
+    if (!shouldContinue()) {
+      resolve(null);
+      return;
+    }
     const existing = document.querySelector<HTMLElement>(selector);
     if (existing && existing.getBoundingClientRect().height > 0) {
       resolve(existing);
@@ -98,6 +132,10 @@ export function waitForElement(selector: string, timeoutMs: number): Promise<HTM
     }
     const deadline = Date.now() + timeoutMs;
     const check = () => {
+      if (!shouldContinue()) {
+        resolve(null);
+        return;
+      }
       const el = document.querySelector<HTMLElement>(selector);
       if (el && el.getBoundingClientRect().height > 0) {
         resolve(el);
@@ -114,7 +152,7 @@ export function waitForElement(selector: string, timeoutMs: number): Promise<HTM
 }
 
 // ============================================================================
-// Send detection 鈥 ->distinguishes message sends from sidebar navigation
+// Send detection - distinguishes message sends from sidebar navigation
 // ============================================================================
 
 function readInputText(input: HTMLElement): string {
@@ -190,18 +228,6 @@ function isEditableTarget(target: EventTarget | null): target is HTMLElement {
   );
 }
 
-function extractGemMetadata(path: string): { isGem: boolean; gemId?: string } {
-  const gemMatch = path.match(/\/gem\/([^/]+)\/[^/?#]+/);
-  if (!gemMatch?.[1]) {
-    return { isGem: false };
-  }
-
-  return {
-    isGem: true,
-    gemId: gemMatch[1],
-  };
-}
-
 function setupSendDetection(): void {
   if (sendClickListener || sendKeydownListener) return;
 
@@ -242,9 +268,11 @@ async function populateDropdown(
   dropdown: HTMLElement,
   manager: FolderManager,
   chip: HTMLButtonElement,
+  generation: number,
 ): Promise<void> {
   dropdown.innerHTML = '';
   await manager.ensureDataLoaded();
+  if (!isActiveActivation(generation)) return;
   const allFolders = manager.getFolders();
 
   if (allFolders.length === 0) {
@@ -368,7 +396,10 @@ async function populateDropdown(
   renderLevel('__root__', dropdown);
 }
 
-function buildFolderPicker(manager: FolderManager): {
+function buildFolderPicker(
+  manager: FolderManager,
+  generation: number,
+): {
   element: HTMLElement;
   chip: HTMLButtonElement;
   cleanup: () => void;
@@ -396,9 +427,10 @@ function buildFolderPicker(manager: FolderManager): {
 
   chip.addEventListener('click', (e) => {
     e.stopPropagation();
+    if (!isActiveActivation(generation)) return;
     const isOpen = !dropdown.hidden;
     if (!isOpen) {
-      void populateDropdown(dropdown, manager, chip);
+      void populateDropdown(dropdown, manager, chip, generation);
     }
     dropdown.hidden = isOpen;
     chip.setAttribute('aria-expanded', String(!isOpen));
@@ -433,17 +465,23 @@ function buildFolderPicker(manager: FolderManager): {
 export async function applyPendingFolderSelection(
   manager: FolderManager,
   chip: HTMLButtonElement,
+  generation?: number,
 ): Promise<void> {
   if (!chrome.storage?.local) return;
+  const isCurrent = () => generation === undefined || isActiveActivation(generation);
+  if (!isCurrent()) return;
 
   const result = await chrome.storage.local.get([StorageKeys.FOLDER_PROJECT_PENDING_FOLDER_ID]);
+  if (!isCurrent()) return;
   const pendingId = result?.[StorageKeys.FOLDER_PROJECT_PENDING_FOLDER_ID];
   if (!pendingId) return;
 
   // Clear immediately to avoid re-application
   await chrome.storage.local.remove([StorageKeys.FOLDER_PROJECT_PENDING_FOLDER_ID]);
+  if (!isCurrent()) return;
 
   await manager.ensureDataLoaded();
+  if (!isCurrent()) return;
   const folder = manager.getFolders().find((f) => f.id === pendingId);
   if (!folder) return;
 
@@ -466,40 +504,52 @@ function removePicker(): void {
   pickerContainer = null;
 }
 
-async function injectPicker(manager: FolderManager): Promise<void> {
-  if (pickerContainer) return; // Already present
+async function injectPicker(manager: FolderManager, generation: number): Promise<void> {
+  if (!isActiveActivation(generation) || pickerContainer) return;
 
   // Target the model-picker-container inside trailing-actions-wrapper (right side)
-  const modelPicker = await waitForElement('.model-picker-container', 5000);
+  const modelPicker = await waitForElement('.model-picker-container', 5000, () =>
+    isActiveActivation(generation),
+  );
 
-  // Guard: if we navigated away while waiting, abort
-  if (!isNewChatPath(window.location.pathname)) return;
+  // Guard: if the feature stopped or navigation changed while waiting, abort.
+  if (!isActiveActivation(generation) || !isNewChatPath(window.location.pathname)) return;
   // Guard: don't inject twice
   if (document.querySelector('.gv-fp-picker-container')) return;
 
-  const { element, cleanup, chip } = buildFolderPicker(manager);
-
   if (modelPicker?.parentElement) {
+    const { element, cleanup, chip } = buildFolderPicker(manager, generation);
+    if (!isActiveActivation(generation)) {
+      cleanup();
+      return;
+    }
     // Insert before the model picker in trailing-actions-wrapper
     modelPicker.parentElement.insertBefore(element, modelPicker);
     pickerContainer = element;
     pickerCleanup = cleanup;
-    void applyPendingFolderSelection(manager, chip);
+    void applyPendingFolderSelection(manager, chip, generation);
     return;
   }
 
   // Fallback: insert before rich-textarea (original behavior)
-  const richTextarea = await waitForElement('rich-textarea', 3000);
+  const richTextarea = await waitForElement('rich-textarea', 3000, () =>
+    isActiveActivation(generation),
+  );
   if (!richTextarea) return;
-  if (!isNewChatPath(window.location.pathname)) return;
+  if (!isActiveActivation(generation) || !isNewChatPath(window.location.pathname)) return;
   if (document.querySelector('.gv-fp-picker-container')) return;
 
   const parent = richTextarea.parentElement;
   if (parent) {
+    const { element, cleanup, chip } = buildFolderPicker(manager, generation);
+    if (!isActiveActivation(generation)) {
+      cleanup();
+      return;
+    }
     parent.insertBefore(element, richTextarea);
     pickerContainer = element;
     pickerCleanup = cleanup;
-    void applyPendingFolderSelection(manager, chip);
+    void applyPendingFolderSelection(manager, chip, generation);
   }
 }
 
@@ -519,22 +569,28 @@ function getConversationTitle(convId: string): string {
 // URL change handler
 // ============================================================================
 
-function handleNavigation(manager: FolderManager, prevPath: string, newPath: string): void {
+function handleNavigation(
+  manager: FolderManager,
+  prevPath: string,
+  newPath: string,
+  generation: number,
+): void {
+  if (!isActiveActivation(generation)) return;
   const prevWasNewChat = isNewChatPath(prevPath);
   const newConvId = extractConvId(newPath);
 
-  // User sent their first message: new-chat 鈫 ->conversation
+  // User sent their first message: new chat -> conversation.
   // Gate on pendingSend to avoid false assignment when clicking sidebar links
   if (prevWasNewChat && newConvId && selectedFolderId && pendingSend) {
     const title = getConversationTitle(newConvId);
-    const { isGem, gemId } = extractGemMetadata(newPath);
+    const customGptId = extractCustomGptId(newPath);
     manager.addConversationToFolderFromNative(
       selectedFolderId,
       newConvId,
       title,
       window.location.href,
-      isGem,
-      gemId,
+      customGptId !== null,
+      customGptId ?? undefined,
     );
     selectedFolderId = null;
     selectedFolderName = null;
@@ -543,16 +599,16 @@ function handleNavigation(manager: FolderManager, prevPath: string, newPath: str
   }
 
   if (isNewChatPath(newPath)) {
-    // Navigated to a new chat page 鈥 ->(re)show picker
+    // Navigated to a new chat page -> (re)show picker.
     selectedFolderId = null;
     selectedFolderName = null;
     selectedFolderInstructions = null;
     clearPendingSendState();
     clearPreparedInstructions();
     removePicker();
-    void injectPicker(manager);
+    void injectPicker(manager, generation);
   } else {
-    // Left the new-chat page 鈥 ->hide picker
+    // Left the new-chat page -> hide picker.
     clearPendingSendState();
     removePicker();
   }
@@ -575,19 +631,20 @@ function stopURLWatcher(): void {
   teardownSendDetection();
 }
 
-function startURLWatcher(manager: FolderManager): void {
+function startURLWatcher(manager: FolderManager, generation: number): void {
   // Clean up any existing watcher (idempotent for toggle cycles)
   stopURLWatcher();
 
   lastHref = window.location.href;
 
   const checkUrl = () => {
+    if (!isActiveActivation(generation)) return;
     const current = window.location.href;
     if (current === lastHref) return;
     const prevPath = new URL(lastHref).pathname;
     const newPath = new URL(current).pathname;
     lastHref = current;
-    handleNavigation(manager, prevPath, newPath);
+    handleNavigation(manager, prevPath, newPath, generation);
   };
 
   urlWatcherCheckFn = checkUrl;
@@ -597,7 +654,7 @@ function startURLWatcher(manager: FolderManager): void {
 
   // Also check on initial load
   if (isNewChatPath(window.location.pathname)) {
-    void injectPicker(manager);
+    void injectPicker(manager, generation);
   }
 
   setupSendDetection();
@@ -607,49 +664,106 @@ function startURLWatcher(manager: FolderManager): void {
 // Entry point
 // ============================================================================
 
+function deactivateFolderProject(dropPendingSelection: boolean): void {
+  featureInitialized = false;
+  activationGeneration += 1;
+  stopURLWatcher();
+  clearPreparedInstructions();
+  removePicker();
+  selectedFolderId = null;
+  selectedFolderName = null;
+  selectedFolderInstructions = null;
+
+  if (dropPendingSelection) {
+    // An explicit user disable must not auto-select an old folder when the
+    // option is later re-enabled. Lifecycle teardown preserves the handoff.
+    void chrome.storage?.local?.remove([StorageKeys.FOLDER_PROJECT_PENDING_FOLDER_ID]);
+  }
+}
+
+function activateFolderProject(manager: FolderManager): void {
+  if (featureInitialized) return;
+  featureInitialized = true;
+  const generation = ++activationGeneration;
+  startURLWatcher(manager, generation);
+}
+
+export function stopFolderProject(): void {
+  if (!started && !featureInitialized && !storageChangeHandler && !beforeUnloadHandler) return;
+  started = false;
+  lifecycleGeneration += 1;
+  deactivateFolderProject(false);
+  ctrlEnterSendEnabled = false;
+
+  if (storageChangeHandler) {
+    try {
+      chrome.storage?.onChanged?.removeListener(storageChangeHandler);
+    } catch {
+      // Ignore cleanup errors while the extension context is being torn down.
+    }
+    storageChangeHandler = null;
+  }
+
+  if (beforeUnloadHandler) {
+    window.removeEventListener('beforeunload', beforeUnloadHandler);
+    beforeUnloadHandler = null;
+  }
+}
+
 /**
  * Initialise the Folder-as-Project feature. Reads the enabled flag from
  * chrome.storage.sync and sets up the URL watcher + picker injection.
  *
  * @param manager - The active FolderManager instance
  */
-export function startFolderProject(manager: FolderManager): void {
+export function startFolderProject(manager: FolderManager): () => void {
+  if (started) return stopFolderProject;
+  started = true;
+  const generation = ++lifecycleGeneration;
+  let featureSettingChanged = false;
+  let ctrlSettingChanged = false;
+
+  storageChangeHandler = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+    if (!isCurrentLifecycle(generation) || area !== 'sync') return;
+
+    if (StorageKeys.CTRL_ENTER_SEND in changes) {
+      ctrlSettingChanged = true;
+      ctrlEnterSendEnabled = changes[StorageKeys.CTRL_ENTER_SEND].newValue === true;
+    }
+
+    if (!(StorageKeys.FOLDER_PROJECT_ENABLED in changes)) return;
+    featureSettingChanged = true;
+    if (changes[StorageKeys.FOLDER_PROJECT_ENABLED].newValue === true) {
+      activateFolderProject(manager);
+    } else {
+      deactivateFolderProject(true);
+    }
+  };
+
+  try {
+    chrome.storage?.onChanged?.addListener(storageChangeHandler);
+  } catch {
+    storageChangeHandler = null;
+  }
+
+  beforeUnloadHandler = stopFolderProject;
+  window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
+
   chrome.storage?.sync?.get(
     {
       [StorageKeys.FOLDER_PROJECT_ENABLED]: false,
       [StorageKeys.CTRL_ENTER_SEND]: false,
     },
     (res) => {
-      ctrlEnterSendEnabled = res?.[StorageKeys.CTRL_ENTER_SEND] === true;
-      if (res?.[StorageKeys.FOLDER_PROJECT_ENABLED] !== true) return;
-      if (featureInitialized) return;
-      featureInitialized = true;
-      startURLWatcher(manager);
+      if (!isCurrentLifecycle(generation)) return;
+      if (!ctrlSettingChanged) {
+        ctrlEnterSendEnabled = res?.[StorageKeys.CTRL_ENTER_SEND] === true;
+      }
+      if (!featureSettingChanged && res?.[StorageKeys.FOLDER_PROJECT_ENABLED] === true) {
+        activateFolderProject(manager);
+      }
     },
   );
 
-  // React to toggle changes without a page reload
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'sync') return;
-    if (StorageKeys.CTRL_ENTER_SEND in changes) {
-      ctrlEnterSendEnabled = changes[StorageKeys.CTRL_ENTER_SEND].newValue === true;
-    }
-
-    if (!(StorageKeys.FOLDER_PROJECT_ENABLED in changes)) return;
-    const enabled = changes[StorageKeys.FOLDER_PROJECT_ENABLED].newValue === true;
-    if (enabled && !featureInitialized) {
-      featureInitialized = true;
-      startURLWatcher(manager);
-    } else if (!enabled) {
-      featureInitialized = false;
-      stopURLWatcher();
-      clearPreparedInstructions();
-      removePicker();
-      selectedFolderId = null;
-      selectedFolderName = null;
-      selectedFolderInstructions = null;
-      // Drop any pending folder selection so re-enabling later doesn't auto-select a stale folder
-      void chrome.storage?.local?.remove([StorageKeys.FOLDER_PROJECT_PENDING_FOLDER_ID]);
-    }
-  });
+  return stopFolderProject;
 }

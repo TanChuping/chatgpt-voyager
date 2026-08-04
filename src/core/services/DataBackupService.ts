@@ -47,6 +47,11 @@ export class DataBackupService<T = unknown> {
     this.metadataKey = `gvBackup_${namespace}_metadata`;
   }
 
+  /** Legacy localStorage is already authoritative; no migration is performed. */
+  async init(): Promise<boolean> {
+    return true;
+  }
+
   /**
    * Create a primary backup (called after successful save)
    */

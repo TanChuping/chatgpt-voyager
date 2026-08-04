@@ -3,7 +3,7 @@
   "default_locale": "en",
   "name": "__MSG_extName__",
   "description": "__MSG_extDescription__",
-  "version": "1.7.5",
+  "version": "1.8.0",
   "action": {
     "default_popup": "src/pages/popup/index.html",
     "default_icon": {
@@ -29,7 +29,7 @@
     "48": "icon-48.png",
     "128": "icon-128.png"
   },
-  "permissions": ["storage", "scripting"],
+  "permissions": ["storage", "scripting", "notifications"],
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
@@ -68,6 +68,7 @@
         "icon-128.png",
         "katex-config.js",
         "prevent-auto-scroll.js",
+        "chatgpt-response-complete-observer.js",
         "assets/*.js",
         "assets/*.png"
       ],

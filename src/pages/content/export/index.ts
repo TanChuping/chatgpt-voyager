@@ -5,6 +5,7 @@ import {
   buildConversationIdFromUrl,
   buildLegacyConversationIdFromUrl,
   buildRouteConversationIdFromUrl,
+  extractConversationIdFromUrl as extractNativeConversationIdFromUrl,
 } from '@/core/utils/conversationIdentity';
 import { type AppLanguage, normalizeLanguage } from '@/utils/language';
 import { extractMessageDictionary } from '@/utils/localeMessages';
@@ -27,6 +28,21 @@ import type {
 import { ExportDialog } from '../../../features/export/ui/ExportDialog';
 import { resolveExportErrorMessage } from '../../../features/export/ui/ExportErrorMessage';
 import { showExportToast } from '../../../features/export/ui/ExportToast';
+import {
+  CHATGPT_MENU_SELECTOR,
+  bindChatGptMenuTrigger,
+  findAssistantTurnForElement,
+  getChatGptConversationElements,
+  getChatGptConversationId,
+  getChatGptConversationLink,
+  getChatGptConversationTitle,
+  normalizeChatGptConversationId,
+} from '../chatgptDom';
+import {
+  TIMELINE_STARS_PREFIX,
+  getTimelinePrivateItemSync,
+  hydrateTimelinePrivateItem,
+} from '../timeline/timelinePrivateStorage';
 import { filterOutDeepResearchImmersiveNodes, resolveConversationRoot } from './conversationDom';
 import {
   getConversationMenuContext,
@@ -45,7 +61,7 @@ import {
 
 // Storage key to persist export state across reloads (e.g. when clicking top node triggers refresh)
 const SESSION_KEY_PENDING_EXPORT = 'gv_export_pending';
-const CONVERSATION_MENU_SELECTOR = '.mat-mdc-menu-panel[role="menu"]';
+const CONVERSATION_MENU_SELECTOR = `${CHATGPT_MENU_SELECTOR}, .mat-mdc-menu-panel[role="menu"]`;
 const CONVERSATION_MENU_TRIGGER_TEST_ID = 'actions-menu-button';
 const RESPONSE_MENU_TRIGGER_TEST_ID = 'more-menu-button';
 const MENU_INJECTION_RETRY_LIMIT = 8;
@@ -59,7 +75,66 @@ const EXPORT_PRELOAD_WAIT_OPTIONS = {
 } as const;
 const FINAL_EXPORT_PREPARE_DELAY_MS = 120;
 let conversationMenuObserver: MutationObserver | null = null;
-let responseActionObserver: MutationObserver | null = null;
+let responseActionAddedNodeHandler: ((node: HTMLElement) => void) | null = null;
+let recentExportMenuTrigger: HTMLElement | null = null;
+let exportStarted = false;
+let exportGeneration = 0;
+let exportMenuTriggerInteractionHandler: ((event: Event) => void) | null = null;
+let exportStorageChangeHandler:
+  | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
+  | null = null;
+let exportBeforeUnloadHandler: (() => void) | null = null;
+let activeExportSelectionCleanup: (() => void) | null = null;
+let exportStartupAbortController: AbortController | null = null;
+const exportInjectionTimers = new Set<number>();
+
+type ExportStartupResult<T> = { status: 'completed'; value: T } | { status: 'cancelled' };
+
+/**
+ * Extension storage can outlive the content lifecycle (and callback-style
+ * implementations can fail to answer at all). Let stopExportButton release
+ * callers immediately while still observing the original promise so a late
+ * rejection never becomes unhandled.
+ */
+function waitForExportStartupTask<T>(
+  task: Promise<T>,
+  signal: AbortSignal,
+): Promise<ExportStartupResult<T>> {
+  if (signal.aborted) return Promise.resolve({ status: 'cancelled' });
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (result: ExportStartupResult<T>) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener('abort', onAbort);
+      resolve(result);
+    };
+    const onAbort = () => finish({ status: 'cancelled' });
+
+    signal.addEventListener('abort', onAbort, { once: true });
+    task.then(
+      (value) => finish({ status: 'completed', value }),
+      (error) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
+function scheduleExportInjection(callback: () => void, delay: number): number {
+  const generation = exportGeneration;
+  const timer = window.setTimeout(() => {
+    exportInjectionTimers.delete(timer);
+    if (!exportStarted || generation !== exportGeneration) return;
+    callback();
+  }, delay);
+  exportInjectionTimers.add(timer);
+  return timer;
+}
 
 interface PendingExportState {
   format: ExportFormat;
@@ -276,17 +351,20 @@ function ensureTurnId(el: Element, index: number): string {
   return id;
 }
 
-function readStarredSet(): Set<string> {
+function getStarredStorageKeys(): string[] {
   const cid = computeConversationId();
-  try {
-    const candidateConversationIds = [
-      cid,
-      buildRouteConversationIdFromUrl(window.location.href),
-      buildLegacyConversationIdFromUrl(window.location.href),
-    ];
+  const candidateConversationIds = [
+    cid,
+    buildRouteConversationIdFromUrl(window.location.href),
+    buildLegacyConversationIdFromUrl(window.location.href),
+  ];
+  return Array.from(new Set(candidateConversationIds.map((id) => `${TIMELINE_STARS_PREFIX}${id}`)));
+}
 
-    for (const candidateConversationId of candidateConversationIds) {
-      const raw = localStorage.getItem(`gptTimelineStars:${candidateConversationId}`);
+function readStarredSet(): Set<string> {
+  try {
+    for (const key of getStarredStorageKeys()) {
+      const raw = getTimelinePrivateItemSync(key);
       if (!raw) continue;
       const arr = JSON.parse(raw);
       if (!Array.isArray(arr)) continue;
@@ -534,9 +612,11 @@ function buildTurnsForSelectedMessageIds(
 function resolveAssistantMessageIdFromMenuTrigger(trigger: HTMLElement | null): string | null {
   if (!trigger) return null;
 
-  const assistantHost = trigger.closest(
-    '.response-container, response-container, .model-response, model-response',
-  ) as HTMLElement | null;
+  const assistantHost =
+    findAssistantTurnForElement(trigger) ||
+    (trigger.closest(
+      '.response-container, response-container, .model-response, model-response',
+    ) as HTMLElement | null);
   if (!assistantHost) return null;
 
   const messages = buildExportMessagesFromPairs(collectChatPairs());
@@ -552,53 +632,6 @@ function resolveAssistantMessageIdFromMenuTrigger(trigger: HTMLElement | null): 
   });
 
   return target?.messageId || null;
-}
-
-function ensureDropdownInjected(logoElement: Element): HTMLButtonElement | null {
-  // Check if already injected
-  const existingWrapper = document.querySelector('.gv-logo-dropdown-wrapper');
-  if (existingWrapper) {
-    return existingWrapper.querySelector('.gv-export-dropdown-btn') as HTMLButtonElement | null;
-  }
-
-  const logo = logoElement as HTMLElement;
-  const parent = logo.parentElement;
-  if (!parent) return null;
-
-  // Create wrapper that will contain both logo and dropdown
-  const wrapper = document.createElement('div');
-  wrapper.className = 'gv-logo-dropdown-wrapper';
-
-  // Move logo into wrapper
-  parent.insertBefore(wrapper, logo);
-  wrapper.appendChild(logo);
-
-  // Create dropdown container
-  const dropdown = document.createElement('div');
-  dropdown.className = 'gv-logo-dropdown';
-
-  // Create export button inside dropdown
-  const btn = document.createElement('button');
-  btn.className = 'gv-export-dropdown-btn';
-  btn.type = 'button';
-  btn.title = 'Export chat history';
-  btn.setAttribute('aria-label', 'Export chat history');
-
-  // Export icon
-  const iconSpan = document.createElement('span');
-  iconSpan.className = 'gv-export-dropdown-icon';
-  btn.appendChild(iconSpan);
-
-  // Export text label
-  const labelSpan = document.createElement('span');
-  labelSpan.className = 'gv-export-dropdown-label';
-  labelSpan.textContent = 'Export';
-  btn.appendChild(labelSpan);
-
-  dropdown.appendChild(btn);
-  wrapper.appendChild(dropdown);
-
-  return btn;
 }
 
 async function loadDictionaries(): Promise<Record<AppLanguage, Record<string, string>>> {
@@ -636,87 +669,40 @@ function isMeaningfulConversationTitle(title: string | null | undefined): title 
 }
 
 function extractConversationIdFromUrl(): string | null {
-  const chatMatch = window.location.pathname.match(/\/c\/([^/?#]+)/);
-  if (chatMatch?.[1]) return chatMatch[1];
-  const shareMatch = window.location.pathname.match(/\/share\/([^/?#]+)/);
-  if (shareMatch?.[1]) return shareMatch[1];
-  return null;
-}
-
-function extractConversationIdFromHref(href: string): string | null {
-  if (!href) return null;
-  try {
-    const parsed = new URL(href, window.location.origin);
-    const appMatch = parsed.pathname.match(/\/app\/([^/?#]+)/);
-    if (appMatch?.[1]) return appMatch[1];
-    const gemMatch = parsed.pathname.match(/\/gem\/[^/]+\/([^/?#]+)/);
-    if (gemMatch?.[1]) return gemMatch[1];
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function isGemLabel(text: string | null | undefined): boolean {
-  const t = (text || '').trim().toLowerCase();
-  return t === 'gem' || t === 'gems';
+  return extractNativeConversationIdFromUrl(window.location.href);
 }
 
 function extractTitleFromLinkText(link?: HTMLAnchorElement | null): string | null {
   if (!link) return null;
-  const text = (link.innerText || '').trim();
+  const text = (link.innerText || link.textContent || '').trim();
   if (!text) return null;
   const parts = text
     .split('\n')
     .map((s) => s.trim())
     .filter(Boolean)
-    .filter((s) => !isGemLabel(s))
     .filter((s) => s.length >= 2);
   if (parts.length === 0) return null;
   return parts.reduce((a, b) => (b.length > a.length ? b : a), parts[0]) || null;
 }
 
 function extractTitleFromConversationElement(conversationEl: HTMLElement): string | null {
-  const scope =
-    (conversationEl.closest('[data-test-id="conversation"]') as HTMLElement) || conversationEl;
-  const bySelector = scope.querySelector(
-    '.gds-label-l, .conversation-title-text, [data-test-id="conversation-title"], h3',
-  );
-  const selectorTitle = bySelector?.textContent?.trim();
-  if (isMeaningfulConversationTitle(selectorTitle) && !isGemLabel(selectorTitle)) {
-    return selectorTitle;
-  }
+  const semanticTitle = getChatGptConversationTitle(conversationEl)?.trim();
+  if (isMeaningfulConversationTitle(semanticTitle)) return semanticTitle;
 
-  const link = scope.querySelector(
-    'a[href*="/app/"], a[href*="/gem/"]',
-  ) as HTMLAnchorElement | null;
-  const ariaTitle = link?.getAttribute('aria-label')?.trim();
-  if (isMeaningfulConversationTitle(ariaTitle) && !isGemLabel(ariaTitle)) {
-    return ariaTitle;
-  }
-  const linkTitle = link?.getAttribute('title')?.trim();
-  if (isMeaningfulConversationTitle(linkTitle) && !isGemLabel(linkTitle)) {
-    return linkTitle;
-  }
+  const link = getChatGptConversationLink(conversationEl);
   const fromLinkText = extractTitleFromLinkText(link);
   if (isMeaningfulConversationTitle(fromLinkText)) {
     return fromLinkText;
   }
 
-  const label = scope.querySelector('.gds-body-m, .gds-label-m, .subtitle');
-  const labelText = label?.textContent?.trim();
-  if (isMeaningfulConversationTitle(labelText) && !isGemLabel(labelText)) {
-    return labelText;
-  }
-
-  const raw = scope.textContent?.trim() || '';
+  const raw = conversationEl.textContent?.trim() || '';
   if (!raw) return null;
   const firstLine =
     raw
       .split('\n')
       .map((s) => s.trim())
       .filter(Boolean)[0] || raw;
-  if (isMeaningfulConversationTitle(firstLine) && !isGemLabel(firstLine)) {
+  if (isMeaningfulConversationTitle(firstLine)) {
     return firstLine.slice(0, 80);
   }
 
@@ -724,32 +710,16 @@ function extractTitleFromConversationElement(conversationEl: HTMLElement): strin
 }
 
 function extractTitleFromNativeSidebarByConversationId(conversationId: string): string | null {
-  const escapedConversationId = escapeCssAttributeValue(conversationId);
-  const byJslog = document.querySelector(
-    `[data-test-id="conversation"][jslog*="c_${escapedConversationId}"]`,
-  ) as HTMLElement | null;
-  if (byJslog) {
-    const title = extractTitleFromConversationElement(byJslog);
-    if (title) return title;
-  }
-
-  const byHrefLink = document.querySelector(
-    `[data-test-id="conversation"] a[href*="${escapedConversationId}"]`,
-  ) as HTMLElement | null;
-  if (byHrefLink) {
-    const title = extractTitleFromConversationElement(byHrefLink);
+  const expected = normalizeChatGptConversationId(conversationId);
+  for (const conversation of getChatGptConversationElements(document)) {
+    if (normalizeChatGptConversationId(getChatGptConversationId(conversation)) !== expected) {
+      continue;
+    }
+    const title = extractTitleFromConversationElement(conversation);
     if (title) return title;
   }
 
   return null;
-}
-
-function escapeCssAttributeValue(value: string): string {
-  const escape = globalThis.CSS?.escape;
-  if (typeof escape === 'function') {
-    return escape(value);
-  }
-  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 function getConversationTitleForExport(): string {
@@ -791,29 +761,7 @@ function getConversationTitleForExport(): string {
     }
   }
 
-  // Strategy 3: Try to get from sidebar conversation list
-  try {
-    const selectors = [
-      'mat-list-item.mdc-list-item--activated [mat-line]',
-      'mat-list-item[aria-current="page"] [mat-line]',
-      '.conversation-list-item.active .conversation-title',
-      '.active-conversation .title',
-    ];
-
-    for (const selector of selectors) {
-      const element = document.querySelector(selector);
-      const title = element?.textContent?.trim();
-      if (isMeaningfulConversationTitle(title)) {
-        return title;
-      }
-    }
-  } catch (error) {
-    try {
-      console.debug('[Export] Failed to get title from sidebar:', error);
-    } catch {}
-  }
-
-  // Strategy 4: URL fallback
+  // Strategy 3: URL fallback
   const conversationId = extractConversationIdFromUrl();
   if (conversationId) {
     return `Conversation ${conversationId.slice(0, 8)}`;
@@ -823,21 +771,13 @@ function getConversationTitleForExport(): string {
 }
 
 function findSidebarConversationLinkById(conversationId: string): HTMLAnchorElement | null {
-  const escapedConversationId = escapeCssAttributeValue(conversationId);
-  const byJslog = document.querySelector(
-    `[data-test-id="conversation"][jslog*="c_${escapedConversationId}"] a[href]`,
-  ) as HTMLAnchorElement | null;
-  if (byJslog) return byJslog;
-
-  const links = Array.from(
-    document.querySelectorAll<HTMLAnchorElement>(
-      '[data-test-id="conversation"] a[href], a[data-test-id="conversation"][href]',
-    ),
-  );
-  for (const link of links) {
-    if (extractConversationIdFromHref(link.href) === conversationId) {
-      return link;
+  const expected = normalizeChatGptConversationId(conversationId);
+  for (const conversation of getChatGptConversationElements(document)) {
+    if (normalizeChatGptConversationId(getChatGptConversationId(conversation)) !== expected) {
+      continue;
     }
+    const link = getChatGptConversationLink(conversation);
+    if (link) return link;
   }
 
   return null;
@@ -1317,7 +1257,10 @@ async function performFinalExport(
       } catch {}
     });
     cleanupTasks.length = 0;
+    if (activeExportSelectionCleanup === cleanup) activeExportSelectionCleanup = null;
   };
+  activeExportSelectionCleanup?.();
+  activeExportSelectionCleanup = cleanup;
 
   const setSelected = (id: string, next: boolean) => {
     if (next) selectedIds.add(id);
@@ -1663,6 +1606,10 @@ async function performFinalExport(
   // Observe new lazy-loaded messages while selection mode is active.
   const root = getConversationRoot(getUserSelectors());
   let refreshTimer: number | null = null;
+  cleanupTasks.push(() => {
+    if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+    refreshTimer = null;
+  });
   const scheduleRefresh = () => {
     if (refreshTimer) return;
     refreshTimer = window.setTimeout(() => {
@@ -1944,37 +1891,16 @@ function setupResponseActionCopyImageObserver({
   getCurrentLanguage: () => AppLanguage;
 }): void {
   applyResponseActionCopyImageButtons(getCurrentLanguage);
-  if (responseActionObserver) return;
-
-  const observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      mutation.addedNodes.forEach((node) => {
-        if (!(node instanceof HTMLElement)) return;
-        const texts = getResponseCopyImageTexts(getCurrentLanguage());
-        injectResponseActionCopyImageButtons(node, {
-          label: texts.label,
-          tooltip: texts.label,
-          onClick: (button) => {
-            void handleResponseCopyImageClick(button, getCurrentLanguage);
-          },
-        });
-      });
-    }
-  });
-
-  observer.observe(document.body, { childList: true, subtree: true });
-  responseActionObserver = observer;
-
-  window.addEventListener(
-    'beforeunload',
-    () => {
-      try {
-        responseActionObserver?.disconnect();
-      } catch {}
-      responseActionObserver = null;
-    },
-    { once: true },
-  );
+  responseActionAddedNodeHandler = (node) => {
+    const texts = getResponseCopyImageTexts(getCurrentLanguage());
+    injectResponseActionCopyImageButtons(node, {
+      label: texts.label,
+      tooltip: texts.label,
+      onClick: (button) => {
+        void handleResponseCopyImageClick(button, getCurrentLanguage);
+      },
+    });
+  };
 }
 
 function setupConversationMenuExportObserver({
@@ -1996,6 +1922,9 @@ function setupConversationMenuExportObserver({
     retriesLeft: number = MENU_INJECTION_RETRY_LIMIT,
   ) => {
     if (!menuPanel.isConnected) return;
+    if (recentExportMenuTrigger?.isConnected) {
+      bindChatGptMenuTrigger(menuPanel, recentExportMenuTrigger);
+    }
     const currentLang = getCurrentLanguage();
     const label =
       dict[currentLang]?.['exportChatJson'] ??
@@ -2014,7 +1943,7 @@ function setupConversationMenuExportObserver({
         onClick: () => onExport(menuContext),
       });
       if (!injected && retriesLeft > 0) {
-        window.setTimeout(
+        scheduleExportInjection(
           () => tryInjectOnPanel(menuPanel, retriesLeft - 1),
           MENU_INJECTION_RETRY_DELAY_MS,
         );
@@ -2034,7 +1963,7 @@ function setupConversationMenuExportObserver({
           }),
       });
       if (!injected && retriesLeft > 0) {
-        window.setTimeout(
+        scheduleExportInjection(
           () => tryInjectOnPanel(menuPanel, retriesLeft - 1),
           MENU_INJECTION_RETRY_DELAY_MS,
         );
@@ -2043,7 +1972,7 @@ function setupConversationMenuExportObserver({
     }
 
     if (retriesLeft > 0) {
-      window.setTimeout(
+      scheduleExportInjection(
         () => tryInjectOnPanel(menuPanel, retriesLeft - 1),
         MENU_INJECTION_RETRY_DELAY_MS,
       );
@@ -2054,13 +1983,14 @@ function setupConversationMenuExportObserver({
     for (const mutation of mutations) {
       mutation.addedNodes.forEach((node) => {
         if (!(node instanceof HTMLElement)) return;
+        responseActionAddedNodeHandler?.(node);
         const panelSet = new Set<HTMLElement>();
         const panels = getConversationMenuPanelsFromNode(node);
         panels.forEach((panel) => panelSet.add(panel));
         const closestPanel = node.closest(CONVERSATION_MENU_SELECTOR) as HTMLElement | null;
         if (closestPanel) panelSet.add(closestPanel);
         panelSet.forEach((panel) => {
-          window.setTimeout(() => tryInjectOnPanel(panel), 30);
+          scheduleExportInjection(() => tryInjectOnPanel(panel), 30);
         });
       });
     }
@@ -2070,21 +2000,22 @@ function setupConversationMenuExportObserver({
   conversationMenuObserver = observer;
 
   const existingPanels = document.querySelectorAll<HTMLElement>(CONVERSATION_MENU_SELECTOR);
-  existingPanels.forEach((panel) => window.setTimeout(() => tryInjectOnPanel(panel), 30));
+  existingPanels.forEach((panel) => scheduleExportInjection(() => tryInjectOnPanel(panel), 30));
 
   const onMenuTriggerInteraction = (event: Event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     const trigger = target.closest(
-      `[data-test-id="${CONVERSATION_MENU_TRIGGER_TEST_ID}"], [data-test-id="${RESPONSE_MENU_TRIGGER_TEST_ID}"]`,
+      `[data-testid="conversation-options-button"], [data-testid^="history-item-"][data-testid$="-options"], [data-conversation-options-trigger], [data-test-id="${CONVERSATION_MENU_TRIGGER_TEST_ID}"], [data-test-id="${RESPONSE_MENU_TRIGGER_TEST_ID}"]`,
     ) as HTMLElement | null;
     if (!trigger) return;
+    recentExportMenuTrigger = trigger;
 
     const panelIds = parseMenuTriggerPanelIds(trigger);
     if (panelIds.length === 0) return;
 
     for (let attempt = 0; attempt <= MENU_INJECTION_RETRY_LIMIT; attempt++) {
-      window.setTimeout(() => {
+      scheduleExportInjection(() => {
         panelIds.forEach((id) => {
           const panel = document.getElementById(id);
           if (!(panel instanceof HTMLElement)) return;
@@ -2097,32 +2028,31 @@ function setupConversationMenuExportObserver({
 
   document.addEventListener('click', onMenuTriggerInteraction, true);
   document.addEventListener('pointerdown', onMenuTriggerInteraction, true);
-
-  window.addEventListener(
-    'beforeunload',
-    () => {
-      try {
-        conversationMenuObserver?.disconnect();
-      } catch {}
-      try {
-        document.removeEventListener('click', onMenuTriggerInteraction, true);
-      } catch {}
-      try {
-        document.removeEventListener('pointerdown', onMenuTriggerInteraction, true);
-      } catch {}
-      conversationMenuObserver = null;
-    },
-    { once: true },
-  );
+  exportMenuTriggerInteractionHandler = onMenuTriggerInteraction;
 }
 
 export async function startExportButton(): Promise<void> {
+  if (exportStarted) return;
+  exportStarted = true;
+  const generation = ++exportGeneration;
+  const startupAbortController = new AbortController();
+  exportStartupAbortController = startupAbortController;
+
+  const hydrationResult = await waitForExportStartupTask(
+    Promise.all(getStarredStorageKeys().map((key) => hydrateTimelinePrivateItem(key))),
+    startupAbortController.signal,
+  );
+  if (hydrationResult.status === 'cancelled' || !exportStarted || generation !== exportGeneration) {
+    return;
+  }
+
   // Check for pending export immediately
   checkPendingExport();
 
   // i18n setup for tooltip and label
   const dict = await loadDictionaries();
   let lang = await getLanguage();
+  if (!exportStarted || generation !== exportGeneration) return;
 
   setupConversationMenuExportObserver({
     dict,
@@ -2144,165 +2074,32 @@ export async function startExportButton(): Promise<void> {
     getCurrentLanguage: () => lang,
   });
 
-  const logo =
-    (await waitForElement('[data-test-id="logo"]', 6000)) || (await waitForElement('.logo', 2000));
-  if (!logo) return;
-  const btn = ensureDropdownInjected(logo);
-  if (!btn) return;
-  if ((btn as Element & { _gvBound?: boolean })._gvBound) return;
-  (btn as Element & { _gvBound?: boolean })._gvBound = true;
-
-  // Swallow events on the button to avoid parent navigation (logo click -> /app)
-  const swallow = (e: Event) => {
-    try {
-      e.preventDefault();
-    } catch {}
-    try {
-      e.stopPropagation();
-    } catch {}
-  };
-  // Capture low-level press events to avoid parent logo navigation, but do NOT capture 'click'
-  ['pointerdown', 'mousedown', 'pointerup', 'mouseup'].forEach((type) => {
-    try {
-      btn.addEventListener(type, swallow, true);
-    } catch {}
-  });
-
-  const t = (key: TranslationKey) => dict[lang]?.[key] ?? dict.en?.[key] ?? key;
-  const title = t('exportChatJson');
-  const labelText = t('pm_export');
-  btn.title = title;
-  btn.setAttribute('aria-label', title);
-
-  // Update label text
-  const labelEl = btn.querySelector('.gv-export-dropdown-label');
-  if (labelEl) labelEl.textContent = labelText;
-
-  // listen for runtime language changes
-  const storageChangeHandler = (
+  exportStorageChangeHandler = (
     changes: Record<string, chrome.storage.StorageChange>,
     area: string,
   ) => {
-    if (area !== 'sync') return;
+    if (!exportStarted || area !== 'sync') return;
     const nextRaw = changes[StorageKeys.LANGUAGE]?.newValue;
-    if (typeof nextRaw === 'string') {
-      const next = normalizeLang(nextRaw);
-      lang = next;
-      const ttl =
-        dict[next]?.['exportChatJson'] ?? dict.en?.['exportChatJson'] ?? 'Export chat history';
-      btn.title = ttl;
-      btn.setAttribute('aria-label', ttl);
-
-      // Update visible label text
-      const lbl = btn.querySelector('.gv-export-dropdown-label');
-      if (lbl) lbl.textContent = dict[next]?.['pm_export'] ?? dict.en?.['pm_export'] ?? 'Export';
-
-      applyResponseActionCopyImageButtons(() => lang);
+    if (typeof nextRaw !== 'string') return;
+    lang = normalizeLang(nextRaw);
+    const legacyButton = document.querySelector<HTMLElement>('.gv-export-dropdown-btn');
+    if (legacyButton) {
+      const title =
+        dict[lang]?.['exportChatJson'] ?? dict.en?.['exportChatJson'] ?? 'Export chat history';
+      legacyButton.title = title;
+      legacyButton.setAttribute('aria-label', title);
+      const label = legacyButton.querySelector<HTMLElement>('.gv-export-dropdown-label');
+      if (label)
+        label.textContent = dict[lang]?.['pm_export'] ?? dict.en?.['pm_export'] ?? 'Export';
     }
+    applyResponseActionCopyImageButtons(() => lang);
   };
-
   try {
-    chrome.storage?.onChanged?.addListener(storageChangeHandler);
-
-    // Cleanup listener on page unload to prevent memory leaks
-    window.addEventListener(
-      'beforeunload',
-      () => {
-        try {
-          chrome.storage?.onChanged?.removeListener(storageChangeHandler);
-        } catch (e) {
-          console.error('[GPT-Voyager] Failed to remove storage listener on unload:', e);
-        }
-      },
-      { once: true },
-    );
+    chrome.storage?.onChanged?.addListener(exportStorageChangeHandler);
   } catch {}
 
-  btn.addEventListener('click', (ev) => {
-    // Stop parent navigation, but allow this handler to run
-    swallow(ev);
-    try {
-      // Show export dialog instead of directly exporting
-      showExportDialog(dict, lang);
-    } catch (err) {
-      try {
-        console.error('GPT-Voyager export failed', err);
-      } catch {}
-    }
-  });
-
-  // ── DOM recovery (resize / print) ─────────────────────────────────────
-  // The host page may re-render the logo/header area (and thus destroy the wrapper
-  // + export button) during window resize or window.print().  We use a
-  // single debounced handler that fires on resize, afterprint, and our own
-  // gv-print-cleanup event.  It checks whether the button is still attached
-  // and re-injects if not.
-  let currentBtn: HTMLButtonElement = btn;
-  let reinjectTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const reinjectExportButtonIfNeeded = () => {
-    // Debounce host page mutations during resize; wait until it
-    // settles before we attempt re-injection.
-    if (reinjectTimer !== null) clearTimeout(reinjectTimer);
-    reinjectTimer = setTimeout(() => {
-      reinjectTimer = null;
-      try {
-        // If the button is still in the document, nothing to do.
-        if (document.body.contains(currentBtn)) return;
-
-        // Remove stale wrapper if it somehow survived but lost the button.
-        const staleWrapper = document.querySelector('.gv-logo-dropdown-wrapper');
-        if (staleWrapper) staleWrapper.remove();
-
-        // Re-find the logo element; the host page may have created a fresh one.
-        const newLogo =
-          document.querySelector('[data-test-id="logo"]') ?? document.querySelector('.logo');
-        if (!newLogo) return;
-
-        const newBtn = ensureDropdownInjected(newLogo);
-        if (!newBtn) return;
-        if ((newBtn as Element & { _gvBound?: boolean })._gvBound) return;
-        (newBtn as Element & { _gvBound?: boolean })._gvBound = true;
-
-        // Re-bind all event listeners on the fresh button.
-        ['pointerdown', 'mousedown', 'pointerup', 'mouseup'].forEach((type) => {
-          try {
-            newBtn.addEventListener(type, swallow, true);
-          } catch {}
-        });
-
-        const freshT = (key: TranslationKey) => dict[lang]?.[key] ?? dict.en?.[key] ?? key;
-        const ttl = freshT('exportChatJson');
-        const lbl = freshT('pm_export');
-        newBtn.title = ttl;
-        newBtn.setAttribute('aria-label', ttl);
-        const labelEl = newBtn.querySelector('.gv-export-dropdown-label');
-        if (labelEl) labelEl.textContent = lbl;
-
-        newBtn.addEventListener('click', (ev) => {
-          swallow(ev);
-          try {
-            showExportDialog(dict, lang);
-          } catch (err) {
-            try {
-              console.error('GPT-Voyager export failed', err);
-            } catch {}
-          }
-        });
-
-        // Update our tracking reference so the next check uses the new element.
-        currentBtn = newBtn;
-      } catch (e) {
-        try {
-          console.debug('[GPT-Voyager] Export button re-injection failed:', e);
-        } catch {}
-      }
-    }, 800);
-  };
-
-  window.addEventListener('resize', reinjectExportButtonIfNeeded);
-  window.addEventListener('gv-print-cleanup', reinjectExportButtonIfNeeded);
-  window.addEventListener('afterprint', reinjectExportButtonIfNeeded);
+  exportBeforeUnloadHandler = () => stopExportButton();
+  window.addEventListener('beforeunload', exportBeforeUnloadHandler, { once: true });
 }
 
 async function showExportDialog(
@@ -2367,4 +2164,46 @@ async function showExportDialog(
   });
 }
 
-export default { startExportButton };
+export function stopExportButton(): void {
+  exportStarted = false;
+  exportGeneration += 1;
+  exportStartupAbortController?.abort();
+  exportStartupAbortController = null;
+
+  conversationMenuObserver?.disconnect();
+  conversationMenuObserver = null;
+  responseActionAddedNodeHandler = null;
+
+  if (exportMenuTriggerInteractionHandler) {
+    document.removeEventListener('click', exportMenuTriggerInteractionHandler, true);
+    document.removeEventListener('pointerdown', exportMenuTriggerInteractionHandler, true);
+  }
+  exportMenuTriggerInteractionHandler = null;
+  recentExportMenuTrigger = null;
+
+  if (exportStorageChangeHandler) {
+    try {
+      chrome.storage?.onChanged?.removeListener(exportStorageChangeHandler);
+    } catch {}
+  }
+  exportStorageChangeHandler = null;
+
+  if (exportBeforeUnloadHandler) {
+    window.removeEventListener('beforeunload', exportBeforeUnloadHandler);
+  }
+  exportBeforeUnloadHandler = null;
+
+  exportInjectionTimers.forEach((timer) => window.clearTimeout(timer));
+  exportInjectionTimers.clear();
+  activeExportSelectionCleanup?.();
+  activeExportSelectionCleanup = null;
+
+  document
+    .querySelectorAll<HTMLElement>(
+      '.gv-export-conversation-menu-btn, .gv-export-response-menu-btn, [data-gv-copy-image-button], [data-testid="gv-copy-image-button"], [data-test-id="gv-copy-image-button"], .gv-export-dialog-overlay, .gv-export-progress-overlay',
+    )
+    .forEach((node) => node.remove());
+  document.body.classList.remove('gv-export-select-mode');
+}
+
+export default { startExportButton, stopExportButton };

@@ -18,7 +18,10 @@ Repository: [TanChuping/chatgpt-voyager](https://github.com/TanChuping/chatgpt-v
 
 - ChatGPT conversation timeline with dot navigation, preview, highlighting, and starred positions.
 - Timeline text pins for long answers: pin exact spots inside a message, switch pins within the selected timeline dot, select pins from the page, and delete pins with an inline delete control.
-- Sidebar folders for organizing conversations locally, with an optional layout that places the folder list below the Projects section (instead of pinned at the top) so it scrolls together with the chat list.
+- Sidebar folders for organizing conversations locally, with whole-panel collapse, collapsible search, conversation/folder filtering (`f:`), manual or recent sorting, expandable folder rows, drag-and-drop spacing, and adjustable font size/indent/spacing.
+- Folder JSON import/export for portable local backups; existing folder data stays local and no cloud account is required.
+- Reply-completion system notifications, enabled by default, so a finished response can notify you even after switching tabs or conversations.
+- Optional long-code-block collapse controls, plus independent chat line-height and paragraph-spacing settings.
 - Undo a temporary chat: from inside a temporary chat, scrape the transcript and build a handoff prompt that continues it in a normal conversation (delivered inline, or auto-attached as a `.txt` for long chats).
 - Prompt Manager with tags, search, prompt import/export, compact/comfortable display modes, and click-to-copy or click-to-insert behavior.
 - Input enhancements, including input collapse, draft autosave, quote reply, Vim-style input option, Ctrl+Enter send option, and auto-scroll prevention.
@@ -26,7 +29,8 @@ Repository: [TanChuping/chatgpt-voyager](https://github.com/TanChuping/chatgpt-v
 - Conversation export and local backup/import for prompts, folders, settings, and timeline hierarchy.
 - One-click single-conversation export to Markdown or JSON from the chat header (piggybacks ChatGPT's own conversation fetch — no separate API call, no extra permissions). The export button opens a small menu: export the entire conversation, or pick individual messages and export only the selected subset.
 - Cross-conversation favorites: star any user message, jump back to it from the favorites panel even after switching conversations.
-- Layout controls for chat width, font size, input width, sidebar width, and folder spacing.
+- Layout controls for chat width, font size, input width, sidebar width, folder spacing, and input positioning.
+- Optional features are split into lightweight modules and loaded only when their setting or page context needs them.
 - A small support popover with Ko-fi and optional payment QR codes.
 
 ## Install Locally
@@ -70,6 +74,14 @@ npm run build:chrome
 Other platform build scripts are kept from the upstream project, but the actively maintained target for this fork is Chrome/Edge on ChatGPT.
 
 ## Recent Updates
+
+### 1.8.0
+
+- Refreshed the Folder sidebar with a cleaner native-style layout, whole-panel and search-box collapse, expandable folder arrows, search/filter shortcuts, sorting, and adjustable visual density. Drag target spacing appears only while dragging so the idle list stays compact.
+- Added reply-completion system notifications (enabled by default), optional long-code-block collapse, and chat line/paragraph spacing controls. These additions use small on-demand modules where practical.
+- Fixed the chat composer shifting left when the chat-width adjuster was enabled, and hardened the background notification listener for browsers where the Notifications API is unavailable.
+- Chrome/Edge package and full release notes: [v1.8.0](https://github.com/TanChuping/chatgpt-voyager/releases/tag/v1.8.0). The store build is expected to pass review by August 8, 2026.
+- Before upgrading, exporting a Folder JSON backup is recommended as a normal precaution.
 
 ### 1.6.9
 

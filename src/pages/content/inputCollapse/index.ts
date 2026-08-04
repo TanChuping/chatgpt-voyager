@@ -8,18 +8,49 @@ import { extractChatGptConversationIdFromUrl } from '../chatgptDom';
 const STYLE_ID = 'gpt-voyager-input-collapse';
 const COLLAPSED_CLASS = 'gv-input-collapsed';
 const PLACEHOLDER_CLASS = 'gv-collapse-placeholder';
+const PROCESSED_CLASS = 'gv-input-collapse-processed';
+const TRANSITION_CLASS = 'gv-input-collapse-transition';
+const OBSERVER_DEBOUNCE_MS = 100;
+const CURRENT_ATTACHMENT_PREVIEW_SELECTORS = [
+  '[data-testid*="file-attachment"]',
+  '[data-testid*="attachment-preview"]',
+  '[data-testid*="file-preview"]',
+  '[class*="file-tile"][aria-label]',
+];
+const CURRENT_INPUT_RELATED_SELECTORS = [
+  '[role="menu"]',
+  '[role="dialog"]',
+  '[role="listbox"]',
+  '[role="option"]',
+  '[role="combobox"]',
+  ...CURRENT_ATTACHMENT_PREVIEW_SELECTORS,
+  '[data-testid*="upload"]',
+];
+const LEGACY_GEMINI_INPUT_RELATED_SELECTORS = [
+  '.cdk-overlay-container',
+  '.mat-mdc-menu-panel',
+  '.mat-mdc-dialog-container',
+  '.ng-trigger',
+  '[data-test-id*="attachment"]',
+  '[data-test-id*="upload"]',
+  '[data-test-id*="file"]',
+];
+const INPUT_RELATED_SELECTOR = [
+  ...CURRENT_INPUT_RELATED_SELECTORS,
+  ...LEGACY_GEMINI_INPUT_RELATED_SELECTORS,
+].join(', ');
 
 /**
  * Checks if the current page is the homepage or a new conversation page.
- * These pages have the URL pattern /app or /u/<num>/app without a conversation ID.
+ * ChatGPT conversation pages use /c/<conversation-id>. Any route without a
+ * conversation id is treated as a new/home surface and remains expanded.
  * Examples of homepage/new conversation:
- *   - /app
- *   - /u/0/app
- *   - /u/1/app
+ *   - /
+ *   - /?model=auto
+ *   - /g/<gpt-id>
  * Examples of existing conversations (should NOT match):
- *   - /app/abc123def456
- *   - /u/0/app/abc123def456
- *   - /gem/xxx/abc123
+ *   - /c/abc123def456
+ *   - /c/abc123def456?model=auto
  */
 function isHomepageOrNewConversation(): boolean {
   return !extractChatGptConversationIdFromUrl(window.location.href);
@@ -31,7 +62,7 @@ function isHomepageOrNewConversation(): boolean {
  */
 function isGemsEditorPage(): boolean {
   const pathname = window.location.pathname;
-  return /^\/gpts\/(?:editor|mine|discovery)|^\/g\/create/.test(pathname);
+  return /^(?:\/gpts\/(?:editor|mine|discovery)|\/g\/create)(?:\/|$)/.test(pathname);
 }
 
 /**
@@ -51,7 +82,7 @@ function injectStyles() {
   style.id = STYLE_ID;
   style.textContent = `
     /* Transitions for the input container */
-    .element-to-collapse {
+    .${TRANSITION_CLASS} {
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
@@ -137,7 +168,11 @@ function injectStyles() {
       
       align-items: center;
       gap: 10px;
-      pointer-events: none;
+      pointer-events: auto;
+      cursor: pointer;
+      border: 0;
+      padding: 0;
+      background: transparent;
     }
 
     /* Dark mode adjustments */
@@ -173,9 +208,14 @@ function getInputContainer(): HTMLElement | null {
 
   const textarea =
     document.querySelector('#prompt-textarea') ||
-    document.querySelector('[data-testid="composer"] [contenteditable="true"]') ||
-    document.querySelector('textarea') ||
-    document.querySelector('rich-textarea');
+    document.querySelector(
+      'form[data-type="unified-composer"] [contenteditable="true"], ' +
+        '[data-testid="composer"] [contenteditable="true"], ' +
+        'form[data-type="unified-composer"] textarea, ' +
+        '[data-testid="composer"] textarea, ' +
+        'form[data-type="unified-composer"] rich-textarea, ' +
+        '[data-testid="composer"] rich-textarea',
+    );
   if (!textarea) return null;
 
   let current = textarea.parentElement;
@@ -244,13 +284,14 @@ export function collapseInput(): void {
   // Respect the "collapse when not empty" setting
   if (!allowCollapseWhenNotEmpty && !isInputEmpty(container)) return;
 
-  // Immediately collapse
-  container.classList.add(COLLAPSED_CLASS);
-
   // Remove focus from the input
   const active = document.activeElement;
-  if (active && container.contains(active)) {
+  const hadComposerFocus = Boolean(active && container.contains(active));
+  setCollapsedState(container, true);
+  if (hadComposerFocus) {
     (active as HTMLElement).blur();
+    const placeholder = container.querySelector<HTMLButtonElement>(`.${PLACEHOLDER_CLASS}`);
+    if (placeholder) scheduleTimer(() => placeholder.isConnected && placeholder.focus(), 0);
   }
 }
 
@@ -267,56 +308,67 @@ function isInputEmpty(container: HTMLElement): boolean {
 
   // Check for attachments. If attachments exist, the input is not considered empty.
   const attachmentsArea =
+    container.querySelector(CURRENT_ATTACHMENT_PREVIEW_SELECTORS.join(', ')) ||
     container.querySelector('uploader-file-preview') ||
     container.querySelector('.file-preview-wrapper');
   if (attachmentsArea) return false;
 
-  const text = textarea.textContent?.trim() || '';
+  const text =
+    textarea instanceof HTMLTextAreaElement
+      ? textarea.value.trim()
+      : textarea.textContent?.trim() || '';
   return text.length === 0;
 }
 
 /**
  * Adds the placeholder element to the container if it doesn't exist.
  */
-function ensurePlaceholder(container: HTMLElement) {
-  if (container.querySelector(`.${PLACEHOLDER_CLASS}`)) return;
+function ensurePlaceholder(container: HTMLElement): HTMLButtonElement {
+  const existing = container.querySelector(`.${PLACEHOLDER_CLASS}`);
+  if (existing instanceof HTMLButtonElement) {
+    const editor = container.querySelector<HTMLElement>(
+      '#prompt-textarea, [contenteditable="true"]',
+    );
+    if (editor?.id) existing.setAttribute('aria-controls', editor.id);
+    return existing;
+  }
+  existing?.remove();
 
-  const placeholder = document.createElement('div');
+  const placeholder = document.createElement('button');
+  placeholder.type = 'button';
   placeholder.className = PLACEHOLDER_CLASS;
 
   // Use i18n for the placeholder text
-  let text = getTranslationSync('inputCollapsePlaceholder') || 'Message ChatGPT';
+  const text = getTranslationSync('inputCollapsePlaceholder') || 'Message ChatGPT';
 
   placeholder.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
+      <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 -960 960 960" width="20" fill="currentColor">
         <path d="M240-400h320v-80H240v80Zm0-120h480v-80H240v80Zm0-120h480v-80H240v80ZM80-80v-720q0-33 23.5-56.5T160-880h640q33 0 56.5 23.5T880-800v480q0 33-23.5 56.5T800-240H240L80-80Zm126-240h594v-480H160v525l46-45Zm-46 0v-480 480Z"/>
       </svg>
-      <span>${text}</span>
+      <span></span>
     `;
+  const textElement = placeholder.querySelector('span');
+  if (textElement) textElement.textContent = text;
+  placeholder.setAttribute('aria-label', text);
+  placeholder.setAttribute(
+    'aria-expanded',
+    container.classList.contains(COLLAPSED_CLASS) ? 'false' : 'true',
+  );
+  const editor = container.querySelector<HTMLElement>('#prompt-textarea, [contenteditable="true"]');
+  if (editor?.id) placeholder.setAttribute('aria-controls', editor.id);
 
   container.appendChild(placeholder);
+  return placeholder;
 }
 
 export function startInputCollapse() {
-  // Check if feature is enabled (default: false)
-  chrome.storage?.sync?.get(
-    {
-      [StorageKeys.INPUT_COLLAPSE_ENABLED]: false,
-      [StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY]: false,
-    },
-    (res) => {
-      if (res?.[StorageKeys.INPUT_COLLAPSE_ENABLED] === false) {
-        // Feature is disabled, don't initialize
-        return;
-      }
+  if (started) return;
+  started = true;
+  const generation = ++settingsRequestGeneration;
+  const requestRevision = settingsRevision;
 
-      // Feature is enabled, proceed with initialization
-      initInputCollapse(res?.[StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY] === true);
-    },
-  );
-
-  // Listen for setting changes
-  chrome.storage?.onChanged?.addListener((changes, area) => {
+  // Listen for setting changes exactly once for this content-script lifetime.
+  settingsChangeHandler = (changes, area) => {
     if (area !== 'sync') return;
     if (
       !changes[StorageKeys.INPUT_COLLAPSE_ENABLED] &&
@@ -324,32 +376,108 @@ export function startInputCollapse() {
     )
       return;
 
-    if (changes[StorageKeys.INPUT_COLLAPSE_ENABLED]?.newValue === false) {
-      // Disable: remove styles and classes
-      cleanup();
-      return;
-    }
+    const revision = ++settingsRevision;
 
     if (changes[StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY]) {
-      // Update the setting in-place (no need to re-initialize)
+      settingRevisions[StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY] = revision;
       allowCollapseWhenNotEmpty =
         changes[StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY].newValue === true;
+
+      const container = initialized ? getInputContainer() : null;
+      if (container) {
+        if (!allowCollapseWhenNotEmpty && !isInputEmpty(container)) {
+          setCollapsedState(container, false);
+        } else {
+          tryCollapse(container);
+        }
+      }
     }
 
-    if (changes[StorageKeys.INPUT_COLLAPSE_ENABLED]?.newValue === true) {
-      // Enable: initialize with current sub-setting
-      chrome.storage?.sync?.get({ [StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY]: false }, (res) => {
-        initInputCollapse(res?.[StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY] === true);
-      });
+    const enabledChange = changes[StorageKeys.INPUT_COLLAPSE_ENABLED];
+    if (enabledChange) {
+      settingRevisions[StorageKeys.INPUT_COLLAPSE_ENABLED] = revision;
+      featureEnabled = enabledChange.newValue === true;
+      if (featureEnabled) {
+        initInputCollapse(allowCollapseWhenNotEmpty);
+      } else if (initialized) {
+        teardownInputCollapse();
+      }
     }
+  };
+  chrome.storage?.onChanged?.addListener(settingsChangeHandler);
+
+  // Install the listener before reading storage. Per-key revisions let this
+  // snapshot fill unchanged fields without overwriting a newer onChanged value.
+  chrome.storage?.sync?.get(SETTINGS_DEFAULTS, (res) => {
+    if (!started || generation !== settingsRequestGeneration) return;
+
+    if (settingRevisions[StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY] <= requestRevision) {
+      allowCollapseWhenNotEmpty = res?.[StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY] === true;
+    }
+    if (settingRevisions[StorageKeys.INPUT_COLLAPSE_ENABLED] <= requestRevision) {
+      featureEnabled = res?.[StorageKeys.INPUT_COLLAPSE_ENABLED] === true;
+    }
+
+    if (featureEnabled) initInputCollapse(allowCollapseWhenNotEmpty);
+    else if (initialized) teardownInputCollapse();
   });
 }
 
 let observer: MutationObserver | null = null;
 let initialized = false;
+let started = false;
+let featureEnabled = false;
+let settingsRequestGeneration = 0;
+let settingsRevision = 0;
+let settingRevisions = {
+  [StorageKeys.INPUT_COLLAPSE_ENABLED]: 0,
+  [StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY]: 0,
+};
 let eventController: AbortController | null = null;
 let allowCollapseWhenNotEmpty = false; // Track the "collapse when not empty" setting
 let collapseTimer: number | null = null; // Timer for delayed collapse
+let observerScanTimer: number | null = null;
+let pendingTimers = new Set<number>();
+let processedContainers = new WeakSet<HTMLElement>();
+let settingsChangeHandler:
+  | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
+  | null = null;
+let beforeUnloadHandler: (() => void) | null = null;
+let languageChangeHandler:
+  | ((changes: Record<string, browser.Storage.StorageChange>, areaName: string) => void)
+  | null = null;
+
+const SETTINGS_DEFAULTS = {
+  [StorageKeys.INPUT_COLLAPSE_ENABLED]: false,
+  [StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY]: false,
+};
+
+function ensureBeforeUnloadHandler(): void {
+  if (beforeUnloadHandler) return;
+  beforeUnloadHandler = () => cleanup();
+  window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
+}
+
+function removeBeforeUnloadHandler(): void {
+  if (!beforeUnloadHandler) return;
+  window.removeEventListener('beforeunload', beforeUnloadHandler);
+  beforeUnloadHandler = null;
+}
+
+function scheduleTimer(callback: () => void, delay: number): number {
+  const timer = window.setTimeout(() => {
+    pendingTimers.delete(timer);
+    callback();
+  }, delay);
+  pendingTimers.add(timer);
+  return timer;
+}
+
+function cancelTimer(timer: number | null): void {
+  if (timer === null) return;
+  window.clearTimeout(timer);
+  pendingTimers.delete(timer);
+}
 
 /**
  * Cleans up the input collapse feature.
@@ -357,11 +485,30 @@ let collapseTimer: number | null = null; // Timer for delayed collapse
  * Exported for testing purposes.
  */
 export function cleanup() {
-  // Clear any pending collapse timer
-  if (collapseTimer !== null) {
-    clearTimeout(collapseTimer);
-    collapseTimer = null;
+  featureEnabled = false;
+  settingsRequestGeneration += 1;
+  teardownInputCollapse();
+
+  if (settingsChangeHandler) {
+    try {
+      chrome.storage?.onChanged?.removeListener(settingsChangeHandler);
+    } catch {}
+    settingsChangeHandler = null;
   }
+
+  removeBeforeUnloadHandler();
+
+  started = false;
+}
+
+function teardownInputCollapse() {
+  // Clear any pending collapse timer
+  cancelTimer(collapseTimer);
+  collapseTimer = null;
+  cancelTimer(observerScanTimer);
+  observerScanTimer = null;
+  pendingTimers.forEach((timer) => window.clearTimeout(timer));
+  pendingTimers.clear();
 
   // Abort all event listeners managed by the controller
   if (eventController) {
@@ -377,11 +524,11 @@ export function cleanup() {
   document.querySelectorAll(`.${COLLAPSED_CLASS}`).forEach((el) => {
     el.classList.remove(COLLAPSED_CLASS);
   });
-  document.querySelectorAll('.element-to-collapse').forEach((el) => {
-    el.classList.remove('element-to-collapse');
+  document.querySelectorAll(`.${TRANSITION_CLASS}`).forEach((el) => {
+    el.classList.remove(TRANSITION_CLASS);
   });
-  document.querySelectorAll('.gv-processed').forEach((el) => {
-    el.classList.remove('gv-processed');
+  document.querySelectorAll(`.${PROCESSED_CLASS}`).forEach((el) => {
+    el.classList.remove(PROCESSED_CLASS);
   });
   document.querySelectorAll(`.${PLACEHOLDER_CLASS}`).forEach((el) => {
     el.remove();
@@ -393,13 +540,139 @@ export function cleanup() {
     observer = null;
   }
 
+  if (languageChangeHandler) {
+    try {
+      browser.storage.onChanged.removeListener(languageChangeHandler);
+    } catch {}
+    languageChangeHandler = null;
+  }
+
   initialized = false;
+  processedContainers = new WeakSet<HTMLElement>();
+  removeBeforeUnloadHandler();
+}
+
+function setCollapsedState(container: HTMLElement, collapsed: boolean): void {
+  container.classList.toggle(COLLAPSED_CLASS, collapsed);
+  const placeholder = container.querySelector<HTMLButtonElement>(`.${PLACEHOLDER_CLASS}`);
+  if (placeholder) placeholder.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+}
+
+function processInputContainer(container: HTMLElement): void {
+  if (processedContainers.has(container)) {
+    // ChatGPT may replace the contents of a stable composer shell. Restore our
+    // lightweight placeholder if that inner re-render removed it.
+    ensurePlaceholder(container);
+    return;
+  }
+
+  processedContainers.add(container);
+  container.classList.add(PROCESSED_CLASS, TRANSITION_CLASS);
+  ensurePlaceholder(container);
+
+  const signal = eventController?.signal;
+  if (!signal) return;
+
+  container.addEventListener(
+    'click',
+    () => {
+      expand(container);
+    },
+    { signal },
+  );
+
+  container.addEventListener(
+    'focusin',
+    (event) => {
+      const target = event.target as Element | null;
+      if (target?.closest(`.${PLACEHOLDER_CLASS}`)) {
+        cancelTimer(collapseTimer);
+        collapseTimer = null;
+        return;
+      }
+      expand(container);
+      cancelTimer(collapseTimer);
+      collapseTimer = null;
+    },
+    { signal },
+  );
+
+  container.addEventListener(
+    'keydown',
+    (event) => {
+      const target = event.target as Element | null;
+      if (!target?.closest(`.${PLACEHOLDER_CLASS}`)) return;
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      expand(container, true);
+    },
+    { signal },
+  );
+
+  container.addEventListener(
+    'focusout',
+    (e) => {
+      cancelTimer(collapseTimer);
+      collapseTimer = null;
+
+      const newFocus = e.relatedTarget as HTMLElement | null;
+      if (newFocus && container.contains(newFocus)) return;
+
+      collapseTimer = scheduleTimer(() => {
+        collapseTimer = null;
+        if (!initialized || !container.isConnected) return;
+
+        const active = document.activeElement as HTMLElement | null;
+        if (active && container.contains(active)) return;
+        if (
+          (newFocus && isInputRelatedElement(newFocus, container)) ||
+          (active && isInputRelatedElement(active, container))
+        ) {
+          return;
+        }
+
+        tryCollapse(container);
+      }, 100);
+    },
+    { signal },
+  );
+
+  if (shouldDisableAutoCollapse()) {
+    setCollapsedState(container, false);
+  } else {
+    tryCollapse(container);
+  }
+}
+
+function processCurrentInputContainer(): void {
+  const container = getInputContainer();
+  if (container) processInputContainer(container);
 }
 
 function initInputCollapse(allowCollapseNotEmpty: boolean = false) {
-  if (initialized) return;
+  allowCollapseWhenNotEmpty = allowCollapseNotEmpty;
+  if (initialized) {
+    const container = getInputContainer();
+    if (container) {
+      const alreadyProcessed = processedContainers.has(container);
+      processInputContainer(container);
+      if (alreadyProcessed) {
+        if (
+          shouldDisableAutoCollapse() ||
+          (!allowCollapseWhenNotEmpty && !isInputEmpty(container))
+        ) {
+          setCollapsedState(container, false);
+        } else {
+          tryCollapse(container);
+        }
+      }
+    }
+    return;
+  }
   initialized = true;
-  allowCollapseWhenNotEmpty = allowCollapseNotEmpty; // Store the setting
+  ensureBeforeUnloadHandler();
 
   injectStyles();
 
@@ -438,7 +711,7 @@ function initInputCollapse(allowCollapseNotEmpty: boolean = false) {
 
     if (shouldDisableAutoCollapse()) {
       // On homepage/new conversation/gems create: expand the input
-      container.classList.remove(COLLAPSED_CLASS);
+      setCollapsedState(container, false);
     } else {
       // On conversation page: try to collapse if appropriate
       tryCollapse(container);
@@ -451,89 +724,13 @@ function initInputCollapse(allowCollapseNotEmpty: boolean = false) {
   // MutationObserver to re-apply when ChatGPT re-renders and detect SPA navigation
   // Use MutationObserver so we re-apply if ChatGPT re-renders (common in SPAs)
   observer = new MutationObserver(() => {
-    // Check for URL changes on DOM mutations (catches SPA navigation)
-    urlChangeHandler?.();
-
-    const container = getInputContainer();
-    if (container && !container.classList.contains('gv-processed')) {
-      container.classList.add('gv-processed');
-      container.classList.add('element-to-collapse'); // Add transition class
-
-      ensurePlaceholder(container);
-
-      // Events - use signal for automatic cleanup
-      container.addEventListener(
-        'click',
-        () => {
-          expand(container);
-        },
-        { signal },
-      );
-
-      // Capture focus events deeply
-      // focusin cancels delayed collapse when focus returns to input area
-      container.addEventListener(
-        'focusin',
-        () => {
-          expand(container);
-          // If we have a pending collapse, cancel it since focus is coming back
-          if (collapseTimer !== null) {
-            clearTimeout(collapseTimer);
-            collapseTimer = null;
-          }
-        },
-        { signal },
-      );
-
-      // Store container reference for use in closures
-      const currentContainer = container;
-
-      container.addEventListener(
-        'focusout',
-        (e) => {
-          // Clear any existing timer
-          if (collapseTimer !== null) {
-            clearTimeout(collapseTimer);
-            collapseTimer = null;
-          }
-
-          const newFocus = e.relatedTarget as HTMLElement;
-
-          // Check if focus is still inside the container
-          if (newFocus && currentContainer.contains(newFocus)) {
-            return; // Focus is still inside
-          }
-
-          // Use a small delay before collapsing
-          // This allows focusin events to cancel the collapse if focus returns
-          collapseTimer = window.setTimeout(() => {
-            // Double-check: focus should truly be away from input-related elements
-            const active = document.activeElement as HTMLElement;
-            if (active && currentContainer.contains(active)) {
-              return; // Focus came back, don't collapse
-            }
-
-            // Also check if the new focus is in an input-related overlay/menu
-            if (
-              (newFocus && isInputRelatedElement(newFocus, currentContainer)) ||
-              (active && isInputRelatedElement(active, currentContainer))
-            ) {
-              return; // Focus moved to input-related UI, don't collapse
-            }
-
-            // Now safe to collapse
-            tryCollapse(currentContainer);
-            collapseTimer = null;
-          }, 100); // 100ms delay - enough for focusin to cancel if needed
-        },
-        { signal },
-      );
-
-      // Initial check - only collapse if not on excluded pages
-      if (!shouldDisableAutoCollapse()) {
-        tryCollapse(container);
-      }
-    }
+    cancelTimer(observerScanTimer);
+    observerScanTimer = scheduleTimer(() => {
+      observerScanTimer = null;
+      // Check for URL changes on DOM mutations (catches SPA navigation)
+      urlChangeHandler();
+      processCurrentInputContainer();
+    }, OBSERVER_DEBOUNCE_MS);
   });
 
   observer.observe(document.body, { childList: true, subtree: true });
@@ -573,25 +770,27 @@ function initInputCollapse(allowCollapseNotEmpty: boolean = false) {
     { signal, capture: true }, // capture phase to ensure we intercept before other handlers
   );
 
-  // Listen for language changes and update placeholder text
-  browser.storage.onChanged.addListener((changes, areaName) => {
+  // Listen for language changes and update placeholder text.
+  languageChangeHandler = (changes, areaName) => {
     if ((areaName === 'sync' || areaName === 'local') && changes[StorageKeys.LANGUAGE]) {
       // Update all placeholder text
-      document.querySelectorAll<HTMLDivElement>(`.${PLACEHOLDER_CLASS}`).forEach((placeholder) => {
-        const span = placeholder.querySelector('span');
-        if (span) {
-          span.textContent = getTranslationSync('inputCollapsePlaceholder') || 'Message ChatGPT';
-        }
-      });
+      document
+        .querySelectorAll<HTMLButtonElement>(`.${PLACEHOLDER_CLASS}`)
+        .forEach((placeholder) => {
+          const span = placeholder.querySelector('span');
+          if (span) {
+            const text = getTranslationSync('inputCollapsePlaceholder') || 'Message ChatGPT';
+            span.textContent = text;
+            placeholder.setAttribute('aria-label', text);
+          }
+        });
     }
-  });
+  };
+  browser.storage.onChanged.addListener(languageChangeHandler);
 
-  // Try once immediately
-  const container = getInputContainer();
-  if (container) {
-    // trigger logic manually just in case
-    container.classList.remove('gv-processed');
-  }
+  // Process an already-mounted composer explicitly. Runtime enabling must not
+  // depend on an unrelated future DOM mutation to become effective.
+  processCurrentInputContainer();
 }
 
 /**
@@ -601,26 +800,9 @@ function initInputCollapse(allowCollapseNotEmpty: boolean = false) {
 function isInputRelatedElement(element: HTMLElement, container: HTMLElement): boolean {
   if (!element) return false;
 
-  // Check if the element is or is inside known input-related containers
-  const INPUT_RELATED_SELECTORS = [
-    // Material/CDK overlays (menus, dialogs, autocomplete dropdowns)
-    '.cdk-overlay-container',
-    '.mat-mdc-menu-panel',
-    '.mat-mdc-dialog-container',
-    '.ng-trigger',
-    // Model selector and related UI
-    '[role="listbox"]',
-    '[role="option"]',
-    '[role="combobox"]',
-    // Attachment and file-related UI
-    '[data-test-id*="attachment"]',
-    '[data-test-id*="upload"]',
-    '[data-test-id*="file"]',
-  ];
-
-  // Combine selectors into a single string for better performance
-  const combinedSelector = INPUT_RELATED_SELECTORS.join(', ');
-  if (element.matches(combinedSelector) || element.closest(combinedSelector)) {
+  // Check current ChatGPT surfaces first; named legacy selectors are retained
+  // only as compatibility fallbacks for older persisted pages.
+  if (element.matches(INPUT_RELATED_SELECTOR) || element.closest(INPUT_RELATED_SELECTOR)) {
     return true;
   }
 
@@ -646,7 +828,7 @@ function isInputRelatedElement(element: HTMLElement, container: HTMLElement): bo
 
 function expand(container: HTMLElement, moveCursorToEnd: boolean = false) {
   if (container.classList.contains(COLLAPSED_CLASS)) {
-    container.classList.remove(COLLAPSED_CLASS);
+    setCollapsedState(container, false);
 
     // Auto-focus the Quill editor
     const editor =
@@ -655,7 +837,8 @@ function expand(container: HTMLElement, moveCursorToEnd: boolean = false) {
       container.querySelector('rich-textarea');
 
     if (editor && editor instanceof HTMLElement) {
-      setTimeout(() => {
+      scheduleTimer(() => {
+        if (!initialized || !container.isConnected) return;
         editor.focus();
         if (moveCursorToEnd && !isInputEmpty(container)) {
           moveCursorToEndOfElement(editor);
@@ -685,10 +868,11 @@ function moveCursorToEndOfElement(element: HTMLElement): void {
 
 function tryCollapse(container: HTMLElement) {
   // We need a small delay to handle transient states
-  setTimeout(() => {
+  scheduleTimer(() => {
+    if (!initialized || !container.isConnected) return;
     // Don't collapse on excluded pages (homepage, new conversation, gems create)
     if (shouldDisableAutoCollapse()) {
-      container.classList.remove(COLLAPSED_CLASS);
+      setCollapsedState(container, false);
       return;
     }
 
@@ -701,7 +885,9 @@ function tryCollapse(container: HTMLElement) {
       // Otherwise, only collapse when empty (original behavior)
       const canCollapse = allowCollapseWhenNotEmpty || isInputEmpty(container);
       if (canCollapse) {
-        container.classList.add(COLLAPSED_CLASS);
+        setCollapsedState(container, true);
+      } else {
+        setCollapsedState(container, false);
       }
     }
   }, 150);

@@ -19,11 +19,21 @@
  * fresh uuid — the old uuids simply stop appearing in the DOM, and we drop
  * their stale snapshots on the next pass.
  *
- * Storage: localStorage, keyed `gptTimelineTurnTextCache:<conversationId>`.
+ * Storage: extension-private storage, keyed
+ * `gptTimelineTurnTextCache:<conversationId>`.
  * Capped at MAX_ENTRIES per conversation (LRU by lastSeenAt). Saves are
- * debounced so a long scroll session doesn't hammer localStorage.
+ * debounced so a long scroll session doesn't hammer extension storage.
  */
 import type { AttachmentInfo } from './attachments';
+import {
+  TIMELINE_TURN_TEXT_CACHE_PREFIX,
+  getTimelinePrivateItemSync,
+  hydrateTimelinePrivateItem,
+  listTimelinePrivateItems,
+  removeTimelinePrivateItem,
+  setTimelinePrivateItem,
+  waitForTimelinePrivateStorage,
+} from './timelinePrivateStorage';
 
 export interface TurnTextCacheEntry {
   id: string;
@@ -66,14 +76,14 @@ interface PersistedShape {
   entries: TurnTextCacheEntry[];
 }
 
-const STORAGE_PREFIX = 'gptTimelineTurnTextCache:';
+const STORAGE_PREFIX = TIMELINE_TURN_TEXT_CACHE_PREFIX;
 const MAX_ENTRIES = 500;
 const SAVE_DEBOUNCE_MS = 400;
 /**
- * Cap on how many conversations' caches we keep in localStorage at once.
- * Each cached conversation is roughly 20–50 KB serialized; localStorage gives
- * us ~5 MB per origin. 80 conversations keeps us comfortably under that
- * even after considering ChatGPT's own usage of localStorage. Eviction
+ * Cap on how many conversations' caches we keep in extension storage at once.
+ * Each cached conversation is roughly 20-50 KB serialized. Keeping 80
+ * conversations bounds extension-local growth while preserving the prior
+ * namespace and eviction policy. Eviction
  * sorts by the conversation's most-recent `lastSeenAt` and drops the
  * oldest first.
  */
@@ -84,20 +94,41 @@ export class TurnTextCache {
   private conversationId: string | null = null;
   private saveTimer: number | null = null;
   private dirty = false;
+  private hydrationGeneration = 0;
+  private persistGeneration = 0;
+  private maintenancePromise: Promise<void> = Promise.resolve();
 
   /** Switch the active conversation. Loads its persisted cache (replacing the
    * in-memory map). Safe to call repeatedly with the same id (no-op). */
   setConversation(conversationId: string | null): void {
     if (conversationId === this.conversationId) return;
     // Flush any pending writes for the previous conversation before swapping.
+    if (this.saveTimer !== null) {
+      window.clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
     this.flushSync();
+    this.hydrationGeneration += 1;
     this.conversationId = conversationId;
     this.map.clear();
     if (!conversationId) return;
-    this.load();
-    // Trim cross-conversation storage on each conversation switch. Cheap
-    // enough (one key scan) and avoids unbounded growth across long usage.
-    this.evictOldConversations();
+    this.loadRaw(getTimelinePrivateItemSync(this.storageKey() ?? ''));
+  }
+
+  /**
+   * Hydrate the active conversation from extension-private storage. Callers
+   * can keep using synchronous get() immediately; a late result is ignored
+   * after a conversation switch or teardown.
+   */
+  async hydrate(): Promise<void> {
+    const key = this.storageKey();
+    if (!key) return;
+    const generation = this.hydrationGeneration;
+    const raw = await hydrateTimelinePrivateItem(key);
+    if (generation !== this.hydrationGeneration || key !== this.storageKey()) return;
+    this.loadRaw(raw, this.dirty);
+    this.maintenancePromise = this.evictOldConversations();
+    await this.maintenancePromise;
   }
 
   /** Expose for callers that need to filter cross-conversation traffic
@@ -128,7 +159,7 @@ export class TurnTextCache {
    * refresh `lastSeenAt` and DO NOT schedule a save. This matters because
    * both the DOM-reconcile path and the API-prime path write through this
    * method; if every reconcile pass scheduled a fresh debounced save, we'd
-   * churn localStorage on every scroll. With the short-circuit, only
+   * churn persistence on every scroll. With the short-circuit, only
    * actual content changes hit disk.
    */
   set(entry: TurnTextCacheEntry): void {
@@ -201,14 +232,12 @@ export class TurnTextCache {
     return this.conversationId ? `${STORAGE_PREFIX}${this.conversationId}` : null;
   }
 
-  private load(): void {
-    const key = this.storageKey();
-    if (!key) return;
+  private loadRaw(raw: string | null, mergeCurrent = false): void {
+    if (!raw) return;
     try {
-      const raw = localStorage.getItem(key);
-      if (!raw) return;
       const parsed = JSON.parse(raw) as Partial<PersistedShape>;
       if (!parsed || parsed.v !== 1 || !Array.isArray(parsed.entries)) return;
+      const loaded = new Map<string, TurnTextCacheEntry>();
       for (const entry of parsed.entries) {
         if (!entry || typeof entry.id !== 'string') continue;
         if (typeof entry.summary !== 'string') continue;
@@ -221,7 +250,7 @@ export class TurnTextCache {
           typeof entry.fingerprint === 'string'
             ? entry.fingerprint
             : computeFingerprint(entry.summary, attachments);
-        this.map.set(entry.id, {
+        loaded.set(entry.id, {
           id: entry.id,
           summary: entry.summary,
           attachments,
@@ -233,6 +262,10 @@ export class TurnTextCache {
           fingerprint,
         });
       }
+      if (mergeCurrent) {
+        for (const [id, entry] of this.map) loaded.set(id, entry);
+      }
+      this.map = loaded;
       this.trim();
     } catch (err) {
       console.warn('[Timeline] turn-text cache load failed:', err);
@@ -248,8 +281,7 @@ export class TurnTextCache {
     }, SAVE_DEBOUNCE_MS);
   }
 
-  /** Write the current map to localStorage immediately. Called by the
-   * debounced timer and on conversation switch. */
+  /** Serialize immediately; extension persistence continues asynchronously. */
   flushSync(): void {
     if (!this.dirty) return;
     const key = this.storageKey();
@@ -263,12 +295,24 @@ export class TurnTextCache {
         v: 1,
         entries: Array.from(this.map.values()),
       };
-      localStorage.setItem(key, JSON.stringify(payload));
+      const persistGeneration = ++this.persistGeneration;
       this.dirty = false;
+      void setTimelinePrivateItem(key, JSON.stringify(payload)).then((saved) => {
+        if (!saved && persistGeneration === this.persistGeneration && key === this.storageKey()) {
+          this.dirty = true;
+        }
+      });
     } catch (err) {
       // Quota exceeded / private browsing — keep state in memory, retry later.
       console.warn('[Timeline] turn-text cache save failed:', err);
     }
+  }
+
+  /** Wait until the active conversation's queued extension write is settled. */
+  async flush(): Promise<void> {
+    const key = this.storageKey();
+    this.flushSync();
+    if (key) await waitForTimelinePrivateStorage([key]);
   }
 
   /** Drop everything (used by tests). */
@@ -279,27 +323,24 @@ export class TurnTextCache {
   }
 
   /**
-   * Sweep localStorage for `gptTimelineTurnTextCache:*` keys and evict the
+   * Sweep extension storage for `gptTimelineTurnTextCache:*` keys and evict the
    * least-recently-touched conversations down to `MAX_CONVERSATIONS`. Each
    * persisted payload's "most-recent activity" is the max `lastSeenAt` of
    * its entries (cheap to compute since entries are already in memory when
    * we read them).
    *
-   * Called from `setConversation` so the user pays this cost at conversation
+   * Called after active-conversation hydration so the user pays this cost at conversation
    * switch — never during scroll or other interactive paths. NEVER evicts
    * the currently-active conversation regardless of its recency rank.
    */
-  private evictOldConversations(): void {
+  private async evictOldConversations(): Promise<void> {
     try {
       const entries: Array<{ key: string; convId: string; mostRecent: number }> = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!k || !k.startsWith(STORAGE_PREFIX)) continue;
+      const stored = await listTimelinePrivateItems(STORAGE_PREFIX);
+      for (const [k, raw] of stored) {
         const convId = k.slice(STORAGE_PREFIX.length);
         let mostRecent = 0;
         try {
-          const raw = localStorage.getItem(k);
-          if (!raw) continue;
           const parsed = JSON.parse(raw) as Partial<PersistedShape>;
           if (Array.isArray(parsed.entries)) {
             for (const e of parsed.entries) {
@@ -316,12 +357,14 @@ export class TurnTextCache {
       if (entries.length <= MAX_CONVERSATIONS) return;
       entries.sort((a, b) => a.mostRecent - b.mostRecent); // oldest first
       const evictCount = entries.length - MAX_CONVERSATIONS;
-      for (let i = 0; i < evictCount; i++) {
-        const target = entries[i];
+      const targets = entries
+        .filter((entry) => entry.convId !== this.conversationId)
+        .slice(0, evictCount);
+      for (const target of targets) {
         // NEVER drop the conversation we are about to load / are inside.
         if (target.convId === this.conversationId) continue;
         try {
-          localStorage.removeItem(target.key);
+          await removeTimelinePrivateItem(target.key);
         } catch {
           /* ignore — single failure shouldn't poison the sweep */
         }
@@ -329,5 +372,15 @@ export class TurnTextCache {
     } catch {
       // localStorage walk failed (private mode, etc.) — non-fatal.
     }
+  }
+
+  /** Invalidate late hydration while preserving queued persistence. */
+  destroy(): void {
+    if (this.saveTimer !== null) {
+      window.clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+    this.flushSync();
+    this.hydrationGeneration += 1;
   }
 }

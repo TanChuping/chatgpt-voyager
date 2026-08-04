@@ -198,6 +198,7 @@ function buildBar(convId: string): void {
       return;
     }
     void resolveExportFormat().then((fmt) => {
+      if (!active) return;
       const result = exportConversationSubset(convId, fmt, new Set(selectedIds));
       if (result === 'not-captured') {
         alert(t('singleConvExportSelectNotReady'));

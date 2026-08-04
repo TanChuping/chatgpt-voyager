@@ -233,6 +233,45 @@ function processAll(): void {
 }
 
 let observer: MutationObserver | null = null;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let started = false;
+let lifecycleGeneration = 0;
+const pendingElements = new Set<HTMLElement>();
+
+function isActiveGeneration(generation: number): boolean {
+  return started && generation === lifecycleGeneration;
+}
+
+function collectAddedElements(node: Node): void {
+  const element = node instanceof Element ? node : node.parentElement;
+  if (!element) return;
+  if (element.matches(USER_MSG_SELECTOR)) pendingElements.add(element as HTMLElement);
+  element
+    .querySelectorAll<HTMLElement>(USER_MSG_SELECTOR)
+    .forEach((candidate) => pendingElements.add(candidate));
+}
+
+export function stopUserLatex(): void {
+  started = false;
+  lifecycleGeneration += 1;
+  observer?.disconnect();
+  observer = null;
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  pendingElements.clear();
+
+  document
+    .querySelectorAll<HTMLElement>(`${USER_MSG_SELECTOR}[data-user-latex-processed]`)
+    .forEach((element) => {
+      if (element.dataset.userLatexOriginal !== undefined) {
+        element.textContent = element.dataset.userLatexOriginal;
+      }
+      delete element.dataset.userLatexOriginal;
+      delete element.dataset.userLatexProcessed;
+    });
+}
 
 /**
  * Start rendering LaTeX in user messages.
@@ -242,20 +281,32 @@ let observer: MutationObserver | null = null;
  * DOM (the streaming response area, the composer, sidebar updates) and we
  * don't want to re-scan the whole page on every micro-mutation.
  */
-export function startUserLatex(): void {
+export function startUserLatex(): () => void {
+  if (started) return stopUserLatex;
+  started = true;
+  const generation = ++lifecycleGeneration;
   // Process messages already on the page
   processAll();
 
-  if (observer) return;
-
-  let debounceTimer: ReturnType<typeof setTimeout>;
-  observer = new MutationObserver(() => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(processAll, 300);
+  observer = new MutationObserver((mutations) => {
+    if (!isActiveGeneration(generation)) return;
+    for (const mutation of mutations) {
+      mutation.addedNodes.forEach(collectAddedElements);
+    }
+    if (pendingElements.size === 0) return;
+    if (debounceTimer !== null) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null;
+      if (!isActiveGeneration(generation)) return;
+      const elements = [...pendingElements];
+      pendingElements.clear();
+      elements.forEach(processElement);
+    }, 300);
   });
 
   observer.observe(document.body, {
     childList: true,
     subtree: true,
   });
+  return stopUserLatex;
 }

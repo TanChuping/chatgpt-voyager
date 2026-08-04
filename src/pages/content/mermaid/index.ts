@@ -91,8 +91,9 @@ const ensureMermaidReady = async (): Promise<typeof mermaidInstance> => {
  */
 export const isParseableMermaid = async (code: string): Promise<boolean> => {
   const mermaid = await loadMermaid();
-  const parse = (mermaid as { parse?: (t: string, o?: { suppressErrors?: boolean }) => unknown } | null)
-    ?.parse;
+  const parse = (
+    mermaid as { parse?: (t: string, o?: { suppressErrors?: boolean }) => unknown } | null
+  )?.parse;
   if (typeof parse !== 'function') return true;
   try {
     const result = await parse(code, { suppressErrors: true });
@@ -536,8 +537,10 @@ export const normalizeWhitespace = (code: string): string => {
 const renderMermaid = async (
   codeBlock: HTMLElement,
   code: string,
-  options: { validate?: boolean } = {},
+  options: { validate?: boolean; generation?: number } = {},
 ) => {
+  const generation = options.generation ?? lifecycleGeneration;
+  if (!isActiveGeneration(generation) || !mermaidEnabled) return;
   // Normalize whitespace before processing
   const normalizedCode = normalizeWhitespace(code);
   if (codeBlock.dataset.mermaidCode === normalizedCode) return;
@@ -560,6 +563,7 @@ const renderMermaid = async (
 
     // Ensure Mermaid is loaded AND configured before rendering
     const mermaid = await ensureMermaidReady();
+    if (!isActiveGeneration(generation) || !mermaidEnabled) return;
     if (!mermaid) {
       // Mermaid failed to load 鈥?gracefully degrade by showing raw code
       codeBlock.dataset.mermaidProcessing = 'false';
@@ -577,6 +581,7 @@ const renderMermaid = async (
       codeBlock.dataset.mermaidProcessing = 'false';
       return;
     }
+    if (!isActiveGeneration(generation) || !mermaidEnabled) return;
 
     // First, try to render to validate the code
     const uniqueId = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
@@ -585,6 +590,7 @@ const renderMermaid = async (
     try {
       // v9.x render returns string directly, v10.x returns {svg: string}
       const result = await mermaid.render(uniqueId, normalizedCode);
+      if (!isActiveGeneration(generation) || !mermaidEnabled) return;
       svg = typeof result === 'string' ? result : (result as { svg: string }).svg;
     } catch (renderError) {
       // Mermaid failed - likely incomplete or invalid syntax
@@ -701,6 +707,7 @@ const renderMermaid = async (
     codeBlock.dataset.mermaidProcessing = 'false';
     console.log('[GPT-Voyager] Mermaid diagram rendered:', uniqueId);
   } catch {
+    if (!isActiveGeneration(generation) || !mermaidEnabled) return;
     codeBlock.dataset.mermaidProcessing = 'false';
 
     const codeBlockHost = getCodeBlockContainer(codeBlock);
@@ -792,7 +799,8 @@ export const isGenericLanguageLabel = (language: string | null): boolean => {
 /**
  * Find and process code blocks
  */
-const processCodeBlocks = () => {
+const processCodeBlocks = (generation: number) => {
+  if (!isActiveGeneration(generation) || !mermaidEnabled) return;
   const codeElements = Array.from(document.querySelectorAll(CODE_BLOCK_SELECTOR));
 
   codeElements.forEach((codeEl) => {
@@ -806,7 +814,7 @@ const processCodeBlocks = () => {
 
     // Case 1: Language is explicitly "mermaid" - always render
     if (language === 'mermaid') {
-      renderMermaid(codeEl, codeText);
+      void renderMermaid(codeEl, codeText, { generation });
       return;
     }
 
@@ -821,7 +829,7 @@ const processCodeBlocks = () => {
     // the DOM, so prose that merely passes the keyword pre-filter is never
     // wrapped or shown as a syntax error (we only *guessed* it was a diagram).
     if (isMermaidCode(codeText)) {
-      renderMermaid(codeEl, codeText, { validate: true });
+      void renderMermaid(codeEl, codeText, { validate: true, generation });
     }
   });
 };
@@ -831,6 +839,12 @@ const processCodeBlocks = () => {
  */
 let mermaidEnabled = true;
 let observer: MutationObserver | null = null;
+let processTimer: ReturnType<typeof setTimeout> | null = null;
+let storageChangeHandler:
+  | ((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void)
+  | null = null;
+let started = false;
+let lifecycleGeneration = 0;
 // Re-render loop guard: never re-render the SAME diagram source within this
 // window. mermaid.render() injects transient measuring nodes at the document
 // root and we wrap the code block — that DOM churn can re-trigger our own
@@ -840,59 +854,116 @@ let observer: MutationObserver | null = null;
 let lastMermaidRenderCode = '';
 let lastMermaidRenderAt = 0;
 
+function isActiveGeneration(generation: number): boolean {
+  return started && generation === lifecycleGeneration;
+}
+
+function stopRendering(): void {
+  observer?.disconnect();
+  observer = null;
+  if (processTimer !== null) {
+    clearTimeout(processTimer);
+    processTimer = null;
+  }
+}
+
+function removeMermaidDom(): void {
+  currentModal?.remove();
+  currentModal = null;
+  document.getElementById('gv-mermaid-styles')?.remove();
+  document
+    .querySelectorAll<HTMLElement>('[data-mermaid-processing], [data-mermaid-code]')
+    .forEach((element) => {
+      delete element.dataset.mermaidProcessing;
+      delete element.dataset.mermaidCode;
+    });
+  document.querySelectorAll<HTMLElement>('.gv-mermaid-wrapper').forEach((wrapper) => {
+    const host = wrapper.querySelector<HTMLElement>('code-block, .code-block, pre');
+    if (host) {
+      host.style.display = '';
+      wrapper.parentElement?.insertBefore(host, wrapper);
+    }
+    wrapper.remove();
+  });
+}
+
+export function stopMermaid(): void {
+  started = false;
+  lifecycleGeneration += 1;
+  mermaidEnabled = false;
+  stopRendering();
+  if (storageChangeHandler) {
+    try {
+      chrome.storage?.onChanged?.removeListener(storageChangeHandler);
+    } catch {}
+    storageChangeHandler = null;
+  }
+  removeMermaidDom();
+}
+
 /**
  * Start Mermaid feature
  */
-export const startMermaid = () => {
+export const startMermaid = (): (() => void) => {
+  if (started) return stopMermaid;
+  started = true;
+  const generation = ++lifecycleGeneration;
   // Check if Mermaid rendering is enabled in settings
   chrome.storage?.sync?.get({ gvMermaidEnabled: true }, (result) => {
+    if (!isActiveGeneration(generation)) return;
     mermaidEnabled = result?.gvMermaidEnabled !== false;
 
     if (mermaidEnabled) {
-      initializeMermaid();
+      initializeMermaid(generation);
     } else {
       console.log('[GPT-Voyager] Mermaid rendering is disabled');
     }
   });
 
   // Listen for setting changes
-  chrome.storage?.onChanged?.addListener((changes, areaName) => {
+  storageChangeHandler = (changes, areaName) => {
+    if (!isActiveGeneration(generation)) return;
     if (areaName === 'sync' && changes.gvMermaidEnabled) {
       mermaidEnabled = changes.gvMermaidEnabled.newValue !== false;
       if (mermaidEnabled) {
-        initializeMermaid();
+        initializeMermaid(generation);
         console.log('[GPT-Voyager] Mermaid rendering enabled');
       } else {
-        // Stop observing when disabled
-        if (observer) {
-          observer.disconnect();
-          observer = null;
-        }
+        stopRendering();
         console.log('[GPT-Voyager] Mermaid rendering disabled');
       }
     }
-  });
+  };
+  try {
+    chrome.storage?.onChanged?.addListener(storageChangeHandler);
+  } catch {
+    storageChangeHandler = null;
+  }
+  return stopMermaid;
 };
 
 /**
  * Initialize Mermaid rendering
  */
-const initializeMermaid = async () => {
+const initializeMermaid = (generation: number) => {
+  if (!isActiveGeneration(generation) || !mermaidEnabled) return;
   createStyles();
 
   // NOTE: we intentionally do NOT load the Mermaid library here. `createStyles`
   // is cheap CSS; the ~426 kB library is pulled on demand by `renderMermaid`
   // (via `ensureMermaidReady`) the first time an actual diagram is detected, so
   // pages with no mermaid code never pay the download/parse cost on load.
-  processCodeBlocks();
+  processCodeBlocks(generation);
 
   // Only create observer if not already exists
   if (!observer) {
-    let timeout: ReturnType<typeof setTimeout>;
     const debouncedProcess = () => {
-      if (!mermaidEnabled) return;
-      clearTimeout(timeout);
-      timeout = setTimeout(processCodeBlocks, 1000);
+      if (!isActiveGeneration(generation) || !mermaidEnabled) return;
+      if (processTimer !== null) clearTimeout(processTimer);
+      processTimer = setTimeout(() => {
+        processTimer = null;
+        processCodeBlocks(generation);
+      }, 1000);
     };
 
     // Ignore mutations that are JUST our own Mermaid output — the transient
@@ -906,6 +977,7 @@ const initializeMermaid = async () => {
       (/^d?mermaid-/.test((el as HTMLElement).id || '') ||
         !!el.closest('.gv-mermaid-wrapper, [id^="mermaid-"], [id^="dmermaid-"]'));
     observer = new MutationObserver((mutations) => {
+      if (!isActiveGeneration(generation) || !mermaidEnabled) return;
       let relevant = false;
       for (const m of mutations) {
         const t = m.target as Node | null;

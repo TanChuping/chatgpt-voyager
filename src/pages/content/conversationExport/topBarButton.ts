@@ -19,15 +19,24 @@ import {
 } from '@/features/singleConvExport';
 import { getTranslationSync } from '@/utils/i18n';
 
+import { extractChatGptConversationIdFromUrl } from '../chatgptDom';
 import { buildClonedButtonClassName } from '../shared/clonedButtonClass';
-import { findOptionsButtonRow, findShareButtonSlot } from '../shared/headerActionSlot';
-import { enterSelectionMode } from './selectionMode';
+import { findOptionsButtonRow } from '../shared/headerActionSlot';
+import { enterSelectionMode, exitSelectionMode } from './selectionMode';
 
 const TAG = 'data-gv-export-btn';
+const INJECT_DEBOUNCE_MS = 50;
+
+let lifecycleGeneration = 0;
+let activeGeneration: number | null = null;
+let injectedButton: HTMLButtonElement | null = null;
+
+function isActiveGeneration(generation: number): boolean {
+  return activeGeneration === generation;
+}
 
 function currentConvIdFromUrl(): string | null {
-  const m = /\/c\/([a-f0-9-]{36})/i.exec(window.location.pathname);
-  return m ? m[1] : null;
+  return extractChatGptConversationIdFromUrl(window.location.href);
 }
 
 function buildDownloadIcon(): SVGSVGElement {
@@ -85,14 +94,39 @@ export function isIconOnly(reference: HTMLElement): boolean {
   return (reference.textContent || '').trim().length === 0;
 }
 
-function injectIfNeeded(): void {
+function removeTrackedButton(): void {
+  injectedButton?.remove();
+  injectedButton = null;
+}
+
+function injectIfNeeded(generation: number): void {
+  if (!isActiveGeneration(generation)) return;
+
+  const conversationId = currentConvIdFromUrl();
+  if (!conversationId) {
+    removeTrackedButton();
+    closeExportMenu();
+    return;
+  }
+
   // See `headerActionSlot.ts`: Share's wrapper is a `display: inline` Radix
   // span, so anything inserted beside it stacks underneath instead of sitting
   // in the row. Anchor on the "…" options row, which is a real flex row.
-  const site = findOptionsButtonRow() ?? findShareButtonSlot();
+  if (injectedButton && !injectedButton.isConnected) {
+    removeTrackedButton();
+    closeExportMenu();
+  }
+  const site = findOptionsButtonRow();
   if (!site) return;
   const { parent: host, before, styleSource } = site;
-  if (host.querySelector(`[${TAG}]`)) return;
+  if (injectedButton && injectedButton.parentElement !== host) {
+    removeTrackedButton();
+  }
+  const existing = host.querySelector<HTMLButtonElement>(`[${TAG}]`);
+  if (existing) {
+    injectedButton = existing;
+    return;
+  }
 
   const label = getTranslationSync('singleConvExportButton');
   const tooltip = getTranslationSync('singleConvExportButtonTooltip');
@@ -132,12 +166,14 @@ function injectIfNeeded(): void {
   // export" share a single slot instead of crowding the header with two
   // buttons at the same level.
   btn.addEventListener('click', (event) => {
+    if (!isActiveGeneration(generation)) return;
     event.preventDefault();
     event.stopPropagation();
-    toggleExportMenu(btn);
+    toggleExportMenu(btn, generation);
   });
 
   host.insertBefore(btn, before);
+  injectedButton = btn;
 }
 
 // ─── Export menu (popover) ──────────────────────────────────────────────────
@@ -145,22 +181,25 @@ let openMenuEl: HTMLElement | null = null;
 let openMenuAnchor: HTMLElement | null = null;
 let menuDismissHandlers: Array<() => void> = [];
 
-function closeExportMenu(): void {
-  openMenuAnchor?.setAttribute('aria-expanded', 'false');
+function closeExportMenu(restoreAnchorFocus = false): void {
+  const anchor = openMenuAnchor;
+  anchor?.setAttribute('aria-expanded', 'false');
   openMenuAnchor = null;
   openMenuEl?.remove();
   openMenuEl = null;
   menuDismissHandlers.forEach((off) => off());
   menuDismissHandlers = [];
+  if (restoreAnchorFocus && anchor?.isConnected) anchor.focus();
 }
 
-function makeMenuItem(label: string, onClick: () => void): HTMLButtonElement {
+function makeMenuItem(label: string, onClick: () => void, generation: number): HTMLButtonElement {
   const item = document.createElement('button');
   item.type = 'button';
   item.className = 'gv-export-menu__item';
   item.setAttribute('role', 'menuitem');
   item.textContent = label;
   item.addEventListener('click', (event) => {
+    if (!isActiveGeneration(generation)) return;
     event.preventDefault();
     event.stopPropagation();
     closeExportMenu();
@@ -169,7 +208,8 @@ function makeMenuItem(label: string, onClick: () => void): HTMLButtonElement {
   return item;
 }
 
-function toggleExportMenu(anchor: HTMLElement): void {
+function toggleExportMenu(anchor: HTMLElement, generation: number): void {
+  if (!isActiveGeneration(generation)) return;
   if (openMenuEl) {
     closeExportMenu();
     return;
@@ -183,22 +223,40 @@ function toggleExportMenu(anchor: HTMLElement): void {
   const menu = document.createElement('div');
   menu.className = 'gv-export-menu';
   menu.setAttribute('role', 'menu');
+  menu.setAttribute('aria-label', getTranslationSync('singleConvExportButton'));
 
-  const wholeItem = makeMenuItem(getTranslationSync('singleConvExportMenuWhole'), () => {
-    // Resolve format from the popup setting at click time so a running ChatGPT
-    // tab picks up popup changes without a reload.
-    void resolveExportFormat().then((fmt) => exportConversation(convId, fmt));
-  });
+  const wholeItem = makeMenuItem(
+    getTranslationSync('singleConvExportMenuWhole'),
+    () => {
+      // Resolve format from the popup setting at click time so a running ChatGPT
+      // tab picks up popup changes without a reload. The generation guard keeps
+      // a late storage result from exporting after feature teardown.
+      void resolveExportFormat().then((fmt) => {
+        if (isActiveGeneration(generation)) exportConversation(convId, fmt);
+      });
+    },
+    generation,
+  );
   const wholeIcon = buildDownloadIcon();
   wholeIcon.classList.add('gv-export-menu__icon');
   wholeItem.prepend(wholeIcon);
 
-  const selectItem = makeMenuItem(getTranslationSync('singleConvExportSelectButton'), () =>
-    enterSelectionMode(convId),
+  const selectItem = makeMenuItem(
+    getTranslationSync('singleConvExportSelectButton'),
+    () => enterSelectionMode(convId),
+    generation,
   );
   const selectIcon = buildSelectIcon();
   selectIcon.classList.add('gv-export-menu__icon');
   selectItem.prepend(selectIcon);
+
+  const menuItems = [wholeItem, selectItem];
+  const focusMenuItem = (index: number) => {
+    menuItems.forEach((item, itemIndex) => {
+      item.tabIndex = itemIndex === index ? 0 : -1;
+    });
+    menuItems[index]?.focus();
+  };
 
   menu.append(wholeItem, selectItem);
   document.body.appendChild(menu);
@@ -214,13 +272,36 @@ function toggleExportMenu(anchor: HTMLElement): void {
   menu.style.top = `${Math.round(rect.bottom + 6)}px`;
   menu.style.left = `${Math.round(left)}px`;
 
-  // Dismiss on outside click, Escape, scroll, or resize.
+  // Dismiss on outside click, Escape, scroll, or resize. While the menu is
+  // open, keep a single menuitem in the tab order and support the standard
+  // arrow/Home/End navigation pattern without installing a persistent global
+  // listener.
   const onPointerDown = (e: Event) => {
     if (menu.contains(e.target as Node) || anchor.contains(e.target as Node)) return;
     closeExportMenu();
   };
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') closeExportMenu();
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeExportMenu(true);
+      return;
+    }
+
+    const activeIndex = menuItems.indexOf(document.activeElement as HTMLButtonElement);
+    let nextIndex: number | null = null;
+    if (e.key === 'ArrowDown')
+      nextIndex = activeIndex < 0 ? 0 : (activeIndex + 1) % menuItems.length;
+    if (e.key === 'ArrowUp') {
+      nextIndex = activeIndex <= 0 ? menuItems.length - 1 : activeIndex - 1;
+    }
+    if (e.key === 'Home') nextIndex = 0;
+    if (e.key === 'End') nextIndex = menuItems.length - 1;
+    if (nextIndex === null) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    focusMenuItem(nextIndex);
   };
   const onReflow = () => closeExportMenu();
   document.addEventListener('pointerdown', onPointerDown, true);
@@ -233,6 +314,7 @@ function toggleExportMenu(anchor: HTMLElement): void {
     () => window.removeEventListener('scroll', onReflow, true),
     () => window.removeEventListener('resize', onReflow, true),
   ];
+  focusMenuItem(0);
 }
 
 /**
@@ -254,17 +336,76 @@ async function resolveExportFormat(): Promise<SingleConvExportFormat> {
 }
 
 let observer: MutationObserver | null = null;
+let injectTimer: number | null = null;
+let locationChangeHandler: (() => void) | null = null;
+
+function nodeTouchesHeader(node: Node, header: HTMLElement | null): boolean {
+  if (!(node instanceof Element)) return false;
+  if (header && (node === header || header.contains(node) || node.contains(header))) return true;
+  if (node.id === 'conversation-header-actions') return true;
+  return node.querySelector('#conversation-header-actions') !== null;
+}
+
+function mutationsMayAffectHeader(records: MutationRecord[]): boolean {
+  const header = document.getElementById('conversation-header-actions');
+  if (injectedButton && !injectedButton.isConnected) return true;
+
+  return records.some((record) => {
+    if (header && header.contains(record.target)) return true;
+    return [...record.addedNodes, ...record.removedNodes].some((node) =>
+      nodeTouchesHeader(node, header),
+    );
+  });
+}
+
+function scheduleInjection(generation: number): void {
+  if (!isActiveGeneration(generation)) return;
+  if (injectTimer !== null) window.clearTimeout(injectTimer);
+  injectTimer = window.setTimeout(() => {
+    injectTimer = null;
+    injectIfNeeded(generation);
+  }, INJECT_DEBOUNCE_MS);
+}
 
 export function startTopBarExportButton(): void {
-  // Try immediately
-  injectIfNeeded();
-  if (observer) return;
-  observer = new MutationObserver(() => injectIfNeeded());
+  if (activeGeneration !== null) {
+    injectIfNeeded(activeGeneration);
+    return;
+  }
+
+  const generation = ++lifecycleGeneration;
+  activeGeneration = generation;
+
+  // Try immediately, then watch the page cheaply. Streaming token mutations
+  // outside the semantic header are ignored; relevant header replacements are
+  // coalesced into one bounded slot lookup.
+  injectIfNeeded(generation);
+  observer = new MutationObserver((records) => {
+    if (mutationsMayAffectHeader(records)) scheduleInjection(generation);
+  });
   observer.observe(document.body, { childList: true, subtree: true });
+
+  locationChangeHandler = () => scheduleInjection(generation);
+  window.addEventListener('popstate', locationChangeHandler);
+  window.addEventListener('hashchange', locationChangeHandler);
 }
 
 export function stopTopBarExportButton(): void {
+  activeGeneration = null;
+  lifecycleGeneration++;
+  if (injectTimer !== null) {
+    window.clearTimeout(injectTimer);
+    injectTimer = null;
+  }
   closeExportMenu();
+  exitSelectionMode();
   observer?.disconnect();
   observer = null;
+  if (locationChangeHandler) {
+    window.removeEventListener('popstate', locationChangeHandler);
+    window.removeEventListener('hashchange', locationChangeHandler);
+    locationChangeHandler = null;
+  }
+  removeTrackedButton();
+  document.querySelectorAll<HTMLElement>(`[${TAG}]`).forEach((button) => button.remove());
 }

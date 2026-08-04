@@ -37,15 +37,32 @@ export interface HeaderActionSlot {
  * Returns null outside a conversation (or on layouts without that button).
  */
 export function findOptionsButtonRow(): HeaderActionSlot | null {
-  const options = document.querySelector<HTMLElement>(
-    '[data-testid="conversation-options-button"]',
-  );
-  if (!options) return null;
-  // ChatGPT wraps the button in a positioning div; the row is one level up.
-  const slot = options.parentElement;
-  const row = slot?.parentElement;
-  if (!slot || !row) return null;
-  return { parent: row, before: slot, styleSource: options };
+  const header = document.querySelector<HTMLElement>('#conversation-header-actions');
+  const options = header?.querySelector<HTMLElement>('[data-testid="conversation-options-button"]');
+  if (!header || !options) return null;
+
+  const horizontal = findHorizontalRowAncestor(options, 7);
+  if (horizontal) {
+    return { parent: horizontal.parent, before: horizontal.before, styleSource: options };
+  }
+
+  // JSDOM and occasionally an early hydration frame do not expose computed
+  // layout yet. Bound the structural fallback to the semantic header root so
+  // we cannot drift into the full page header/model picker.
+  if (!header.contains(options)) return null;
+  let child: HTMLElement = options;
+  let parent = options.parentElement;
+  while (parent && parent !== header) {
+    if (
+      parent.querySelectorAll('button').length > 1 ||
+      /(?:^|\s)flex(?:\s|$)/.test(parent.className)
+    ) {
+      return { parent, before: child, styleSource: options };
+    }
+    child = parent;
+    parent = parent.parentElement;
+  }
+  return { parent: header, before: child, styleSource: options };
 }
 
 /**

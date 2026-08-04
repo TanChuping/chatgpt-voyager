@@ -18,6 +18,16 @@
 const STYLE_ID = 'gv-gentle-dark-style';
 const STORAGE_KEY = 'gvGentleDarkMode';
 const DEFAULT_ENABLED = false;
+let started = false;
+let lifecycleGeneration = 0;
+let storageChangeHandler:
+  | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
+  | null = null;
+let beforeUnloadHandler: (() => void) | null = null;
+
+function isActiveGeneration(generation: number): boolean {
+  return started && generation === lifecycleGeneration;
+}
 
 // We redefine the tokens on BOTH html and body: ChatGPT re-declares them on
 // <body>, so an html-only override would be shadowed for the whole document.
@@ -99,33 +109,57 @@ function removeStyle(): void {
   document.getElementById(STYLE_ID)?.remove();
 }
 
-export function startGentleDarkMode(): void {
-  chrome.storage?.sync?.get({ [STORAGE_KEY]: DEFAULT_ENABLED }, (res) => {
-    if (res?.[STORAGE_KEY] === true) applyStyle();
-  });
+export function stopGentleDarkMode(): void {
+  started = false;
+  lifecycleGeneration += 1;
+  removeStyle();
 
-  const storageChangeHandler = (
-    changes: Record<string, chrome.storage.StorageChange>,
-    area: string,
-  ) => {
-    if (area === 'sync' && changes[STORAGE_KEY]) {
-      if (changes[STORAGE_KEY].newValue === true) applyStyle();
-      else removeStyle();
+  if (storageChangeHandler) {
+    try {
+      chrome.storage?.onChanged?.removeListener(storageChangeHandler);
+    } catch {
+      // Ignore cleanup errors during page teardown.
     }
+    storageChangeHandler = null;
+  }
+
+  if (beforeUnloadHandler) {
+    window.removeEventListener('beforeunload', beforeUnloadHandler);
+    beforeUnloadHandler = null;
+  }
+}
+
+export function startGentleDarkMode(): () => void {
+  if (started) return stopGentleDarkMode;
+  started = true;
+  const generation = ++lifecycleGeneration;
+
+  storageChangeHandler = (changes, area) => {
+    if (!isActiveGeneration(generation) || area !== 'sync') return;
+    const change = changes[STORAGE_KEY];
+    if (!change) return;
+    if (change.newValue === true) applyStyle();
+    else removeStyle();
   };
+  try {
+    chrome.storage?.onChanged?.addListener(storageChangeHandler);
+  } catch {
+    storageChangeHandler = null;
+  }
 
-  chrome.storage?.onChanged?.addListener(storageChangeHandler);
+  beforeUnloadHandler = () => stopGentleDarkMode();
+  window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
 
-  window.addEventListener(
-    'beforeunload',
-    () => {
-      removeStyle();
-      try {
-        chrome.storage?.onChanged?.removeListener(storageChangeHandler);
-      } catch {
-        // Ignore cleanup errors during page teardown.
-      }
-    },
-    { once: true },
-  );
+  try {
+    chrome.storage?.sync?.get({ [STORAGE_KEY]: DEFAULT_ENABLED }, (res) => {
+      if (!isActiveGeneration(generation)) return;
+      if (res?.[STORAGE_KEY] === true) applyStyle();
+      else removeStyle();
+    });
+  } catch {
+    // Storage unavailable: retain the live listener and default to disabled.
+    if (isActiveGeneration(generation)) removeStyle();
+  }
+
+  return stopGentleDarkMode;
 }

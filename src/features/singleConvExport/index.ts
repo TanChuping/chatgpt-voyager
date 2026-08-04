@@ -253,7 +253,7 @@ function armResumeWaiter(convId: string, format: SingleConvExportFormat): void {
     resumeArmed = false;
     if (Date.now() - start >= PENDING_RESUME_TIMEOUT_MS) {
       clearPending();
-      console.warn('[GPT-Voyager] export: capture timed out for', convId);
+      console.warn('[GPT-Voyager] export: conversation capture timed out');
     }
     window.clearTimeout(stopTimer);
   }, PENDING_RESUME_TIMEOUT_MS);

@@ -20,6 +20,18 @@ import { safariStorage } from '@/core/utils/safariStorage';
 
 import type { FolderData } from '../types';
 
+/** Keep legacy folder payloads permissive: old optional fields remain valid. */
+export function isValidFolderData(value: unknown): value is FolderData {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<FolderData>;
+  return (
+    Array.isArray(candidate.folders) &&
+    !!candidate.folderContents &&
+    typeof candidate.folderContents === 'object' &&
+    !Array.isArray(candidate.folderContents)
+  );
+}
+
 /**
  * Unified storage interface for folder data
  * All implementations must provide async methods

@@ -1,318 +1,254 @@
-import { StorageKeys } from '@/core/types/common';
 import {
   hasValidExtensionContext,
   isExtensionContextInvalidatedError,
 } from '@/core/utils/extensionContext';
-import { startFormulaCopy } from '@/features/formulaCopy';
+import { startFormulaCopy, stopFormulaCopy } from '@/features/formulaCopy';
 import { initI18n } from '@/utils/i18n';
 
-import { startAnnouncement } from './announcement/index';
-import { startCanvasExport } from './canvasExport/index';
-import { startChatFontFamilyAdjuster } from './chatFontFamily/index';
-import { startChatFontSizeAdjuster } from './chatFontSize/index';
-import { startInputVimMode } from './chatInput/vimMode';
-import { startChatWidthAdjuster } from './chatWidth/index';
-import { startSingleConversationExport } from './conversationExport/index';
-import { startDraftSave } from './draftSave/index';
-import { startEditInputWidthAdjuster } from './editInputWidth/index';
-import { startExportButton } from './export/index';
+import {
+  type BusinessDemandRouter,
+  type BusinessDemandSignal,
+  createBusinessDemandRouter,
+} from './bootstrap/demand';
+import {
+  BOOTSTRAP_SETTING_KEYS,
+  BUSINESS_DEMAND_FEATURE_IDS,
+  PAGE_SIGNAL_FEATURE_IDS,
+  createLazyFeatureDefinitions,
+} from './bootstrap/features';
+import {
+  type BootstrapStorageRouter,
+  type PageFeatureSignal,
+  type PageSignalRouter,
+  createBootstrapStorageRouter,
+  createIdleScheduler,
+  createPageSignalRouter,
+} from './bootstrap/router';
+import {
+  LazyFeatureRuntime,
+  type StartedCoreFeatures,
+  startCoreFeatures,
+} from './bootstrap/runtime';
 import { startFolderManager } from './folder/index';
-import { startFolderProject } from './folderProject/index';
-import { startFolderSpacingAdjuster } from './folderSpacing/index';
-import { isForkFeatureEnabledValue } from './fork/featureFlag';
-import { startFork } from './fork/index';
 import { startGentleDarkMode } from './gentleDarkMode/index';
-import { startInputCollapse } from './inputCollapse/index';
 import { initKaTeXConfig } from './katexConfig';
-import { startMarkdownPatcher } from './markdownPatcher/index';
-import { startMermaid } from './mermaid/index';
-import { startPreventAutoScroll } from './preventAutoScroll/index';
 import { startPromptManager } from './prompt/index';
-import { startQuoteReply } from './quoteReply/index';
-import { startSendBehavior } from './sendBehavior/index';
-import { startSidebarAutoHide } from './sidebarAutoHide';
-import { startSidebarWidthAdjuster } from './sidebarWidth';
-import { startTempChatExit } from './tempChatExit/index';
 import { startTimeline } from './timeline/index';
-import { startUserLatex } from './userLatex/index';
-
-window.addEventListener('vite:preloadError', (event) => {
-  event.preventDefault();
-});
-
-const HEAVY_FEATURE_INIT_DELAY = 100;
-const LIGHT_FEATURE_INIT_DELAY = 50;
-const BACKGROUND_TAB_MIN_DELAY = 3000;
-const BACKGROUND_TAB_MAX_DELAY = 8000;
 
 const CHATGPT_HOSTS = new Set(['chatgpt.com', 'chat.openai.com']);
-
-let initialized = false;
-let initializationTimer: number | null = null;
-let folderManagerInstance: Awaited<ReturnType<typeof startFolderManager>> | null = null;
-let promptManagerInstance: Awaited<ReturnType<typeof startPromptManager>> | null = null;
-let quoteReplyCleanup: (() => void) | null = null;
-let inputVimModeCleanup: (() => void) | null = null;
-let sendBehaviorCleanup: (() => void) | null = null;
-let draftSaveCleanup: (() => void) | null = null;
-let forkCleanup: (() => void) | null = null;
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const CORE_STAGE_DELAY_MS = 50;
+const PENDING_TEMP_HANDOFF_KEY = 'gv-pending-temp-regret-handoff';
 
 function isChatGPTSite(): boolean {
   return CHATGPT_HOSTS.has(location.hostname.toLowerCase());
 }
 
-async function runFeatureStep<T>(
-  featureName: string,
-  start: () => T | Promise<T>,
-  initDelay = LIGHT_FEATURE_INIT_DELAY,
-): Promise<T | null> {
-  try {
-    return await start();
-  } catch (error) {
-    if (isExtensionContextInvalidatedError(error)) return null;
-    console.error(`[GPT-Voyager] ${featureName} failed to start:`, error);
-    return null;
-  } finally {
-    if (initDelay > 0) await delay(initDelay);
-  }
+function isCurrentCustomWebsite(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  const currentHost = location.hostname.toLowerCase().replace(/^www\./, '');
+  return value.some((website) => {
+    if (typeof website !== 'string') return false;
+    const normalizedWebsite = website.toLowerCase().replace(/^www\./, '');
+    return currentHost === normalizedWebsite || currentHost.endsWith(`.${normalizedWebsite}`);
+  });
 }
 
-async function isForkFeatureEnabled(): Promise<boolean> {
+async function hasPendingTempHandoff(): Promise<boolean> {
   try {
-    const result = await chrome.storage?.sync?.get({ [StorageKeys.FORK_ENABLED]: false });
-    return isForkFeatureEnabledValue(result?.[StorageKeys.FORK_ENABLED]);
+    return sessionStorage.getItem(PENDING_TEMP_HANDOFF_KEY) !== null;
   } catch {
     return false;
   }
 }
 
-async function isCustomWebsite(): Promise<boolean> {
-  try {
-    const result = await chrome.storage?.sync?.get({ [StorageKeys.PROMPT_CUSTOM_WEBSITES]: [] });
-    const customWebsites = Array.isArray(result?.[StorageKeys.PROMPT_CUSTOM_WEBSITES])
-      ? (result[StorageKeys.PROMPT_CUSTOM_WEBSITES] as string[])
-      : [];
-    const currentHost = location.hostname.toLowerCase().replace(/^www\./, '');
+function reportFeatureError(featureName: string, error: unknown): void {
+  if (isExtensionContextInvalidatedError(error)) return;
+  console.error(`[GPT-Voyager] ${featureName} failed:`, error);
+}
 
-    return customWebsites.some((website: string) => {
-      const normalizedWebsite = website.toLowerCase().replace(/^www\./, '');
-      return currentHost === normalizedWebsite || currentHost.endsWith(`.${normalizedWebsite}`);
+function bootstrapContentScript(): void {
+  if (!hasValidExtensionContext()) return;
+
+  let closed = false;
+  let core: StartedCoreFeatures | null = null;
+  let lazyRuntime: LazyFeatureRuntime | null = null;
+  let storageRouter: BootstrapStorageRouter | null = null;
+  let pageRouter: PageSignalRouter | null = null;
+  let businessDemandRouter: BusinessDemandRouter | null = null;
+  const coreDelayResolvers = new Map<number, () => void>();
+
+  const onPreloadError = (event: Event) => event.preventDefault();
+  const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+    if (isExtensionContextInvalidatedError(event.reason)) event.preventDefault();
+  };
+  const onWindowError = (event: ErrorEvent) => {
+    if (isExtensionContextInvalidatedError(event.error ?? event.message)) event.preventDefault();
+  };
+
+  const yieldBetweenCoreFeatures = () =>
+    new Promise<void>((resolve) => {
+      if (closed) {
+        resolve();
+        return;
+      }
+      const handle = window.setTimeout(() => {
+        coreDelayResolvers.delete(handle);
+        resolve();
+      }, CORE_STAGE_DELAY_MS);
+      coreDelayResolvers.set(handle, resolve);
     });
-  } catch (error) {
-    if (isExtensionContextInvalidatedError(error)) return false;
-    console.error('[GPT-Voyager] Error checking custom websites:', error);
-    return false;
-  }
-}
 
-async function startPromptManagerOnly(): Promise<void> {
-  promptManagerInstance = await startPromptManager();
-}
+  const cancelCoreDelays = () => {
+    for (const [handle, resolve] of coreDelayResolvers) {
+      window.clearTimeout(handle);
+      resolve();
+    }
+    coreDelayResolvers.clear();
+  };
 
-async function startChatGPTFeatures(): Promise<void> {
-  await runFeatureStep('Timeline', () => startTimeline(), HEAVY_FEATURE_INIT_DELAY);
+  const startChatGptBootstrap = () => {
+    initKaTeXConfig();
+    void initI18n().catch((error) => reportFeatureError('i18n', error));
 
-  folderManagerInstance =
-    (await runFeatureStep('Folder Manager', () => startFolderManager(), 0)) ?? null;
-  if (folderManagerInstance) {
-    await runFeatureStep(
-      'Folder Project',
-      () => startFolderProject(folderManagerInstance!),
-      HEAVY_FEATURE_INIT_DELAY,
+    core = startCoreFeatures(
+      [
+        {
+          id: 'formula-copy',
+          start: () => {
+            startFormulaCopy();
+            return stopFormulaCopy;
+          },
+        },
+        { id: 'timeline', start: startTimeline },
+        { id: 'folder', start: startFolderManager },
+        { id: 'gentle-dark', start: startGentleDarkMode },
+        { id: 'prompt', start: startPromptManager },
+      ],
+      {
+        onError: reportFeatureError,
+        yieldBetween: yieldBetweenCoreFeatures,
+      },
     );
-  } else {
-    await delay(HEAVY_FEATURE_INIT_DELAY);
-  }
 
-  await runFeatureStep('Folder Spacing Adjuster', () => startFolderSpacingAdjuster());
-  await runFeatureStep('Chat Width Adjuster', () => startChatWidthAdjuster());
-  await runFeatureStep('Chat Font Size Adjuster', () => startChatFontSizeAdjuster());
-  await runFeatureStep('Chat Font Family Adjuster', () => startChatFontFamilyAdjuster());
-  await runFeatureStep('Edit Input Width Adjuster', () => startEditInputWidthAdjuster());
-  await runFeatureStep('Sidebar Width Adjuster', () => startSidebarWidthAdjuster());
-  await runFeatureStep('Gentle Dark Mode', () => startGentleDarkMode());
-  await runFeatureStep('Sidebar Auto Hide', () => startSidebarAutoHide());
-  await runFeatureStep('Input Collapse', () => startInputCollapse());
-
-  inputVimModeCleanup = (await runFeatureStep('Input Vim Mode', () => startInputVimMode())) ?? null;
-
-  await runFeatureStep('Prevent Auto Scroll', () => startPreventAutoScroll());
-  await runFeatureStep('Formula Copy', () => startFormulaCopy());
-
-  await runFeatureStep('Quote Reply', async () => {
-    const quoteReplyResult = await chrome.storage?.sync?.get({
-      [StorageKeys.QUOTE_REPLY_ENABLED]: true,
+    const activeCore = core;
+    lazyRuntime = new LazyFeatureRuntime({
+      features: createLazyFeatureDefinitions({
+        getFolderManager: () => activeCore.getResult('folder'),
+      }),
+      scheduleIdle: createIdleScheduler(),
+      onError: reportFeatureError,
     });
-    if (quoteReplyResult?.[StorageKeys.QUOTE_REPLY_ENABLED] !== false) {
-      quoteReplyCleanup = startQuoteReply();
-    }
-  });
+    const activeRuntime = lazyRuntime;
 
-  sendBehaviorCleanup = (await runFeatureStep('Send Behavior', () => startSendBehavior())) ?? null;
-  draftSaveCleanup = (await runFeatureStep('Draft Save', () => startDraftSave())) ?? null;
+    let latestSettings: Readonly<Record<string, unknown>> | null = null;
+    let initialSettingsApplied = false;
+    let coreReady = false;
 
-  await runFeatureStep('Markdown Patcher', () => startMarkdownPatcher());
-  await runFeatureStep('Export Button', () => startExportButton());
-  await runFeatureStep('Canvas Export', () => startCanvasExport());
-  await runFeatureStep('Single-Conversation Export', () => startSingleConversationExport());
-  await runFeatureStep('Announcement', () => startAnnouncement());
-  await runFeatureStep('Temp Chat Regret', () => startTempChatExit());
-
-  await runFeatureStep('Fork', async () => {
-    if (await isForkFeatureEnabled()) forkCleanup = startFork();
-  });
-
-  promptManagerInstance =
-    (await runFeatureStep(
-      'Prompt Manager',
-      () => startPromptManager(),
-      HEAVY_FEATURE_INIT_DELAY,
-    )) ?? null;
-
-  await runFeatureStep('Mermaid', () => startMermaid());
-  await runFeatureStep('User LaTeX', () => startUserLatex(), 0);
-}
-
-async function initializeFeatures(): Promise<void> {
-  if (initialized) return;
-  initialized = true;
-
-  try {
-    if (!hasValidExtensionContext()) return;
-
-    if (isChatGPTSite()) {
-      await startChatGPTFeatures();
-      return;
-    }
-
-    if (await isCustomWebsite()) {
-      await startPromptManagerOnly();
-    }
-  } catch (error) {
-    if (isExtensionContextInvalidatedError(error)) return;
-    console.error('[GPT-Voyager] Initialization error:', error);
-  }
-}
-
-function getInitializationDelay(): number {
-  if (document.visibilityState === 'visible') return 0;
-  const randomRange = BACKGROUND_TAB_MAX_DELAY - BACKGROUND_TAB_MIN_DELAY;
-  return BACKGROUND_TAB_MIN_DELAY + Math.random() * randomRange;
-}
-
-function handleVisibilityChange(): void {
-  if (document.visibilityState === 'visible' && !initialized) {
-    if (initializationTimer !== null) {
-      clearTimeout(initializationTimer);
-      initializationTimer = null;
-    }
-    void initializeFeatures();
-  }
-}
-
-(function () {
-  try {
-    if (!hasValidExtensionContext()) return;
-
-    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
-      if (isExtensionContextInvalidatedError(event.reason)) {
-        event.preventDefault();
-      }
-    };
-    const onWindowError = (event: ErrorEvent) => {
-      if (isExtensionContextInvalidatedError(event.error ?? event.message)) {
-        event.preventDefault();
-      }
-    };
-    window.addEventListener('unhandledrejection', onUnhandledRejection);
-    window.addEventListener('error', onWindowError);
-
-    const onStorageChanged = (
-      changes: Record<string, chrome.storage.StorageChange>,
-      areaName: string,
-    ) => {
-      if (areaName !== 'sync' || !isChatGPTSite()) return;
-
-      const forkSetting = changes[StorageKeys.FORK_ENABLED];
-      if (!forkSetting) return;
-
-      const enabled = isForkFeatureEnabledValue(forkSetting.newValue);
-      if (enabled) {
-        if (!forkCleanup) forkCleanup = startFork();
-      } else if (forkCleanup) {
-        forkCleanup();
-        forkCleanup = null;
+    const triggerBusinessDemand = (signal: BusinessDemandSignal) => {
+      for (const featureId of BUSINESS_DEMAND_FEATURE_IDS[signal]) {
+        activeRuntime.trigger(featureId);
       }
     };
 
-    const hostname = location.hostname.toLowerCase();
-    const isSupportedSite = CHATGPT_HOSTS.has(hostname);
+    const releaseLazyWork = () => {
+      if (closed || !coreReady) return;
+      if (latestSettings) {
+        if (initialSettingsApplied) activeRuntime.updateSettings(latestSettings);
+        else {
+          activeRuntime.applyInitialSettings(latestSettings);
+          initialSettingsApplied = true;
+        }
+      }
+    };
 
-    if (isSupportedSite) {
-      initKaTeXConfig();
-      initI18n().catch((error) => console.error('[GPT-Voyager] i18n init error:', error));
-    }
+    void activeCore.ready.then(() => {
+      coreReady = true;
+      activeRuntime.trigger('announcement');
+      releaseLazyWork();
+    });
 
-    if (!isSupportedSite) {
-      chrome.storage?.sync?.get({ [StorageKeys.PROMPT_CUSTOM_WEBSITES]: [] }, (result) => {
-        const customWebsites = Array.isArray(result?.[StorageKeys.PROMPT_CUSTOM_WEBSITES])
-          ? (result[StorageKeys.PROMPT_CUSTOM_WEBSITES] as string[])
-          : [];
-        const currentHost = hostname.replace(/^www\./, '');
-        const isCustomSite = customWebsites.some((website: string) => {
-          const normalizedWebsite = website.toLowerCase().replace(/^www\./, '');
-          return currentHost === normalizedWebsite || currentHost.endsWith(`.${normalizedWebsite}`);
+    storageRouter = createBootstrapStorageRouter({
+      keys: BOOTSTRAP_SETTING_KEYS,
+      onSnapshot: (settings) => {
+        latestSettings = settings;
+        releaseLazyWork();
+      },
+      onError: (error) => reportFeatureError('settings bootstrap', error),
+    });
+
+    pageRouter = createPageSignalRouter(
+      (signal) => {
+        activeRuntime.trigger(
+          signal === 'canvas' ? PAGE_SIGNAL_FEATURE_IDS.canvas : PAGE_SIGNAL_FEATURE_IDS.tempChat,
+        );
+      },
+      hasPendingTempHandoff,
+    );
+
+    businessDemandRouter = createBusinessDemandRouter(
+      triggerBusinessDemand,
+      hasPendingTempHandoff,
+    );
+
+    pageRouter.start();
+    businessDemandRouter.start();
+    void storageRouter.start();
+  };
+
+  const startCustomWebsiteBootstrap = () => {
+    storageRouter = createBootstrapStorageRouter({
+      keys: BOOTSTRAP_SETTING_KEYS,
+      onSnapshot: (settings, initial) => {
+        if (
+          !initial ||
+          closed ||
+          core ||
+          !isCurrentCustomWebsite(settings.gvPromptCustomWebsites)
+        ) {
+          return;
+        }
+        core = startCoreFeatures([{ id: 'prompt', start: startPromptManager }], {
+          onError: reportFeatureError,
         });
-
-        if (isCustomSite) void initializeFeatures();
-      });
-      return;
-    }
-
-    chrome.storage?.onChanged?.addListener(onStorageChanged);
-
-    const initDelay = isSupportedSite ? 0 : getInitializationDelay();
-    if (initDelay === 0) {
-      void initializeFeatures();
-    } else {
-      initializationTimer = window.setTimeout(() => {
-        initializationTimer = null;
-        void initializeFeatures();
-      }, initDelay);
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    window.addEventListener('beforeunload', () => {
-      try {
-        window.removeEventListener('unhandledrejection', onUnhandledRejection);
-        window.removeEventListener('error', onWindowError);
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-        chrome.storage?.onChanged?.removeListener(onStorageChanged);
-
-        folderManagerInstance?.destroy();
-        folderManagerInstance = null;
-        promptManagerInstance?.destroy();
-        promptManagerInstance = null;
-        quoteReplyCleanup?.();
-        quoteReplyCleanup = null;
-        inputVimModeCleanup?.();
-        inputVimModeCleanup = null;
-        sendBehaviorCleanup?.();
-        sendBehaviorCleanup = null;
-        draftSaveCleanup?.();
-        draftSaveCleanup = null;
-        forkCleanup?.();
-        forkCleanup = null;
-      } catch (error) {
-        if (isExtensionContextInvalidatedError(error)) return;
-        console.error('[GPT-Voyager] Cleanup error:', error);
-      }
+      },
+      onError: (error) => reportFeatureError('custom website settings bootstrap', error),
     });
-  } catch (error) {
-    if (isExtensionContextInvalidatedError(error)) return;
+    void storageRouter.start();
+  };
+
+  const shutdown = () => {
+    if (closed) return;
+    closed = true;
+    businessDemandRouter?.stop();
+    pageRouter?.stop();
+    storageRouter?.stop();
+
+    // Mark runtimes closed before resolving their staged timers/imports.
+    const lazyShutdown = lazyRuntime?.shutdown();
+    const coreShutdown = core?.shutdown();
+    cancelCoreDelays();
+    void lazyShutdown;
+    void coreShutdown;
+
+    window.removeEventListener('vite:preloadError', onPreloadError);
+    window.removeEventListener('unhandledrejection', onUnhandledRejection);
+    window.removeEventListener('error', onWindowError);
+    window.removeEventListener('beforeunload', shutdown);
+  };
+
+  window.addEventListener('vite:preloadError', onPreloadError);
+  window.addEventListener('unhandledrejection', onUnhandledRejection);
+  window.addEventListener('error', onWindowError);
+  window.addEventListener('beforeunload', shutdown, { once: true });
+
+  if (isChatGPTSite()) startChatGptBootstrap();
+  else startCustomWebsiteBootstrap();
+}
+
+try {
+  bootstrapContentScript();
+} catch (error) {
+  if (!isExtensionContextInvalidatedError(error)) {
     console.error('[GPT-Voyager] Fatal initialization error:', error);
   }
-})();
+}

@@ -2,10 +2,9 @@
  * Single-conversation export bootstrap.
  *
  * Wires together:
- *  - the page-world capture service (the actual fetch wrapper runs in MAIN
- *    world via the `conversationHook.ts` content-script entry; this side
- *    installs the postMessage listener so the content-script world gets the
- *    payloads).
+ *  - the lazy capture consumer (the MAIN-world fetch wrapper hands captures
+ *    to a document-start isolated bridge, which validates and persists them
+ *    in the background-private per-tab store).
  *  - the top-right export button next to Share.
  *  - the "pending export" resume hook (called when a previous tab navigation
  *    was triggered to fetch a conversation before exporting it).
@@ -13,20 +12,33 @@
 import { getConversationCaptureService } from '@/features/conversationApi/ConversationCaptureService';
 import { resumePendingExport } from '@/features/singleConvExport';
 
-import { startTopBarExportButton } from './topBarButton';
+import { startTopBarExportButton, stopTopBarExportButton } from './topBarButton';
 
 let started = false;
 
-export async function startSingleConversationExport(): Promise<void> {
-  if (started) return;
+export function stopSingleConversationExport(): void {
+  if (!started) return;
+  started = false;
+
+  stopTopBarExportButton();
+  getConversationCaptureService().uninstall();
+}
+
+export function startSingleConversationExport(): () => void {
+  if (started) return stopSingleConversationExport;
   started = true;
 
-  // Install the capture listener. The page-world hook posts captured
-  // conversation payloads via window.postMessage (and also stashes them in
-  // sessionStorage for the cold-start case where this listener wasn't yet
-  // ready when ChatGPT's first fetch fired).
-  getConversationCaptureService().install();
+  try {
+    // Drain early private captures and subscribe to payload-free availability
+    // signals from the document-start bridge.
+    getConversationCaptureService().install();
 
-  startTopBarExportButton();
-  resumePendingExport();
+    startTopBarExportButton();
+    resumePendingExport();
+  } catch (error) {
+    stopSingleConversationExport();
+    throw error;
+  }
+
+  return stopSingleConversationExport;
 }

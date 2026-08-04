@@ -1,7 +1,7 @@
 import { StorageKeys } from '@/core/types/common';
 import { isExtensionContextInvalidatedError } from '@/core/utils/extensionContext';
 
-import { expandInputWithCursorAtEnd } from '../inputCollapse';
+import { expandInputWithCursorAtEnd } from '../shared/inputCollapseBridge';
 import { findChatInput } from './index';
 
 type VimMode = 'insert' | 'normal' | 'visual';
@@ -136,6 +136,13 @@ let lastCursorBox: {
 let hudRetryTimer: number | null = null;
 let hudRetryAttempts = 0;
 let sendReconcileTimer: number | null = null;
+let focusOutTimer: number | null = null;
+let started = false;
+let lifecycleGeneration = 0;
+
+function isActiveGeneration(generation: number): boolean {
+  return started && generation === lifecycleGeneration;
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -1167,11 +1174,11 @@ function updateCursorMotion(cursor: HTMLElement, box: NonNullable<typeof lastCur
 function isUsableRect(rect: DOMRect | undefined): rect is DOMRect {
   return Boolean(
     rect &&
-    Number.isFinite(rect.left) &&
-    Number.isFinite(rect.top) &&
-    Number.isFinite(rect.width) &&
-    Number.isFinite(rect.height) &&
-    rect.width + rect.height > 0,
+      Number.isFinite(rect.left) &&
+      Number.isFinite(rect.top) &&
+      Number.isFinite(rect.width) &&
+      Number.isFinite(rect.height) &&
+      rect.width + rect.height > 0,
   );
 }
 
@@ -2268,7 +2275,10 @@ function handleFocusOut(event: FocusEvent): void {
 
   if (nextFocus && activeInput.contains(nextFocus)) return;
 
-  window.setTimeout(() => {
+  if (focusOutTimer !== null) window.clearTimeout(focusOutTimer);
+  focusOutTimer = window.setTimeout(() => {
+    focusOutTimer = null;
+    if (!started || !isListenerActive) return;
     if (!activeInput) return;
     const activeElement = document.activeElement;
     if (activeElement instanceof HTMLElement && activeInput.contains(activeElement)) return;
@@ -2299,6 +2309,10 @@ function activateListener(): void {
 }
 
 function deactivateListener(): void {
+  if (focusOutTimer !== null) {
+    window.clearTimeout(focusOutTimer);
+    focusOutTimer = null;
+  }
   if (!isListenerActive) return;
 
   if (keydownHandler) window.removeEventListener('keydown', keydownHandler, { capture: true });
@@ -2337,31 +2351,31 @@ function reconcileListener(): void {
   }
 }
 
-async function loadSettings(): Promise<void> {
+async function loadSettings(): Promise<boolean> {
   return new Promise((resolve) => {
     try {
       if (typeof chrome === 'undefined' || !chrome.storage?.sync?.get) {
-        resolve();
+        resolve(false);
         return;
       }
 
       chrome.storage.sync.get({ [StorageKeys.INPUT_VIM_MODE]: false }, (result) => {
-        isEnabled = result?.[StorageKeys.INPUT_VIM_MODE] === true;
-        resolve();
+        resolve(result?.[StorageKeys.INPUT_VIM_MODE] === true);
       });
     } catch (error) {
       if (!isExtensionContextInvalidatedError(error)) {
         console.warn('[InputVimMode] Failed to load settings:', error);
       }
-      resolve();
+      resolve(false);
     }
   });
 }
 
-function setupStorageListener(): void {
+function setupStorageListener(generation: number): void {
   if (storageListener) return;
 
   storageListener = (changes, areaName) => {
+    if (!isActiveGeneration(generation)) return;
     if (areaName !== 'sync' || !(StorageKeys.INPUT_VIM_MODE in changes)) return;
 
     isEnabled = changes[StorageKeys.INPUT_VIM_MODE].newValue === true;
@@ -2379,7 +2393,9 @@ function setupStorageListener(): void {
   }
 }
 
-function cleanup(): void {
+export function stopInputVimMode(): void {
+  started = false;
+  lifecycleGeneration += 1;
   isEnabled = false;
   deactivateListener();
   clearUndoStack();
@@ -2404,9 +2420,14 @@ function cleanup(): void {
 }
 
 export async function startInputVimMode(): Promise<() => void> {
-  setupStorageListener();
-  await loadSettings();
+  if (started) return stopInputVimMode;
+  started = true;
+  const generation = ++lifecycleGeneration;
+  setupStorageListener(generation);
+  const enabled = await loadSettings();
+  if (!isActiveGeneration(generation)) return stopInputVimMode;
+  isEnabled = enabled;
   reconcileListener();
 
-  return cleanup;
+  return stopInputVimMode;
 }

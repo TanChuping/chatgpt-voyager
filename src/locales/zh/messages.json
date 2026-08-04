@@ -389,6 +389,24 @@
   "chatFontSizeLarge": {
     "message": "大"
   },
+  "chatLineHeight": {
+    "message": "对话行高"
+  },
+  "chatLineHeightTight": {
+    "message": "紧凑"
+  },
+  "chatLineHeightLoose": {
+    "message": "宽松"
+  },
+  "chatParagraphSpacing": {
+    "message": "段落间距"
+  },
+  "chatParagraphSpacingCompact": {
+    "message": "紧凑"
+  },
+  "chatParagraphSpacingSpacious": {
+    "message": "宽松"
+  },
   "chatFontFamily": {
     "message": "聊天字体"
   },
@@ -449,8 +467,47 @@
   "formulaCopyFormatNotion": {
     "message": "Notion（$$）"
   },
-  "folder_filter_current_user": {
-    "message": "Filter current user"
+  "folder_search_placeholder": {
+    "message": "搜索文件夹和对话"
+  },
+  "folder_search_expand": {
+    "message": "展开搜索框"
+  },
+  "folder_search_collapse": {
+    "message": "折叠搜索框"
+  },
+  "folder_search_mode_folder": {
+    "message": "仅文件夹"
+  },
+  "folder_search_empty": {
+    "message": "没有匹配的文件夹或对话"
+  },
+  "folder_settings": {
+    "message": "文件夹设置"
+  },
+  "folder_sort": {
+    "message": "会话排序"
+  },
+  "folder_sort_manual": {
+    "message": "手动排序"
+  },
+  "folder_sort_recent": {
+    "message": "最近打开"
+  },
+  "folder_item_font_size": {
+    "message": "字号"
+  },
+  "folder_item_font_size_decrease": {
+    "message": "减小"
+  },
+  "folder_item_font_size_increase": {
+    "message": "增大"
+  },
+  "folder_hide_section": {
+    "message": "隐藏文件夹内容"
+  },
+  "folder_show_section": {
+    "message": "显示文件夹内容"
   },
   "folder_export": {
     "message": "Export folders"
@@ -1480,6 +1537,30 @@
   },
   "mermaidRenderingHint": {
     "message": "将 Mermaid 代码块渲染为图表。"
+  },
+  "longCodeBlockCollapse": {
+    "message": "长代码块折叠"
+  },
+  "longCodeBlockCollapseHint": {
+    "message": "为较长的 ChatGPT 代码块添加展开和折叠按钮。"
+  },
+  "responseCompleteNotification": {
+    "message": "回复完成通知"
+  },
+  "responseCompleteNotificationHint": {
+    "message": "ChatGPT 回复完成时显示系统通知；点击通知返回对应对话。"
+  },
+  "responseCompleteNotificationTitle": {
+    "message": "ChatGPT 回复完成"
+  },
+  "responseCompleteNotificationMessage": {
+    "message": "回复已完成。"
+  },
+  "codeBlockExpand": {
+    "message": "展开代码块"
+  },
+  "codeBlockCollapse": {
+    "message": "折叠代码块"
   },
   "quoteReplyHint": {
     "message": "用选中文本作为引用上下文回复。"

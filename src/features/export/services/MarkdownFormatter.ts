@@ -3,6 +3,8 @@
  * Converts conversation to clean, standard Markdown format
  * Following the "paper book" philosophy - content over design
  */
+import { extractConversationIdFromUrl } from '@/core/utils/conversationIdentity';
+
 import type { ChatTurn, ConversationMetadata } from '../types/export';
 import { DOMContentExtractor } from './DOMContentExtractor';
 
@@ -235,22 +237,10 @@ export class MarkdownFormatter {
    * Extract title from URL
    */
   private static extractTitleFromURL(url: string): string {
-    try {
-      const urlObj = new URL(url);
-      const pathname = urlObj.pathname;
-
-      // Extract from ChatGPT URL pattern.
-      // e.g., /app/conversation-id or /chat/conversation-id
-      const match = pathname.match(/\/(app|chat)\/([^/]+)/);
-      if (match) {
-        const id = match[2];
-        return `ChatGPT Conversation ${id.substring(0, 8)}`;
-      }
-
-      return 'ChatGPT Conversation';
-    } catch {
-      return 'ChatGPT Conversation';
-    }
+    const conversationId = extractConversationIdFromUrl(url);
+    return conversationId
+      ? `ChatGPT Conversation ${conversationId.substring(0, 8)}`
+      : 'ChatGPT Conversation';
   }
 
   /**

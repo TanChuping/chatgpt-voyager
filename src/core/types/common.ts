@@ -43,6 +43,7 @@ export const StorageKeys = {
   FOLDER_FLOATING_POS: 'gptFolderFloatingPos',
   FOLDER_FLOATING_FAB_POS: 'gptFolderFloatingFabPos',
   FOLDER_FLOATING_SIZE: 'gptFolderFloatingSize',
+  FOLDER_CONVERSATION_SORT_MODE: 'gvFolderConversationSortMode',
 
   // Timeline
   /**
@@ -70,6 +71,11 @@ export const StorageKeys = {
   CHAT_FONT_SIZE_ENABLED: 'gvChatFontSizeEnabled',
   CODE_FONT_SIZE: 'gvCodeFontSize',
   CODE_FONT_SIZE_ENABLED: 'gvCodeFontSizeEnabled',
+  LONG_CODE_BLOCK_COLLAPSE_ENABLED: 'gvLongCodeBlockCollapseEnabled',
+  CHAT_LINE_HEIGHT: 'gvChatLineHeight',
+  CHAT_LINE_HEIGHT_ENABLED: 'gvChatLineHeightEnabled',
+  CHAT_PARAGRAPH_SPACING: 'gvChatParagraphSpacing',
+  CHAT_PARAGRAPH_SPACING_ENABLED: 'gvChatParagraphSpacingEnabled',
   /**
    * Chat font family. Preset selection + custom-font metadata go in
    * `chrome.storage.sync` so they round-trip across devices. The actual
@@ -109,6 +115,7 @@ export const StorageKeys = {
   HIDE_PROMPT_MANAGER: 'gvHidePromptManager',
   MERMAID_ENABLED: 'gvMermaidEnabled',
   QUOTE_REPLY_ENABLED: 'gvQuoteReplyEnabled',
+  RESPONSE_COMPLETE_NOTIFICATION_ENABLED: 'gvResponseCompleteNotificationEnabled',
 
   // Input behavior
   CTRL_ENTER_SEND: 'gvCtrlEnterSend',
@@ -126,6 +133,7 @@ export const StorageKeys = {
   // Folder spacing
   GV_FOLDER_SPACING: 'gvFolderSpacing',
   GV_FOLDER_TREE_INDENT: 'gvFolderTreeIndent',
+  GV_FOLDER_ITEM_FONT_SIZE: 'gvFolderItemFontSize',
   /**
    * Move the sidebar folder directory out of the pinned/sticky nav block and
    * mount it as a normal, scrolling sibling positioned BELOW ChatGPT's
@@ -135,7 +143,8 @@ export const StorageKeys = {
    * See FolderManager.createFolderUI / findChatGptChatsSectionBlock.
    */
   GV_FOLDER_BELOW_PROJECTS: 'gvFolderBelowProjects',
-  GV_FOLDER_FILTER_USER_ONLY: 'gvFolderFilterUserOnly',
+  FOLDERS_COLLAPSED: 'gvFoldersCollapsed',
+  FOLDERS_HIDDEN: 'gvFoldersHidden',
   GV_ACCOUNT_ISOLATION_ENABLED: 'gvAccountIsolationEnabled',
 
   // Fork nodes

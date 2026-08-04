@@ -4,6 +4,7 @@
  * Philosophy: Content over design, readability over fidelity
  */
 import { isSafari } from '@/core/utils/browser';
+import { extractConversationIdFromUrl } from '@/core/utils/conversationIdentity';
 
 import type { ChatTurn, ConversationMetadata } from '../types/export';
 import { DOMContentExtractor } from './DOMContentExtractor';
@@ -378,33 +379,18 @@ export class PDFPrintService {
     return true;
   }
 
-  private static isGemLabel(text: string | null | undefined): boolean {
-    const t = (text || '').trim().toLowerCase();
-    return t === 'gem' || t === 'gems';
-  }
-
   private static extractConversationIdFromURL(url: string): string | null {
-    try {
-      const urlObj = new URL(url);
-      const appMatch = urlObj.pathname.match(/\/app\/([^/?#]+)/);
-      if (appMatch?.[1]) return appMatch[1];
-      const gemMatch = urlObj.pathname.match(/\/gem\/[^/]+\/([^/?#]+)/);
-      if (gemMatch?.[1]) return gemMatch[1];
-    } catch {
-      /* ignore */
-    }
-    return null;
+    return extractConversationIdFromUrl(url);
   }
 
   private static extractTitleFromLinkText(link?: HTMLAnchorElement | null): string | null {
     if (!link) return null;
-    const text = (link.innerText || '').trim();
+    const text = (link.innerText || link.textContent || '').trim();
     if (!text) return null;
     const parts = text
       .split('\n')
       .map((s) => s.trim())
       .filter(Boolean)
-      .filter((s) => !this.isGemLabel(s))
       .filter((s) => s.length >= 2);
     if (parts.length === 0) return null;
     return parts.reduce((a, b) => (b.length > a.length ? b : a), parts[0]) || null;
@@ -412,35 +398,22 @@ export class PDFPrintService {
 
   private static extractTitleFromConversationElement(conversationEl: HTMLElement): string | null {
     const scope =
-      (conversationEl.closest('[data-test-id="conversation"]') as HTMLElement) || conversationEl;
-    const bySelector = scope.querySelector(
-      '.gds-label-l, .conversation-title-text, [data-test-id="conversation-title"], h3',
-    );
-    const selectorTitle = bySelector?.textContent?.trim();
-    if (this.isMeaningfulConversationTitle(selectorTitle) && !this.isGemLabel(selectorTitle)) {
-      return selectorTitle;
-    }
-
-    const link = scope.querySelector(
-      'a[href*="/app/"], a[href*="/gem/"]',
-    ) as HTMLAnchorElement | null;
+      (conversationEl.closest('li, [data-testid^="history-item-"]') as HTMLElement | null) ||
+      conversationEl;
+    const link =
+      (conversationEl.matches('a[href]') ? (conversationEl as HTMLAnchorElement) : null) ||
+      (scope.querySelector('a[href*="/c/"], a[href*="/share/"]') as HTMLAnchorElement | null);
     const ariaTitle = link?.getAttribute('aria-label')?.trim();
-    if (this.isMeaningfulConversationTitle(ariaTitle) && !this.isGemLabel(ariaTitle)) {
+    if (this.isMeaningfulConversationTitle(ariaTitle)) {
       return ariaTitle;
     }
     const linkTitle = link?.getAttribute('title')?.trim();
-    if (this.isMeaningfulConversationTitle(linkTitle) && !this.isGemLabel(linkTitle)) {
+    if (this.isMeaningfulConversationTitle(linkTitle)) {
       return linkTitle;
     }
     const fromLinkText = this.extractTitleFromLinkText(link);
     if (this.isMeaningfulConversationTitle(fromLinkText)) {
       return fromLinkText;
-    }
-
-    const label = scope.querySelector('.gds-body-m, .gds-label-m, .subtitle');
-    const labelText = label?.textContent?.trim();
-    if (this.isMeaningfulConversationTitle(labelText) && !this.isGemLabel(labelText)) {
-      return labelText;
     }
 
     const raw = scope.textContent?.trim() || '';
@@ -450,7 +423,7 @@ export class PDFPrintService {
         .split('\n')
         .map((s) => s.trim())
         .filter(Boolean)[0] || raw;
-    if (this.isMeaningfulConversationTitle(firstLine) && !this.isGemLabel(firstLine)) {
+    if (this.isMeaningfulConversationTitle(firstLine)) {
       return firstLine.slice(0, 80);
     }
 
@@ -460,20 +433,10 @@ export class PDFPrintService {
   private static extractTitleFromNativeSidebarByConversationId(
     conversationId: string,
   ): string | null {
-    const escapedConversationId = this.escapeCssAttributeValue(conversationId);
-    const byJslog = document.querySelector(
-      `[data-test-id="conversation"][jslog*="c_${escapedConversationId}"]`,
-    ) as HTMLElement | null;
-    if (byJslog) {
-      const title = this.extractTitleFromConversationElement(byJslog);
-      if (title) return title;
-    }
-
-    const byHrefLink = document.querySelector(
-      `[data-test-id="conversation"] a[href*="${escapedConversationId}"]`,
-    ) as HTMLElement | null;
-    if (byHrefLink) {
-      const title = this.extractTitleFromConversationElement(byHrefLink);
+    const conversationLinks = document.querySelectorAll<HTMLAnchorElement>('a[href*="/c/"]');
+    for (const link of conversationLinks) {
+      if (this.extractConversationIdFromURL(link.href) !== conversationId) continue;
+      const title = this.extractTitleFromConversationElement(link);
       if (title) return title;
     }
 
@@ -1014,18 +977,10 @@ export class PDFPrintService {
    * Helper: Extract title from URL
    */
   private static extractTitleFromURL(url: string): string {
-    try {
-      const urlObj = new URL(url);
-      const pathname = urlObj.pathname;
-      const match = pathname.match(/\/(app|chat)\/([^/]+)/);
-      if (match) {
-        const id = match[2];
-        return `ChatGPT Conversation ${id.substring(0, 8)}`;
-      }
-      return 'ChatGPT Conversation';
-    } catch {
-      return 'ChatGPT Conversation';
-    }
+    const conversationId = extractConversationIdFromUrl(url);
+    return conversationId
+      ? `ChatGPT Conversation ${conversationId.substring(0, 8)}`
+      : 'ChatGPT Conversation';
   }
 
   /**
@@ -1079,14 +1034,6 @@ export class PDFPrintService {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
-  }
-
-  private static escapeCssAttributeValue(value: string): string {
-    const escape = globalThis.CSS?.escape;
-    if (typeof escape === 'function') {
-      return escape(value);
-    }
-    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   }
 
   private static escapeAttribute(text: string): string {

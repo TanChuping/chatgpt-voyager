@@ -6,7 +6,7 @@ import { containsMath, replaceMathWithLatex } from '@/core/utils/latexFromDom';
 
 import { getTranslationSync } from '../../../utils/i18n';
 import { findChatInput } from '../chatInput/index';
-import { expandInputCollapseIfNeeded } from '../inputCollapse/index';
+import { expandInputCollapseIfNeeded } from '../shared/inputCollapseBridge';
 
 // ============================================================================
 // Constants
@@ -590,6 +590,10 @@ export function startQuoteReply() {
     }
   }
   browser.storage.onChanged.addListener(onStorageChanged);
+
+  // The lazy bootstrap starts us after the first qualifying mouseup/keyup.
+  // Re-read that still-active selection so the first quote action is not lost.
+  handleSelectionChange();
 
   // Cleanup
   return () => {

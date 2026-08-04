@@ -22,6 +22,12 @@ import {
 import { getConversationCaptureService } from '@/features/conversationApi/ConversationCaptureService';
 
 import { getTranslationSync, initI18n } from '../../../utils/i18n';
+import {
+  getChatGptConversationElements,
+  getChatGptConversationId,
+  getChatGptConversationTitle,
+  normalizeChatGptConversationId,
+} from '../chatgptDom';
 import { makeStableTurnId } from '../fork/turnId';
 import { TimestampService } from '../timestamp/TimestampService';
 import { eventBus } from './EventBus';
@@ -45,6 +51,14 @@ import {
 } from './hierarchyTypes';
 import { findMatchingStarredMessages } from './starredLookup';
 import type { StarredMessage, StarredMessagesData } from './starredTypes';
+import {
+  TIMELINE_STARS_PREFIX,
+  TIMELINE_TEXT_PINS_PREFIX,
+  applyTimelinePrivateStorageChange,
+  getTimelinePrivateItemSync,
+  hydrateTimelinePrivateItem,
+  setTimelinePrivateItem,
+} from './timelinePrivateStorage';
 import {
   type AnchorSyncResult,
   USER_TURN_ANCHOR_SELECTOR,
@@ -135,6 +149,12 @@ type TimelineTextPinTarget = {
   yOffset: number;
 };
 
+interface LegacyTimelineHierarchyMigration {
+  data: TimelineHierarchyConversationData | null;
+  keys: string[];
+  valid: boolean;
+}
+
 export class TimelineManager {
   private scrollContainer: HTMLElement | null = null;
   private conversationContainer: HTMLElement | null = null;
@@ -160,7 +180,7 @@ export class TimelineManager {
    * the timeline tooltip / preview / dot accent strips don't go blank when
    * the inner body is collapsed.
    *
-   * Persisted to localStorage per-conversation (see TurnTextCache) so the
+   * Persisted to extension-private storage per conversation (see TurnTextCache) so the
    * fallback survives page reloads and dots in long conversations are
    * populated before the user has scrolled past them. Pruned each reconcile
    * pass against the live outer-wrapper turn-id set to drop entries deleted
@@ -202,6 +222,8 @@ export class TimelineManager {
   private scrollRafId: number | null = null;
   private scrollRafFallbackTimerId: number | null = null;
   private scrollSyncTimerId: number | null = null;
+  private previewScrollTimerIds = new Set<number>();
+  private previewScrollRafIds = new Set<number>();
   private lastScrollSyncAt = 0;
   private lastUserScrollAt = 0;
   private deferredMarkerRecalcTimerId: number | null = null;
@@ -287,7 +309,6 @@ export class TimelineManager {
   private resizeIdleRICId: number | null = null;
   private onVisualViewportResize: (() => void) | null = null;
   private zeroTurnsTimer: number | null = null;
-  private onStorage: ((e: StorageEvent) => void) | null = null;
   private onChromeStorageChanged:
     | ((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void)
     | null = null;
@@ -396,6 +417,8 @@ export class TimelineManager {
     this.setupObservers();
     this.conversationId = this.computeConversationId();
     this.turnTextCache.setConversation(this.conversationId);
+    await this.turnTextCache.hydrate();
+    if (this.destroyed) return;
     // Subscribe the turn-text cache to live API captures (page-world hook).
     // Idempotent: install once per manager instance.
     if (!this.cachePrimerInstalled) {
@@ -423,14 +446,12 @@ export class TimelineManager {
         console.warn('[GPT-Voyager] fiber fallback install failed', err);
       }
     }
-    this.loadTextPins();
+    await this.loadTextPins();
+    if (this.destroyed) return;
     await this.loadStars();
+    if (this.destroyed) return;
     await this.syncStarredFromService();
     await this.loadTimelineHierarchyStorageContext();
-    if (this.timelineHierarchyStorageKey === StorageKeys.TIMELINE_HIERARCHY) {
-      this.loadMarkerLevels();
-      this.loadCollapsedMarkers();
-    }
     await this.loadTimelineHierarchyFromExtensionStorage();
     // Initialize timestamp service
     this.timestampService = new TimestampService();
@@ -747,17 +768,17 @@ export class TimelineManager {
    * DRY helper: Get storage key for starred messages
    */
   private getStarsStorageKey(): string | null {
-    return this.conversationId ? `gptTimelineStars:${this.conversationId}` : null;
+    return this.conversationId ? `${TIMELINE_STARS_PREFIX}${this.conversationId}` : null;
   }
 
   private getLegacyStarsStorageKey(): string | null {
     const legacyConversationId = this.computeLegacyConversationId();
-    return legacyConversationId ? `gptTimelineStars:${legacyConversationId}` : null;
+    return legacyConversationId ? `${TIMELINE_STARS_PREFIX}${legacyConversationId}` : null;
   }
 
   private getRouteStarsStorageKey(): string | null {
     const routeConversationId = this.computeRouteConversationId();
-    return routeConversationId ? `gptTimelineStars:${routeConversationId}` : null;
+    return routeConversationId ? `${TIMELINE_STARS_PREFIX}${routeConversationId}` : null;
   }
 
   /**
@@ -772,25 +793,25 @@ export class TimelineManager {
     }
   }
 
-  /**
-   * DRY helper: Safe localStorage setItem with try-catch
-   */
-  private safeLocalStorageSet(key: string, value: string): boolean {
-    try {
-      localStorage.setItem(key, value);
-      return true;
-    } catch (error) {
-      console.warn('[Timeline] Failed to write to localStorage:', error);
-      return false;
-    }
-  }
-
   private areStarredSetsEqual(a: Set<string>, b: Set<string>): boolean {
     if (a.size !== b.size) return false;
     for (const value of a) {
       if (!b.has(value)) return false;
     }
     return true;
+  }
+
+  private parseTimelineStarIds(raw: unknown): Set<string> | null {
+    if (typeof raw !== 'string') return null;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed) || !parsed.every((turnId) => typeof turnId === 'string')) {
+        return null;
+      }
+      return new Set(parsed);
+    } catch {
+      return null;
+    }
   }
 
   private applyStarredIdSet(nextSet: Set<string>, persistLocal = true): void {
@@ -908,27 +929,23 @@ export class TimelineManager {
       }
     }
 
-    // Strategy 3: Try to get from sidebar conversation list
-    // Look for the active conversation in the sidebar
+    // Strategy 3: Resolve the current conversation through the shared
+    // ChatGPT sidebar adapter. This avoids the pre-ChatGPT Material selectors
+    // that used to silently miss every current sidebar row.
     try {
-      // ChatGPT uses various selectors for conversation titles
-      const selectors = [
-        // ChatGPT sidebar active conversation
-        'mat-list-item.mdc-list-item--activated [mat-line]',
-        'mat-list-item[aria-current="page"] [mat-line]',
-        // Legacy active conversation fallback
-        '.conversation-list-item.active .conversation-title',
-        '.active-conversation .title',
-      ];
-
-      for (const selector of selectors) {
-        const element = document.querySelector(selector);
-        if (element && element.textContent) {
-          const text = element.textContent.trim();
-          if (text && text.length > 0 && text !== 'New chat') {
-            return text;
-          }
-        }
+      const currentConversationId = normalizeChatGptConversationId(
+        extractConversationIdFromUrl(window.location.href),
+      );
+      if (currentConversationId) {
+        const currentConversation = getChatGptConversationElements().find(
+          (conversation) =>
+            normalizeChatGptConversationId(getChatGptConversationId(conversation)) ===
+            currentConversationId,
+        );
+        const title = currentConversation
+          ? getChatGptConversationTitle(currentConversation)?.trim()
+          : null;
+        if (title) return title;
       }
     } catch (error) {
       console.debug('[Timeline] Failed to get title from sidebar:', error);
@@ -941,12 +958,11 @@ export class TimelineManager {
       return preview.length < firstMarker.summary.length ? `${preview}...` : preview;
     }
 
-    // Strategy 5: Extract from URL if it contains conversation ID
+    // Strategy 5: Extract from the current ChatGPT route.
     try {
-      const urlPath = window.location.pathname;
-      const match = urlPath.match(/\/app\/([a-zA-Z0-9_-]+)/);
-      if (match && match[1]) {
-        return `Conversation ${match[1].slice(0, 8)}...`;
+      const conversationId = extractConversationIdFromUrl(window.location.href);
+      if (conversationId) {
+        return `Conversation ${conversationId.slice(0, 8)}...`;
       }
     } catch (error) {
       console.debug('[Timeline] Failed to extract from URL:', error);
@@ -2862,24 +2878,20 @@ export class TimelineManager {
     };
     this.ui.timelineBar!.addEventListener('pointermove', this.onBarCursorMove);
 
-    this.onStorage = (e: StorageEvent) => {
-      if (!e || e.storageArea !== localStorage) return;
-      const expectedKey = this.getStarsStorageKey();
-      if (!expectedKey || e.key !== expectedKey) return;
-      let nextArr: string[] = [];
-      try {
-        nextArr = JSON.parse(e.newValue || '[]') || [];
-      } catch {
-        nextArr = [];
-      }
-      const nextSet = new Set(nextArr.map(String));
-      this.applyStarredIdSet(nextSet, false);
-    };
-    window.addEventListener('storage', this.onStorage);
-
     if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
       this.onChromeStorageChanged = (changes, areaName) => {
         if (areaName === 'local') {
+          const privateStarsKey = this.getStarsStorageKey();
+          const privateStarsChange = privateStarsKey ? changes[privateStarsKey] : undefined;
+          if (privateStarsChange && privateStarsKey) {
+            applyTimelinePrivateStorageChange(privateStarsKey, privateStarsChange.newValue);
+            const nextIds =
+              privateStarsChange.newValue === undefined
+                ? new Set<string>()
+                : this.parseTimelineStarIds(privateStarsChange.newValue);
+            if (nextIds) this.applyStarredIdSet(nextIds, false);
+          }
+
           const starredChange = changes[StorageKeys.TIMELINE_STARRED_MESSAGES];
           if (starredChange) {
             this.applySharedStarredData(starredChange.newValue as StarredMessagesData | null);
@@ -2896,9 +2908,6 @@ export class TimelineManager {
             );
             const conversationData = data.conversations[this.conversationId] || null;
             this.applyTimelineHierarchyConversationData(conversationData);
-            if (this.timelineHierarchyStorageKey === StorageKeys.TIMELINE_HIERARCHY) {
-              this.persistTimelineHierarchyToLegacyStorage();
-            }
             this.updateTimelineGeometry();
             this.updateVirtualRangeAndRender();
           }
@@ -3247,36 +3256,54 @@ export class TimelineManager {
   }
 
   private schedulePreviewItemIntoListView(item: HTMLElement): void {
+    if (this.destroyed) return;
     this.scrollPreviewItemIntoListView(item);
     queueMicrotask(() => {
+      if (!this.destroyed && item.isConnected) this.scrollPreviewItemIntoListView(item);
+    });
+    this.schedulePreviewScrollFrame(() => {
       if (item.isConnected) this.scrollPreviewItemIntoListView(item);
     });
-    requestAnimationFrame(() => {
-      if (item.isConnected) this.scrollPreviewItemIntoListView(item);
-    });
-    window.setTimeout(() => {
-      if (item.isConnected) this.scrollPreviewItemIntoListView(item);
-    }, 100);
-    window.setTimeout(() => {
-      if (item.isConnected) this.scrollPreviewItemIntoListView(item);
-    }, 300);
-    window.setTimeout(() => {
-      if (item.isConnected) this.scrollPreviewItemIntoListView(item);
-    }, 700);
+    for (const delay of [100, 300, 700]) {
+      this.schedulePreviewScrollTimer(() => {
+        if (item.isConnected) this.scrollPreviewItemIntoListView(item);
+      }, delay);
+    }
   }
 
   private schedulePreviewTurnIntoListView(turnId: string | null): void {
-    if (!turnId) return;
+    if (!turnId || this.destroyed) return;
     const scroll = () => {
+      if (this.destroyed || typeof document === 'undefined') return;
       const item = this.findPreviewItemByTurnId(turnId);
       if (item) this.scrollPreviewItemIntoListView(item);
     };
     scroll();
     queueMicrotask(scroll);
-    requestAnimationFrame(scroll);
-    window.setTimeout(scroll, 100);
-    window.setTimeout(scroll, 300);
-    window.setTimeout(scroll, 700);
+    this.schedulePreviewScrollFrame(scroll);
+    for (const delay of [100, 300, 700]) {
+      this.schedulePreviewScrollTimer(scroll, delay);
+    }
+  }
+
+  private schedulePreviewScrollFrame(callback: () => void): void {
+    let frameId: number | null = null;
+    let completedSynchronously = false;
+    const scheduledFrameId = requestAnimationFrame(() => {
+      completedSynchronously = true;
+      if (frameId !== null) this.previewScrollRafIds.delete(frameId);
+      if (!this.destroyed) callback();
+    });
+    frameId = scheduledFrameId;
+    if (!completedSynchronously) this.previewScrollRafIds.add(scheduledFrameId);
+  }
+
+  private schedulePreviewScrollTimer(callback: () => void, delay: number): void {
+    const timerId = window.setTimeout(() => {
+      this.previewScrollTimerIds.delete(timerId);
+      if (!this.destroyed) callback();
+    }, delay);
+    this.previewScrollTimerIds.add(timerId);
   }
 
   private findPreviewItemByTurnId(turnId: string): HTMLElement | null {
@@ -3311,15 +3338,17 @@ export class TimelineManager {
   }
 
   private getPinsStorageKey(): string | null {
-    return this.conversationId ? `gptTimelineTextPins:${this.conversationId}` : null;
+    return this.conversationId ? `${TIMELINE_TEXT_PINS_PREFIX}${this.conversationId}` : null;
   }
 
-  private loadTextPins(): void {
+  private async loadTextPins(): Promise<void> {
     this.pinsByTurn.clear();
     const key = this.getPinsStorageKey();
     if (!key) return;
     try {
-      const raw = localStorage.getItem(key);
+      let raw = getTimelinePrivateItemSync(key);
+      if (!raw) raw = await hydrateTimelinePrivateItem(key);
+      if (this.destroyed || key !== this.getPinsStorageKey()) return;
       if (!raw) return;
       const parsed = JSON.parse(raw) as { pins?: unknown } | unknown[];
       const rawPins = Array.isArray(parsed)
@@ -3357,7 +3386,7 @@ export class TimelineManager {
     const key = this.getPinsStorageKey();
     if (!key) return;
     const pins = Array.from(this.pinsByTurn.values()).flat();
-    this.safeLocalStorageSet(key, JSON.stringify({ version: 1, pins }));
+    void setTimelinePrivateItem(key, JSON.stringify({ version: 1, pins }));
   }
 
   private clamp01(value: number): number {
@@ -5261,18 +5290,14 @@ export class TimelineManager {
     );
   }
 
-  /**
-   * Save starred messages to localStorage using DRY helper
-   */
+  /** Save starred ids to extension-private storage. */
   private saveStars(): void {
     const key = this.getStarsStorageKey();
     if (!key) return;
-    this.safeLocalStorageSet(key, JSON.stringify(Array.from(this.starred)));
+    void setTimelinePrivateItem(key, JSON.stringify(Array.from(this.starred)));
   }
 
-  /**
-   * Load starred messages from localStorage using DRY helper
-   */
+  /** Load starred ids from the synchronous front cache, hydrating on miss. */
   private async loadStars(): Promise<void> {
     this.starred.clear();
     const key = this.getStarsStorageKey();
@@ -5282,26 +5307,26 @@ export class TimelineManager {
       (candidate): candidate is string => Boolean(candidate && candidate !== key),
     );
 
-    let raw = this.safeLocalStorageGet(key);
-    if (!raw) {
+    let raw = getTimelinePrivateItemSync(key);
+    if (!raw) raw = await hydrateTimelinePrivateItem(key);
+    if (this.destroyed || key !== this.getStarsStorageKey()) return;
+    let parsed = this.parseTimelineStarIds(raw);
+    if (!parsed) {
       for (const fallbackKey of fallbackKeys) {
-        raw = this.safeLocalStorageGet(fallbackKey);
-        if (raw) {
-          this.safeLocalStorageSet(key, raw);
+        let fallbackRaw = getTimelinePrivateItemSync(fallbackKey);
+        if (!fallbackRaw) fallbackRaw = await hydrateTimelinePrivateItem(fallbackKey);
+        if (this.destroyed || key !== this.getStarsStorageKey()) return;
+        const fallbackParsed = this.parseTimelineStarIds(fallbackRaw);
+        if (fallbackRaw && fallbackParsed) {
+          await setTimelinePrivateItem(key, fallbackRaw);
+          if (this.destroyed || key !== this.getStarsStorageKey()) return;
+          parsed = fallbackParsed;
           break;
         }
       }
     }
-    if (!raw) return;
-
-    try {
-      const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) {
-        arr.forEach((id: unknown) => this.starred.add(String(id)));
-      }
-    } catch (error) {
-      console.warn('[Timeline] Failed to parse starred messages:', error);
-    }
+    if (!parsed) return;
+    this.starred = parsed;
   }
 
   // ===== Marker Level Methods =====
@@ -5310,32 +5335,8 @@ export class TimelineManager {
     return this.conversationId ? getLegacyTimelineLevelsStorageKey(this.conversationId) : null;
   }
 
-  /* Load marker levels from legacy localStorage */
-  private loadMarkerLevels(): void {
-    this.markerLevels.clear();
-    const key = this.getLevelsStorageKey();
-    if (!key) return;
-
-    const raw = this.safeLocalStorageGet(key);
-    if (!raw) return;
-
-    try {
-      const obj = JSON.parse(raw) as Record<string, unknown>;
-      Object.entries(obj).forEach(([turnId, level]) => {
-        if (level === 1 || level === 2 || level === 3) {
-          this.markerLevels.set(turnId, level);
-        }
-      });
-    } catch (error) {
-      console.warn('[Timeline] Failed to parse marker levels:', error);
-    }
-  }
-
-  /* Save marker levels to legacy localStorage and mirrored extension storage */
+  /* Save marker levels to extension-private aggregate storage. */
   private saveMarkerLevels(): void {
-    if (this.timelineHierarchyStorageKey === StorageKeys.TIMELINE_HIERARCHY) {
-      this.persistTimelineHierarchyToLegacyStorage();
-    }
     void this.persistTimelineHierarchyToExtensionStorage();
   }
 
@@ -5345,28 +5346,7 @@ export class TimelineManager {
     return this.conversationId ? getLegacyTimelineCollapsedStorageKey(this.conversationId) : null;
   }
 
-  private loadCollapsedMarkers(): void {
-    this.collapsedMarkers.clear();
-    const key = this.getCollapsedStorageKey();
-    if (!key) return;
-
-    const raw = this.safeLocalStorageGet(key);
-    if (!raw) return;
-
-    try {
-      const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) {
-        arr.forEach((id: unknown) => this.collapsedMarkers.add(String(id)));
-      }
-    } catch (error) {
-      console.warn('[Timeline] Failed to parse collapsed markers:', error);
-    }
-  }
-
   private saveCollapsedMarkers(): void {
-    if (this.timelineHierarchyStorageKey === StorageKeys.TIMELINE_HIERARCHY) {
-      this.persistTimelineHierarchyToLegacyStorage();
-    }
     void this.persistTimelineHierarchyToExtensionStorage();
   }
 
@@ -5392,24 +5372,36 @@ export class TimelineManager {
     };
   }
 
-  private buildLegacyTimelineHierarchyConversationData(): TimelineHierarchyConversationData | null {
+  private buildLegacyTimelineHierarchyMigration(): LegacyTimelineHierarchyMigration {
     if (!this.conversationId) {
-      return null;
+      return { data: null, keys: [], valid: true };
     }
 
+    const keys: string[] = [];
+    let valid = true;
     const levels: Record<string, MarkerLevel> = {};
     const levelsKey = this.getLevelsStorageKey();
     if (levelsKey) {
       const rawLevels = this.safeLocalStorageGet(levelsKey);
       if (rawLevels) {
+        keys.push(levelsKey);
         try {
-          const parsedLevels = JSON.parse(rawLevels) as Record<string, unknown>;
-          Object.entries(parsedLevels).forEach(([turnId, level]) => {
-            if (level === 1 || level === 2 || level === 3) {
-              levels[turnId] = level;
-            }
-          });
+          const parsedLevels = JSON.parse(rawLevels) as unknown;
+          if (
+            typeof parsedLevels !== 'object' ||
+            parsedLevels === null ||
+            Array.isArray(parsedLevels)
+          ) {
+            valid = false;
+          } else {
+            Object.entries(parsedLevels).forEach(([turnId, level]) => {
+              if (level === 1 || level === 2 || level === 3) {
+                levels[turnId] = level;
+              }
+            });
+          }
         } catch (error) {
+          valid = false;
           console.warn('[Timeline] Failed to parse legacy marker levels:', error);
         }
       }
@@ -5420,26 +5412,35 @@ export class TimelineManager {
     if (collapsedKey) {
       const rawCollapsed = this.safeLocalStorageGet(collapsedKey);
       if (rawCollapsed) {
+        keys.push(collapsedKey);
         try {
           const parsedCollapsed = JSON.parse(rawCollapsed);
           if (Array.isArray(parsedCollapsed)) {
             collapsed = parsedCollapsed.map((turnId: unknown) => String(turnId));
+          } else {
+            valid = false;
           }
         } catch (error) {
+          valid = false;
           console.warn('[Timeline] Failed to parse legacy collapsed markers:', error);
         }
       }
     }
 
+    if (!valid) return { data: null, keys, valid: false };
     if (Object.keys(levels).length === 0 && collapsed.length === 0) {
-      return null;
+      return { data: null, keys, valid: true };
     }
 
     return {
-      conversationUrl: window.location.href,
-      levels,
-      collapsed,
-      updatedAt: Date.now(),
+      data: {
+        conversationUrl: window.location.href,
+        levels,
+        collapsed,
+        updatedAt: Date.now(),
+      },
+      keys,
+      valid: true,
     };
   }
 
@@ -5483,22 +5484,6 @@ export class TimelineManager {
     }
   }
 
-  private persistTimelineHierarchyToLegacyStorage(): void {
-    const levelsKey = this.getLevelsStorageKey();
-    if (levelsKey) {
-      const levels: Record<string, MarkerLevel> = {};
-      this.markerLevels.forEach((level, turnId) => {
-        levels[turnId] = level;
-      });
-      this.safeLocalStorageSet(levelsKey, JSON.stringify(levels));
-    }
-
-    const collapsedKey = this.getCollapsedStorageKey();
-    if (collapsedKey) {
-      this.safeLocalStorageSet(collapsedKey, JSON.stringify(Array.from(this.collapsedMarkers)));
-    }
-  }
-
   private async loadTimelineHierarchyFromExtensionStorage(): Promise<void> {
     if (!this.conversationId || typeof chrome === 'undefined' || !chrome.storage?.local?.get) {
       return;
@@ -5514,41 +5499,67 @@ export class TimelineManager {
         this.timelineHierarchyAccountScope?.routeUserId ?? null,
       );
       const conversationData = data.conversations[this.conversationId] || null;
+      const legacyMigration = this.buildLegacyTimelineHierarchyMigration();
 
       if (conversationData) {
         this.applyTimelineHierarchyConversationData(conversationData);
-        if (this.timelineHierarchyStorageKey === StorageKeys.TIMELINE_HIERARCHY) {
-          this.persistTimelineHierarchyToLegacyStorage();
-        }
-        return;
+      } else if (legacyMigration.valid && legacyMigration.keys.length > 0) {
+        this.applyTimelineHierarchyConversationData(legacyMigration.data);
+      } else {
+        this.applyTimelineHierarchyConversationData(null);
       }
 
-      if (this.timelineHierarchyStorageKey !== StorageKeys.TIMELINE_HIERARCHY) {
-        const legacyConversationData = this.buildLegacyTimelineHierarchyConversationData();
-        if (legacyConversationData) {
-          this.applyTimelineHierarchyConversationData(legacyConversationData);
-          await this.persistTimelineHierarchyToExtensionStorage();
-          return;
+      // Legacy values are migration input only. Re-write the authoritative
+      // aggregate (extension data wins on conflict), verify a fresh read, and
+      // only then remove the exact host keys that were represented.
+      if (legacyMigration.valid && legacyMigration.keys.length > 0) {
+        const verified = await this.persistTimelineHierarchyToExtensionStorage();
+        if (verified) {
+          for (const key of legacyMigration.keys) {
+            try {
+              localStorage.removeItem(key);
+            } catch {
+              // Leave a failed removal for a later reload retry.
+            }
+          }
         }
-      }
-
-      if (this.hasTimelineHierarchyData()) {
-        await this.persistTimelineHierarchyToExtensionStorage();
       }
     } catch (error) {
       console.warn('[Timeline] Failed to load timeline hierarchy from extension storage:', error);
     }
   }
 
-  private async persistTimelineHierarchyToExtensionStorage(): Promise<void> {
+  private areTimelineHierarchyConversationDataEqual(
+    a: TimelineHierarchyConversationData | null,
+    b: TimelineHierarchyConversationData | null,
+  ): boolean {
+    if (!a || !b) return a === b;
+    if (a.conversationUrl !== b.conversationUrl || a.updatedAt !== b.updatedAt) return false;
+    if (a.collapsed.length !== b.collapsed.length) return false;
+    if (a.collapsed.some((turnId, index) => b.collapsed[index] !== turnId)) return false;
+    const aLevels = Object.entries(a.levels).sort(([left], [right]) => left.localeCompare(right));
+    const bLevels = Object.entries(b.levels).sort(([left], [right]) => left.localeCompare(right));
+    return (
+      aLevels.length === bLevels.length &&
+      aLevels.every(([turnId, level], index) => {
+        const other = bLevels[index];
+        return other?.[0] === turnId && other[1] === level;
+      })
+    );
+  }
+
+  private async persistTimelineHierarchyToExtensionStorage(): Promise<boolean> {
     if (!this.conversationId || typeof chrome === 'undefined' || !chrome.storage?.local?.get) {
-      return;
+      return false;
     }
 
     try {
-      const storageValues = (await chrome.storage.local.get(
-        getTimelineHierarchyStorageKeysToRead(this.timelineHierarchyAccountScope?.accountKey),
-      )) as Record<string, unknown>;
+      const conversationId = this.conversationId;
+      const storageKey = this.timelineHierarchyStorageKey;
+      const keysToRead = getTimelineHierarchyStorageKeysToRead(
+        this.timelineHierarchyAccountScope?.accountKey,
+      );
+      const storageValues = (await chrome.storage.local.get(keysToRead)) as Record<string, unknown>;
       const existing = resolveTimelineHierarchyDataForStorageScope(
         storageValues,
         this.timelineHierarchyAccountScope?.accountKey,
@@ -5558,16 +5569,30 @@ export class TimelineManager {
       const currentConversationData = this.buildTimelineHierarchyConversationData();
 
       if (currentConversationData) {
-        conversations[this.conversationId] = currentConversationData;
+        conversations[conversationId] = currentConversationData;
       } else {
-        delete conversations[this.conversationId];
+        delete conversations[conversationId];
       }
 
       await chrome.storage.local.set({
-        [this.timelineHierarchyStorageKey]: { conversations },
+        [storageKey]: { conversations },
       });
+      const readbackValues = (await chrome.storage.local.get(keysToRead)) as Record<
+        string,
+        unknown
+      >;
+      const readback = resolveTimelineHierarchyDataForStorageScope(
+        readbackValues,
+        this.timelineHierarchyAccountScope?.accountKey,
+        this.timelineHierarchyAccountScope?.routeUserId ?? null,
+      );
+      return this.areTimelineHierarchyConversationDataEqual(
+        currentConversationData,
+        readback.conversations[conversationId] || null,
+      );
     } catch (error) {
       console.warn('[Timeline] Failed to persist timeline hierarchy to extension storage:', error);
+      return false;
     }
   }
 
@@ -6436,7 +6461,7 @@ export class TimelineManager {
     // (URL change between conversations triggers destroy → new TimelineManager,
     // so an in-flight debounced save would otherwise drop on the floor).
     try {
-      this.turnTextCache.flushSync();
+      this.turnTextCache.destroy();
     } catch {}
 
     // Unsubscribe from the API-capture service so we don't leak a listener
@@ -6528,9 +6553,6 @@ export class TimelineManager {
         this.ui.timelineBar.removeEventListener('click', this.onTimelineBarClick);
       } catch {}
     }
-    try {
-      window.removeEventListener('storage', this.onStorage!);
-    } catch {}
     if (this.onChromeStorageChanged && typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
       try {
         chrome.storage.onChanged.removeListener(this.onChromeStorageChanged);
@@ -6631,6 +6653,18 @@ export class TimelineManager {
       } catch {}
       this.scrollSyncTimerId = null;
     }
+    this.previewScrollRafIds.forEach((frameId) => {
+      try {
+        cancelAnimationFrame(frameId);
+      } catch {}
+    });
+    this.previewScrollRafIds.clear();
+    this.previewScrollTimerIds.forEach((timerId) => {
+      try {
+        window.clearTimeout(timerId);
+      } catch {}
+    });
+    this.previewScrollTimerIds.clear();
     if (this.deferredMarkerRecalcTimerId !== null) {
       try {
         window.clearTimeout(this.deferredMarkerRecalcTimerId);

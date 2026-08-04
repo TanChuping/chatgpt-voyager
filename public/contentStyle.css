@@ -13,6 +13,16 @@ html {
   overflow-x: clip !important;
 }
 
+/* Keep the 1.7.5 sidebar baseline in the always-injected stylesheet. The
+ * lazy sidebar-width module is reserved for an explicit non-default value and
+ * appends the same selectors later, so a user-selected width still wins. */
+:root,
+#stage-slideover-sidebar,
+#stage-slideover-sidebar [style*='--sidebar-width'],
+#stage-slideover-sidebar [class*='w-(--sidebar-width)'] {
+  --sidebar-width: 280px !important;
+}
+
 .gv-pm-panel,
 .gv-pm-trigger,
 .gv-pm-header,
@@ -4351,8 +4361,10 @@ body.light-theme {
 
 /* Folder Container */
 .gv-folder-container {
-  margin: 4px 0 6px;
-  padding: 4px 8px;
+  --gv-folder-section-gutter: 14px;
+  --gv-folder-list-edge: 4px;
+  margin: 0 0 4px;
+  padding: 0 0 4px;
   position: sticky;
   top: var(--gv-folder-sticky-top, 52px);
   z-index: 20;
@@ -4390,8 +4402,10 @@ body.light-theme {
  * by leaving our own header at the same horizontal indent (8px = matches the
  * native menu-item padding) without an extra outer chrome. */
 .gv-folder-container.gv-folder-container--in-nav-block .gv-folder-header {
-  padding-inline: 6px;
-  margin-block: 2px;
+  padding-block: 4px;
+  padding-inline-start: var(--gv-folder-section-gutter);
+  padding-inline-end: 6px;
+  margin: 0 0 2px;
 }
 
 /* ── Opt-in "below Projects / above Recent" layout ──
@@ -4403,14 +4417,16 @@ body.light-theme {
   position: static;
   top: auto;
   z-index: auto;
-  margin: 0 0 var(--sidebar-expanded-section-margin-bottom, 8px);
-  padding: 0;
+  margin: 0 0 4px;
+  padding: 0 0 4px;
   background: transparent;
 }
 
 .gv-folder-container.gv-folder-container--below-projects .gv-folder-header {
-  padding-inline: 6px;
-  margin-block: 2px;
+  padding-block: 4px;
+  padding-inline-start: var(--gv-folder-section-gutter);
+  padding-inline-end: 6px;
+  margin: 0 0 2px;
 }
 
 .gv-folder-container mat-icon,
@@ -4453,18 +4469,16 @@ body.light-theme {
 }
 
 .gv-folder-add-btn::before {
-  content: '+';
-  font-size: 22px;
+  content: none;
+  display: none;
 }
 
 .gv-folder-action-btn::before {
   /* U+22EF (⋯ midline horizontal ellipsis) sits on the math line instead
    * of the baseline — three baseline dots in `...` looked low inside the
    * hover circle. */
-  content: '\22EF';
-  font-size: 18px;
-  letter-spacing: 0;
-  line-height: 1;
+  content: none;
+  display: none;
 }
 
 .gv-folder-expand-btn::before {
@@ -4519,9 +4533,11 @@ body.light-theme {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 32px;
-  padding: 2px 8px;
-  margin-bottom: 2px;
+  column-gap: 14px;
+  padding-block: 6px;
+  padding-inline-start: var(--gv-folder-section-gutter);
+  padding-inline-end: 10px;
+  margin-bottom: 6px;
   border-radius: 8px;
   transition:
     background-color 0.2s,
@@ -4535,6 +4551,44 @@ body.light-theme {
 
 .gv-folder-header .title-container {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.gv-folder-section-toggle {
+  width: 20px;
+  height: 20px;
+  margin-left: -6px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--folder-icon-color);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.gv-folder-section-toggle:hover {
+  background-color: var(--folder-hover-bg);
+  color: var(--folder-text);
+}
+
+.gv-folder-section-toggle svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.gv-folder-action-btn svg,
+.gv-folder-add-btn svg {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 /* Section heading — matches ChatGPT's other sidebar section labels
@@ -4544,17 +4598,76 @@ body.light-theme {
 .gv-folder-header .title {
   margin: 0;
   padding-left: 0;
-  color: var(--text-secondary, var(--folder-text));
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 18px;
-  letter-spacing: 0.01em;
+  color: rgba(31, 31, 31, 0.6);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 17px;
+  letter-spacing: normal;
+  white-space: nowrap;
+}
+
+html.dark .gv-folder-header .title,
+body.dark-theme .gv-folder-header .title,
+[data-theme='dark'] .gv-folder-header .title,
+[data-color-scheme='dark'] .gv-folder-header .title {
+  color: rgba(255, 255, 255, 0.54);
+}
+
+.gv-folder-search {
+  position: relative;
+  padding-block: 0 8px;
+  padding-inline-start: var(--gv-folder-section-gutter);
+  padding-inline-end: 8px;
+}
+
+.gv-folder-search-input {
+  width: 100%;
+  height: 36px;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  color: var(--folder-text);
+  padding: 0 12px;
+  font: 400 13px/18px inherit;
+  outline: none;
+}
+
+.gv-folder-search-folder-mode .gv-folder-search-input {
+  padding-right: 92px;
+}
+
+.gv-folder-search-mode-badge {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  max-width: 72px;
+  overflow: hidden;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--folder-active-bg);
+  color: var(--folder-text);
+  font: 500 11px/18px inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.gv-folder-search-input::placeholder {
+  color: var(--folder-icon-color);
+  opacity: 0.72;
+}
+
+.gv-folder-search-input:focus {
+  border-color: var(--folder-selected-accent);
+  background: color-mix(in srgb, currentColor 9%, transparent);
 }
 
 .gv-folder-header-actions {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 .gv-folder-add-btn {
@@ -4578,11 +4691,96 @@ body.light-theme {
   color: var(--folder-text);
 }
 
+.gv-folder-collapsed .gv-folder-search {
+  display: none;
+}
+
+.gv-folder-hidden {
+  min-height: 22px;
+  margin-block: 0 !important;
+  padding: 0 !important;
+}
+
+.gv-folder-hidden > :not(.gv-folder-peek-bar) {
+  display: none !important;
+}
+
+/* Adapted from Gemini Voyager's historical section hider: the complete
+ * Folder section disappears and leaves only a slim, clickable restore bar. */
+.gv-folder-peek-bar {
+  display: none;
+  width: calc(100% - 32px);
+  height: 6px;
+  margin: 8px 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, currentColor 10%, transparent) 20%,
+    color-mix(in srgb, currentColor 10%, transparent) 80%,
+    transparent 100%
+  );
+  color: var(--folder-selected-accent);
+  cursor: pointer;
+  position: relative;
+  box-sizing: border-box;
+  transition:
+    height 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gv-folder-peek-bar::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition:
+    width 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.gv-folder-hidden .gv-folder-peek-bar {
+  display: block;
+}
+
+.gv-folder-peek-bar:hover,
+.gv-folder-peek-bar:focus-visible {
+  height: 12px;
+  outline: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, currentColor 16%, transparent) 15%,
+    color-mix(in srgb, currentColor 16%, transparent) 85%,
+    transparent 100%
+  );
+}
+
+.gv-folder-peek-bar:hover::after,
+.gv-folder-peek-bar:focus-visible::after {
+  width: 60px;
+  opacity: 1;
+}
+
+.gv-folder-action-btn.gv-filter-active {
+  color: var(--folder-selected-accent);
+  background: var(--folder-active-bg);
+  opacity: 1;
+}
+
 /* Folder List */
 .gv-folder-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
   min-height: 24px;
   /* Reduced min-height for better visual balance when empty */
   padding: 2px 4px;
@@ -4616,7 +4814,10 @@ body.light-theme {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  /* ChatGPT native conversation rows are 36px: 24px content + 6px per side. */
+  min-height: 36px;
+  padding: 6px 12px;
+  box-sizing: border-box;
   border-radius: 8px;
   cursor: pointer;
   transition: background-color 0.2s;
@@ -4654,14 +4855,79 @@ body.light-theme {
   height: 0;
   margin: 0 8px;
   border-radius: 1px;
-  padding: 3px 0;
-  transition: background-color 0.15s ease;
+  padding: 0;
+  pointer-events: none;
+  transition:
+    height 0.12s ease,
+    margin 0.12s ease,
+    background-color 0.15s ease;
 }
 
-/* Last-child drop zone: collapse to avoid ~6px of dead space below the last
- * folder. Users can still reorder via drag onto existing gaps or context menu. */
-.gv-reorder-gap:last-child {
+/* Keep the native 0px rhythm at rest. Once a real drag starts, temporarily
+ * open every insertion target (including the final one) so reordering remains
+ * easy without permanently making the Folder list look looser than ChatGPT. */
+.gv-folder-reorder-active .gv-reorder-gap {
+  height: 8px;
+  margin-block: 1px;
+  pointer-events: auto;
+}
+
+/* Long ChatGPT code blocks: loaded behavior is setting-gated; these inert
+ * selectors add no observers or runtime work while the feature is disabled. */
+.gv-code-block-collapsible #code-block-viewer {
+  position: relative;
+}
+
+.gv-code-block-collapsed #code-block-viewer {
+  max-height: clamp(240px, 38vh, 340px) !important;
+  overflow: hidden !important;
+}
+
+.gv-code-block-collapsed #code-block-viewer::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 72px;
+  background: linear-gradient(transparent, var(--code-block-surface));
+  pointer-events: none;
+}
+
+.gv-code-block-toggle {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
   padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    transform 100ms ease;
+}
+
+.gv-code-block-toggle:hover {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.gv-code-block-toggle:active {
+  transform: scale(0.97);
+}
+
+.gv-code-block-toggle:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 1px;
+}
+
+.gv-code-block-toggle svg {
+  width: 18px;
+  height: 18px;
 }
 
 .gv-reorder-gap-active {
@@ -4695,7 +4961,7 @@ body.light-theme {
 
 .gv-folder-name {
   flex: 1;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--folder-text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4769,8 +5035,8 @@ body.light-theme {
 .gv-folder-content {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-top: 2px;
+  gap: 0;
+  margin-top: 0;
   margin-left: 12px;
   padding-left: 8px;
   border-left: 1px solid var(--folder-border);
@@ -4781,7 +5047,9 @@ body.light-theme {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 8px 6px;
+  min-height: 36px;
+  padding: 6px;
+  box-sizing: border-box;
   border-radius: 8px;
   cursor: pointer;
   transition:
@@ -5053,7 +5321,7 @@ body.light-theme {
 
 .gv-conversation-title {
   flex: 1;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--folder-text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5263,6 +5531,108 @@ body.light-theme .gv-folder-menu-item {
 .theme-host.light-theme .gv-folder-menu-item:hover,
 body.light-theme .gv-folder-menu-item:hover {
   background: oklch(0.14 0.004 285 / 0.06);
+}
+
+.gv-folder-menu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.gv-folder-settings-menu {
+  min-width: 340px;
+}
+
+.gv-folder-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 9px;
+}
+
+.gv-folder-settings-label {
+  color: var(--folder-text, oklch(0.14 0.004 285));
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.gv-folder-sort-options {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+.gv-folder-sort-option {
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--folder-icon-color, currentColor);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.gv-folder-sort-option:hover:not(.is-active) {
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+.gv-folder-sort-option.is-active {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  color: var(--folder-text, currentColor);
+  box-shadow: 0 1px 3px oklch(0 0 0 / 0.12);
+}
+
+.gv-folder-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gv-folder-stepper-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--folder-text, currentColor);
+  cursor: pointer;
+  font: 500 20px/1 inherit;
+}
+
+.gv-folder-stepper-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+.gv-folder-stepper-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.gv-folder-stepper-value {
+  min-width: 46px;
+  color: var(--folder-text, currentColor);
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 鈹€鈹€ Color Picker Dialog 鈹€鈹€ */
@@ -6015,9 +6385,11 @@ body.light-theme ms-katex:hover {
 
 /* Action buttons (import/export) */
 .gv-folder-action-btn {
+  width: 32px;
+  height: 32px;
   background: none;
   border: none;
-  padding: 4px;
+  padding: 0;
   cursor: pointer;
   border-radius: 50%;
   color: var(--folder-icon-color);
@@ -6026,6 +6398,7 @@ body.light-theme ms-katex:hover {
   justify-content: center;
   transition: background-color 0.2s ease;
   opacity: 0.9;
+  flex: 0 0 auto;
 }
 
 .gv-folder-action-btn:hover {
@@ -6040,10 +6413,13 @@ body.dark-theme .gv-folder-action-btn:hover,
   background-color: rgba(255, 255, 255, 0.08);
 }
 
-.gv-folder-action-btn mat-icon {
+.gv-folder-action-btn mat-icon,
+.gv-folder-action-btn svg,
+.gv-folder-add-btn svg {
   font-size: 18px;
   width: 18px;
   height: 18px;
+  display: block;
 }
 
 /* Filter active state */
@@ -6052,7 +6428,8 @@ body.dark-theme .gv-folder-action-btn:hover,
   opacity: 1;
 }
 
-.gv-folder-action-btn.gv-filter-active mat-icon {
+.gv-folder-action-btn.gv-filter-active mat-icon,
+.gv-folder-action-btn.gv-filter-active svg {
   color: #4285f4;
 }
 
@@ -6064,9 +6441,13 @@ body.dark-theme .gv-folder-action-btn.gv-filter-active,
 }
 
 html.dark .gv-folder-action-btn.gv-filter-active mat-icon,
+html.dark .gv-folder-action-btn.gv-filter-active svg,
 body.dark-theme .gv-folder-action-btn.gv-filter-active mat-icon,
+body.dark-theme .gv-folder-action-btn.gv-filter-active svg,
 [data-theme='dark'] .gv-folder-action-btn.gv-filter-active mat-icon,
-[data-color-scheme='dark'] .gv-folder-action-btn.gv-filter-active mat-icon {
+[data-theme='dark'] .gv-folder-action-btn.gv-filter-active svg,
+[data-color-scheme='dark'] .gv-folder-action-btn.gv-filter-active mat-icon,
+[data-color-scheme='dark'] .gv-folder-action-btn.gv-filter-active svg {
   color: #a78bfa;
 }
 
@@ -11126,7 +11507,9 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
   opacity: 0;
   pointer-events: none;
   transform: scale(0.6);
-  transition: opacity 140ms ease, transform 140ms ease;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
 }
 .gv-announcement-btn--unread .gv-announcement-btn__indicator {
   opacity: 1;
@@ -11150,7 +11533,14 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
     0 18px 36px -16px rgba(15, 23, 42, 0.32),
     0 4px 10px -4px rgba(15, 23, 42, 0.18);
   animation: gv-announcement-bubble-in 180ms ease-out;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   .gv-announcement-bubble {
@@ -11160,8 +11550,14 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
   }
 }
 @keyframes gv-announcement-bubble-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Triangle tail (rotated diamond clipped by the bubble top). The JS
@@ -11200,11 +11596,13 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
   line-height: 1;
   cursor: pointer;
   border-radius: 6px;
-  transition: opacity 140ms ease, background 140ms ease;
+  transition:
+    opacity 140ms ease,
+    background 140ms ease;
 }
 .gv-announcement-bubble__close:hover {
   opacity: 1;
-  background: rgba(124, 53, 239, 0.10);
+  background: rgba(124, 53, 239, 0.1);
 }
 
 .gv-announcement-bubble__title {
@@ -11241,7 +11639,7 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
   .gv-announcement-bubble__detail {
     color: #c4b0ff;
     border-color: rgba(167, 124, 255, 0.45);
-    background: rgba(167, 124, 255, 0.10);
+    background: rgba(167, 124, 255, 0.1);
   }
   .gv-announcement-bubble__detail:hover {
     background: rgba(167, 124, 255, 0.22);
@@ -11263,8 +11661,12 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
   animation: gv-announcement-modal-fade 160ms ease-out;
 }
 @keyframes gv-announcement-modal-fade {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .gv-announcement-modal {
   position: relative;
@@ -11277,7 +11679,14 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
   border-radius: 16px;
   box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.4);
   overflow: hidden;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   .gv-announcement-modal {
@@ -11316,11 +11725,13 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
   cursor: pointer;
   border-radius: 8px;
   opacity: 0.6;
-  transition: opacity 140ms ease, background 140ms ease;
+  transition:
+    opacity 140ms ease,
+    background 140ms ease;
 }
 .gv-announcement-modal__close:hover {
   opacity: 1;
-  background: rgba(124, 53, 239, 0.10);
+  background: rgba(124, 53, 239, 0.1);
 }
 .gv-announcement-modal__body {
   flex: 1;
@@ -11363,7 +11774,7 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
 .gv-announcement-modal__markdown code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.92em;
-  background: rgba(124, 53, 239, 0.10);
+  background: rgba(124, 53, 239, 0.1);
   padding: 0.1em 0.35em;
   border-radius: 4px;
 }
@@ -11384,7 +11795,9 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
 .gv-pm-version {
   cursor: pointer;
   user-select: none;
-  transition: background 140ms ease, color 140ms ease;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
 }
 .gv-pm-version:hover {
   background: rgba(124, 53, 239, 0.12);
@@ -11463,8 +11876,12 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
   animation: gv-temp-regret-fade-in 140ms ease-out;
 }
 @keyframes gv-temp-regret-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .gv-temp-regret-modal {
@@ -11475,7 +11892,9 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
   max-height: 80vh;
   overflow: auto;
   padding: 24px 26px 18px;
-  box-shadow: 0 18px 48px rgba(2, 8, 23, 0.28), 0 2px 8px rgba(2, 8, 23, 0.12);
+  box-shadow:
+    0 18px 48px rgba(2, 8, 23, 0.28),
+    0 2px 8px rgba(2, 8, 23, 0.12);
   border: 1px solid rgba(124, 53, 239, 0.18);
 }
 @media (prefers-color-scheme: dark) {
@@ -11511,7 +11930,9 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
   font-weight: 500;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: background 120ms ease, border-color 120ms ease;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
 }
 .gv-temp-regret-modal__btn--ghost {
   background: transparent;
@@ -11579,7 +12000,9 @@ html.light-theme .gv-jump-confirm-dialog__btn--cancel:hover {
   animation: gv-temp-regret-spin 800ms linear infinite;
 }
 @keyframes gv-temp-regret-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 .gv-temp-regret-overlay__msg {
   font-size: 14px;

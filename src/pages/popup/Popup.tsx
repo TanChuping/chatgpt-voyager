@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
 /* The popup font-family picker calls into the chatFontFamily content-script
    feature via chrome.storage; see src/pages/content/chatFontFamily/index.ts. */
 
@@ -53,6 +54,8 @@ const LEGACY_BASELINE_PX = 1200;
 const CHAT_PERCENT = { min: 30, max: 100, defaultValue: 70 };
 const CHAT_FONT_SIZE = { min: 80, max: 150, defaultValue: 100 };
 const CODE_FONT_SIZE = { min: 80, max: 150, defaultValue: 100 };
+const CHAT_LINE_HEIGHT = { min: 120, max: 220, defaultValue: 160 };
+const CHAT_PARAGRAPH_SPACING = { min: 0, max: 32, defaultValue: 12 };
 const EDIT_PERCENT = { min: 30, max: 100, defaultValue: 60 };
 const SIDEBAR_PX = { min: 240, max: 600, defaultValue: 280 };
 const FOLDER_SPACING = { min: 0, max: 16, defaultValue: 2 };
@@ -299,6 +302,13 @@ export default function Popup() {
   const [chatFontSize, setChatFontSize] = useState(CHAT_FONT_SIZE.defaultValue);
   const [codeFontSizeEnabled, setCodeFontSizeEnabled] = useState(false);
   const [codeFontSize, setCodeFontSize] = useState(CODE_FONT_SIZE.defaultValue);
+  const [longCodeBlockCollapse, setLongCodeBlockCollapse] = useState(false);
+  const [chatLineHeightEnabled, setChatLineHeightEnabled] = useState(false);
+  const [chatLineHeight, setChatLineHeight] = useState(CHAT_LINE_HEIGHT.defaultValue);
+  const [chatParagraphSpacingEnabled, setChatParagraphSpacingEnabled] = useState(false);
+  const [chatParagraphSpacing, setChatParagraphSpacing] = useState(
+    CHAT_PARAGRAPH_SPACING.defaultValue,
+  );
   const [fontFamilyEnabled, setFontFamilyEnabled] = useState(false);
   const [fontFamily, setFontFamily] = useState<FontPreset>('default');
   /**
@@ -328,6 +338,7 @@ export default function Popup() {
   const [draftAutoSave, setDraftAutoSave] = useState(false);
   const [preventAutoScroll, setPreventAutoScroll] = useState(false);
   const [quoteReply, setQuoteReply] = useState(true);
+  const [responseCompleteNotification, setResponseCompleteNotification] = useState(true);
 
   const [formulaCopyFormat, setFormulaCopyFormat] = useState<FormulaCopyFormat>('latex');
   const [singleConvExportFormat, setSingleConvExportFormat] = useState<SingleConvExportFormat>(
@@ -357,66 +368,58 @@ export default function Popup() {
    * are rejected before allocating any payload, to keep us under
    * chrome.storage.local's ~5 MB quota.
    */
-  const handleCustomFontPicked = useCallback(
-    async (file: File) => {
-      const ext = (file.name.split('.').pop() || '').toLowerCase();
-      if (ext !== 'woff2' && ext !== 'woff' && ext !== 'ttf' && ext !== 'otf') {
-        setCustomFontStatus(`✗ ${file.name}: unsupported (use woff2/woff/ttf/otf)`);
-        return;
+  const handleCustomFontPicked = useCallback(async (file: File) => {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext !== 'woff2' && ext !== 'woff' && ext !== 'ttf' && ext !== 'otf') {
+      setCustomFontStatus(`✗ ${file.name}: unsupported (use woff2/woff/ttf/otf)`);
+      return;
+    }
+    if (file.size > MAX_CUSTOM_FONT_BYTES) {
+      setCustomFontStatus(`✗ ${file.name}: too large (${Math.round(file.size / 1024)} KB > 4 MB)`);
+      return;
+    }
+    try {
+      const buf = await file.arrayBuffer();
+      // Base64-encode in 32 KB chunks. `String.fromCharCode(...bigArray)`
+      // overflows the call stack for files larger than ~125 KB on V8.
+      const bytes = new Uint8Array(buf);
+      const CHUNK = 0x8000;
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)));
       }
-      if (file.size > MAX_CUSTOM_FONT_BYTES) {
-        setCustomFontStatus(
-          `✗ ${file.name}: too large (${Math.round(file.size / 1024)} KB > 4 MB)`,
-        );
-        return;
-      }
-      try {
-        const buf = await file.arrayBuffer();
-        // Base64-encode in 32 KB chunks. `String.fromCharCode(...bigArray)`
-        // overflows the call stack for files larger than ~125 KB on V8.
-        const bytes = new Uint8Array(buf);
-        const CHUNK = 0x8000;
-        let binary = '';
-        for (let i = 0; i < bytes.length; i += CHUNK) {
-          binary += String.fromCharCode.apply(
-            null,
-            Array.from(bytes.subarray(i, i + CHUNK)),
-          );
-        }
-        const base64 = btoa(binary);
-        const mime =
-          ext === 'woff2'
-            ? 'font/woff2'
-            : ext === 'woff'
-              ? 'font/woff'
-              : ext === 'ttf'
-                ? 'font/ttf'
-                : 'font/otf';
-        const dataUrl = `data:${mime};base64,${base64}`;
-        const displayName = file.name.replace(/\.[^.]+$/, '');
+      const base64 = btoa(binary);
+      const mime =
+        ext === 'woff2'
+          ? 'font/woff2'
+          : ext === 'woff'
+            ? 'font/woff'
+            : ext === 'ttf'
+              ? 'font/ttf'
+              : 'font/otf';
+      const dataUrl = `data:${mime};base64,${base64}`;
+      const displayName = file.name.replace(/\.[^.]+$/, '');
 
-        // Heavy payload → chrome.storage.local (sync has 8 KB per-item cap).
-        await browser.storage.local.set({ [StorageKeys.CHAT_CUSTOM_FONT_DATA]: dataUrl });
-        // Metadata + preset selection → chrome.storage.sync so it round-
-        // trips across devices. Without the data the content script falls
-        // back to system fonts gracefully on the other device.
-        await browser.storage.sync.set({
-          [StorageKeys.CHAT_CUSTOM_FONT_NAME]: displayName,
-          [StorageKeys.CHAT_CUSTOM_FONT_FORMAT]: ext,
-          [StorageKeys.CHAT_FONT_FAMILY]: 'custom',
-          [StorageKeys.CHAT_FONT_FAMILY_ENABLED]: true,
-        });
-        setCustomFontName(displayName);
-        setFontFamily('custom');
-        setFontFamilyEnabled(true);
-        setCustomFontStatus(`✓ ${displayName} (${Math.round(file.size / 1024)} KB)`);
-      } catch (err) {
-        console.warn('[GPT-Voyager] custom font import failed:', err);
-        setCustomFontStatus(`✗ ${String((err as Error)?.message || err)}`);
-      }
-    },
-    [],
-  );
+      // Heavy payload → chrome.storage.local (sync has 8 KB per-item cap).
+      await browser.storage.local.set({ [StorageKeys.CHAT_CUSTOM_FONT_DATA]: dataUrl });
+      // Metadata + preset selection → chrome.storage.sync so it round-
+      // trips across devices. Without the data the content script falls
+      // back to system fonts gracefully on the other device.
+      await browser.storage.sync.set({
+        [StorageKeys.CHAT_CUSTOM_FONT_NAME]: displayName,
+        [StorageKeys.CHAT_CUSTOM_FONT_FORMAT]: ext,
+        [StorageKeys.CHAT_FONT_FAMILY]: 'custom',
+        [StorageKeys.CHAT_FONT_FAMILY_ENABLED]: true,
+      });
+      setCustomFontName(displayName);
+      setFontFamily('custom');
+      setFontFamilyEnabled(true);
+      setCustomFontStatus(`✓ ${displayName} (${Math.round(file.size / 1024)} KB)`);
+    } catch (err) {
+      console.warn('[GPT-Voyager] custom font import failed:', err);
+      setCustomFontStatus(`✗ ${String((err as Error)?.message || err)}`);
+    }
+  }, []);
 
   /**
    * Drop the imported font bytes + metadata. If the user was currently on
@@ -466,6 +469,11 @@ export default function Popup() {
         [StorageKeys.CHAT_FONT_SIZE]: CHAT_FONT_SIZE.defaultValue,
         [StorageKeys.CODE_FONT_SIZE_ENABLED]: false,
         [StorageKeys.CODE_FONT_SIZE]: CODE_FONT_SIZE.defaultValue,
+        [StorageKeys.LONG_CODE_BLOCK_COLLAPSE_ENABLED]: false,
+        [StorageKeys.CHAT_LINE_HEIGHT_ENABLED]: false,
+        [StorageKeys.CHAT_LINE_HEIGHT]: CHAT_LINE_HEIGHT.defaultValue,
+        [StorageKeys.CHAT_PARAGRAPH_SPACING_ENABLED]: false,
+        [StorageKeys.CHAT_PARAGRAPH_SPACING]: CHAT_PARAGRAPH_SPACING.defaultValue,
         [StorageKeys.CHAT_FONT_FAMILY_ENABLED]: false,
         [StorageKeys.CHAT_FONT_FAMILY]: 'default',
         [StorageKeys.CHAT_CUSTOM_FONT_NAME]: '',
@@ -482,6 +490,7 @@ export default function Popup() {
         [StorageKeys.DRAFT_AUTO_SAVE]: false,
         [StorageKeys.PREVENT_AUTO_SCROLL_ENABLED]: false,
         [StorageKeys.QUOTE_REPLY_ENABLED]: true,
+        [StorageKeys.RESPONSE_COMPLETE_NOTIFICATION_ENABLED]: true,
         gvFormulaCopyFormat: 'latex',
         [StorageKeys.MERMAID_ENABLED]: true,
         [StorageKeys.GENTLE_DARK_ENABLED]: false,
@@ -548,6 +557,25 @@ export default function Popup() {
             CODE_FONT_SIZE.max,
           ),
         );
+        setLongCodeBlockCollapse(result[StorageKeys.LONG_CODE_BLOCK_COLLAPSE_ENABLED] === true);
+        setChatLineHeightEnabled(result[StorageKeys.CHAT_LINE_HEIGHT_ENABLED] === true);
+        setChatLineHeight(
+          normalizeNumber(
+            result[StorageKeys.CHAT_LINE_HEIGHT],
+            CHAT_LINE_HEIGHT.defaultValue,
+            CHAT_LINE_HEIGHT.min,
+            CHAT_LINE_HEIGHT.max,
+          ),
+        );
+        setChatParagraphSpacingEnabled(result[StorageKeys.CHAT_PARAGRAPH_SPACING_ENABLED] === true);
+        setChatParagraphSpacing(
+          normalizeNumber(
+            result[StorageKeys.CHAT_PARAGRAPH_SPACING],
+            CHAT_PARAGRAPH_SPACING.defaultValue,
+            CHAT_PARAGRAPH_SPACING.min,
+            CHAT_PARAGRAPH_SPACING.max,
+          ),
+        );
         setFontFamilyEnabled(result[StorageKeys.CHAT_FONT_FAMILY_ENABLED] === true);
         const rawFamily = result[StorageKeys.CHAT_FONT_FAMILY];
         setFontFamily(
@@ -582,6 +610,9 @@ export default function Popup() {
         setDraftAutoSave(result[StorageKeys.DRAFT_AUTO_SAVE] === true);
         setPreventAutoScroll(result[StorageKeys.PREVENT_AUTO_SCROLL_ENABLED] === true);
         setQuoteReply(result[StorageKeys.QUOTE_REPLY_ENABLED] !== false);
+        setResponseCompleteNotification(
+          result[StorageKeys.RESPONSE_COMPLETE_NOTIFICATION_ENABLED] !== false,
+        );
         const formula = result.gvFormulaCopyFormat;
         setFormulaCopyFormat(
           formula === 'unicodemath' ||
@@ -915,6 +946,44 @@ export default function Popup() {
               updateToggle(setCodeFontSizeEnabled, StorageKeys.CODE_FONT_SIZE_ENABLED, value)
             }
           />
+          <WidthSlider
+            label={t('chatLineHeight')}
+            value={chatLineHeight}
+            min={CHAT_LINE_HEIGHT.min}
+            max={CHAT_LINE_HEIGHT.max}
+            step={5}
+            narrowLabel={t('chatLineHeightTight')}
+            wideLabel={t('chatLineHeightLoose')}
+            onChange={setChatLineHeight}
+            onChangeComplete={(value) =>
+              void setSyncStorage({ [StorageKeys.CHAT_LINE_HEIGHT]: value })
+            }
+            enabled={chatLineHeightEnabled}
+            onToggle={(value) =>
+              updateToggle(setChatLineHeightEnabled, StorageKeys.CHAT_LINE_HEIGHT_ENABLED, value)
+            }
+          />
+          <WidthSlider
+            label={t('chatParagraphSpacing')}
+            value={chatParagraphSpacing}
+            min={CHAT_PARAGRAPH_SPACING.min}
+            max={CHAT_PARAGRAPH_SPACING.max}
+            step={1}
+            narrowLabel={t('chatParagraphSpacingCompact')}
+            wideLabel={t('chatParagraphSpacingSpacious')}
+            onChange={setChatParagraphSpacing}
+            onChangeComplete={(value) =>
+              void setSyncStorage({ [StorageKeys.CHAT_PARAGRAPH_SPACING]: value })
+            }
+            enabled={chatParagraphSpacingEnabled}
+            onToggle={(value) =>
+              updateToggle(
+                setChatParagraphSpacingEnabled,
+                StorageKeys.CHAT_PARAGRAPH_SPACING_ENABLED,
+                value,
+              )
+            }
+          />
           {/* Chat font family — preset picker + optional file upload.
               Custom-imported fonts are stored in chrome.storage.local so the
               ~5 MB quota is honoured; the preset choice itself goes to
@@ -951,14 +1020,10 @@ export default function Popup() {
               <option value="gemini">{t('chatFontFamilyGemini')}</option>
               <option value="custom" disabled={!customFontName}>
                 {t('chatFontFamilyCustom')}
-                {customFontName
-                  ? ` — ${customFontName}`
-                  : ` (${t('chatFontFamilyNoneImported')})`}
+                {customFontName ? ` — ${customFontName}` : ` (${t('chatFontFamilyNoneImported')})`}
               </option>
             </Select>
-            <p className="text-muted-foreground text-xs leading-snug">
-              {t('chatFontFamilyHint')}
-            </p>
+            <p className="text-muted-foreground text-xs leading-snug">{t('chatFontFamilyHint')}</p>
             <div className="flex items-center gap-2">
               <input
                 ref={customFontInputRef}
@@ -1118,6 +1183,19 @@ export default function Popup() {
               updateToggle(setQuoteReply, StorageKeys.QUOTE_REPLY_ENABLED, value)
             }
           />
+          <ToggleRow
+            id="response-complete-notification"
+            title={t('responseCompleteNotification')}
+            description={t('responseCompleteNotificationHint')}
+            checked={responseCompleteNotification}
+            onChange={(value) =>
+              updateToggle(
+                setResponseCompleteNotification,
+                StorageKeys.RESPONSE_COMPLETE_NOTIFICATION_ENABLED,
+                value,
+              )
+            }
+          />
         </Section>
 
         <Section title={t('markdownOptions')}>
@@ -1128,6 +1206,19 @@ export default function Popup() {
             checked={mermaidEnabled}
             onChange={(value) =>
               updateToggle(setMermaidEnabled, StorageKeys.MERMAID_ENABLED, value)
+            }
+          />
+          <ToggleRow
+            id="long-code-block-collapse"
+            title={t('longCodeBlockCollapse')}
+            description={t('longCodeBlockCollapseHint')}
+            checked={longCodeBlockCollapse}
+            onChange={(value) =>
+              updateToggle(
+                setLongCodeBlockCollapse,
+                StorageKeys.LONG_CODE_BLOCK_COLLAPSE_ENABLED,
+                value,
+              )
             }
           />
           <div className="space-y-2 pt-2">

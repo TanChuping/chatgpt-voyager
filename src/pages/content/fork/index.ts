@@ -42,6 +42,27 @@ const CONVERSATION_EXISTENCE_CACHE_TTL_MS = 30000;
 
 const conversationExistenceCache = new Map<string, { exists: boolean; checkedAt: number }>();
 
+interface ForkLifecycle {
+  generation: number;
+  controller: AbortController;
+  cleaned: boolean;
+  observer: MutationObserver | null;
+  initialSetupTimer: ReturnType<typeof setTimeout> | null;
+  observerDebounceTimer: ReturnType<typeof setTimeout> | null;
+  storageRefreshTimer: ReturnType<typeof setTimeout> | null;
+  deferredTimers: Set<ReturnType<typeof setTimeout>>;
+  cleanup: (() => void) | null;
+}
+
+let lifecycleGeneration = 0;
+let activeLifecycle: ForkLifecycle | null = null;
+
+function isLifecycleActive(lifecycle: ForkLifecycle): boolean {
+  return (
+    activeLifecycle === lifecycle && !lifecycle.cleaned && !lifecycle.controller.signal.aborted
+  );
+}
+
 // ============================================================================
 // Styles
 // ============================================================================
@@ -86,10 +107,14 @@ function injectStyles(): void {
     }
 
     /* Reveal on hover/focus without affecting message layout */
+    section[data-testid^="conversation-turn-"]:hover .${FORK_BTN_CLASS},
+    [data-message-author-role="user"]:hover .${FORK_BTN_CLASS},
     .user-query-bubble-with-background:hover .${FORK_BTN_CLASS},
     .user-query-container:hover .${FORK_BTN_CLASS},
     user-query:hover .${FORK_BTN_CLASS},
     user-query-content:hover .${FORK_BTN_CLASS},
+    section[data-testid^="conversation-turn-"]:focus-within .${FORK_BTN_CLASS},
+    [data-message-author-role="user"]:focus-within .${FORK_BTN_CLASS},
     .user-query-bubble-with-background:focus-within .${FORK_BTN_CLASS},
     .user-query-container:focus-within .${FORK_BTN_CLASS},
     user-query:focus-within .${FORK_BTN_CLASS},
@@ -300,7 +325,9 @@ function ensureTurnId(el: HTMLElement, index: number): string {
 }
 
 function resolveUserMessageHost(userEl: HTMLElement): HTMLElement {
+  if (userEl.matches('[data-message-author-role="user"]')) return userEl;
   const preferred =
+    userEl.querySelector<HTMLElement>('[data-message-author-role="user"]') ||
     userEl.querySelector<HTMLElement>('.user-query-bubble-with-background') ||
     userEl.querySelector<HTMLElement>('user-query-content .user-query-bubble-with-background') ||
     userEl.querySelector<HTMLElement>('.user-query-bubble-container');
@@ -308,9 +335,12 @@ function resolveUserMessageHost(userEl: HTMLElement): HTMLElement {
 }
 
 function findUserCopyButtonAnchor(userEl: HTMLElement): HTMLElement | null {
+  const turn = userEl.closest<HTMLElement>('section[data-testid^="conversation-turn-"]');
+  const searchRoot = turn || userEl;
   const copyButton =
-    userEl.querySelector<HTMLElement>('button[data-test-id="copy-button"]') ||
-    userEl
+    searchRoot.querySelector<HTMLElement>('button[data-testid="copy-turn-action-button"]') ||
+    searchRoot.querySelector<HTMLElement>('button[data-test-id="copy-button"]') ||
+    searchRoot
       .querySelector<HTMLElement>(
         'button mat-icon[fonticon="content_copy"], button mat-icon[data-mat-icon-name="content_copy"]',
       )
@@ -377,17 +407,21 @@ function collectSidebarConversationIds(): Set<string> {
   return ids;
 }
 
-async function getPreferredLanguage(): Promise<string | undefined> {
+async function getPreferredLanguage(lifecycle: ForkLifecycle): Promise<string | undefined> {
+  if (!isLifecycleActive(lifecycle)) return undefined;
   try {
     const syncResult = await browser.storage.sync.get(StorageKeys.LANGUAGE);
+    if (!isLifecycleActive(lifecycle)) return undefined;
     const syncLanguage = syncResult?.[StorageKeys.LANGUAGE];
     if (typeof syncLanguage === 'string' && syncLanguage.trim()) return syncLanguage;
   } catch {
     // Ignore sync storage failures.
   }
 
+  if (!isLifecycleActive(lifecycle)) return undefined;
   try {
     const localResult = await browser.storage.local.get(StorageKeys.LANGUAGE);
+    if (!isLifecycleActive(lifecycle)) return undefined;
     const localLanguage = localResult?.[StorageKeys.LANGUAGE];
     if (typeof localLanguage === 'string' && localLanguage.trim()) return localLanguage;
   } catch {
@@ -400,7 +434,9 @@ async function getPreferredLanguage(): Promise<string | undefined> {
 async function checkConversationExists(
   node: ForkNode,
   sidebarConversationIds: Set<string>,
+  lifecycle: ForkLifecycle,
 ): Promise<boolean> {
+  if (!isLifecycleActive(lifecycle)) return true;
   const currentConversationId = extractConversationIdFromUrl();
   if (currentConversationId && node.conversationId === currentConversationId) return true;
   if (sidebarConversationIds.has(node.conversationId)) {
@@ -421,6 +457,8 @@ async function checkConversationExists(
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CONVERSATION_VERIFY_TIMEOUT_MS);
+  const onLifecycleAbort = () => controller.abort();
+  lifecycle.controller.signal.addEventListener('abort', onLifecycleAbort, { once: true });
   try {
     const response = await fetch(node.conversationUrl, {
       method: 'GET',
@@ -431,33 +469,41 @@ async function checkConversationExists(
     const responseConversationId = extractConversationIdFromHref(response.url);
     const exists =
       response.ok && !!responseConversationId && node.conversationId === responseConversationId;
-    conversationExistenceCache.set(node.conversationId, { exists, checkedAt: now });
+    if (isLifecycleActive(lifecycle)) {
+      conversationExistenceCache.set(node.conversationId, { exists, checkedAt: now });
+    }
     return exists;
   } catch {
     // If verification fails for network/CSP reasons, keep node to avoid destructive false positives.
     return true;
   } finally {
     clearTimeout(timer);
+    lifecycle.controller.signal.removeEventListener('abort', onLifecycleAbort);
   }
 }
 
 async function pruneDeletedNodesFromGroup(
   groupNodes: ForkNode[],
   sidebarConversationIds: Set<string>,
+  lifecycle: ForkLifecycle,
 ): Promise<ForkNode[]> {
   const cleaned: ForkNode[] = [];
 
   for (const node of groupNodes) {
-    const exists = await checkConversationExists(node, sidebarConversationIds);
+    if (!isLifecycleActive(lifecycle)) return cleaned;
+    const exists = await checkConversationExists(node, sidebarConversationIds, lifecycle);
+    if (!isLifecycleActive(lifecycle)) return cleaned;
     if (exists) {
       cleaned.push(node);
       continue;
     }
 
     try {
+      if (!isLifecycleActive(lifecycle)) return cleaned;
       await ForkNodesService.removeForkNode(node.conversationId, node.turnId, node.forkGroupId);
+      if (!isLifecycleActive(lifecycle)) return cleaned;
     } catch (error) {
-      if (!isExtensionContextInvalidatedError(error)) {
+      if (isLifecycleActive(lifecycle) && !isExtensionContextInvalidatedError(error)) {
         console.error('[Fork] Failed to prune deleted fork node:', error);
       }
     }
@@ -510,9 +556,6 @@ function extractConversationUpToTurn(userTurnIndex: number, sourceTurnId: string
 // Fork Button Injection
 // ============================================================================
 
-let observer: MutationObserver | null = null;
-let observerDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-let storageRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let activeConfirm: HTMLElement | null = null;
 
 function dismissConfirm(): void {
@@ -528,19 +571,23 @@ function onDocumentClick(e: MouseEvent): void {
   }
 }
 
-function scheduleForkIndicatorRefresh(): void {
-  if (storageRefreshTimer) clearTimeout(storageRefreshTimer);
-  storageRefreshTimer = setTimeout(() => {
+function scheduleForkIndicatorRefresh(lifecycle: ForkLifecycle): void {
+  if (!isLifecycleActive(lifecycle)) return;
+  if (lifecycle.storageRefreshTimer !== null) clearTimeout(lifecycle.storageRefreshTimer);
+  lifecycle.storageRefreshTimer = setTimeout(() => {
+    lifecycle.storageRefreshTimer = null;
+    if (!isLifecycleActive(lifecycle)) return;
     clearInjectedForkIndicators();
-    void injectForkIndicators();
-    storageRefreshTimer = null;
+    void injectForkIndicators(lifecycle);
   }, OBSERVER_DEBOUNCE_MS);
 }
 
-function injectForkButtons(): void {
+function injectForkButtons(lifecycle: ForkLifecycle): void {
+  if (!isLifecycleActive(lifecycle)) return;
   const pairs = collectForkChatPairs();
 
   pairs.forEach((pair, index) => {
+    if (!isLifecycleActive(lifecycle)) return;
     const userEl = pair.userElement;
     ensureTurnId(userEl, index);
     const hostEl = resolveForkButtonHost(userEl);
@@ -560,9 +607,10 @@ function injectForkButtons(): void {
     btn.innerHTML = `${FORK_ICON}<span>${getTranslationSync('forkConversation')}</span>`;
 
     btn.addEventListener('click', (e) => {
+      if (!isLifecycleActive(lifecycle)) return;
       e.stopPropagation();
       e.preventDefault();
-      showForkConfirmation(btn, userEl, index);
+      showForkConfirmation(btn, userEl, index, lifecycle);
     });
 
     // Add at the end of the user message container
@@ -571,7 +619,13 @@ function injectForkButtons(): void {
   });
 }
 
-function showForkConfirmation(btn: HTMLElement, userEl: HTMLElement, turnIndex: number): void {
+function showForkConfirmation(
+  btn: HTMLElement,
+  userEl: HTMLElement,
+  turnIndex: number,
+  lifecycle: ForkLifecycle,
+): void {
+  if (!isLifecycleActive(lifecycle)) return;
   dismissConfirm();
 
   const confirm = document.createElement('div');
@@ -593,10 +647,11 @@ function showForkConfirmation(btn: HTMLElement, userEl: HTMLElement, turnIndex: 
     dismissConfirm();
   });
   confirmBtn.addEventListener('click', (e) => {
+    if (!isLifecycleActive(lifecycle)) return;
     e.stopPropagation();
     e.preventDefault();
     dismissConfirm();
-    void executeFork(userEl, turnIndex);
+    void executeFork(userEl, turnIndex, lifecycle);
   });
 
   // Prevent clicks inside the dialog from bubbling to parent handlers
@@ -613,7 +668,12 @@ function showForkConfirmation(btn: HTMLElement, userEl: HTMLElement, turnIndex: 
   activeConfirm = confirm;
 }
 
-async function executeFork(userEl: HTMLElement, turnIndex: number): Promise<void> {
+async function executeFork(
+  userEl: HTMLElement,
+  turnIndex: number,
+  lifecycle: ForkLifecycle,
+): Promise<void> {
+  if (!isLifecycleActive(lifecycle)) return;
   const conversationId = extractConversationIdFromUrl();
   if (!conversationId) {
     console.warn('[Fork] No conversation ID found');
@@ -636,7 +696,8 @@ async function executeFork(userEl: HTMLElement, turnIndex: number): Promise<void
   }
 
   // Async work: resolve language and fork group (safe now, window already opened)
-  const preferredLanguage = await getPreferredLanguage();
+  const preferredLanguage = await getPreferredLanguage(lifecycle);
+  if (!isLifecycleActive(lifecycle)) return;
   const markdownWithContext = composeForkInputWithContext(markdown, preferredLanguage);
 
   let forkGroupId = generateUniqueId('fork');
@@ -644,7 +705,9 @@ async function executeFork(userEl: HTMLElement, turnIndex: number): Promise<void
   let nextForkIndex = 1;
 
   try {
+    if (!isLifecycleActive(lifecycle)) return;
     const conversationNodes = await ForkNodesService.getForConversation(conversationId);
+    if (!isLifecycleActive(lifecycle)) return;
     const candidateGroupIds = Array.from(
       new Set(
         conversationNodes
@@ -655,7 +718,9 @@ async function executeFork(userEl: HTMLElement, turnIndex: number): Promise<void
 
     const groups: Record<string, ForkNode[]> = {};
     for (const groupId of candidateGroupIds) {
+      if (!isLifecycleActive(lifecycle)) return;
       groups[groupId] = await ForkNodesService.getGroup(groupId);
+      if (!isLifecycleActive(lifecycle)) return;
     }
 
     const plan = resolveForkPlan(conversationId, turnId, conversationNodes, groups, () =>
@@ -666,6 +731,7 @@ async function executeFork(userEl: HTMLElement, turnIndex: number): Promise<void
     sourceForkIndex = plan.sourceForkIndex;
     nextForkIndex = plan.nextForkIndex;
   } catch (error) {
+    if (!isLifecycleActive(lifecycle)) return;
     if (!isExtensionContextInvalidatedError(error)) {
       console.error('[Fork] Failed to resolve fork group, using default:', error);
     }
@@ -686,9 +752,10 @@ async function executeFork(userEl: HTMLElement, turnIndex: number): Promise<void
   };
 
   try {
+    if (!isLifecycleActive(lifecycle)) return;
     await browser.storage.local.set({ [PENDING_FORK_KEY]: pendingFork });
   } catch (e) {
-    console.error('[Fork] Failed to save pending fork:', e);
+    if (isLifecycleActive(lifecycle)) console.error('[Fork] Failed to save pending fork:', e);
   }
 }
 
@@ -710,14 +777,17 @@ interface PendingForkData {
 
 const PENDING_FORK_STALE_MS = 60000; // Discard pending fork data older than 60s
 
-async function readPendingFork(): Promise<PendingForkData | null> {
+async function readPendingFork(lifecycle: ForkLifecycle): Promise<PendingForkData | null> {
+  if (!isLifecycleActive(lifecycle)) return null;
   try {
     const result = await browser.storage.local.get(PENDING_FORK_KEY);
+    if (!isLifecycleActive(lifecycle)) return null;
     const parsed = result[PENDING_FORK_KEY] as Partial<PendingForkData> | undefined;
     if (!parsed) return null;
 
     // Discard stale data (e.g. from a previous failed fork)
     if (parsed.createdAt && Date.now() - parsed.createdAt > PENDING_FORK_STALE_MS) {
+      if (!isLifecycleActive(lifecycle)) return null;
       await browser.storage.local.remove(PENDING_FORK_KEY);
       return null;
     }
@@ -740,6 +810,7 @@ async function readPendingFork(): Promise<PendingForkData | null> {
       !pendingFork.forkGroupId ||
       !pendingFork.markdown.trim()
     ) {
+      if (!isLifecycleActive(lifecycle)) return null;
       await browser.storage.local.remove(PENDING_FORK_KEY);
       return null;
     }
@@ -750,7 +821,8 @@ async function readPendingFork(): Promise<PendingForkData | null> {
   }
 }
 
-function checkAndHandlePendingFork(): void {
+function checkAndHandlePendingFork(lifecycle: ForkLifecycle): void {
+  if (!isLifecycleActive(lifecycle)) return;
   // Only handle on a new conversation page (no conversation ID yet)
   const currentConvId = extractConversationIdFromUrl();
   if (currentConvId) return;
@@ -762,40 +834,70 @@ function checkAndHandlePendingFork(): void {
     // Ignore
   }
 
-  void handlePendingForkFromStorage();
+  void handlePendingForkFromStorage(lifecycle);
 }
 
-async function handlePendingForkFromStorage(): Promise<void> {
+function waitForLifecycleDelay(ms: number, lifecycle: ForkLifecycle): Promise<boolean> {
+  if (!isLifecycleActive(lifecycle)) return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (completed: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      lifecycle.controller.signal.removeEventListener('abort', onAbort);
+      resolve(completed);
+    };
+    const onAbort = () => finish(false);
+    const timer = setTimeout(() => finish(isLifecycleActive(lifecycle)), ms);
+    lifecycle.controller.signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+async function handlePendingForkFromStorage(lifecycle: ForkLifecycle): Promise<void> {
+  if (!isLifecycleActive(lifecycle)) return;
   // The opener tab writes to storage.local after async work, which may take a moment.
   // Try immediately, then retry once after a short delay.
-  let pendingFork = await readPendingFork();
+  let pendingFork = await readPendingFork(lifecycle);
+  if (!isLifecycleActive(lifecycle)) return;
   if (!pendingFork) {
-    await new Promise((r) => setTimeout(r, 2000));
-    pendingFork = await readPendingFork();
+    if (!(await waitForLifecycleDelay(2000, lifecycle))) return;
+    pendingFork = await readPendingFork(lifecycle);
   }
-  if (!pendingFork) return;
+  if (!pendingFork || !isLifecycleActive(lifecycle)) return;
 
   // Clear immediately so other tabs don't pick it up
   try {
+    if (!isLifecycleActive(lifecycle)) return;
     await browser.storage.local.remove(PENDING_FORK_KEY);
   } catch {
     // Ignore
   }
+  if (!isLifecycleActive(lifecycle)) return;
 
   // Re-check: still on a new conversation page?
   if (extractConversationIdFromUrl()) return;
 
   // Wait for the input field to be available
-  const input = await waitForElement('rich-textarea [contenteditable="true"]', 10000);
+  const input = await waitForElement(
+    '#prompt-textarea, form [contenteditable="true"][role="textbox"]',
+    10000,
+    lifecycle,
+  );
+  if (!isLifecycleActive(lifecycle)) return;
   if (!input) {
     console.warn('[Fork] Input field not found');
     return;
   }
 
   // Paste the markdown content
+  if (!isLifecycleActive(lifecycle)) return;
   input.focus();
   try {
-    document.execCommand('insertText', false, pendingFork.markdown);
+    const inserted = document.execCommand('insertText', false, pendingFork.markdown);
+    if (!inserted) throw new Error('insertText was not handled');
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
   } catch {
     // Fallback: set textContent
     input.textContent = pendingFork.markdown;
@@ -803,11 +905,19 @@ async function handlePendingForkFromStorage(): Promise<void> {
   }
 
   // Watch for URL change (conversation created after submission)
-  watchForNewConversation(pendingFork);
+  if (isLifecycleActive(lifecycle)) watchForNewConversation(pendingFork, lifecycle);
 }
 
-function waitForElement(selector: string, timeoutMs: number): Promise<HTMLElement | null> {
+function waitForElement(
+  selector: string,
+  timeoutMs: number,
+  lifecycle: ForkLifecycle,
+): Promise<HTMLElement | null> {
   return new Promise((resolve) => {
+    if (!isLifecycleActive(lifecycle)) {
+      resolve(null);
+      return;
+    }
     const existing = document.querySelector<HTMLElement>(selector);
     if (existing && existing.getBoundingClientRect().height > 0) {
       resolve(existing);
@@ -815,26 +925,69 @@ function waitForElement(selector: string, timeoutMs: number): Promise<HTMLElemen
     }
 
     const deadline = Date.now() + timeoutMs;
+    let animationFrame: number | null = null;
+    let settled = false;
+    const finish = (result: HTMLElement | null) => {
+      if (settled) return;
+      settled = true;
+      if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+      lifecycle.controller.signal.removeEventListener('abort', onAbort);
+      resolve(result);
+    };
+    const onAbort = () => finish(null);
     const check = () => {
+      animationFrame = null;
+      if (!isLifecycleActive(lifecycle)) {
+        finish(null);
+        return;
+      }
       const el = document.querySelector<HTMLElement>(selector);
       if (el && el.getBoundingClientRect().height > 0) {
-        resolve(el);
+        finish(el);
         return;
       }
       if (Date.now() > deadline) {
-        resolve(null);
+        finish(null);
         return;
       }
-      requestAnimationFrame(check);
+      animationFrame = requestAnimationFrame(check);
     };
-    requestAnimationFrame(check);
+    lifecycle.controller.signal.addEventListener('abort', onAbort, { once: true });
+    animationFrame = requestAnimationFrame(check);
   });
 }
 
-function watchForNewConversation(pendingFork: PendingForkData): void {
+function watchForNewConversation(pendingFork: PendingForkData, lifecycle: ForkLifecycle): void {
+  if (!isLifecycleActive(lifecycle)) return;
+
   let lastUrl = window.location.href;
+  let disposed = false;
+  let handlingConversation = false;
+  let urlObserver: MutationObserver | null = null;
+  let pollInterval: ReturnType<typeof setInterval> | null = null;
+  let cleanupTimer: ReturnType<typeof setTimeout> | null = null;
+  let onUrlChange: () => void;
+
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    urlObserver?.disconnect();
+    urlObserver = null;
+    window.removeEventListener('popstate', onUrlChange);
+    window.removeEventListener('hashchange', onUrlChange);
+    if (pollInterval !== null) {
+      clearInterval(pollInterval);
+      pollInterval = null;
+    }
+    if (cleanupTimer !== null) {
+      clearTimeout(cleanupTimer);
+      cleanupTimer = null;
+    }
+    lifecycle.controller.signal.removeEventListener('abort', dispose);
+  };
 
   const checkUrl = async () => {
+    if (disposed || handlingConversation || !isLifecycleActive(lifecycle)) return;
     const currentUrl = window.location.href;
     if (currentUrl === lastUrl) return;
     lastUrl = currentUrl;
@@ -843,9 +996,11 @@ function watchForNewConversation(pendingFork: PendingForkData): void {
     if (!newConvId) return;
 
     // New conversation created! Create fork nodes for both sides
-    urlObserver.disconnect();
+    handlingConversation = true;
+    dispose();
 
     try {
+      if (!isLifecycleActive(lifecycle)) return;
       // Create fork node for the SOURCE conversation (original, index 0)
       const sourceNode: ForkNode = {
         turnId: pendingFork.sourceTurnId,
@@ -857,6 +1012,7 @@ function watchForNewConversation(pendingFork: PendingForkData): void {
         createdAt: Date.now(),
       };
       await ForkNodesService.addForkNode(sourceNode);
+      if (!isLifecycleActive(lifecycle)) return;
 
       // Create fork node for the NEW conversation (fork)
       // Use the first user turn ID in the new conversation
@@ -870,52 +1026,55 @@ function watchForNewConversation(pendingFork: PendingForkData): void {
         createdAt: Date.now(),
       };
       await ForkNodesService.addForkNode(newNode);
+      if (!isLifecycleActive(lifecycle)) return;
 
       // Inject fork indicators in the new conversation
-      setTimeout(() => injectForkIndicators(), 1000);
+      const timer = setTimeout(() => {
+        lifecycle.deferredTimers.delete(timer);
+        if (isLifecycleActive(lifecycle)) void injectForkIndicators(lifecycle);
+      }, 1000);
+      lifecycle.deferredTimers.add(timer);
     } catch (error) {
-      if (!isExtensionContextInvalidatedError(error)) {
+      if (isLifecycleActive(lifecycle) && !isExtensionContextInvalidatedError(error)) {
         console.error('[Fork] Failed to create fork nodes:', error);
       }
     }
   };
 
   // Use a MutationObserver on the URL (via popstate + polling)
-  const urlObserver = new MutationObserver(() => void checkUrl());
+  urlObserver = new MutationObserver(() => void checkUrl());
   urlObserver.observe(document, { subtree: true, childList: true });
 
   // Also listen to popstate and hashchange
-  const onUrlChange = () => void checkUrl();
+  onUrlChange = () => void checkUrl();
   window.addEventListener('popstate', onUrlChange);
   window.addEventListener('hashchange', onUrlChange);
 
   // Poll as fallback (SPA navigation may not trigger popstate)
-  const pollInterval = setInterval(() => {
+  pollInterval = setInterval(() => {
     void checkUrl();
   }, 500);
 
   // Cleanup after 60 seconds
-  setTimeout(() => {
-    urlObserver.disconnect();
-    window.removeEventListener('popstate', onUrlChange);
-    window.removeEventListener('hashchange', onUrlChange);
-    clearInterval(pollInterval);
-  }, 60000);
+  cleanupTimer = setTimeout(dispose, 60000);
+  lifecycle.controller.signal.addEventListener('abort', dispose, { once: true });
 }
 
 // ============================================================================
 // Fork Indicator UI
 // ============================================================================
 
-async function injectForkIndicators(): Promise<void> {
+async function injectForkIndicators(lifecycle: ForkLifecycle): Promise<void> {
+  if (!isLifecycleActive(lifecycle)) return;
   const conversationId = extractConversationIdFromUrl();
   if (!conversationId) return;
 
   let forkNodes: ForkNode[];
   try {
     forkNodes = await ForkNodesService.getForConversation(conversationId);
+    if (!isLifecycleActive(lifecycle)) return;
   } catch (error) {
-    if (!isExtensionContextInvalidatedError(error)) {
+    if (isLifecycleActive(lifecycle) && !isExtensionContextInvalidatedError(error)) {
       console.error('[Fork] Failed to get fork nodes:', error);
     }
     return;
@@ -938,6 +1097,7 @@ async function injectForkIndicators(): Promise<void> {
   if (conversationId) sidebarConversationIds.add(conversationId);
 
   for (let index = 0; index < pairs.length; index++) {
+    if (!isLifecycleActive(lifecycle)) return;
     const userEl = pairs[index].userElement;
     const turnId = normalizeTurnId(ensureTurnId(userEl, index));
     const hostEl = resolveUserMessageHost(userEl);
@@ -949,12 +1109,16 @@ async function injectForkIndicators(): Promise<void> {
     const groupNodesList: ForkNode[][] = [];
     for (const forkGroupId of forkGroupIds) {
       try {
+        if (!isLifecycleActive(lifecycle)) return;
         const groupNodes = await ForkNodesService.getGroup(forkGroupId);
+        if (!isLifecycleActive(lifecycle)) return;
         if (groupNodes.length === 0) continue;
         const cleanedGroupNodes = await pruneDeletedNodesFromGroup(
           groupNodes,
           sidebarConversationIds,
+          lifecycle,
         );
+        if (!isLifecycleActive(lifecycle)) return;
         if (cleanedGroupNodes.length > 0) groupNodesList.push(cleanedGroupNodes);
       } catch {
         // Ignore single group failure and continue rendering available groups.
@@ -966,6 +1130,7 @@ async function injectForkIndicators(): Promise<void> {
     if (displayNodes.length < 2) continue;
 
     // Re-check after async group loading to avoid duplicate render in concurrent injections.
+    if (!isLifecycleActive(lifecycle)) return;
     if (hasOrDedupForkIndicatorGroup(hostEl)) continue;
 
     const group = document.createElement('div');
@@ -991,6 +1156,7 @@ async function injectForkIndicators(): Promise<void> {
         indicator.disabled = true;
       } else {
         indicator.addEventListener('click', (e) => {
+          if (!isLifecycleActive(lifecycle)) return;
           e.stopPropagation();
           e.preventDefault();
           navigateToForkConversation(node);
@@ -1005,6 +1171,7 @@ async function injectForkIndicators(): Promise<void> {
       deleteBtn.title = getTranslationSync('forkDeleteData');
       deleteBtn.setAttribute('aria-label', getTranslationSync('forkDeleteData'));
       deleteBtn.addEventListener('click', async (e) => {
+        if (!isLifecycleActive(lifecycle)) return;
         e.stopPropagation();
         e.preventDefault();
         const confirmed = window.confirm(getTranslationSync('forkDeleteDataConfirm'));
@@ -1012,14 +1179,18 @@ async function injectForkIndicators(): Promise<void> {
 
         deleteBtn.disabled = true;
         try {
+          if (!isLifecycleActive(lifecycle)) return;
           await ForkNodesService.removeForkNode(node.conversationId, node.turnId, node.forkGroupId);
+          if (!isLifecycleActive(lifecycle)) return;
         } catch (error) {
-          if (!isExtensionContextInvalidatedError(error)) {
+          if (isLifecycleActive(lifecycle) && !isExtensionContextInvalidatedError(error)) {
             console.error('[Fork] Failed to delete fork branch data:', error);
           }
         } finally {
-          clearInjectedForkIndicators();
-          void injectForkIndicators();
+          if (isLifecycleActive(lifecycle)) {
+            clearInjectedForkIndicators();
+            void injectForkIndicators(lifecycle);
+          }
         }
       });
       item.appendChild(deleteBtn);
@@ -1066,65 +1237,59 @@ function updateForkButtonTexts(): void {
 // ============================================================================
 
 export function startFork(): () => void {
-  injectStyles();
+  activeLifecycle?.cleanup?.();
 
-  // Check for pending fork data (new conversation paste)
-  checkAndHandlePendingFork();
-
-  // Inject fork buttons and indicators
-  const setup = () => {
-    injectForkButtons();
-    void injectForkIndicators();
+  const lifecycle: ForkLifecycle = {
+    generation: ++lifecycleGeneration,
+    controller: new AbortController(),
+    cleaned: false,
+    observer: null,
+    initialSetupTimer: null,
+    observerDebounceTimer: null,
+    storageRefreshTimer: null,
+    deferredTimers: new Set(),
+    cleanup: null,
   };
+  activeLifecycle = lifecycle;
 
-  // Initial injection with delay to let DOM settle
-  setTimeout(setup, 1000);
-
-  // MutationObserver for dynamically loaded messages
-  observer = new MutationObserver(() => {
-    if (observerDebounceTimer) clearTimeout(observerDebounceTimer);
-    observerDebounceTimer = setTimeout(() => {
-      injectForkButtons();
-      void injectForkIndicators();
-    }, OBSERVER_DEBOUNCE_MS);
-  });
-
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
-
-  // Dismiss confirm dialog on click outside
-  document.addEventListener('click', onDocumentClick);
-
-  // Language change listener
   const onStorageChanged = (
     changes: Record<string, browser.Storage.StorageChange>,
     areaName: string,
   ) => {
+    if (!isLifecycleActive(lifecycle)) return;
     if ((areaName === 'sync' || areaName === 'local') && changes[StorageKeys.LANGUAGE]) {
       updateForkButtonTexts();
     }
     if (areaName === 'local' && changes[StorageKeys.FORK_NODES]) {
-      scheduleForkIndicatorRefresh();
+      scheduleForkIndicatorRefresh(lifecycle);
     }
   };
-  browser.storage.onChanged.addListener(onStorageChanged);
 
-  // Cleanup function
-  return () => {
-    if (observer) {
-      observer.disconnect();
-      observer = null;
+  const cleanup = () => {
+    if (lifecycle.cleaned) return;
+    lifecycle.cleaned = true;
+    lifecycle.controller.abort();
+    if (activeLifecycle === lifecycle) activeLifecycle = null;
+
+    if (lifecycle.observer) {
+      lifecycle.observer.disconnect();
+      lifecycle.observer = null;
     }
-    if (observerDebounceTimer) {
-      clearTimeout(observerDebounceTimer);
-      observerDebounceTimer = null;
+    if (lifecycle.initialSetupTimer !== null) {
+      clearTimeout(lifecycle.initialSetupTimer);
+      lifecycle.initialSetupTimer = null;
     }
-    if (storageRefreshTimer) {
-      clearTimeout(storageRefreshTimer);
-      storageRefreshTimer = null;
+    if (lifecycle.observerDebounceTimer !== null) {
+      clearTimeout(lifecycle.observerDebounceTimer);
+      lifecycle.observerDebounceTimer = null;
     }
+    if (lifecycle.storageRefreshTimer !== null) {
+      clearTimeout(lifecycle.storageRefreshTimer);
+      lifecycle.storageRefreshTimer = null;
+    }
+    lifecycle.deferredTimers.forEach((timer) => clearTimeout(timer));
+    lifecycle.deferredTimers.clear();
+
     dismissConfirm();
     document.removeEventListener('click', onDocumentClick);
     browser.storage.onChanged.removeListener(onStorageChanged);
@@ -1136,4 +1301,50 @@ export function startFork(): () => void {
     const style = document.getElementById(STYLE_ID);
     if (style) style.remove();
   };
+  lifecycle.cleanup = cleanup;
+
+  try {
+    injectStyles();
+
+    // Check for pending fork data (new conversation paste)
+    checkAndHandlePendingFork(lifecycle);
+
+    // Initial injection with delay to let DOM settle.
+    lifecycle.initialSetupTimer = setTimeout(() => {
+      lifecycle.initialSetupTimer = null;
+      if (!isLifecycleActive(lifecycle)) return;
+      injectForkButtons(lifecycle);
+      void injectForkIndicators(lifecycle);
+    }, 1000);
+
+    // MutationObserver for dynamically loaded messages
+    lifecycle.observer = new MutationObserver(() => {
+      if (!isLifecycleActive(lifecycle)) return;
+      if (lifecycle.observerDebounceTimer !== null) {
+        clearTimeout(lifecycle.observerDebounceTimer);
+      }
+      lifecycle.observerDebounceTimer = setTimeout(() => {
+        lifecycle.observerDebounceTimer = null;
+        if (!isLifecycleActive(lifecycle)) return;
+        injectForkButtons(lifecycle);
+        void injectForkIndicators(lifecycle);
+      }, OBSERVER_DEBOUNCE_MS);
+    });
+
+    lifecycle.observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    // Dismiss confirm dialog on click outside
+    document.addEventListener('click', onDocumentClick);
+
+    // Language and fork-node changes
+    browser.storage.onChanged.addListener(onStorageChanged);
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+
+  return cleanup;
 }

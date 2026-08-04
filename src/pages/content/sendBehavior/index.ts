@@ -81,9 +81,17 @@ let isListenersActive = false;
 let isDispatchingFallbackEnter = false;
 let observer: MutationObserver | null = null;
 let cleanupFns: (() => void)[] = [];
+let sendVerificationGeneration = 0;
+const activeSendVerifications = new Set<AbortController>();
 let storageListener:
   | ((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void)
   | null = null;
+let started = false;
+let lifecycleGeneration = 0;
+
+function isActiveGeneration(generation: number): boolean {
+  return started && generation === lifecycleGeneration;
+}
 
 /** Track elements that already have listeners attached to prevent duplicates */
 const attachedElements = new WeakSet<HTMLElement>();
@@ -100,19 +108,32 @@ const attachedElements = new WeakSet<HTMLElement>();
  * 2. Scoped Button Search: Only search for buttons within the found container to avoid stale matches.
  */
 function findSendButton(inputElement: HTMLElement): HTMLElement | null {
+  // Current ChatGPT inline user-message editor. Its primary action has no
+  // stable aria-label/test id, but it is scoped by the semantic user turn and
+  // uses ChatGPT's primary-button role. Never use this fallback outside that
+  // turn, where `.btn-primary` could be an unrelated dialog action.
+  const currentEditTurn = inputElement.closest(
+    'section[data-testid^="conversation-turn"][data-turn="user"]',
+  );
+  if (currentEditTurn instanceof HTMLElement) {
+    const primaryAction = Array.from(
+      currentEditTurn.querySelectorAll<HTMLButtonElement>('button.btn-primary'),
+    ).find((button) => button.offsetParent !== null);
+    if (primaryAction) return primaryAction;
+  }
+
   // 1. First, find a cohesive container wrapper that holds BOTH the input and its corresponding button
   //    ChatGPT provides distinct containers for the main input and edit inputs
   const containerSelectors = [
     // ChatGPT composer
     '[data-testid="composer"]',
     'form[data-type="unified-composer"]',
-    'form',
     // Legacy wrappers
     '.text-input-field',
     // Active conversation edit container
     'chat-message',
-    // Modals/Dialogs
-    '[role="dialog"]',
+    // Named Angular compatibility only. A generic role=dialog/form fallback
+    // can submit unrelated current ChatGPT dialogs.
     '.mat-mdc-dialog-container',
   ];
 
@@ -243,7 +264,14 @@ function insertNewlineInTextarea(textarea: HTMLTextAreaElement): void {
  * ground-truth signal that the message went out.
  */
 function isInputCleared(input: HTMLElement): boolean {
-  if (input instanceof HTMLTextAreaElement) return input.value.trim() === '';
+  // React removes the inline edit textarea (and may replace the main editor)
+  // after a successful send. A detached input is therefore a success signal.
+  if (!input.isConnected) return true;
+
+  const TextareaConstructor = globalThis.HTMLTextAreaElement;
+  if (typeof TextareaConstructor === 'function' && input instanceof TextareaConstructor) {
+    return input.value.trim() === '';
+  }
   return (input.textContent ?? '').trim() === '';
 }
 
@@ -252,9 +280,24 @@ function isClickableSendButton(btn: HTMLElement | null): btn is HTMLElement {
   return !!btn && !btn.hasAttribute('disabled') && btn.getAttribute('aria-disabled') !== 'true';
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function waitForRetry(ms: number, signal: AbortSignal): Promise<boolean> {
+  if (signal.aborted) return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      resolve(false);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve(true);
+    }, ms);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 }
+
+type SendAttemptResult = 'sent' | 'failed' | 'cancelled';
 
 /**
  * Click the send button and confirm the message actually went out.
@@ -266,19 +309,24 @@ function sleep(ms: number): Promise<void> {
  * stops matching and we never double-click — the same guard that makes retry
  * safe also prevents a double-send.
  *
- * @returns true if the composer cleared (message sent), false if it never did.
+ * @returns sent, failed, or cancelled when feature teardown aborts the attempt.
  */
-async function clickSendWithVerify(inputEl: HTMLElement): Promise<boolean> {
+async function clickSendWithVerify(
+  inputEl: HTMLElement,
+  signal: AbortSignal,
+): Promise<SendAttemptResult> {
   const deadline = performance.now() + SEND_VERIFY_TIMEOUT_MS;
-  while (performance.now() < deadline) {
+  while (!signal.aborted && performance.now() < deadline) {
     const btn = findSendButton(inputEl);
     if (isClickableSendButton(btn)) btn.click();
 
-    await sleep(SEND_RETRY_INTERVAL_MS);
+    const elapsed = await waitForRetry(SEND_RETRY_INTERVAL_MS, signal);
+    if (!elapsed || signal.aborted) return 'cancelled';
 
-    if (isInputCleared(inputEl)) return true;
+    if (isInputCleared(inputEl)) return 'sent';
   }
-  return isInputCleared(inputEl);
+  if (signal.aborted) return 'cancelled';
+  return isInputCleared(inputEl) ? 'sent' : 'failed';
 }
 
 /**
@@ -312,12 +360,37 @@ function dispatchFallbackEnter(target: HTMLElement): void {
  * synchronously before this is invoked.
  */
 function triggerSend(inputEl: HTMLElement): void {
-  void clickSendWithVerify(inputEl).then((sent) => {
-    if (!sent) {
-      console.warn(`${LOG_PREFIX} send click did not take effect; falling back to native Enter`);
-      dispatchFallbackEnter(inputEl);
-    }
-  });
+  if (!isListenersActive) return;
+
+  const controller = new AbortController();
+  const generation = sendVerificationGeneration;
+  activeSendVerifications.add(controller);
+
+  void clickSendWithVerify(inputEl, controller.signal)
+    .then((result) => {
+      if (
+        result === 'failed' &&
+        !controller.signal.aborted &&
+        generation === sendVerificationGeneration &&
+        isListenersActive
+      ) {
+        console.warn(`${LOG_PREFIX} send click did not take effect; falling back to native Enter`);
+        dispatchFallbackEnter(inputEl);
+      }
+    })
+    .catch((error) => {
+      if (!controller.signal.aborted && generation === sendVerificationGeneration) {
+        console.warn(`${LOG_PREFIX} send verification failed:`, error);
+      }
+    })
+    .finally(() => {
+      activeSendVerifications.delete(controller);
+    });
+}
+
+function cancelActiveSendVerifications(): void {
+  for (const controller of activeSendVerifications) controller.abort();
+  activeSendVerifications.clear();
 }
 
 // ============================================================================
@@ -410,6 +483,7 @@ function handleKeyDown(event: KeyboardEvent): void {
  * Attach event listener to an input element
  */
 function attachToInput(element: HTMLElement): void {
+  if (!isListenersActive) return;
   // Prevent duplicate listeners
   if (attachedElements.has(element)) return;
 
@@ -444,6 +518,7 @@ function setupObserver(): void {
   if (observer) return;
 
   observer = new MutationObserver((mutations) => {
+    if (!isListenersActive || !started) return;
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (!(node instanceof HTMLElement)) continue;
@@ -512,6 +587,10 @@ function activateListeners(): void {
  * Called when transitioning from active modes to no active modes.
  */
 function deactivateListeners(): void {
+  sendVerificationGeneration += 1;
+  cancelActiveSendVerifications();
+  isDispatchingFallbackEnter = false;
+
   if (!isListenersActive) return;
 
   isListenersActive = false;
@@ -545,11 +624,11 @@ function reconcileListeners(): void {
 /**
  * Load the enabled state from storage for both modes
  */
-async function loadSettings(): Promise<void> {
+async function loadSettings(): Promise<{ ctrlEnter: boolean; safariFix: boolean }> {
   return new Promise((resolve) => {
     try {
       if (!chrome.storage?.sync?.get) {
-        resolve();
+        resolve({ ctrlEnter: false, safariFix: false });
         return;
       }
       chrome.storage.sync.get(
@@ -558,18 +637,19 @@ async function loadSettings(): Promise<void> {
           [StorageKeys.SAFARI_ENTER_FIX]: false,
         },
         (result) => {
-          isCtrlEnterSendEnabled = result?.[StorageKeys.CTRL_ENTER_SEND] === true;
-          isSafariEnterFixEnabled = result?.[StorageKeys.SAFARI_ENTER_FIX] === true;
-          resolve();
+          resolve({
+            ctrlEnter: result?.[StorageKeys.CTRL_ENTER_SEND] === true,
+            safariFix: result?.[StorageKeys.SAFARI_ENTER_FIX] === true,
+          });
         },
       );
     } catch (error) {
       if (isExtensionContextInvalidatedError(error)) {
-        resolve();
+        resolve({ ctrlEnter: false, safariFix: false });
         return;
       }
       console.warn(LOG_PREFIX, 'Failed to load settings:', error);
-      resolve();
+      resolve({ ctrlEnter: false, safariFix: false });
     }
   });
 }
@@ -579,10 +659,11 @@ async function loadSettings(): Promise<void> {
  * NOTE: This listener remains active even when feature is disabled,
  * so we can respond to setting changes.
  */
-function setupStorageListener(): void {
+function setupStorageListener(generation: number): void {
   if (storageListener) return;
 
   storageListener = (changes, areaName) => {
+    if (!isActiveGeneration(generation)) return;
     if (areaName !== 'sync') return;
 
     const hasCtrlEnterChange = StorageKeys.CTRL_ENTER_SEND in changes;
@@ -613,7 +694,9 @@ function setupStorageListener(): void {
 /**
  * Cleanup all resources
  */
-function cleanup(): void {
+export function stopSendBehavior(): void {
+  started = false;
+  lifecycleGeneration += 1;
   isCtrlEnterSendEnabled = false;
   isSafariEnterFixEnabled = false;
   deactivateListeners();
@@ -639,16 +722,22 @@ function cleanup(): void {
  * @returns A cleanup function to be called on unmount
  */
 export async function startSendBehavior(): Promise<() => void> {
+  if (started) return stopSendBehavior;
+  started = true;
+  const generation = ++lifecycleGeneration;
   // Always setup storage listener first (to respond to setting changes)
-  setupStorageListener();
+  setupStorageListener(generation);
 
   // Load initial settings and activate if any mode is enabled
-  await loadSettings();
+  const settings = await loadSettings();
+  if (!isActiveGeneration(generation)) return stopSendBehavior;
+  isCtrlEnterSendEnabled = settings.ctrlEnter;
+  isSafariEnterFixEnabled = settings.safariFix;
   reconcileListeners();
 
   if (!shouldBeActive()) {
     console.log(LOG_PREFIX, 'All modes disabled, skipping initialization');
   }
 
-  return cleanup;
+  return stopSendBehavior;
 }
