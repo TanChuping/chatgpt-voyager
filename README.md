@@ -75,6 +75,12 @@ Other platform build scripts are kept from the upstream project, but the activel
 
 ## Recent Updates
 
+### 1.8.1
+
+- Timeline now recovers automatically when a message is sent immediately after opening a new chat and ChatGPT replaces its temporary conversation route with the final conversation page. New turns continue to appear without refreshing.
+- The Prompt Manager floating button and panel now remain available when ChatGPT performs a late page-hydration pass that replaces extension-owned body children.
+- Chrome/Edge package: [v1.8.1](https://github.com/TanChuping/chatgpt-voyager/releases/tag/v1.8.1). The store build is expected to pass review by August 8, 2026.
+
 ### 1.8.0
 
 - Refreshed the Folder sidebar with a cleaner native-style layout, whole-panel and search-box collapse, expandable folder arrows, search/filter shortcuts, sorting, and adjustable visual density. Drag target spacing appears only while dragging so the idle list stays compact.

@@ -208,4 +208,56 @@ describe('TimelineManager navigation refresh', () => {
     expect(internal.navigationQueue).toHaveLength(0);
     expect(internal.smoothScrollTo).not.toHaveBeenCalled();
   });
+
+  it('rebinds to the current main when ChatGPT replaces the temporary conversation tree', () => {
+    const staleMain = document.createElement('main');
+    const staleContainer = document.createElement('div');
+    staleMain.appendChild(staleContainer);
+
+    const liveMain = document.createElement('main');
+    document.body.appendChild(liveMain);
+    const liveTurn = document.createElement('div');
+    liveTurn.className = 'user';
+    liveTurn.textContent = 'Fast first prompt';
+    setElementTop(liveTurn, 0);
+    liveMain.appendChild(liveTurn);
+
+    const timelineBar = document.createElement('div');
+    const trackContent = document.createElement('div');
+    timelineBar.appendChild(trackContent);
+    document.body.appendChild(timelineBar);
+
+    const manager = new TimelineManager();
+    const internal = manager as unknown as {
+      conversationContainer: HTMLElement | null;
+      scrollContainer: HTMLElement | null;
+      userTurnSelector: string | null;
+      ui: { timelineBar: HTMLElement | null; trackContent: HTMLElement | null };
+      markers: Array<{ id: string }>;
+      recalculateAndRenderMarkers: () => void;
+      updateTimelineGeometry: () => void;
+      updateIntersectionObserverTargetsFromMarkers: () => void;
+      syncTimelineTrackToMain: () => void;
+      updateVirtualRangeAndRender: () => void;
+      updateActiveDotUI: () => void;
+      scheduleScrollSync: () => void;
+    };
+
+    internal.conversationContainer = staleContainer;
+    internal.scrollContainer = document.documentElement;
+    internal.userTurnSelector = '.user';
+    internal.ui.timelineBar = timelineBar;
+    internal.ui.trackContent = trackContent;
+    internal.updateTimelineGeometry = vi.fn();
+    internal.updateIntersectionObserverTargetsFromMarkers = vi.fn();
+    internal.syncTimelineTrackToMain = vi.fn();
+    internal.updateVirtualRangeAndRender = vi.fn();
+    internal.updateActiveDotUI = vi.fn();
+    internal.scheduleScrollSync = vi.fn();
+
+    internal.recalculateAndRenderMarkers();
+
+    expect(internal.conversationContainer).toBe(liveMain);
+    expect(internal.markers).toHaveLength(1);
+  });
 });

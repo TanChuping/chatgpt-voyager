@@ -44,6 +44,8 @@ import {
 } from '@/utils/language';
 import type { TranslationKey } from '@/utils/translations';
 
+import { keepPromptManagerMounted } from './mountGuard';
+
 import { insertTextIntoChatInput } from '../chatInput/index';
 import { showJumpConfirmDialog } from '../favorites/jumpConfirmDialog';
 import { mountFavoritesSidebar } from '../favorites/sidebar';
@@ -593,6 +595,9 @@ function computeAnchoredPosition(
 }
 
 export async function startPromptManager(): Promise<{ destroy: () => void }> {
+  let stopPromptMountGuard: (() => void) | null = null;
+  let mountedTrigger: HTMLElement | null = null;
+  let mountedPanel: HTMLElement | null = null;
   let marked!: typeof MarkedFn;
   try {
     // Check if the prompt manager should be hidden.
@@ -670,8 +675,13 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
 
     // Dynamic imports to prevent side effects on unsupported pages
     // Dynamic imports to prevent side effects on unsupported pages
-    marked = (await import('marked')).marked;
-    const { default: markedKatex } = await import('marked-katex-extension');
+    const [markedModule, markedKatexModule] = await Promise.all([
+      import('marked'),
+      import('marked-katex-extension'),
+      initI18n(),
+    ]);
+    marked = markedModule.marked;
+    const { default: markedKatex } = markedKatexModule;
 
     // markdown config: respect single newlines as <br> and KaTeX inline/display math
     try {
@@ -685,8 +695,6 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       );
       marked.setOptions({ breaks: true });
     } catch {}
-    // Initialize centralized i18n system
-    await initI18n();
     const i18n = createI18n();
 
     // Prevent duplicate injection
@@ -712,6 +720,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     );
     trigger.appendChild(img);
     document.body.appendChild(trigger);
+    mountedTrigger = trigger;
     // Helper: place trigger near a target element (e.g. ChatGPT FAB touch target)
     function placeTriggerNextToHost(): void {
       try {
@@ -789,6 +798,8 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-modal', 'false');
     document.body.appendChild(panel);
+    mountedPanel = panel;
+    stopPromptMountGuard = keepPromptManagerMounted(trigger, panel);
 
     // Build panel DOM
     const header = createEl('div', 'gv-pm-header');
@@ -2414,6 +2425,8 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     return {
       destroy: () => {
         try {
+          stopPromptMountGuard?.();
+          stopPromptMountGuard = null;
           window.removeEventListener('resize', onWindowResize);
           window.removeEventListener('scroll', onReposition);
           window.removeEventListener('pointerdown', onWindowPointerDown, { capture: true });
@@ -2462,6 +2475,10 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       },
     };
   } catch (err) {
+    stopPromptMountGuard?.();
+    stopPromptMountGuard = null;
+    mountedTrigger?.remove();
+    mountedPanel?.remove();
     try {
       if (isExtensionContextInvalidatedError(err)) {
         return { destroy: () => {} };

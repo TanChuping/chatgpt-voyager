@@ -2060,8 +2060,20 @@ export class TimelineManager {
     // turn ChatGPT has virtualised away still contributes a marker. No-op until
     // the API capture / fiber read has populated the cache.
     const anchorSync = this.syncUserTurnAnchorsFromCache();
-    const userTurnNodeList = this.conversationContainer.querySelectorAll(this.userTurnSelector);
+    let userTurnNodeList = this.conversationContainer.querySelectorAll(this.userTurnSelector);
     this.visibleRange = { start: 0, end: -1 };
+    // During a very fast new-chat send, ChatGPT first renders the turn under a
+    // temporary WEB: route and then replaces <main> while assigning the final
+    // conversation id. The observer can remain attached to that detached
+    // <main>, so repeated zero-turn scans never see the live turn. Rebind to
+    // the current document before falling back to the retry timer.
+    if (
+      userTurnNodeList.length === 0 &&
+      this.refreshCriticalElementsFromDocument() &&
+      this.conversationContainer
+    ) {
+      userTurnNodeList = this.conversationContainer.querySelectorAll(this.userTurnSelector);
+    }
     if (userTurnNodeList.length === 0) {
       this.updateTimestampTracking([]);
       if (!this.zeroTurnsTimer) {
@@ -6670,6 +6682,12 @@ export class TimelineManager {
         window.clearTimeout(this.deferredMarkerRecalcTimerId);
       } catch {}
       this.deferredMarkerRecalcTimerId = null;
+    }
+    if (this.zeroTurnsTimer !== null) {
+      try {
+        window.clearTimeout(this.zeroTurnsTimer);
+      } catch {}
+      this.zeroTurnsTimer = null;
     }
     if (this.pendingMarkerOrderTimerId !== null) {
       try {

@@ -248,6 +248,25 @@ function timelineBarPresent(): boolean {
   }
 }
 
+const LIVE_USER_TURN_SELECTOR = [
+  '[data-gv-user-turn="true"]',
+  '[data-testid^="conversation-turn"][data-turn="user"]',
+  '[data-message-author-role="user"]',
+  'article[data-author="user"]',
+].join(',');
+
+function timelineHasExpectedMarkers(): boolean {
+  try {
+    if (document.querySelector('.timeline-dot')) return true;
+    // An empty bar is valid only while the new conversation has no user turn.
+    // Once a live user turn exists, zero dots means the manager is bound to a
+    // stale hydration tree and must be allowed to self-heal.
+    return !document.querySelector(LIVE_USER_TURN_SELECTOR);
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Self-heal watchdog, run from the route-check interval.
  *
@@ -270,7 +289,7 @@ function ensureTimelineHealthy(): void {
   // Only ever (re)inject on a real conversation route — never on the new-chat
   // landing (`/`), search, or any non-`/c/` page.
   if (!isChatGPTConversationRoute()) return;
-  if (timelineManagerInstance && timelineBarPresent()) {
+  if (timelineManagerInstance && timelineBarPresent() && timelineHasExpectedMarkers()) {
     healAttempts = 0; // healthy — restore the full budget for any later teardown
     return;
   }

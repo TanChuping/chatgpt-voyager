@@ -38,4 +38,31 @@ describe('Timeline bootstrap', () => {
 
     expect(initSpy).toHaveBeenCalledTimes(1);
   });
+
+  it('reinitializes a blank bar after a live user turn appears', async () => {
+    const managerModule = await import('../manager');
+    vi.spyOn(managerModule.TimelineManager.prototype, 'destroy').mockImplementation(() => {});
+    const initSpy = vi
+      .spyOn(managerModule.TimelineManager.prototype, 'init')
+      .mockImplementation(async () => {
+        if (!document.querySelector('.gpt-timeline-bar')) {
+          const bar = document.createElement('div');
+          bar.className = 'gpt-timeline-bar';
+          document.body.appendChild(bar);
+        }
+      });
+    const { startTimeline } = await import('../index');
+
+    startTimeline();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(initSpy).toHaveBeenCalledTimes(1);
+
+    const userTurn = document.createElement('section');
+    userTurn.dataset.testid = 'conversation-turn-0';
+    userTurn.dataset.turn = 'user';
+    document.querySelector('main')!.appendChild(userTurn);
+
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(initSpy).toHaveBeenCalledTimes(2);
+  });
 });
