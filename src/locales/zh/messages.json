@@ -464,6 +464,9 @@
   "formulaCopyFormatNoDollar": {
     "message": "不带美元符号的 LaTeX"
   },
+  "formulaCopyFormatDesmos": {
+    "message": "Desmos / 计算器"
+  },
   "formulaCopyFormatNotion": {
     "message": "Notion（$$）"
   },

@@ -17,6 +17,7 @@
 | 导出对话（选择模式、注入勾选框） | `src/pages/content/export/index.ts` | `collectChatPairs()` 从 DOM 配对 user/assistant |
 | 导出内容抽取 / 格式化 | `src/features/export/services/` | `DOMContentExtractor` 里仍有 Gemini 遗留选择器 |
 | 公式复制（拖选 / 原生按钮 / 点击） | `src/core/utils/latexFromDom.ts`, `src/features/formulaCopy/`, `src/pages/pageWorld/clipboardLatexFix.ts` | 三条复制路径共用 `recoverMathSource`；2026-08 GPT 去掉了 MathML，见下方条目 + memory `latex-copy-paths` |
+| 复制的公式粘不进 Desmos / 计算器 | `src/features/formulaCopy/desmosLatex.ts` | MathQuill 粘贴是全有或全无，`\displaystyle` `\,` 之类会整条丢弃，见 2026-08-08 条目 |
 | 文件夹弹窗/菜单里出现字面量 `folder`、`push_pin` 等英文单词 | `src/pages/content/folder/folderIcon.ts` | Gemini 时代的 Material 连字图标在 ChatGPT 上退化成文字，见 2026-08-08 条目 |
 | 注入的原生菜单项（移动到文件夹等）不出现 | `src/pages/content/folder/nativeConversationBridge.ts` | Radix 是 `pointerdown` 开菜单，click 时菜单已存在，见 2026-08-08 条目 |
 | 文件夹面板 | `src/pages/content/folder/manager.ts` | 8300+ 行 |
@@ -101,6 +102,33 @@ MathML**。整页 `annotation` / `.katex-mathml` / `<math>` 全部为 **0**，�
 
 **测试**：`bunx vitest run src/core/utils/ src/features/formulaCopy/ src/pages/pageWorld/`。
 全量 `bunx vitest run` 是 98 红，**改动前后逐条 diff 完全一致**（都是过期的 Gemini 时代断言）。
+
+### 2026-08-08 — 新增「Desmos / 计算器」复制格式（复制的公式粘不进 Desmos）
+
+**症状**：公式复制修好之后，复制出来的东西**粘不进 Desmos**，把「不带美元符号」开关打开也没用。
+
+**实测**（desmos.com，真 Ctrl+V，逐条隔离）：MathQuill 的粘贴是**全有或全无**——
+整串里只要有一个它不认识的命令，**整条粘贴直接丢弃，输入框一片空白**。
+
+| 结果 | 命令 |
+| --- | --- |
+| 整条被拒 | `\displaystyle` `\qquad` `\;` `\!` `\limits` `\boxed{}` `\text{}` `\nabla` `\begin{…}` `\cap` |
+| **粘进去但是错的** | `\,` → 变成一个**逗号**（`\int_0^1 x^2\,dx` 落地成 `x^{2},dx`） |
+| 正常 | `\frac \sqrt \left \right \cdot \to \sum \int \infty \mid \Gamma \operatorname \mathbf` 和 `\ `（反斜杠空格） |
+
+`$` 也一定进不去（Desmos 直接报「无法理解"$"符号」），所以默认的 `latex` 格式天然就不行。
+
+**修法**：新增第五种复制格式 `desmos`（`src/features/formulaCopy/desmosLatex.ts`），
+在 `no-dollar` 的基础上再去掉**纯排版、不带任何数学含义**的命令：间距类
+（`\, \; \: \! \ \quad \qquad \hspace{}` …）、样式类（`\displaystyle \limits` …），
+并把 `\boxed{X}` 拆成 `X`（花括号配平扫描，不配平就原样返回，绝不截断）。
+
+**故意不做**：`\text{}`、`\nabla`、矩阵、`\begin{aligned}` 一律不动。它们是真正的数学内容，
+Desmos 没有对应写法，硬编一个替代品等于**悄悄改了公式**——让它粘不进去才是诚实的结果。
+
+**实测结果**：同一批 ChatGPT 公式，转换前 16 条里 9 条被拒；转换后抽出的 10 条
+**全部粘贴成功**（含之前完全进不去的 `\displaystyle …` 和 `\boxed{\displaystyle …}`），
+且 `\,` 不再变成逗号。端到端也验过：切到 desmos 格式后点公式，剪贴板里就是可直接粘的串。
 
 ### 2026-08-08 — issue #7：「移动到文件夹」弹窗里每行都印着紫色的 "folder"
 

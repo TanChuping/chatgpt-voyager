@@ -33,7 +33,7 @@ import { StarredHistory } from './components/StarredHistory';
 import WidthSlider from './components/WidthSlider';
 
 type ScrollMode = 'jump' | 'flow';
-type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar' | 'notion';
+type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar' | 'notion' | 'desmos';
 type PromptViewMode = 'compact' | 'comfortable';
 /**
  * Mirror of `FontPreset` in `src/pages/content/chatFontFamily/index.ts`.
@@ -617,6 +617,7 @@ export default function Popup() {
         setFormulaCopyFormat(
           formula === 'unicodemath' ||
             formula === 'no-dollar' ||
+            formula === 'desmos' ||
             formula === 'notion' ||
             formula === 'latex'
             ? formula
@@ -687,6 +688,7 @@ export default function Popup() {
         ['latex', t('formulaCopyFormatLatex')],
         ['unicodemath', t('formulaCopyFormatUnicodeMath')],
         ['no-dollar', t('formulaCopyFormatNoDollar')],
+        ['desmos', t('formulaCopyFormatDesmos')],
         ['notion', t('formulaCopyFormatNotion')],
       ] as const,
     [t],

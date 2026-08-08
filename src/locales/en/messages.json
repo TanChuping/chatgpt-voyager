@@ -464,6 +464,9 @@
   "formulaCopyFormatNoDollar": {
     "message": "LaTeX without dollar signs"
   },
+  "formulaCopyFormatDesmos": {
+    "message": "Desmos / calculators"
+  },
   "formulaCopyFormatNotion": {
     "message": "Notion ($$)"
   },

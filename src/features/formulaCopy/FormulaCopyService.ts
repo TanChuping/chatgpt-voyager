@@ -11,10 +11,12 @@ import { StorageKeys } from '@/core/types/common';
 import type { ILogger } from '@/core/types/common';
 import { containsMath, recoverMathSource, replaceMathWithLatex } from '@/core/utils/latexFromDom';
 
+import { toDesmosLatex } from './desmosLatex';
+
 /**
  * Formula copy format options
  */
-export type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar' | 'notion';
+export type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar' | 'notion' | 'desmos';
 
 /**
  * Configuration for the formula copy service
@@ -47,6 +49,7 @@ export class FormulaCopyService {
         newFormat === 'latex' ||
         newFormat === 'unicodemath' ||
         newFormat === 'no-dollar' ||
+        newFormat === 'desmos' ||
         newFormat === 'notion'
       ) {
         this.currentFormat = newFormat;
@@ -110,6 +113,7 @@ export class FormulaCopyService {
         format === 'latex' ||
         format === 'unicodemath' ||
         format === 'no-dollar' ||
+        format === 'desmos' ||
         format === 'notion'
       ) {
         this.currentFormat = format;
@@ -244,6 +248,7 @@ export class FormulaCopyService {
    * the other formats map straight through.
    */
   private wrapForSelection(latex: string, isDisplayMode: boolean): string {
+    if (this.currentFormat === 'desmos') return toDesmosLatex(latex);
     if (this.currentFormat === 'no-dollar') return latex;
     if (this.currentFormat === 'notion') return `$$${latex}$$`;
     return isDisplayMode ? `$$${latex}$$` : `$${latex}$`;
@@ -542,6 +547,12 @@ export class FormulaCopyService {
         this.logger.error('MathML conversion failed', { error });
         return { text: formula };
       }
+    }
+
+    if (this.currentFormat === 'desmos') {
+      // Bare LaTeX with the typesetting-only commands removed — a calculator
+      // input drops the whole paste when it meets one it doesn't know.
+      return { text: toDesmosLatex(formula) };
     }
 
     if (this.currentFormat === 'no-dollar') {
