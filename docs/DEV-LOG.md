@@ -16,12 +16,14 @@
 | 对话文本缓存（跨刷新） | `src/pages/content/timeline/turnTextCache.ts` | localStorage `gptTimelineTurnTextCache:gpt:conv:<uuid>` |
 | 导出对话（选择模式、注入勾选框） | `src/pages/content/export/index.ts` | `collectChatPairs()` 从 DOM 配对 user/assistant |
 | 导出内容抽取 / 格式化 | `src/features/export/services/` | `DOMContentExtractor` 里仍有 Gemini 遗留选择器 |
-| 公式复制（拖选 / 原生按钮 / 点击） | `src/core/utils/latexFromDom.ts`, `src/features/formulaCopy/`, `src/pages/pageWorld/clipboardLatexFix.ts` | 三条复制路径，见 memory `latex-copy-paths` |
+| 公式复制（拖选 / 原生按钮 / 点击） | `src/core/utils/latexFromDom.ts`, `src/features/formulaCopy/`, `src/pages/pageWorld/clipboardLatexFix.ts` | 三条复制路径共用 `recoverMathSource`；2026-08 GPT 去掉了 MathML，见下方条目 + memory `latex-copy-paths` |
+| 文件夹弹窗/菜单里出现字面量 `folder`、`push_pin` 等英文单词 | `src/pages/content/folder/folderIcon.ts` | Gemini 时代的 Material 连字图标在 ChatGPT 上退化成文字，见 2026-08-08 条目 |
+| 注入的原生菜单项（移动到文件夹等）不出现 | `src/pages/content/folder/nativeConversationBridge.ts` | Radix 是 `pointerdown` 开菜单，click 时菜单已存在，见 2026-08-08 条目 |
 | 文件夹面板 | `src/pages/content/folder/manager.ts` | 8300+ 行 |
 | 深色模式 / 布局滑块 | `src/pages/content/gentleDarkMode/`, `chatWidth/`, `chatFontSize/` | 2026-07 改版后 token 选择器有坑 |
 | 页面世界（MAIN world）钩子 | `src/pages/pageWorld/conversationHook.ts` | fetch/XHR 抓包 + fiberReader + 剪贴板补丁的总入口 |
 
-### ChatGPT DOM 关键事实（2026-07 改版后，2026-07-29 实测）
+### ChatGPT DOM 关键事实（2026-07 改版后，2026-07-29 实测；数学部分 2026-08-08 更新）
 
 ```
 div[data-turn-id-container="<uuid>"]      ← 每一轮对话一个，**虚拟化时也在**，保留真实高度
@@ -41,10 +43,119 @@ div[data-turn-id-container="<uuid>"]      ← 每一轮对话一个，**虚拟�
   可以拿它当“真实 prompt 数”的交叉校验。
 - 线程滚动容器不是 `document.scrollingElement`，是那个
   `div[class*="scrollbar-gutter"][class*="group/scroll-r..."]`（`overflow-y:auto`）。
+- **数学（2026-08 起）**：`.katex-mathml` / `<annotation>` / `<math>` 全都没有了，
+  TeX 在 `.katex` 的**祖先** `span[role="math"][data-math-source]` 上
+  （`aria-label` 同值）；display 公式多一层 `.katex-display`，且外层 wrapper 带
+  inline `style="display:block"`。取源必须 `closest()`。
 
 ---
 
 ## 变更历史
+
+### 2026-08-08 — ChatGPT 改了 KaTeX 渲染，三条公式复制路径全断
+
+**症状**：点公式没反应（无 toast、剪贴板不变）；拖选 + Ctrl+C 复制到的是渲染字形
+（`f \n′\n (x)`）而不是 `$f'(x)$`；原生「复制消息」按钮的定界符修复也失效。
+
+**根因（browser-harness 实测）**：ChatGPT 的 client-side KaTeX 布局**不再输出任何
+MathML**。整页 `annotation` / `.katex-mathml` / `<math>` 全部为 **0**，而所有提取器都只认
+`annotation[encoding="application/x-tex"]`。真正的 TeX 搬到了**包在外层**的语义节点上：
+
+```
+<span role="math" aria-label="f'(x)" data-math-source="f'(x)" data-client-katex-layout
+      [style="display:block"]>          ← display 公式才有 inline style
+  [<span class="katex-display">]        ← display 公式才有
+    <span class="katex">
+      <span class="katex-html" aria-hidden="true">…字形…</span>
+```
+
+实测计数（429 个 `.katex`）：`data-math-source` 430、`role=math` 430、`annotation` 0。
+**关键点：源在 `.katex` 的祖先上**，所以只能 `closest()`，`querySelector()` 永远找不到。
+
+**修法**（隔壁 gemini-voyager `fef895c7` 只改了点击复制这一条，这里三条都得改）：
+
+| 路径 | 文件 | 改动 |
+| --- | --- | --- |
+| 点击公式 | `src/features/formulaCopy/FormulaCopyService.ts` | `extractLatexSource` 改为委托给共享的 `recoverMathSource`；`findMathElement` 增加 `[role="math"]` 兜底；`isDisplayMode` 双向找 `.katex-display` |
+| 拖选 / 引用回复 | `src/core/utils/latexFromDom.ts` | `recoverMathSource` 新增 `data-math-source`（self / closest / 后代）；`MATH_CONTAINER_SELECTORS` 把 `[data-math-source]`、`[role="math"]` 排在最前（外层优先，整块塌成一个 `$$…$$`）；`isDisplayMath` 增加「后代有 `.katex-display`」判断 |
+| 原生复制按钮 | `src/pages/pageWorld/clipboardLatexFix.ts` | `collectSources()` 增加 `[data-math-source]`，否则源集合为空 → 直接放行未修复的载荷 |
+
+**抗下次改版的兜底**（`recoverSourceHeuristically`）：ChatGPT 已经搬过两次源，所以最后
+加了一层**按值的形状而不是属性名**来找源的启发式——在 node 自身 + 最多 4 层 inline 祖先
+（遇到块级元素就停，绝不去读外层 `<p>` 的属性）上，取第一个满足下列之一的属性值：
+含 TeX 特征字符 `[\\^_{}]`，或与同元素 `aria-label` **完全一致**（名/值互证）。
+`aria-label` 单独作为源时**必须**含 TeX 特征字符——MathJax 之类会把 `aria-label` 写成朗读
+文本（"f prime of x"），加这道闸才不会把散文当公式复制。`data-start` / `data-end` /
+`data-state` 等记账属性在忽略名单里。宁可返回 null（表现同今天：点了没反应），
+也不要**静默复制错的东西**。
+
+**实测**（`browser-harness`，真实系统剪贴板 + 真 Ctrl+C）：
+- 拖选 → `…求 $f'(x)$ 的 series、再用 geometric 求 $f'(1/6)$。`
+- 点公式 → `$$a_n=(-1)^n 2^{1/n}$$`
+- 原生按钮：在补丁**上面**再包一层 spy 拿到 ChatGPT 的原始载荷，`(f'(x))` / `[\boxed{…}]`
+  → 落到剪贴板是 `$f'(x)$` / `$$\boxed{…}$$`，证明是我们修的，不是 GPT 自己改好了。
+
+**已知遗留**：单字符公式（源是 `0`、`1`、`N` 这种纯字母数字）在原生按钮路径仍保持
+`(0)` 不修——这是 `looksLikeMath` 故意的取舍，否则散文里的 `O(N)` 会被改成 `O$N$`。
+拖选和点击这两条路不受影响（它们替换的是真实 DOM 节点，不做文本匹配）。
+
+**测试**：`bunx vitest run src/core/utils/ src/features/formulaCopy/ src/pages/pageWorld/`。
+全量 `bunx vitest run` 是 98 红，**改动前后逐条 diff 完全一致**（都是过期的 Gemini 时代断言）。
+
+### 2026-08-08 — issue #7：「移动到文件夹」弹窗里每行都印着紫色的 "folder"
+
+**根因**：弹窗行的图标是 Gemini 时代遗留的 Material 连字
+（`<mat-icon class="google-symbols">folder</mat-icon>`）。Gemini 页面自带那套图标字体，
+ChatGPT 没有，于是连字退化成**字面量 "folder"**；而 CSS 又给它钉死了 16px 宽却没有
+`overflow:hidden`，文字就横着压到文件夹名上。
+侧边栏没这个问题是因为 `.gv-folder-container mat-icon { display:none }` 把连字藏了——
+**而这个弹窗是挂到 `document.body` 的，不在那个作用域里**。
+
+**修法**：
+- 新增 `src/pages/content/folder/folderIcon.ts`（`createFolderSvgIcon`），
+  `moveToFolderMenuItem.ts` 里原有的那份 SVG 抽出来共用；弹窗行改用真 SVG。
+- `contentStyle.css`：`.gv-folder-dialog-item mat-icon` 换成 `.gv-folder-dialog-item-icon`
+  （含深/浅色 token），并补一条 `.gv-folder-dialog mat-icon, .gv-folder-dialog .google-symbols
+  { display:none !important }` 作为其它遗留连字的安全网。
+- `src/locales/zh/messages.json`：这一段 folder 相关的 key 一直是英文原文，
+  中文界面上弹窗标题显示 "Move to folder"。补了 `移动到文件夹` 等 7 条翻译。
+
+**实测**：在真实页面上按新代码的结构挂了一遍弹窗——图标 15×15、`rgb(167,139,250)`、
+图标右边缘 377 < 文字左边缘 387（不再重叠），故意塞的遗留 `mat-icon` 行 `display:none`。
+
+### 2026-08-08 — 「移动到文件夹」菜单项在当前 ChatGPT 上根本注入不出来
+
+**症状**：侧边栏和顶栏的「…」菜单里都没有「移动到文件夹」
+（`.gv-move-to-folder-btn` 计数 10 秒内一直是 0），而**同一个菜单**里我们注入的
+「Export chat」是在的。所以上面那个弹窗几乎没有入口。
+
+**排查**：在页面里镜像了一遍 `isOwnedNativeConversationMenu` 的每一项判据，在菜单被插入
+的那一刻打快照——`isElementOpen` ✓、markers 2 ✓、`aria-labelledby` === trigger.id ✓、
+`aria-expanded="true"` ✓，唯独 **`data-gv-native-menu-token` 是 `null`**。
+
+**根因**：ChatGPT 的 Radix 菜单是 **`pointerdown` 就打开**的，而我们的监视是挂在
+`click`（capture）上的。等 click 派发时菜单**早就挂上 DOM 了**，于是它落进
+`createNativeMenuOwnershipSnapshot` 的 `existingMenus` 快照里，
+`isOwnedNativeConversationMenu` 第一行 `existingMenus.has(menu)` 直接判它"不是我们的"
+——**永远拿不到那个菜单**。而且插入之后只剩一条 `style` 属性变更，
+`inspectCandidates` 再也不会被触发，只能干等超时。
+
+**修法**（两处，都必须）：
+- `nativeConversationBridge.ts`：`existingMenus.has(menu)` 不再单独否决，
+  改成 `existingMenus.has(menu) && !isNativeConversationMenuBoundToTrigger(menu, trigger)`。
+  绑定校验要求 trigger 当前是展开的、并且 `aria-controls`/`aria-labelledby` 明确指向这个
+  菜单，比"它是新出现的"更强，所以放宽这一条不会误抓别的菜单。
+- `manager.ts` `startOwnedNativeMenuWatch`：装完 observer 后**立刻把当前已开的会话菜单
+  塞进 candidates 并跑一次 `inspectCandidates()`**——菜单可能在 click 之前就开好了，
+  后面不会再有任何 mutation。
+
+**实测**：热重载后走顶栏「…」→ `.gv-move-to-folder-btn` **0.6 秒内注入**，文案「移动到文件夹」、
+图标是 SVG；点进去弹窗标题「移动到文件夹」、2 行文件夹、`mat-icon` 0 个、图标与文字不重叠、
+按钮「取消」。回归测试 `src/pages/content/folder/__tests__/nativeMenuOwnership.test.ts`（4 条）。
+
+**注意**：合成的完整 click（mousePressed+mouseReleased）在 Radix 上会「开了又关」，
+因为 pointerdown 开、click 再 toggle 一次。验证时用 JS 直接 dispatch
+`pointerdown/mousedown/pointerup/mouseup/click` 更稳。
 
 ### 2026-07-29 — 审计：全仓库 GBK 乱码（含一个线上崩溃）
 
