@@ -20,6 +20,8 @@
 | 复制的公式粘不进 Desmos / 计算器 | `src/features/formulaCopy/desmosLatex.ts` | MathQuill 粘贴是全有或全无，`\displaystyle` `\,` 之类会整条丢弃，见 2026-08-08 条目 |
 | 文件夹弹窗/菜单里出现字面量 `folder`、`push_pin` 等英文单词 | `src/pages/content/folder/folderIcon.ts` | Gemini 时代的 Material 连字图标在 ChatGPT 上退化成文字，见 2026-08-08 条目 |
 | 注入的原生菜单项（移动到文件夹等）不出现 | `src/pages/content/folder/nativeConversationBridge.ts` | Radix 是 `pointerdown` 开菜单，click 时菜单已存在，见 2026-08-08 条目 |
+| 往对话顶栏**左侧**注入按钮 | `src/pages/content/shared/headerActionSlot.ts` (`findHeaderLeftSlot`) | 右侧用 `findOptionsButtonRow`；左侧组要按 `position!=='absolute'` 跳过居中切换器 |
+| 新功能要「默认关但开了才加载」 | `src/pages/content/bootstrap/features.ts` | 照 `folder-header-button` / `folder-project` 写 lazy feature，`isEnabled` 为假就不会 `import()` |
 | 文件夹面板 | `src/pages/content/folder/manager.ts` | 8300+ 行 |
 | 深色模式 / 布局滑块 | `src/pages/content/gentleDarkMode/`, `chatWidth/`, `chatFontSize/` | 2026-07 改版后 token 选择器有坑 |
 | 页面世界（MAIN world）钩子 | `src/pages/pageWorld/conversationHook.ts` | fetch/XHR 抓包 + fiberReader + 剪贴板补丁的总入口 |
@@ -102,6 +104,45 @@ MathML**。整页 `annotation` / `.katex-mathml` / `<math>` 全部为 **0**，�
 
 **测试**：`bunx vitest run src/core/utils/ src/features/formulaCopy/ src/pages/pageWorld/`。
 全量 `bunx vitest run` 是 98 红，**改动前后逐条 diff 完全一致**（都是过期的 Gemini 时代断言）。
+
+### 2026-08-08 — issue #8：顶栏「加入文件夹」按钮（默认关闭 + 按需加载）
+
+**背景**：1.7.4 及更早版本在对话顶栏**最左侧**有一个文件夹按钮，点一下就能把当前对话
+归到文件夹里。2026-07 的顶栏改版把它弄没了，反馈者退回 1.7.4 也没能恢复。
+（正是因为这个入口早就不在了，issue #7 那个弹窗才「几乎没人见过」。）
+
+**做法**：单独一个模块 `src/pages/content/folderHeaderButton/index.ts`，
+生命周期照抄 `conversationExport/topBarButton.ts`（generation 计数 + 防抖 +
+只盯 header 的 MutationObserver，路由切换后重新注入）。
+
+- **默认关闭**，开关 `gvFolderHeaderButtonEnabled`，弹窗「文件夹」分区里。
+- **关闭时整份模块不下载**：注册成 `bootstrap/features.ts` 里的 lazy feature，
+  `isEnabled` 为假就不会走到那句 `import()`。实测关闭状态下
+  `performance.getEntriesByType('resource')` 里根本没有那个 chunk；打开后
+  **0.8 秒内**注入，无需刷新页面。
+- 点击调用新增的公开入口 `FolderManager.openMoveToFolderDialogForCurrentConversation()`
+  （模块不碰 manager 私有成员），弹出的就是 #7 里美化过的那个框。
+- 不在对话页（`/`、`/library` 等）时按钮自行移除，避免打开一个没有对话可归的框。
+
+**顶栏左侧锚点**（`shared/headerActionSlot.ts` 新增 `findHeaderLeftSlot()`，实测 2026-08）：
+
+```
+header#page-header                     flex, justify-between
+  ├ div.absolute.start-1/2 …           居中的「聊天/工作」切换器（position:absolute）
+  ├ div.flex.flex-1.items-center       ← 左侧组
+  │   └ div.translucent-surface…       GPT 自己的左侧按钮簇（边栏展开时为空）
+  └ div[data-testid="thread-header-right-actions-container"]
+```
+
+按 `position !== 'absolute'` 跳过居中切换器（而不是去匹配它的类名），
+然后**追加在** GPT 自己那簇按钮之后——这样边栏收起时它自己的按钮位置不变。
+左侧展开状态下没有按钮可以抄样式，所以 `styleSource` 回落到右侧的「…」按钮
+（同一个顶栏、同样的 36×36 图标按钮规格）。
+
+**实测**：关闭→无按钮且无 chunk 请求；打开→0.8s 注入、位置在 header 最左
+（rect 左边缘 70，header 左边缘 62）、图标是 SVG、`aria-label` 为「移动到文件夹」；
+点击弹出的框标题「移动到文件夹」、图标是 SVG、`mat-icon` 0 个。
+单测 `src/pages/content/folderHeaderButton/__tests__/`（7 条）。
 
 ### 2026-08-08 — 新增「Desmos / 计算器」复制格式（复制的公式粘不进 Desmos）
 

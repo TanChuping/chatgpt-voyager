@@ -1403,6 +1403,12 @@
   "folderAsProject_description": {
     "message": "把文件夹作为项目入口使用。"
   },
+  "folderHeaderButton_enable": {
+    "message": "顶栏文件夹按钮"
+  },
+  "folderHeaderButton_description": {
+    "message": "在对话顶部左上角显示一个文件夹按钮，点击可把当前对话加入文件夹（与「…」菜单里的「移动到文件夹」相同）。"
+  },
   "folderBelowProjects": {
     "message": "文件夹放到项目下方"
   },

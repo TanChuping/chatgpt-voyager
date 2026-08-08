@@ -1403,6 +1403,12 @@
   "folderAsProject_description": {
     "message": "Attach reusable instructions to a folder and insert them into chats."
   },
+  "folderHeaderButton_enable": {
+    "message": "Folder button in the header"
+  },
+  "folderHeaderButton_description": {
+    "message": "Show a folder button at the top-left of a conversation to file it into a folder — the same action as \"Move to folder\" in the \"…\" menu."
+  },
   "folderBelowProjects": {
     "message": "Place folders below Projects"
   },

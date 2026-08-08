@@ -32,6 +32,7 @@ export const BOOTSTRAP_SETTING_KEYS = [
   StorageKeys.MERMAID_ENABLED,
   StorageKeys.FORK_ENABLED,
   StorageKeys.FOLDER_PROJECT_ENABLED,
+  StorageKeys.FOLDER_HEADER_BUTTON_ENABLED,
   StorageKeys.PROMPT_CUSTOM_WEBSITES,
 ] as const;
 
@@ -304,6 +305,31 @@ export function createLazyFeatureDefinitions(
             module.stopFolderProject();
           },
           persistentSettingBridge: true,
+        };
+      },
+    },
+    {
+      // Opt-in second entry point for "add to folder" (issue #8). Off by
+      // default, so the module is never imported unless the user asks for it.
+      id: 'folder-header-button',
+      initial: 'immediate',
+      isEnabled: (settings) => isTrue(settings, StorageKeys.FOLDER_HEADER_BUTTON_ENABLED),
+      load: async () => {
+        const module = await import('../folderHeaderButton/index');
+        let generation = 0;
+        return {
+          start: async () => {
+            const currentGeneration = ++generation;
+            const manager = await dependencies.getFolderManager();
+            if (!manager || currentGeneration !== generation) return;
+            return module.startFolderHeaderButton(
+              manager as Parameters<typeof module.startFolderHeaderButton>[0],
+            );
+          },
+          stop: () => {
+            generation += 1;
+            module.stopFolderHeaderButton();
+          },
         };
       },
     },

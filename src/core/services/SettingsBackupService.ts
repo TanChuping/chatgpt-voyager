@@ -79,6 +79,7 @@ export const BACKUPABLE_SYNC_SETTINGS_DEFAULTS: Record<string, unknown> = {
   [StorageKeys.GV_POPUP_SECTION_ORDER]: null,
   [StorageKeys.FOLDER_ENABLED]: true,
   [StorageKeys.FOLDER_HIDE_ARCHIVED_CONVERSATIONS]: false,
+  [StorageKeys.FOLDER_HEADER_BUTTON_ENABLED]: false,
   [StorageKeys.SINGLE_CONV_EXPORT_FORMAT]: 'markdown',
   // Chat font family — preset selection only. The custom font bytes
   // (`CHAT_CUSTOM_FONT_DATA`) deliberately live in chrome.storage.local

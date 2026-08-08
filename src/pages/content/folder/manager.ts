@@ -5321,6 +5321,21 @@ export class FolderManager {
     this.refresh();
   }
 
+  /**
+   * Open the "move to folder" dialog for whatever conversation is on screen.
+   *
+   * Public entry point for the opt-in header folder button, which is a
+   * separately loaded module and has no business reaching into the manager's
+   * internals. Returns false when the page is not a conversation, so the
+   * caller can keep its button hidden instead of opening an empty dialog.
+   */
+  public openMoveToFolderDialogForCurrentConversation(): boolean {
+    const info = this.extractConversationInfoFromPage();
+    if (!info) return false;
+    this.showMoveToFolderDialog(info.id, info.title, info.url);
+    return true;
+  }
+
   private showMoveToFolderDialog(
     conversationId: string,
     conversationTitle: string,

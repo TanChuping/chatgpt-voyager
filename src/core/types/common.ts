@@ -172,6 +172,14 @@ export const StorageKeys = {
   FOLDER_PROJECT_PENDING_FOLDER_ID: 'gvFolderProjectPendingFolderId',
 
   /**
+   * "Add this conversation to a folder" button in the top-left of the
+   * conversation header. Off by default — most people reach the same action
+   * from the conversation's "…" menu — and the module is only imported when
+   * this is true.
+   */
+  FOLDER_HEADER_BUTTON_ENABLED: 'gvFolderHeaderButtonEnabled',
+
+  /**
    * Announcement system (1.6.5+).
    *
    * `SEEN_ID` — last announcement id the user explicitly acknowledged

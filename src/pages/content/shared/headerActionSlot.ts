@@ -107,6 +107,52 @@ export function findHorizontalRowAncestor(
 }
 
 /**
+ * Slot at the LEFT end of the conversation header, mirroring `findOptionsButtonRow`
+ * for the other side. Verified live (2026-08):
+ *
+ *   header#page-header                    (flex, justify-between)
+ *     ├ div.absolute.start-1/2 …          the centred Chat/Work switcher
+ *     ├ div.flex.flex-1.items-center      ← the left group
+ *     │   └ div.translucent-surface…      ChatGPT's own left cluster: empty
+ *     │                                   while the sidebar is open, holds the
+ *     │                                   sidebar/search buttons when collapsed
+ *     └ div[data-testid="thread-header-right-actions-container"]
+ *
+ * We append AFTER ChatGPT's own cluster so its buttons keep their positions and
+ * ours follows them. The centred switcher is `position: absolute`, so it is
+ * skipped by the layout check rather than by matching its class names.
+ *
+ * There is no button on this side to clone styling from while the sidebar is
+ * open, so `styleSource` falls back to the "…" options button on the right —
+ * same header, same 36×36 icon-button treatment.
+ */
+export function findHeaderLeftSlot(): HeaderActionSlot | null {
+  const header = document.querySelector<HTMLElement>('header#page-header');
+  if (!header) return null;
+
+  const rightActions = header.querySelector<HTMLElement>(
+    '[data-testid="thread-header-right-actions-container"], #conversation-header-actions',
+  );
+
+  const leftGroup = Array.from(header.children).find((child): child is HTMLElement => {
+    if (!(child instanceof HTMLElement)) return false;
+    if (rightActions && (child === rightActions || child.contains(rightActions))) return false;
+    // The centred switcher floats above the row; only the in-flow group counts.
+    return getComputedStyle(child).position !== 'absolute';
+  });
+  if (!leftGroup) return null;
+
+  const styleSource =
+    findOptionsButtonRow()?.styleSource ??
+    header.querySelector<HTMLElement>('button') ??
+    leftGroup;
+
+  const cluster = leftGroup.querySelector<HTMLElement>('.translucent-surface');
+  if (cluster) return { parent: cluster, before: null, styleSource };
+  return { parent: leftGroup, before: null, styleSource };
+}
+
+/**
  * Best available slot next to ChatGPT's Share button, escaping any wrapper that
  * would stack us underneath it.
  */
