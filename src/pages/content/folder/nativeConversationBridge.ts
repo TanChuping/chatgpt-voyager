@@ -172,7 +172,15 @@ export function isOwnedNativeConversationMenu(
   snapshot: NativeMenuOwnershipSnapshot,
 ): boolean {
   const { trigger, expectedId, token, existingMenus } = snapshot;
-  if (existingMenus.has(menu) || !isNativeConversationMenu(menu) || !isElementOpen(menu)) {
+  if (!isNativeConversationMenu(menu) || !isElementOpen(menu)) return false;
+  // "Already on screen when the watch started" used to disqualify a menu
+  // outright. ChatGPT's Radix menus open on **pointerdown**, so by the time the
+  // click that arms the watch is dispatched the menu is already mounted — that
+  // rule rejected the very menu we were waiting for and "Move to folder" stopped
+  // being injected entirely (verified live 2026-08-08). A pre-existing menu is
+  // still only accepted when it is explicitly bound to this trigger, which
+  // requires the trigger to be open and to name this exact menu.
+  if (existingMenus.has(menu) && !isNativeConversationMenuBoundToTrigger(menu, trigger)) {
     return false;
   }
   if (!trigger.isConnected) return false;

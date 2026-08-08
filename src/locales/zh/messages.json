@@ -348,25 +348,25 @@
     "message": "Custom"
   },
   "folder_empty": {
-    "message": "No folders yet"
+    "message": "还没有文件夹"
   },
   "folder_pin": {
-    "message": "Pin folder"
+    "message": "置顶文件夹"
   },
   "folder_unpin": {
-    "message": "Unpin folder"
+    "message": "取消置顶"
   },
   "folder_remove_conversation": {
-    "message": "Remove from folder"
+    "message": "从文件夹中移除"
   },
   "conversation_more": {
-    "message": "More actions"
+    "message": "更多操作"
   },
   "conversation_move_to_folder": {
-    "message": "Move to folder"
+    "message": "移动到文件夹"
   },
   "conversation_move_to_folder_title": {
-    "message": "Move to folder"
+    "message": "移动到文件夹"
   },
   "chatWidth": {
     "message": "聊天宽度"

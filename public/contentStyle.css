@@ -6129,21 +6129,48 @@ body.light-theme .gv-folder-dialog-item:not(:disabled):hover {
   opacity: 0.4;
 }
 
-.gv-folder-dialog-item mat-icon {
-  font-size: 16px !important;
-  width: 16px !important;
-  height: 16px !important;
+.gv-folder-dialog-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
   color: #6d28d9;
-  flex-shrink: 0;
+  flex: 0 0 16px;
+}
+
+.gv-folder-dialog-item-icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 @media (prefers-color-scheme: dark) {
-  .gv-folder-dialog-item mat-icon {
+  .gv-folder-dialog-item-icon {
     color: #a78bfa;
   }
 }
 
-.gv-folder-dialog-item span {
+.theme-host.dark-theme .gv-folder-dialog-item-icon,
+body.dark-theme .gv-folder-dialog-item-icon {
+  color: #a78bfa;
+}
+
+.theme-host.light-theme .gv-folder-dialog-item-icon,
+body.light-theme .gv-folder-dialog-item-icon {
+  color: #6d28d9;
+}
+
+/* Safety net: this dialog is mounted on <body>, outside the
+ * `.gv-folder-container` scope that neutralises Gemini-era Material ligature
+ * icons. Any leftover `<mat-icon>folder</mat-icon>` here renders as the
+ * literal word "folder" spilling across the row (issue #7), so hide them. */
+.gv-folder-dialog mat-icon,
+.gv-folder-dialog .google-symbols {
+  display: none !important;
+}
+
+.gv-folder-dialog-item-name {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;

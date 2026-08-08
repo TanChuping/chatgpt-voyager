@@ -48,6 +48,7 @@ import {
   mountFloatingPanel,
 } from './floatingPanel';
 import { FOLDER_COLORS, getFolderColor, isDarkMode } from './folderColors';
+import { createFolderSvgIcon } from './folderIcon';
 import { DEFAULT_CONVERSATION_ICON } from './gptConfig';
 import {
   mountHideArchivedNudge,
@@ -68,6 +69,7 @@ import {
   findDeleteConversationMenuItem,
   findNativeConversationMenusInNode,
   findNativeDeleteDialogsInNode,
+  getNativeConversationMenus,
   getNativeDeleteDialogs,
   isElementOpen,
   isHeaderConversationOptionsTrigger,
@@ -4257,6 +4259,13 @@ export class FolderManager {
           'hidden',
         ],
       });
+
+      // Radix opens the menu on pointerdown — before the click that arms this
+      // watch — so the menu is often already mounted and no further mutation is
+      // coming. Seed with what is on screen and inspect once, otherwise we just
+      // wait out the timeout. Ownership is verified the same way either path.
+      getNativeConversationMenus(document).forEach((menu) => candidates.add(menu));
+      inspectCandidates();
     });
   }
 
@@ -5343,15 +5352,18 @@ export class FolderManager {
         folderItem.className = 'gv-folder-dialog-item';
         folderItem.style.paddingLeft = `${calculateFolderDialogPaddingLeft(level)}px`;
 
-        // Folder icon
-        const icon = document.createElement('mat-icon');
-        icon.className = 'mat-icon notranslate google-symbols mat-ligature-font mat-icon-no-color';
-        icon.setAttribute('role', 'img');
+        // Folder icon — a real SVG, not a Material ligature. The dialog is
+        // appended to <body>, outside the `.gv-folder-container` scope that
+        // hides leftover `<mat-icon>` glyphs, so a ligature here rendered as
+        // the literal word "folder" spilling over the folder name (issue #7).
+        const icon = document.createElement('span');
+        icon.className = 'gv-folder-dialog-item-icon';
         icon.setAttribute('aria-hidden', 'true');
-        icon.textContent = 'folder';
+        icon.appendChild(createFolderSvgIcon(16));
 
         // Folder name
         const name = document.createElement('span');
+        name.className = 'gv-folder-dialog-item-name';
         name.textContent = folder.name;
 
         folderItem.appendChild(icon);

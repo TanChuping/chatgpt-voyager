@@ -1,31 +1,13 @@
 import { createMenuItemFromNativeTemplate } from '../shared/nativeMenuItemTemplate';
 
-const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+import { createFolderSvgIcon } from './folderIcon';
 
 function createFolderIcon(): HTMLElement {
   const wrapper = document.createElement('div');
   wrapper.className =
     'relative flex items-center justify-center [opacity:var(--menu-item-icon-opacity,1)] icon';
   wrapper.setAttribute('aria-hidden', 'true');
-
-  const svg = document.createElementNS(SVG_NAMESPACE, 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('width', '20');
-  svg.setAttribute('height', '20');
-  svg.setAttribute('fill', 'none');
-  svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', '2');
-  svg.setAttribute('stroke-linecap', 'round');
-  svg.setAttribute('stroke-linejoin', 'round');
-  svg.setAttribute('aria-hidden', 'true');
-
-  const path = document.createElementNS(SVG_NAMESPACE, 'path');
-  path.setAttribute(
-    'd',
-    'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z',
-  );
-  svg.appendChild(path);
-  wrapper.appendChild(svg);
+  wrapper.appendChild(createFolderSvgIcon(20));
   return wrapper;
 }
 
