@@ -14,8 +14,9 @@
  * 2026-06.) This bypasses the `copy` event — it calls `navigator.clipboard`
  * directly — so the selection-copy fix in FormulaCopyService can't catch it.
  *
- * Strategy: the live DOM still holds every formula's true source in its KaTeX
- * `annotation` (or legacy `data-math`). We collect those exact source strings
+ * Strategy: the live DOM still holds every formula's true source — on
+ * ChatGPT's `data-math-source` wrapper, or in a KaTeX `annotation` / legacy
+ * `data-math` for older markup. We collect those exact source strings
  * and, in the clipboard payload, rewrite only the bracket/paren pairs that
  * wrap one of them — `[…]`→`$$…$$`, `(…)`→`$…$`. Because we anchor on the
  * verbatim formula source, ordinary prose brackets/parens are never touched.
@@ -54,9 +55,15 @@ function looksLikeMath(s: string): boolean {
 }
 
 /** Collect the verbatim LaTeX source of every rendered formula on the page. */
-function collectSources(): string[] {
+export function collectSources(): string[] {
   const set = new Set<string>();
   try {
+    // ChatGPT's current KaTeX layout (2026-08) emits no MathML annotation —
+    // the raw TeX lives on a `role="math"` wrapper around the rendered spans.
+    document.querySelectorAll('[data-math-source]').forEach((el) => {
+      const t = (el.getAttribute('data-math-source') || '').trim();
+      if (t && looksLikeMath(t)) set.add(t);
+    });
     document.querySelectorAll('annotation[encoding="application/x-tex"]').forEach((a) => {
       const t = (a.textContent || '').trim();
       if (t && looksLikeMath(t)) set.add(t);

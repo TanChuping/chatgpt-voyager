@@ -492,8 +492,107 @@ describe('FormulaCopyService', () => {
     document.body.removeChild(displayMath);
   });
 
+  // ChatGPT's client-side KaTeX layout (captured live 2026-08) ships NO MathML:
+  // no `.katex-mathml`, no `<annotation>`, no `<math>`. The raw TeX moved onto a
+  // `role="math"` wrapper that *contains* `.katex-display` / `.katex`, so it can
+  // only be reached with `closest`, never `querySelector`.
+  function currentChatGptKatex(latex: string, display: boolean): HTMLElement {
+    const wrapper = document.createElement('span');
+    wrapper.setAttribute('role', 'math');
+    wrapper.setAttribute('aria-label', latex);
+    wrapper.setAttribute('data-math-source', latex);
+    wrapper.setAttribute('data-client-katex-layout', '');
+
+    const katex = document.createElement('span');
+    katex.className = 'katex';
+    const html = document.createElement('span');
+    html.className = 'katex-html';
+    html.setAttribute('aria-hidden', 'true');
+    html.textContent = 'rendered glyphs';
+    katex.appendChild(html);
+
+    if (display) {
+      wrapper.style.display = 'block';
+      const katexDisplay = document.createElement('span');
+      katexDisplay.className = 'katex-display';
+      katexDisplay.appendChild(katex);
+      wrapper.appendChild(katexDisplay);
+    } else {
+      wrapper.appendChild(katex);
+    }
+
+    return wrapper;
+  }
+
+  it('copies current ChatGPT inline KaTeX from data-math-source as $…$', async () => {
+    const clipboard = navigator.clipboard as unknown as { write?: unknown };
+    clipboard.write = undefined;
+
+    resetSingleton();
+    service = FormulaCopyService.getInstance({ format: 'latex' });
+
+    const inline = currentChatGptKatex("f'(x)", false);
+    document.body.appendChild(inline);
+
+    service.initialize();
+    inline.querySelector('.katex-html')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await Promise.resolve();
+
+    expect(writeTextMock).toHaveBeenCalledWith("$f'(x)$");
+
+    document.body.removeChild(inline);
+  });
+
+  it('copies current ChatGPT block KaTeX from data-math-source as $$…$$', async () => {
+    const clipboard = navigator.clipboard as unknown as { write?: unknown };
+    clipboard.write = undefined;
+
+    resetSingleton();
+    service = FormulaCopyService.getInstance({ format: 'latex' });
+
+    const block = currentChatGptKatex('C = B\\log_2\\left(1+\\frac{S}{N}\\right)', true);
+    document.body.appendChild(block);
+
+    service.initialize();
+    block.querySelector('.katex-html')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await Promise.resolve();
+
+    expect(writeTextMock).toHaveBeenCalledWith('$$C = B\\log_2\\left(1+\\frac{S}{N}\\right)$$');
+
+    document.body.removeChild(block);
+  });
+
+  // Robustness net: if ChatGPT renames both `.katex*` and `data-math-source`,
+  // clicking should still copy via the ARIA role + TeX-shaped attribute value.
+  it('still copies when only role="math" and a renamed source attribute survive', async () => {
+    const clipboard = navigator.clipboard as unknown as { write?: unknown };
+    clipboard.write = undefined;
+
+    resetSingleton();
+    service = FormulaCopyService.getInstance({ format: 'latex' });
+
+    const wrapper = document.createElement('span');
+    wrapper.setAttribute('role', 'math');
+    wrapper.setAttribute('data-tex-src', '\\frac{a}{b}');
+    const glyphs = document.createElement('span');
+    glyphs.className = 'gpt-math-glyphs';
+    glyphs.textContent = 'ab';
+    wrapper.appendChild(glyphs);
+    document.body.appendChild(wrapper);
+
+    service.initialize();
+    glyphs.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await Promise.resolve();
+
+    expect(writeTextMock).toHaveBeenCalledWith('$\\frac{a}{b}$');
+
+    document.body.removeChild(wrapper);
+  });
+
   describe('selection copy (copy event)', () => {
     const INLINE_KATEX = `<span class="katex"><span class="katex-mathml"><math><semantics><mrow><mi>e</mi></mrow><annotation encoding="application/x-tex">e^{i\\pi}+1=0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true">e iπ +1=0</span></span>`;
+    const GPT_INLINE = `<span role="math" aria-label="f'(x)" data-math-source="f'(x)" data-client-katex-layout=""><span class="katex"><span class="katex-html" aria-hidden="true">f′(x)</span></span></span>`;
+    const GPT_DISPLAY = `<span role="math" aria-label="E = mc^2" data-math-source="E = mc^2" data-client-katex-layout="" style="display: block;"><span class="katex-display"><span class="katex"><span class="katex-html" aria-hidden="true">E=mc2</span></span></span></span>`;
 
     function fakeCopyEvent(fragment: DocumentFragment) {
       const setData = vi.fn();
@@ -532,6 +631,26 @@ describe('FormulaCopyService', () => {
       expect(stopImmediatePropagation).toHaveBeenCalled();
       const plain = setData.mock.calls.find((c) => c[0] === 'text/plain')?.[1];
       expect(plain).toBe('Euler’s identity is $e^{i\\pi}+1=0$.');
+    });
+
+    // 2026-08 regression: drag-selecting ChatGPT math copied the rendered
+    // glyphs (`f′(x)`) because the extractor keyed off the now-absent MathML.
+    it('rewrites a selection over ChatGPT’s current markup to $…$ / $$…$$', () => {
+      service.initialize();
+      const { event, setData, preventDefault, stopImmediatePropagation } = fakeCopyEvent(
+        fragmentOf(`求 ${GPT_INLINE} 的 series${GPT_DISPLAY}`),
+      );
+
+      (service as unknown as { handleCopy: (e: ClipboardEvent) => void }).handleCopy(event);
+
+      expect(preventDefault).toHaveBeenCalled();
+      expect(stopImmediatePropagation).toHaveBeenCalled();
+      const plain = setData.mock.calls.find((c) => c[0] === 'text/plain')?.[1];
+      expect(plain).toContain("$f'(x)$");
+      expect(plain).toContain('$$E = mc^2$$');
+      // The wrapper must collapse entirely — no leftover rendered glyphs.
+      expect(plain).not.toContain('f′(x)');
+      expect(plain).not.toContain('E=mc2');
     });
 
     it('leaves a plain-text selection untouched (no preventDefault / no stop)', () => {

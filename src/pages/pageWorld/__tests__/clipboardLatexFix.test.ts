@@ -1,10 +1,36 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { fixDelimiters } from '../clipboardLatexFix';
+import { collectSources, fixDelimiters } from '../clipboardLatexFix';
 
 // Exact sources as they appear in ChatGPT's KaTeX annotations (captured live).
 const QUAD = 'x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}';
 const EULER = 'e^{i\\pi}+1=0';
+
+describe('collectSources', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  // 2026-08: ChatGPT's KaTeX layout stopped emitting MathML, so the native
+  // copy button's delimiter repair found zero sources and passed through.
+  it('reads ChatGPT’s current data-math-source wrappers', () => {
+    document.body.innerHTML = `<span role="math" aria-label="${EULER}" data-math-source="${EULER}"><span class="katex"><span class="katex-html">e iπ+1=0</span></span></span>`;
+    expect(collectSources()).toEqual([EULER]);
+  });
+
+  it('still reads legacy x-tex annotations and [data-math]', () => {
+    document.body.innerHTML =
+      `<span class="katex"><span class="katex-mathml"><math><semantics><annotation encoding="application/x-tex">${QUAD}</annotation></semantics></math></span></span>` +
+      `<span data-math="${EULER}">e</span>`;
+    // Longest first, so a source that is a substring of another is fixed second.
+    expect(collectSources()).toEqual([QUAD, EULER]);
+  });
+
+  it('skips bare alphanumeric sources (would corrupt prose like O(N))', () => {
+    document.body.innerHTML = `<span role="math" data-math-source="N"></span>`;
+    expect(collectSources()).toEqual([]);
+  });
+});
 
 describe('fixDelimiters (text/plain)', () => {
   it('repairs ChatGPT display delimiters [ … ] → $$ … $$', () => {

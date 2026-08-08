@@ -9,7 +9,7 @@ import browser from 'webextension-polyfill';
 import { logger } from '@/core';
 import { StorageKeys } from '@/core/types/common';
 import type { ILogger } from '@/core/types/common';
-import { containsMath, replaceMathWithLatex } from '@/core/utils/latexFromDom';
+import { containsMath, recoverMathSource, replaceMathWithLatex } from '@/core/utils/latexFromDom';
 
 /**
  * Formula copy format options
@@ -271,44 +271,17 @@ export class FormulaCopyService {
   }
 
   /**
-   * Extract LaTeX source from a math element
-   * Supports data-math attributes and KaTeX annotation elements.
+   * Extract LaTeX source from a math element.
+   *
+   * Shares the recovery ladder with the selection-copy path (`recoverMathSource`):
+   * known source attributes (`data-math-source` for ChatGPT's current layout,
+   * `data-math` for the legacy containers) on the node, its wrapper or its
+   * subtree, then KaTeX x-tex annotations, then a shape-based heuristic for
+   * markup we have not seen yet. One ladder means a future ChatGPT change can
+   * only ever break click-copy and drag-copy together — never one silently.
    */
   private extractLatexSource(element: HTMLElement): string | null {
-    // 1. Try data-math attribute
-    const dataMath = element.getAttribute('data-math');
-    if (dataMath) {
-      return this.normalizeLatexWhitespace(dataMath);
-    }
-
-    // 2. Try annotation element with encoding="application/x-tex"
-    const annotation = element.querySelector('annotation[encoding="application/x-tex"]');
-    if (annotation?.textContent) {
-      return this.normalizeLatexWhitespace(annotation.textContent);
-    }
-
-    // 3. Fallback: try any annotation element
-    const anyAnnotation = element.querySelector('annotation');
-    if (anyAnnotation?.textContent) {
-      return this.normalizeLatexWhitespace(anyAnnotation.textContent);
-    }
-
-    return null;
-  }
-
-  /**
-   * Collapse intra-formula whitespace to single spaces so the copied LaTeX
-   * is a single line. ChatGPT's model output often pretty-prints long
-   * formulas with newlines between operands for readability, and those
-   * newlines pass through the KaTeX `<annotation>` element verbatim. The
-   * rendered math is identical either way (LaTeX treats newlines as
-   * whitespace in math mode), but tools like Desmos that ingest one
-   * LaTeX expression per line break on the multi-line form. This is safe
-   * because LaTeX math-mode tokens are delimited by command names and
-   * braces, never by significant whitespace.
-   */
-  private normalizeLatexWhitespace(latex: string): string {
-    return latex.replace(/\s+/g, ' ').trim();
+    return recoverMathSource(element);
   }
 
   /**
@@ -485,6 +458,14 @@ export class FormulaCopyService {
       }
     }
 
+    // 6. Renderer-agnostic last resort: the ARIA math role. Every KaTeX-class
+    // name above is ChatGPT's private markup and has already changed once;
+    // `role="math"` is the standard container and survives a re-skin.
+    const semanticMath = target.closest('[role="math"]');
+    if (semanticMath instanceof HTMLElement) {
+      return semanticMath;
+    }
+
     return null;
   }
 
@@ -505,8 +486,13 @@ export class FormulaCopyService {
       return true;
     }
 
-    // ChatGPT/KaTeX display formulas are wrapped in .katex-display.
+    // ChatGPT/KaTeX display formulas are wrapped in .katex-display. Checked in
+    // both directions: the clicked node is normally inside the wrapper, but
+    // ChatGPT's `[data-math-source]` element sits *above* it.
     if (element.closest('.katex-display') !== null) {
+      return true;
+    }
+    if (element.querySelector('.katex-display') !== null) {
       return true;
     }
 
