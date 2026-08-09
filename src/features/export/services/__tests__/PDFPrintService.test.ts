@@ -11,7 +11,7 @@ describe('PDFPrintService', () => {
     }
     vi.useRealTimers();
     document.body.innerHTML = '';
-    document.title = 'Gemini';
+    document.title = 'ChatGPT';
     try {
       window.history.pushState({}, '', '/');
     } catch {
@@ -57,6 +57,59 @@ describe('PDFPrintService', () => {
     expect(styleText).toContain('html,');
     expect(styleText).toContain('body {');
     expect(styleText).toContain('background: #fff !important;');
+  });
+
+  it('uses the compact ChatGPT-like layout for conversation PDFs', async () => {
+    document.title = 'Export test - ChatGPT';
+    window.print = vi.fn();
+
+    await PDFPrintService.export(
+      [{ user: 'A short question', assistant: 'A useful answer', starred: false }],
+      {
+        url: 'https://chatgpt.com/c/abc',
+        exportedAt: new Date().toISOString(),
+        count: 1,
+        title: 'Export test',
+      },
+    );
+
+    const documentRoot = document.querySelector('.gv-print-document--chatgpt');
+    const styleText = document.getElementById('gv-pdf-print-styles')?.textContent ?? '';
+
+    expect(documentRoot).toBeTruthy();
+    expect(styleText).toContain('.gv-print-document--chatgpt');
+    expect(styleText).toContain('border-radius: 18px 18px 4px 18px;');
+    expect(styleText).toContain('background: #1f1f1f;');
+    expect(styleText).toContain('display: table-header-group !important;');
+    expect(styleText).toContain('page-break-after: auto;');
+    expect(styleText).toContain('list-style: disc outside !important;');
+    expect(styleText).toContain('.gv-print-cover-title::before');
+  });
+
+  it('falls back to captured text when rich user HTML extraction is empty', async () => {
+    window.print = vi.fn();
+    const userElement = document.createElement('div');
+
+    await PDFPrintService.export(
+      [
+        {
+          user: 'Fallback user message',
+          assistant: 'Answer',
+          starred: false,
+          userElement,
+        },
+      ],
+      {
+        url: 'https://chatgpt.com/c/abc',
+        exportedAt: new Date().toISOString(),
+        count: 1,
+        title: 'Fallback content',
+      },
+    );
+
+    expect(document.querySelector('.gv-print-turn-user .gv-print-turn-text')?.textContent).toBe(
+      'Fallback user message',
+    );
   });
 
   it('injects descendant display override to survive immersive-mode print rules', async () => {
@@ -158,40 +211,38 @@ describe('PDFPrintService', () => {
   });
 
   it('normalizes metadata title suffix when page title is generic', async () => {
-    document.title = 'Gemini';
+    document.title = 'ChatGPT';
     window.print = vi.fn();
 
     await PDFPrintService.export([{ user: 'u', assistant: 'a', starred: false }], {
-      url: 'https://gemini.google.com/app/x',
+      url: 'https://chatgpt.com/c/x',
       exportedAt: new Date().toISOString(),
       count: 1,
-      title: '房贷还款方式对比分析 - ChatGPT',
+      title: 'Mortgage repayment comparison - ChatGPT',
     });
 
     const coverTitle = document.querySelector('.gv-print-cover-title');
-    expect(coverTitle?.textContent).toBe('房贷还款方式对比分析');
+    expect(coverTitle?.textContent).toBe('Mortgage repayment comparison');
   });
 
   it('extracts title from native sidebar by conversation id and restores page title after print', async () => {
     vi.useFakeTimers();
-    document.title = 'Google Gemini';
+    document.title = 'ChatGPT';
     window.print = vi.fn();
 
-    window.history.pushState({}, '', '/app/abc12345');
-    const nativeConversation = document.createElement('div');
-    nativeConversation.setAttribute('data-test-id', 'conversation');
-    nativeConversation.setAttribute('jslog', 'x c_abc12345 y');
+    window.history.pushState({}, '', '/c/abc12345');
+    const nativeConversation = document.createElement('li');
+    nativeConversation.setAttribute('data-testid', 'history-item-abc12345');
     const link = document.createElement('a');
-    link.setAttribute('href', '/app/abc12345');
+    link.setAttribute('href', '/c/abc12345');
     const text = document.createElement('span');
-    text.className = 'conversation-title-text';
-    text.textContent = '房贷还款方式对比分析';
+    text.textContent = 'Mortgage repayment comparison';
     link.appendChild(text);
     nativeConversation.appendChild(link);
     document.body.appendChild(nativeConversation);
 
     const exportPromise = PDFPrintService.export([{ user: 'u', assistant: 'a', starred: false }], {
-      url: 'https://gemini.google.com/app/abc12345',
+      url: 'https://chatgpt.com/c/abc12345',
       exportedAt: new Date().toISOString(),
       count: 1,
       title: 'Untitled Conversation',
@@ -201,11 +252,11 @@ describe('PDFPrintService', () => {
     await exportPromise;
 
     const coverTitle = document.querySelector('.gv-print-cover-title');
-    expect(coverTitle?.textContent).toBe('鎴胯捶杩樻方式对比分析');
-    expect(document.title).toBe('鎴胯捶杩樻方式对比分析 - Gemini');
+    expect(coverTitle?.textContent).toBe('Mortgage repayment comparison');
+    expect(document.title).toBe('Mortgage repayment comparison - ChatGPT');
 
     window.dispatchEvent(new Event('afterprint'));
-    expect(document.title).toBe('Google Gemini');
+    expect(document.title).toBe('ChatGPT');
   });
 
   it('keeps omitEmptySections behavior for selected exports', async () => {
@@ -267,17 +318,15 @@ describe('PDFPrintService', () => {
     expect(link?.getAttribute('href')).toContain('" onclick="');
   });
 
-  it('handles special CSS characters in conversation id selectors', () => {
-    const conversationId = 'ab"]\\cd';
-    const nativeConversation = document.createElement('div');
-    nativeConversation.setAttribute('data-test-id', 'conversation');
-    nativeConversation.setAttribute('jslog', `x c_${conversationId} y`);
+  it('handles encoded characters in ChatGPT conversation ids', () => {
+    const conversationId = 'ab%22%5D%5Ccd';
+    const nativeConversation = document.createElement('li');
+    nativeConversation.setAttribute('data-testid', 'history-item-encoded');
 
     const link = document.createElement('a');
-    link.setAttribute('href', `/app/${conversationId}`);
+    link.setAttribute('href', `/c/${conversationId}`);
     const text = document.createElement('span');
-    text.className = 'conversation-title-text';
-    text.textContent = 'Escaped Selector Title';
+    text.textContent = 'Encoded conversation title';
     link.appendChild(text);
     nativeConversation.appendChild(link);
     document.body.appendChild(nativeConversation);
@@ -290,6 +339,6 @@ describe('PDFPrintService', () => {
         }
       ).extractTitleFromNativeSidebarByConversationId(conversationId);
     }).not.toThrow();
-    expect(title).toBe('Escaped Selector Title');
+    expect(title).toBe('Encoded conversation title');
   });
 });
