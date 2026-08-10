@@ -79,7 +79,8 @@ describe('PDFPrintService', () => {
     expect(documentRoot).toBeTruthy();
     expect(styleText).toContain('.gv-print-document--chatgpt');
     expect(styleText).toContain('border-radius: 18px 18px 4px 18px;');
-    expect(styleText).toContain('background: #1f1f1f;');
+    expect(styleText).toContain('border: 1px solid #d1d5db;');
+    expect(styleText).toContain('background: #f7f7f8;');
     expect(styleText).toContain('display: table-header-group !important;');
     expect(styleText).toContain('page-break-after: auto;');
     expect(styleText).toContain('list-style: disc outside !important;');

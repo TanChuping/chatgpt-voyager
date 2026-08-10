@@ -28,6 +28,7 @@
  * The flow is fully sync-from-user's-POV: no async fire-and-forget.
  * Any step that takes longer than its budget aborts with a toast.
  */
+import { replaceMathWithLatex } from '@/core/utils/latexFromDom';
 
 import { setInputText } from '../utils/inputHelper';
 import { t } from './i18n';
@@ -42,8 +43,7 @@ import {
 /* Selectors / constants                                            */
 /* ---------------------------------------------------------------- */
 
-const TURN_SELECTOR =
-  '[data-message-author-role="user"], [data-message-author-role="assistant"]';
+const TURN_SELECTOR = '[data-message-author-role="user"], [data-message-author-role="assistant"]';
 
 const TEMP_TOGGLE_SELECTOR =
   '[data-testid="temporary-chat-toggle"], button[aria-label*="临时聊天"], button[aria-label*="temporary chat" i]';
@@ -54,10 +54,22 @@ const MODAL_CLASS = 'gv-temp-regret-modal';
 const BACKDROP_CLASS = 'gv-temp-regret-modal__backdrop';
 const OVERLAY_CLASS = 'gv-temp-regret-overlay';
 
-const SCROLL_IDLE_MS = 600; // no new turns for this long → stop scrolling
-const SCROLL_MAX_MS = 15_000; // hard cap on scroll-to-top phase
-const SCROLL_POLL_MS = 200; // how often to check for new turns
+const COLLECTION_SETTLE_MS = 120;
+const COLLECTION_MAX_STEPS = 240;
+const TOP_STABLE_SAMPLES = 10;
+const BOTTOM_STABLE_SAMPLES = 3;
+const TOP_LOADING_SELECTOR = '[aria-busy="true"], [data-testid*="loading"]';
+const GENERATION_ACTIVE_SELECTOR =
+  '[data-testid="stop-button"], button[data-testid*="stop" i], button[aria-label*="stop generating" i]';
 const TOGGLE_SETTLE_MS = 1_500; // budget for ChatGPT to clear the temp UI
+
+interface TurnSnapshot extends ExtractedTurn {
+  id: string;
+  order: number;
+}
+
+let fallbackIdentitySequence = 0;
+const fallbackIdentities = new WeakMap<HTMLElement, { role: TurnRole; id: string }>();
 
 /* ---------------------------------------------------------------- */
 /* Detection                                                         */
@@ -98,7 +110,8 @@ function findScrollContainer(): HTMLElement | null {
     }
     n = n.parentElement;
   }
-  return null;
+  const scrolling = document.scrollingElement;
+  return scrolling instanceof HTMLElement ? scrolling : null;
 }
 
 function normalizeTurnText(el: HTMLElement): string {
@@ -108,6 +121,7 @@ function normalizeTurnText(el: HTMLElement): string {
   // (the visible math is in the rendered output, we don't need both),
   // and the small "Edit / Continue" affordance underneath user turns.
   const clone = el.cloneNode(true) as HTMLElement;
+  replaceMathWithLatex(clone);
   const dropSelectors = [
     'button',
     '[role="button"]',
@@ -133,24 +147,72 @@ function normalizeTurnText(el: HTMLElement): string {
     .trim();
 }
 
-function extractTurnsFromDom(): ExtractedTurn[] {
-  const nodes = Array.from(document.querySelectorAll<HTMLElement>(TURN_SELECTOR));
-  // De-dupe by text content + role (ChatGPT sometimes re-mounts the same
-  // turn during virtualisation reconciliation, briefly leaving two
-  // copies of the same data-message-author-role in the DOM).
-  const seen = new Set<string>();
-  const out: ExtractedTurn[] = [];
-  for (const el of nodes) {
-    const role = el.getAttribute('data-message-author-role') as TurnRole | null;
-    if (role !== 'user' && role !== 'assistant') continue;
-    const text = normalizeTurnText(el);
-    if (!text) continue;
-    const key = `${role}:${text.slice(0, 200)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ role, text });
+function readVirtualPosition(host: HTMLElement): { key: string; order?: number } | null {
+  const explicit =
+    host.getAttribute('data-index') ||
+    host.getAttribute('data-message-index') ||
+    host.getAttribute('aria-posinset');
+  if (explicit) {
+    const numeric = Number(explicit);
+    return { key: `index-${explicit}`, order: Number.isFinite(numeric) ? numeric : undefined };
   }
-  return out;
+
+  for (let parent = host.parentElement; parent && parent !== document.body; ) {
+    const style = window.getComputedStyle(parent);
+    if (
+      /(auto|scroll|overlay)/.test(style.overflowY) &&
+      parent.scrollHeight > parent.clientHeight + 4
+    ) {
+      const offset = host.getBoundingClientRect().top - parent.getBoundingClientRect().top;
+      const globalOffset = Math.round(offset + parent.scrollTop);
+      return { key: `offset-${globalOffset}`, order: globalOffset };
+    }
+    parent = parent.parentElement;
+  }
+  return null;
+}
+
+function readStableTurnId(el: HTMLElement, role: TurnRole): string {
+  const wrapper = el.closest<HTMLElement>('[data-testid^="conversation-turn-"]');
+  const nativeId =
+    el.getAttribute('data-message-id') ||
+    el.closest<HTMLElement>('[data-message-id]')?.getAttribute('data-message-id') ||
+    wrapper?.getAttribute('data-message-id') ||
+    wrapper?.getAttribute('data-testid') ||
+    el.id;
+  if (nativeId) return nativeId;
+
+  const host = wrapper || el;
+  const virtualPosition = readVirtualPosition(host);
+  if (virtualPosition) return `fallback-${role}-${virtualPosition.key}`;
+
+  const previous = fallbackIdentities.get(host);
+  if (previous?.role === role) return previous.id;
+  fallbackIdentitySequence += 1;
+  const id = `fallback-${role}-${fallbackIdentitySequence}`;
+  fallbackIdentities.set(host, { role, id });
+  return id;
+}
+
+function readTurnOrder(el: HTMLElement, fallback: number): number {
+  const wrapper = el.closest<HTMLElement>('[data-testid^="conversation-turn-"]');
+  const numeric = /conversation-turn-(\d+)/.exec(wrapper?.dataset.testid || '')?.[1];
+  if (numeric !== undefined) return Number(numeric);
+  return readVirtualPosition(wrapper || el)?.order ?? fallback;
+}
+
+export function collectMountedTempChatTurns(root: ParentNode = document): TurnSnapshot[] {
+  const nodes = Array.from(root.querySelectorAll<HTMLElement>(TURN_SELECTOR));
+  const snapshots = new Map<string, TurnSnapshot>();
+  nodes.forEach((el, index) => {
+    const role = el.getAttribute('data-message-author-role') as TurnRole | null;
+    if (role !== 'user' && role !== 'assistant') return;
+    const text = normalizeTurnText(el);
+    if (!text) return;
+    const id = readStableTurnId(el, role);
+    snapshots.set(id, { id, role, text, order: readTurnOrder(el, index) });
+  });
+  return [...snapshots.values()].sort((left, right) => left.order - right.order);
 }
 
 /* ---------------------------------------------------------------- */
@@ -159,42 +221,138 @@ function extractTurnsFromDom(): ExtractedTurn[] {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-async function scrollToTopAndLoadAll(
+function mergeTurnSnapshots(
+  destination: Map<string, TurnSnapshot>,
+  incoming: TurnSnapshot[],
+): void {
+  incoming.forEach((snapshot) => {
+    const previous = destination.get(snapshot.id);
+    destination.set(snapshot.id, {
+      ...snapshot,
+      order: previous ? Math.min(previous.order, snapshot.order) : snapshot.order,
+    });
+  });
+}
+
+function mountedSignature(turns: TurnSnapshot[], scrollHeight: number): string {
+  return `${scrollHeight}:${turns.map(({ id, text }) => `${id}:${text}`).join('|')}`;
+}
+
+async function waitForStableBottom(
+  target: HTMLElement | null,
+  collected: Map<string, TurnSnapshot>,
   onProgress: (turnsLoaded: number) => void,
 ): Promise<void> {
-  const start = Date.now();
-  let lastChangeAt = Date.now();
-  let lastCount = document.querySelectorAll(TURN_SELECTOR).length;
-  onProgress(lastCount);
+  let stableSamples = 0;
+  let samples = 0;
+  let previousSignature = '';
+  const maximumSamples = Math.ceil(120_000 / COLLECTION_SETTLE_MS);
 
-  while (Date.now() - start < SCROLL_MAX_MS) {
-    const container = findScrollContainer();
-    if (container) {
-      // ChatGPT loads older turns when its inner scroll hits the top.
-      // smooth scroll would be slower per step but easier on layout;
-      // we use 'instant' (the default for non-string behaviour) since
-      // we throttle ourselves with SCROLL_POLL_MS anyway.
-      container.scrollTop = 0;
-    }
-    // Also nudge window scroll in case the page has a wider scroll
-    // (some ChatGPT layouts make the whole page scroll on small
-    // viewports rather than just the chat container).
-    window.scrollTo({ top: 0, behavior: 'auto' });
-
-    await sleep(SCROLL_POLL_MS);
-
-    const count = document.querySelectorAll(TURN_SELECTOR).length;
-    if (count !== lastCount) {
-      lastCount = count;
-      lastChangeAt = Date.now();
-      onProgress(count);
-    } else if (Date.now() - lastChangeAt >= SCROLL_IDLE_MS) {
-      // No new turns for the idle window AND container is at top — done.
-      const container2 = findScrollContainer();
-      if (!container2 || container2.scrollTop <= 1) return;
-      // Still some scroll left to climb — keep going one more tick.
+  while (stableSamples < BOTTOM_STABLE_SAMPLES) {
+    await sleep(COLLECTION_SETTLE_MS);
+    if (target) target.scrollTop = Math.max(0, target.scrollHeight - target.clientHeight);
+    const mounted = collectMountedTempChatTurns();
+    mergeTurnSnapshots(collected, mounted);
+    onProgress(collected.size);
+    const signature = mountedSignature(mounted, target?.scrollHeight ?? 0);
+    const generationActive = document.querySelector(GENERATION_ACTIVE_SELECTOR) !== null;
+    if (!generationActive && signature === previousSignature) stableSamples += 1;
+    else stableSamples = 0;
+    previousSignature = signature;
+    samples += 1;
+    if (samples >= maximumSamples) {
+      throw new Error('conversation did not settle before the collection timeout');
     }
   }
+}
+
+/**
+ * Materialise the virtualised temporary conversation from top to bottom while
+ * retaining a detached text snapshot of each stable message id.
+ */
+export async function collectAllTempChatTurns(
+  onProgress: (turnsLoaded: number) => void,
+): Promise<ExtractedTurn[]> {
+  const target = findScrollContainer();
+  const collected = new Map<string, TurnSnapshot>();
+
+  if (!target || target.scrollHeight <= target.clientHeight + 4) {
+    mergeTurnSnapshots(collected, collectMountedTempChatTurns());
+    onProgress(collected.size);
+    await waitForStableBottom(null, collected, onProgress);
+    return [...collected.values()]
+      .sort((left, right) => left.order - right.order)
+      .map(({ role, text }) => ({ role, text }));
+  }
+
+  const originalTop = target.scrollTop;
+  try {
+    target.scrollTop = 0;
+    let stableAtTop = 0;
+    let samples = 0;
+    let previousSignature = '';
+    const maximumSamples = Math.ceil(15_000 / COLLECTION_SETTLE_MS);
+    while (stableAtTop < TOP_STABLE_SAMPLES) {
+      await sleep(COLLECTION_SETTLE_MS);
+      const mounted = collectMountedTempChatTurns();
+      // Prepending history shifts position-derived fallback identities. Keep
+      // only the latest top window until its shape has settled.
+      collected.clear();
+      mergeTurnSnapshots(collected, mounted);
+      onProgress(collected.size);
+      const signature = mountedSignature(mounted, target.scrollHeight);
+      const historyLoading = target.querySelector(TOP_LOADING_SELECTOR) !== null;
+      if (!historyLoading && signature === previousSignature && target.scrollTop <= 1) {
+        stableAtTop += 1;
+      } else {
+        stableAtTop = 0;
+      }
+      previousSignature = signature;
+      target.scrollTop = 0;
+      samples += 1;
+      if (samples >= maximumSamples) {
+        throw new Error('conversation history did not settle before the collection timeout');
+      }
+    }
+
+    let steps = 0;
+    let stalled = 0;
+    while (steps < COLLECTION_MAX_STEPS) {
+      mergeTurnSnapshots(collected, collectMountedTempChatTurns());
+      onProgress(collected.size);
+      const maximum = Math.max(0, target.scrollHeight - target.clientHeight);
+      if (target.scrollTop >= maximum - 2) break;
+
+      const previousTop = target.scrollTop;
+      const step = Math.max(320, Math.floor(target.clientHeight * 0.72));
+      target.scrollTop = Math.min(maximum, previousTop + step);
+      await sleep(COLLECTION_SETTLE_MS);
+      stalled = target.scrollTop <= previousTop + 1 ? stalled + 1 : 0;
+      if (stalled >= 3) break;
+      steps += 1;
+    }
+
+    mergeTurnSnapshots(collected, collectMountedTempChatTurns());
+    onProgress(collected.size);
+    let maximum = Math.max(0, target.scrollHeight - target.clientHeight);
+    if (target.scrollTop < maximum - 2) {
+      throw new Error(`conversation collection stopped early (${collected.size} messages found)`);
+    }
+    await waitForStableBottom(target, collected, onProgress);
+    maximum = Math.max(0, target.scrollHeight - target.clientHeight);
+    if (target.scrollTop < maximum - 2) {
+      throw new Error(`conversation collection stopped early (${collected.size} messages found)`);
+    }
+  } finally {
+    target.scrollTop = Math.min(
+      originalTop,
+      Math.max(0, target.scrollHeight - target.clientHeight),
+    );
+  }
+
+  return [...collected.values()]
+    .sort((left, right) => left.order - right.order)
+    .map(({ role, text }) => ({ role, text }));
 }
 
 /* ---------------------------------------------------------------- */
@@ -236,10 +394,7 @@ async function leaveTemporaryMode(): Promise<boolean> {
   }
   const navStart = Date.now();
   while (Date.now() - navStart < TOGGLE_SETTLE_MS) {
-    if (
-      !isInTemporaryChatMode() &&
-      document.querySelector<HTMLElement>(INPUT_SELECTOR)
-    ) {
+    if (!isInTemporaryChatMode() && document.querySelector<HTMLElement>(INPUT_SELECTOR)) {
       return true;
     }
     await sleep(80);
@@ -522,42 +677,84 @@ function dispatchSyntheticPaste(
   return true;
 }
 
-async function deliverHandoff(
+function readComposerText(input: HTMLElement): string {
+  if (input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement) return input.value;
+  return input.textContent || '';
+}
+
+async function insertComposerText(input: HTMLElement, text: string): Promise<boolean> {
+  if (readComposerText(input).includes(text)) return true;
+  if (dispatchSyntheticPaste(input, text, null)) {
+    await sleep(50);
+    if (readComposerText(input).includes(text)) return true;
+  }
+
+  const existing = readComposerText(input).trim();
+  setInputText(input, existing ? `${existing}\n\n${text}` : text);
+  await sleep(0);
+  return readComposerText(input).includes(text);
+}
+
+function hasAttachmentPreview(input: HTMLElement, filename: string): boolean {
+  const root = input.closest('form') || document.body;
+  const normalizedFilename = filename.trim().toLowerCase();
+  if (!normalizedFilename) return false;
+
+  const fileInputs = root.querySelectorAll<HTMLInputElement>('input[type="file"]');
+  if (
+    Array.from(fileInputs).some((fileInput) =>
+      Array.from(fileInput.files || []).some(
+        (candidate) => candidate.name.toLowerCase() === normalizedFilename,
+      ),
+    )
+  ) {
+    return true;
+  }
+
+  const labelledPreview = Array.from(
+    root.querySelectorAll<HTMLElement>(
+      '[data-testid*="attachment" i], [data-testid*="file" i], [aria-label], [title]',
+    ),
+  ).some((candidate) => {
+    const label =
+      `${candidate.textContent || ''} ${candidate.getAttribute('aria-label') || ''} ${candidate.getAttribute('title') || ''}`
+        .trim()
+        .toLowerCase();
+    return label.includes(normalizedFilename);
+  });
+  return labelledPreview || (root.textContent || '').toLowerCase().includes(normalizedFilename);
+}
+
+async function dispatchAttachmentAndVerify(input: HTMLElement, file: File): Promise<boolean> {
+  if (hasAttachmentPreview(input, file.name)) return true;
+  if (!dispatchSyntheticPaste(input, null, file)) return false;
+  if (hasAttachmentPreview(input, file.name)) return true;
+
+  const deadline = Date.now() + 1_200;
+  while (Date.now() < deadline) {
+    await sleep(60);
+    if (hasAttachmentPreview(input, file.name)) return true;
+  }
+  return false;
+}
+
+export async function deliverHandoff(
   input: HTMLElement,
   delivery: HandoffDelivery,
 ): Promise<boolean> {
   if (delivery.mode === 'inline') {
-    // Try paste-event first (works around ProseMirror's state model
-    // wiping out raw execCommand insertions). Fall back to typed input
-    // if the synthetic ClipboardEvent gets its data stripped.
-    if (dispatchSyntheticPaste(input, delivery.text, null)) return true;
-    setInputText(input, delivery.text);
-    return true;
+    return insertComposerText(input, delivery.text);
   }
-  // Attachment path: directive paste + transcript file paste.
-  // Two separate paste events so ChatGPT's handler treats them as
-  // independent inputs (the directive lands in the editor, the file
-  // becomes a chip). Dispatching both in one DataTransfer also works
-  // in current ChatGPT, but separating is more defensive against
-  // future handler changes.
-  if (!dispatchSyntheticPaste(input, delivery.directive, null)) {
-    setInputText(input, delivery.directive);
-  }
+  // Verify the file chip before adding the directive. On retry, an existing
+  // matching chip counts as completed, so only the missing directive is added.
   try {
     const file = new File([delivery.attachment], delivery.filename, {
       type: 'text/plain',
     });
-    if (!dispatchSyntheticPaste(input, null, file)) {
-      throw new Error('synthetic paste stripped file payload');
-    }
-    return true;
+    if (!(await dispatchAttachmentAndVerify(input, file))) return false;
+    return insertComposerText(input, delivery.directive);
   } catch (err) {
-    console.warn(
-      '[GPT-Voyager] temp-regret: paste-event attach failed, falling back to inline text',
-      err,
-    );
-    // Last resort: dump the whole transcript inline as text.
-    setInputText(input, delivery.directive + '\n\n' + delivery.attachment);
+    console.warn('[GPT-Voyager] temp-regret: attachment delivery failed', err);
     return false;
   }
 }
@@ -586,7 +783,8 @@ export async function resumePendingHandoff(): Promise<void> {
   while (Date.now() - start < 6_000) {
     const input = document.querySelector<HTMLElement>(INPUT_SELECTOR);
     if (input) {
-      await deliverHandoff(input, pending.delivery);
+      const delivered = await deliverHandoff(input, pending.delivery);
+      if (!delivered) return;
       clearPendingHandoff();
       // We don't have the original turn count or filename in the
       // resume payload, so fall back to the inline-flavour toast for
@@ -634,12 +832,11 @@ export async function runTempChatRegret(): Promise<void> {
 
     const overlay = showLoadingOverlay(t('tempChatRegretMsgLoading'));
     try {
-      await scrollToTopAndLoadAll((count) => {
+      const turns = await collectAllTempChatTurns((count) => {
         overlay.setProgress(t('tempChatRegretMsgLoaded', { count }));
       });
 
       overlay.setProgress(t('tempChatRegretMsgExtracting'));
-      const turns = extractTurnsFromDom();
       if (turns.length === 0) {
         overlay.destroy();
         showToast(t('tempChatRegretErrExtractFailed'), 'error');
@@ -690,7 +887,7 @@ export async function runTempChatRegret(): Promise<void> {
         return;
       }
       const ok = await deliverHandoff(input, delivery);
-      clearPendingHandoff();
+      if (ok) clearPendingHandoff();
       // Clipboard safety net so the user can re-paste if anything
       // looks off when they review the input box before sending.
       const clipboardCopy =

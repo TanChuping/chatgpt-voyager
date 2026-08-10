@@ -24,6 +24,8 @@ import {
 import { isSimpleVisibleMessage } from '@/features/singleConvExport/simpleFilter';
 import { getTranslationSync } from '@/utils/i18n';
 
+import { isChatGptResponseGenerating } from './generationState';
+
 const HOST_CLASS = 'gv-export-pick-host';
 const HOST_SELECTED_CLASS = 'gv-export-pick-host--selected';
 const CHECKBOX_CLASS = 'gv-export-pick-checkbox';
@@ -43,6 +45,7 @@ const idToCheckbox = new Map<string, HTMLButtonElement>();
 const idToHost = new Map<string, HTMLElement>();
 let bar: HTMLElement | null = null;
 let countEl: HTMLElement | null = null;
+let exportButton: HTMLButtonElement | null = null;
 let observer: MutationObserver | null = null;
 let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
 
@@ -87,6 +90,12 @@ function buildUniverse(convId: string): SelectionUniverse | null {
 
 function updateCount(): void {
   if (countEl) countEl.textContent = `${t('singleConvExportSelectSelected')}: ${selectedIds.size}`;
+  if (!exportButton) return;
+  const selectedResponseIsStreaming =
+    isChatGptResponseGenerating() &&
+    [...selectedIds].some((messageId) => universe.assistant.has(messageId));
+  exportButton.disabled = selectedIds.size === 0 || selectedResponseIsStreaming;
+  exportButton.title = selectedResponseIsStreaming ? t('singleConvExportGenerating') : '';
 }
 
 function setSelected(id: string, next: boolean): void {
@@ -191,14 +200,30 @@ function buildBar(convId: string): void {
   countEl.className = 'gv-export-pick-bar__count';
 
   const exportBtn = makeBarButton(t('singleConvExportSelectDo'));
+  exportButton = exportBtn;
   exportBtn.classList.add('gv-export-pick-bar__btn--primary');
   exportBtn.addEventListener('click', () => {
     if (selectedIds.size === 0) {
       alert(t('singleConvExportSelectEmpty'));
       return;
     }
+    if (
+      isChatGptResponseGenerating() &&
+      [...selectedIds].some((messageId) => universe.assistant.has(messageId))
+    ) {
+      alert(t('singleConvExportGenerating'));
+      return;
+    }
     void resolveExportFormat().then((fmt) => {
       if (!active) return;
+      if (
+        isChatGptResponseGenerating() &&
+        [...selectedIds].some((messageId) => universe.assistant.has(messageId))
+      ) {
+        alert(t('singleConvExportGenerating'));
+        updateCount();
+        return;
+      }
       const result = exportConversationSubset(convId, fmt, new Set(selectedIds));
       if (result === 'not-captured') {
         alert(t('singleConvExportSelectNotReady'));
@@ -227,6 +252,10 @@ export function isSelectionModeActive(): boolean {
 
 export function enterSelectionMode(convId: string): void {
   if (active) return;
+  if (isChatGptResponseGenerating()) {
+    alert(t('singleConvExportGenerating'));
+    return;
+  }
   const built = buildUniverse(convId);
   if (!built) {
     alert(t('singleConvExportSelectNotReady'));
@@ -242,7 +271,10 @@ export function enterSelectionMode(convId: string): void {
   buildBar(convId);
   syncCheckboxes();
 
-  observer = new MutationObserver(() => syncCheckboxes());
+  observer = new MutationObserver(() => {
+    syncCheckboxes();
+    updateCount();
+  });
   observer.observe(document.body, { childList: true, subtree: true });
 
   keydownHandler = (e: KeyboardEvent) => {
@@ -275,5 +307,6 @@ export function exitSelectionMode(): void {
   bar?.remove();
   bar = null;
   countEl = null;
+  exportButton = null;
   document.body.classList.remove('gv-export-pick-active');
 }

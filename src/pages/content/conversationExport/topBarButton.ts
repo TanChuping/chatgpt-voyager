@@ -22,6 +22,7 @@ import { getTranslationSync } from '@/utils/i18n';
 import { extractChatGptConversationIdFromUrl } from '../chatgptDom';
 import { buildClonedButtonClassName } from '../shared/clonedButtonClass';
 import { findOptionsButtonRow } from '../shared/headerActionSlot';
+import { isChatGptResponseGenerating } from './generationState';
 import { enterSelectionMode, exitSelectionMode } from './selectionMode';
 
 const TAG = 'data-gv-export-btn';
@@ -208,6 +209,13 @@ function makeMenuItem(label: string, onClick: () => void, generation: number): H
   return item;
 }
 
+function disableWhileGenerating(item: HTMLButtonElement): void {
+  if (!isChatGptResponseGenerating()) return;
+  item.disabled = true;
+  item.setAttribute('aria-disabled', 'true');
+  item.title = getTranslationSync('singleConvExportGenerating');
+}
+
 function toggleExportMenu(anchor: HTMLElement, generation: number): void {
   if (!isActiveGeneration(generation)) return;
   if (openMenuEl) {
@@ -228,11 +236,17 @@ function toggleExportMenu(anchor: HTMLElement, generation: number): void {
   const wholeItem = makeMenuItem(
     getTranslationSync('singleConvExportMenuWhole'),
     () => {
+      if (isChatGptResponseGenerating()) {
+        alert(getTranslationSync('singleConvExportGenerating'));
+        return;
+      }
       // Resolve format from the popup setting at click time so a running ChatGPT
       // tab picks up popup changes without a reload. The generation guard keeps
       // a late storage result from exporting after feature teardown.
       void resolveExportFormat().then((fmt) => {
-        if (isActiveGeneration(generation)) exportConversation(convId, fmt);
+        if (isActiveGeneration(generation) && !isChatGptResponseGenerating()) {
+          exportConversation(convId, fmt);
+        }
       });
     },
     generation,
@@ -240,6 +254,7 @@ function toggleExportMenu(anchor: HTMLElement, generation: number): void {
   const wholeIcon = buildDownloadIcon();
   wholeIcon.classList.add('gv-export-menu__icon');
   wholeItem.prepend(wholeIcon);
+  disableWhileGenerating(wholeItem);
 
   const selectItem = makeMenuItem(
     getTranslationSync('singleConvExportSelectButton'),
@@ -249,6 +264,7 @@ function toggleExportMenu(anchor: HTMLElement, generation: number): void {
   const selectIcon = buildSelectIcon();
   selectIcon.classList.add('gv-export-menu__icon');
   selectItem.prepend(selectIcon);
+  disableWhileGenerating(selectItem);
 
   const menuItems = [wholeItem, selectItem];
   const focusMenuItem = (index: number) => {

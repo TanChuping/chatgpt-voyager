@@ -2,6 +2,7 @@
  * DOM Content Extractor
  * Extracts rich content from the host chat DOM while preserving formatting
  */
+import { recoverMathSource } from '@/core/utils/latexFromDom';
 
 export interface ExtractedContent {
   text: string;
@@ -62,6 +63,14 @@ export class DOMContentExtractor {
 
     // Extract text from query-text-line paragraphs
     const textLines = element.querySelectorAll('.query-text-line');
+    const hasLegacyUserStructure =
+      textLines.length > 0 || element.querySelector('user-query-file-preview') !== null;
+    if (!hasLegacyUserStructure) {
+      // ChatGPT uses ordinary semantic markup for prompts. Reuse the rich
+      // extractor so links, images, inline formatting and attachment labels
+      // survive PDF/HTML export instead of falling through to "No content".
+      return this.extractAssistantContent(element);
+    }
     const textParts: string[] = [];
     textLines.forEach((line) => {
       const el = line as HTMLElement;
@@ -101,6 +110,33 @@ export class DOMContentExtractor {
     result.html = htmlParts.join('\n');
 
     return result;
+  }
+
+  private static resolveExportLink(link: HTMLAnchorElement): string | null {
+    const rawHref = link.getAttribute('href')?.trim();
+    if (!rawHref) return null;
+
+    try {
+      const destination = new URL(rawHref, link.ownerDocument.baseURI);
+      return destination.protocol === 'http:' || destination.protocol === 'https:'
+        ? destination.href
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private static extractLinkLabel(
+    link: HTMLAnchorElement,
+    fallback: string,
+  ): { html: string; text: string } {
+    const inline = this.processInlineContent(link);
+    const text =
+      this.normalizeText(inline.text) || this.normalizeText(link.textContent || '') || fallback;
+    return {
+      html: inline.html || this.escapeHtml(text),
+      text,
+    };
   }
 
   /**
@@ -289,7 +325,7 @@ export class DOMContentExtractor {
     textParts: string[],
     flags: Pick<ExtractedContent, 'hasImages' | 'hasFormulas' | 'hasTables' | 'hasCode'>,
   ): void {
-    const children = Array.from(container.children);
+    const children = Array.from(container.childNodes);
     if (this.DEBUG)
       console.log(
         `[DOMContentExtractor] processNodes: ${children.length} children in`,
@@ -305,7 +341,18 @@ export class DOMContentExtractor {
       this.processNodes(shadowRoot as unknown as Element, htmlParts, textParts, flags);
     }
 
-    for (const child of children) {
+    for (const node of children) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = (node.textContent || '').replace(/\s+/g, ' ');
+        if (text.trim()) {
+          htmlParts.push(this.escapeHtml(text));
+          textParts.push(text);
+        }
+        continue;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+
+      const child = node as Element;
       const tagName = child.tagName.toLowerCase();
       if (this.DEBUG)
         console.log('[DOMContentExtractor] Processing child:', tagName, child.className);
@@ -333,22 +380,38 @@ export class DOMContentExtractor {
         continue;
       }
 
-      // Math block (display formula) - check both class and data-math attribute
-      if (child.classList.contains('math-block') || child.hasAttribute('data-math')) {
-        const latex = child.getAttribute('data-math') || '';
-        if (latex) {
-          if (this.DEBUG) console.log('[DOMContentExtractor] Found math-block, latex:', latex);
-          flags.hasFormulas = true;
-          // For HTML output: preserve the rendered formula HTML for PDF export
-          // Clone the element to preserve its rendered content
-          const clonedFormula = (child as HTMLElement).cloneNode(true) as HTMLElement;
-          // Ensure data-math attribute is preserved for potential re-rendering
-          if (!clonedFormula.hasAttribute('data-math')) {
-            clonedFormula.setAttribute('data-math', latex);
-          }
-          htmlParts.push(clonedFormula.outerHTML);
-          // For text output: use Markdown format
-          textParts.push(`\n$$\n${latex}\n$$\n`);
+      const isFormula =
+        child.classList.contains('math-block') ||
+        child.classList.contains('katex-display') ||
+        child.hasAttribute('data-math') ||
+        child.hasAttribute('data-math-source');
+      const latex = isFormula ? recoverMathSource(child as HTMLElement) : null;
+      if (latex) {
+        if (this.DEBUG) console.log('[DOMContentExtractor] Found math-block, latex:', latex);
+        flags.hasFormulas = true;
+        const clonedFormula = (child as HTMLElement).cloneNode(true) as HTMLElement;
+        if (!clonedFormula.hasAttribute('data-math')) {
+          clonedFormula.setAttribute('data-math', latex);
+        }
+        htmlParts.push(clonedFormula.outerHTML);
+        const isDisplay =
+          child.classList.contains('math-block') ||
+          child.classList.contains('katex-display') ||
+          child.querySelector('.katex-display') !== null;
+        textParts.push(isDisplay ? `\n$$\n${latex}\n$$\n` : `$${latex}$`);
+        continue;
+      }
+
+      // ChatGPT emits standard <pre><code> blocks rather than the inherited
+      // custom code-block element.
+      if (tagName === 'pre') {
+        const codeElement = child.querySelector<HTMLElement>(':scope > code');
+        if (codeElement) {
+          const extracted = this.extractCodeFromCodeElement(codeElement);
+          (codeElement as Element & { processedByGV?: boolean }).processedByGV = true;
+          flags.hasCode = true;
+          htmlParts.push(extracted.html);
+          textParts.push(`\n${extracted.text}\n`);
           continue;
         }
       }
@@ -471,6 +534,20 @@ export class DOMContentExtractor {
         continue;
       }
 
+      if (tagName === 'a') {
+        const link = child as HTMLAnchorElement;
+        const href = this.resolveExportLink(link);
+        const label = this.extractLinkLabel(link, href || '');
+        if (href) {
+          htmlParts.push(`<a href="${this.escapeHtmlAttribute(href)}">${label.html}</a>`);
+          textParts.push(`[${label.text}](${href.replace(/\)/g, '\\)')})`);
+        } else {
+          htmlParts.push(label.html);
+          textParts.push(label.text);
+        }
+        continue;
+      }
+
       // Paragraph with possible inline formulas
       if (tagName === 'p') {
         const processed = this.processInlineContent(child as HTMLElement);
@@ -492,6 +569,8 @@ export class DOMContentExtractor {
       // Lists
       if (tagName === 'ul' || tagName === 'ol') {
         const listContent = this.extractList(child as HTMLElement);
+        if (listContent.hasFormulas) flags.hasFormulas = true;
+        if (listContent.hasCode) flags.hasCode = true;
         htmlParts.push(listContent.html);
         textParts.push(`\n${listContent.text}\n`);
         continue;
@@ -598,22 +677,21 @@ export class DOMContentExtractor {
           return;
         }
 
-        // Inline formula - check both class and data-math attribute
-        if (el.classList.contains('math-inline') || el.hasAttribute('data-math')) {
-          const latex = el.getAttribute('data-math') || '';
-          if (latex) {
-            hasFormulas = true;
-            // For HTML output: preserve the rendered formula HTML for PDF export
-            const clonedFormula = (el as HTMLElement).cloneNode(true) as HTMLElement;
-            // Ensure data-math attribute is preserved
-            if (!clonedFormula.hasAttribute('data-math')) {
-              clonedFormula.setAttribute('data-math', latex);
-            }
-            htmlParts.push(clonedFormula.outerHTML);
-            // For text output: use Markdown format
-            textParts.push(`$${latex}$`);
-            return;
+        const isFormula =
+          el.classList.contains('math-inline') ||
+          el.classList.contains('katex') ||
+          el.hasAttribute('data-math') ||
+          el.hasAttribute('data-math-source');
+        const latex = isFormula ? recoverMathSource(el as HTMLElement) : null;
+        if (latex) {
+          hasFormulas = true;
+          const clonedFormula = (el as HTMLElement).cloneNode(true) as HTMLElement;
+          if (!clonedFormula.hasAttribute('data-math')) {
+            clonedFormula.setAttribute('data-math', latex);
           }
+          htmlParts.push(clonedFormula.outerHTML);
+          textParts.push(`$${latex}$`);
+          return;
         }
 
         // Emphasis
@@ -637,6 +715,20 @@ export class DOMContentExtractor {
           const text = this.normalizeText(el.textContent || '');
           htmlParts.push(`<code>${this.escapeHtml(text)}</code>`);
           textParts.push(`\`${text}\``);
+          return;
+        }
+
+        if (el.tagName === 'A') {
+          const link = el as HTMLAnchorElement;
+          const href = this.resolveExportLink(link);
+          const label = this.extractLinkLabel(link, href || '');
+          if (href) {
+            htmlParts.push(`<a href="${this.escapeHtmlAttribute(href)}">${label.html}</a>`);
+            textParts.push(`[${label.text}](${href.replace(/\)/g, '\\)')})`);
+          } else {
+            htmlParts.push(label.html);
+            textParts.push(label.text);
+          }
           return;
         }
 
@@ -802,50 +894,100 @@ export class DOMContentExtractor {
   private static extractList(
     element: HTMLElement,
     depth: number = 0,
-  ): { html: string; text: string } {
+  ): { html: string; text: string; hasFormulas: boolean; hasCode: boolean } {
     const isOrdered = element.tagName === 'OL';
     const items = Array.from(element.querySelectorAll(':scope > li'));
     const indent = '  '.repeat(depth); // 2 spaces per level
 
     const textLines: string[] = [];
+    let hasFormulas = false;
+    let hasCode = false;
     items.forEach((item, index) => {
-      // Create a temporary container with only direct children (excluding nested lists)
-      const tempContainer = document.createElement('div');
-      const childNodes = Array.from(item.childNodes);
-
-      childNodes.forEach((node) => {
-        if (node.nodeType === Node.TEXT_NODE) {
-          tempContainer.appendChild(node.cloneNode(true));
-        } else if (node.nodeType === Node.ELEMENT_NODE) {
-          const el = node as Element;
-          // Skip nested lists, we'll process them separately
-          if (el.tagName !== 'UL' && el.tagName !== 'OL') {
-            tempContainer.appendChild(el.cloneNode(true));
-          }
-        }
-      });
-
-      // Process inline content (handles formulas, emphasis, etc.)
-      const processed = this.processInlineContent(tempContainer);
-      const itemText = processed.text || this.normalizeText(tempContainer.textContent || '');
-
       const prefix = isOrdered ? `${index + 1}. ` : '- ';
-      textLines.push(indent + prefix + itemText);
+      const continuationIndent = indent + ' '.repeat(prefix.length);
+      let hasItemContent = false;
+      let proseNodes: Node[] = [];
 
-      // Process nested lists
-      const nestedLists = item.querySelectorAll(':scope > ul, :scope > ol');
-      nestedLists.forEach((nestedList) => {
-        const nestedResult = this.extractList(nestedList as HTMLElement, depth + 1);
-        if (nestedResult.text) {
-          textLines.push(nestedResult.text);
+      const ensureItemMarker = (): void => {
+        if (!hasItemContent) {
+          textLines.push(indent + prefix.trimEnd());
+          hasItemContent = true;
         }
-      });
+      };
+
+      const flushProse = (): void => {
+        if (proseNodes.length === 0) return;
+        const proseContainer = document.createElement('div');
+        proseNodes.forEach((node) => proseContainer.appendChild(node.cloneNode(true)));
+        proseNodes = [];
+
+        const processed = this.processInlineContent(proseContainer);
+        if (processed.hasFormulas) hasFormulas = true;
+        const prose = this.normalizeText(processed.text || proseContainer.textContent || '');
+        if (!prose) return;
+        textLines.push((hasItemContent ? continuationIndent : indent + prefix) + prose);
+        hasItemContent = true;
+      };
+
+      const processItemNodes = (nodes: Node[]): void => {
+        nodes.forEach((node) => {
+          if (node.nodeType !== Node.ELEMENT_NODE) {
+            proseNodes.push(node);
+            return;
+          }
+
+          const child = node as HTMLElement;
+          if (child.tagName === 'UL' || child.tagName === 'OL') {
+            flushProse();
+            const nested = this.extractList(child, depth + 1);
+            if (nested.hasFormulas) hasFormulas = true;
+            if (nested.hasCode) hasCode = true;
+            if (nested.text) {
+              ensureItemMarker();
+              textLines.push(nested.text);
+            }
+            return;
+          }
+
+          if (child.tagName === 'PRE') {
+            const codeElement = child.querySelector<HTMLElement>(':scope > code');
+            if (codeElement) {
+              flushProse();
+              const extracted = this.extractCodeFromCodeElement(codeElement);
+              (codeElement as Element & { processedByGV?: boolean }).processedByGV = true;
+              ensureItemMarker();
+              hasCode = true;
+              textLines.push(
+                extracted.text
+                  .split('\n')
+                  .map((line) => continuationIndent + line)
+                  .join('\n'),
+              );
+              return;
+            }
+          }
+
+          if (child.querySelector('pre, ul, ol')) {
+            flushProse();
+            processItemNodes(Array.from(child.childNodes));
+            return;
+          }
+
+          proseNodes.push(node);
+        });
+      };
+
+      processItemNodes(Array.from(item.childNodes));
+      flushProse();
+      if (!hasItemContent) textLines.push(indent + prefix);
     });
 
     const cleanList = element.cloneNode(true) as HTMLElement;
     this.stripExportArtifacts(cleanList);
 
     return {
+      hasFormulas,
+      hasCode,
       html: cleanList.outerHTML,
       text: textLines.join('\n'),
     };

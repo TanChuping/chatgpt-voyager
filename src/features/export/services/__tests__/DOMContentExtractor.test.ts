@@ -134,4 +134,75 @@ describe('DOMContentExtractor', () => {
     expect(extracted.html).toContain('src="https://example.com/a%22b.png"');
     expect(extracted.html).toContain('alt="A &quot;quoted&quot; image"');
   });
+
+  it('preserves ChatGPT user prose, rich links, and safe absolute destinations', () => {
+    const user = document.createElement('div');
+    const resolved = new URL('/docs', document.baseURI).href;
+    user.innerHTML = `
+      <div class="markdown"><p>Before <a href="/docs"><strong>rich</strong><img src="https://example.com/icon.png" alt="Icon"></a> after <a href="javascript:alert(1)">unsafe</a></p></div>
+    `;
+
+    const extracted = DOMContentExtractor.extractUserContent(user);
+
+    expect(extracted.text).toContain(
+      `[**rich**![Icon](https://example.com/icon.png)](${resolved})`,
+    );
+    expect(extracted.text).toContain('unsafe');
+    expect(extracted.text).not.toContain('javascript:');
+    expect(extracted.html).toContain(
+      `<a href="${resolved}"><strong>rich</strong><img src="https://example.com/icon.png" alt="Icon" /></a>`,
+    );
+    expect(extracted.html).not.toContain('javascript:');
+  });
+
+  it('collapses multiline ChatGPT link labels in Markdown output', () => {
+    const assistant = document.createElement('div');
+    assistant.innerHTML = `
+      <div class="markdown"><p>Open <a href="https://example.com/notes.pdf">
+        notes.pdf
+      </a>.</p></div>
+    `;
+
+    const extracted = DOMContentExtractor.extractAssistantContent(assistant);
+
+    expect(extracted.text).toContain('[notes.pdf](https://example.com/notes.pdf)');
+    expect(extracted.text).not.toContain('[\n');
+  });
+
+  it('preserves current ChatGPT inline and display KaTeX as semantic formulas', () => {
+    const assistant = document.createElement('div');
+    assistant.innerHTML = `
+      <div class="markdown">
+        <p>Inline <span data-math-source="E = mc^2"><span class="katex">visual inline math</span></span>.</p>
+        <div data-math-source="\\int_0^1 x\\,dx">
+          <span class="katex-display"><span class="katex">visual display math</span></span>
+        </div>
+      </div>
+    `;
+
+    const extracted = DOMContentExtractor.extractAssistantContent(assistant);
+
+    expect(extracted.hasFormulas).toBe(true);
+    expect(extracted.text).toContain('$E = mc^2$');
+    expect(extracted.text).toContain('$$\n\\int_0^1 x\\,dx\n$$');
+    expect(extracted.text).not.toContain('visual inline math');
+    expect(extracted.text).not.toContain('visual display math');
+  });
+
+  it('keeps a bare code block inside a list item exactly once', () => {
+    const assistant = document.createElement('div');
+    assistant.innerHTML = `
+      <div class="markdown">
+        <ul><li>Run this<pre><code class="language-ts">const nested = true;</code></pre><ul><li>Then continue</li></ul></li></ul>
+      </div>
+    `;
+
+    const extracted = DOMContentExtractor.extractAssistantContent(assistant);
+
+    expect(extracted.hasCode).toBe(true);
+    expect(extracted.text.match(/const nested = true;/g)).toHaveLength(1);
+    expect(extracted.html.match(/const nested = true;/g)).toHaveLength(1);
+    expect(extracted.text).toContain('```ts');
+    expect(extracted.text).toContain('Then continue');
+  });
 });

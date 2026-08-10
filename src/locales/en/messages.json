@@ -98,6 +98,9 @@
   "singleConvExportSelectNotReady": {
     "message": "This conversation isn't fully loaded yet. Scroll up to load the earlier messages, then try again."
   },
+  "singleConvExportGenerating": {
+    "message": "Wait for ChatGPT to finish generating before exporting."
+  },
   "extDescription": {
     "message": "timeline, folders, latex copy, export chat, temp-chat remember, prompt, font, mermaid for ChatGPT"
   },

@@ -98,6 +98,9 @@
   "singleConvExportSelectNotReady": {
     "message": "此对话尚未完全加载。请向上滚动加载更早的消息后再试。"
   },
+  "singleConvExportGenerating": {
+    "message": "请等待 ChatGPT 完成生成后再导出。"
+  },
   "extDescription": {
     "message": "为 ChatGPT 提供时间线、文件夹、Prompt 管理和聊天导出。"
   },

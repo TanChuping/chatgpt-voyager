@@ -1138,10 +1138,10 @@ export class PDFPrintService {
       ${root} .gv-print-turn-text pre {
         margin: 1em 0;
         padding: 1em 1.1em;
-        border: 0;
+        border: 1px solid #d1d5db;
         border-radius: 10px;
-        color: #f7f7f8;
-        background: #1f1f1f;
+        color: #1f1f1f;
+        background: #f7f7f8;
         font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
         font-size: ${codePt}pt;
         line-height: 1.5;
