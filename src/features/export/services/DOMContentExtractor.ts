@@ -69,7 +69,38 @@ export class DOMContentExtractor {
       // ChatGPT uses ordinary semantic markup for prompts. Reuse the rich
       // extractor so links, images, inline formatting and attachment labels
       // survive PDF/HTML export instead of falling through to "No content".
-      return this.extractAssistantContent(element);
+      const extracted = this.extractAssistantContent(element);
+      const missingImages = Array.from(images).filter((image) => {
+        const img = image as HTMLImageElement;
+        const src = img.getAttribute('src') || img.src || '';
+        return (
+          src &&
+          src !== 'about:blank' &&
+          !extracted.html.includes(`src="${this.escapeHtmlAttribute(src)}"`)
+        );
+      });
+      if (missingImages.length > 0) {
+        const imageText = missingImages
+          .map((image, index) => {
+            const img = image as HTMLImageElement;
+            const src = img.getAttribute('src') || img.src;
+            const alt = (img.getAttribute('alt') || '').trim() || `Uploaded image ${index + 1}`;
+            return `![${alt.replace(/\]/g, '\\]')}](${src})`;
+          })
+          .join('\n\n');
+        const imageHtml = missingImages
+          .map((image, index) => {
+            const img = image as HTMLImageElement;
+            const src = img.getAttribute('src') || img.src;
+            const alt = (img.getAttribute('alt') || '').trim() || `Uploaded image ${index + 1}`;
+            return `<img src="${this.escapeHtmlAttribute(src)}" alt="${this.escapeHtmlAttribute(alt)}" />`;
+          })
+          .join('\n');
+        extracted.text = [extracted.text, imageText].filter(Boolean).join('\n\n');
+        extracted.html = [extracted.html, imageHtml].filter(Boolean).join('\n');
+        extracted.hasImages = true;
+      }
+      return extracted;
     }
     const textParts: string[] = [];
     textLines.forEach((line) => {

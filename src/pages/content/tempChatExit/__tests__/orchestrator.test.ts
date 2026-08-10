@@ -140,6 +140,26 @@ describe('temporary-chat handoff orchestration', () => {
     expect(input.textContent).toContain(delivery.directive);
   });
 
+  it('preserves a formatted draft when the text paste is not handled', async () => {
+    vi.useFakeTimers();
+    const { input } = createComposer();
+    input.innerHTML = '<p><strong>First paragraph</strong></p><p>Second paragraph</p>';
+    const originalHtml = input.innerHTML;
+    const delivery = {
+      mode: 'inline' as const,
+      text: 'Continue from the temporary chat.',
+    };
+
+    const result = deliverHandoff(input, delivery);
+    await vi.runAllTimersAsync();
+
+    await expect(result).resolves.toBe(true);
+    expect(input.innerHTML.startsWith(originalHtml)).toBe(true);
+    expect(input.querySelector('strong')?.textContent).toBe('First paragraph');
+    expect(input.querySelectorAll('p')).toHaveLength(2);
+    expect(input.textContent).toContain(delivery.text);
+  });
+
   it('retries only the missing directive when the file preview already exists', async () => {
     vi.useFakeTimers();
     const { form, input } = createComposer();

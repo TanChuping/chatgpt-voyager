@@ -19,8 +19,7 @@
  *         mode. Wait for ChatGPT to settle (URL drops the
  *         `temporary-chat` param, the chat UI clears).
  *      d. Build the hand-off prompt via `promptBuilder.buildHandoffPrompt`
- *         and inject it into the chat input via the shared
- *         `setInputText` helper.
+ *         and inject it into the chat input.
  *   3. Tear down the overlay. The user reviews the input and clicks
  *      send themselves (per design choice "只填进输入框，等用户亲手点
  *      发送").
@@ -30,7 +29,6 @@
  */
 import { replaceMathWithLatex } from '@/core/utils/latexFromDom';
 
-import { setInputText } from '../utils/inputHelper';
 import { t } from './i18n';
 import {
   type ExtractedTurn,
@@ -625,8 +623,8 @@ function clearPendingHandoff(): void {
 /**
  * Deliver the hand-off payload into the chat input.
  *
- *  - `inline` mode: just typed in via `setInputText` (execCommand
- *    insertText). Up to ~5K chars this fits comfortably in the input.
+ *  - `inline` mode: pasted into the composer. Up to ~5K chars this
+ *    fits comfortably in the input.
  *
  *  - `attachment` mode:
  *      1. Type the directive into the input box (short).
@@ -690,7 +688,13 @@ async function insertComposerText(input: HTMLElement, text: string): Promise<boo
   }
 
   const existing = readComposerText(input).trim();
-  setInputText(input, existing ? `${existing}\n\n${text}` : text);
+  const next = existing ? `${existing}\n\n${text}` : text;
+  if (input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement) {
+    input.value = next;
+  } else {
+    input.appendChild(document.createTextNode(existing ? `\n\n${text}` : text));
+  }
+  input.dispatchEvent(new Event('input', { bubbles: true }));
   await sleep(0);
   return readComposerText(input).includes(text);
 }

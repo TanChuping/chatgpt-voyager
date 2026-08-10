@@ -155,6 +155,23 @@ describe('DOMContentExtractor', () => {
     expect(extracted.html).not.toContain('javascript:');
   });
 
+  it('preserves a ChatGPT prompt beside a sibling preview image', () => {
+    const user = document.createElement('div');
+    user.innerHTML = `
+      <div class="markdown"><p>Describe the uploaded diagram.</p></div>
+      <img class="preview-image" src="https://example.com/diagram.png" alt="Diagram" />
+    `;
+
+    const extracted = DOMContentExtractor.extractUserContent(user);
+
+    expect(extracted.text).toContain('Describe the uploaded diagram.');
+    expect(extracted.html).toContain('<p>Describe the uploaded diagram.</p>');
+    expect(extracted.text).toContain('![Diagram](https://example.com/diagram.png)');
+    expect(extracted.html).toContain('<img src="https://example.com/diagram.png" alt="Diagram" />');
+    expect(extracted.text.match(/https:\/\/example\.com\/diagram\.png/g)).toHaveLength(1);
+    expect(extracted.hasImages).toBe(true);
+  });
+
   it('collapses multiline ChatGPT link labels in Markdown output', () => {
     const assistant = document.createElement('div');
     assistant.innerHTML = `
