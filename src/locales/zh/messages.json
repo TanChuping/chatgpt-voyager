@@ -368,6 +368,15 @@
   "conversation_move_to_folder": {
     "message": "移动到文件夹"
   },
+  "conversation_rename": {
+    "message": "重命名对话"
+  },
+  "conversation_rename_current": {
+    "message": "重命名当前对话"
+  },
+  "conversation_rename_unavailable": {
+    "message": "ChatGPT 的重命名功能暂时不可用"
+  },
   "conversation_move_to_folder_title": {
     "message": "移动到文件夹"
   },
@@ -481,6 +490,12 @@
   },
   "folder_search_collapse": {
     "message": "折叠搜索框"
+  },
+  "folder_expand": {
+    "message": "展开文件夹"
+  },
+  "folder_collapse": {
+    "message": "折叠文件夹"
   },
   "folder_search_mode_folder": {
     "message": "仅文件夹"
@@ -1407,10 +1422,10 @@
     "message": "把文件夹作为项目入口使用。"
   },
   "folderHeaderButton_enable": {
-    "message": "顶栏文件夹按钮"
+    "message": "顶栏对话快捷按钮"
   },
   "folderHeaderButton_description": {
-    "message": "在对话顶部左上角显示一个文件夹按钮，点击可把当前对话加入文件夹（与「…」菜单里的「移动到文件夹」相同）。"
+    "message": "在当前对话左上角显示文件夹和重命名快捷入口。"
   },
   "folderBelowProjects": {
     "message": "文件夹放到项目下方"

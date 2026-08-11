@@ -334,16 +334,52 @@ describe('mountFloatingPanel', () => {
     expect(handle.element.textContent).toContain('Alpha');
   });
 
-  it('fires conversation star and remove callbacks from row action buttons', () => {
+  it('fires conversation star, rename, and remove callbacks from row action buttons', () => {
     const onToggleStar = vi.fn();
+    const onRenameConversation = vi.fn();
     const onRemoveConversation = vi.fn();
-    const handle = mountPanel({ onToggleStar, onRemoveConversation });
+    const handle = mountPanel({
+      onToggleStar,
+      onRenameConversation,
+      onRemoveConversation,
+    });
 
     const row = requireElement<HTMLElement>(handle.element, `.${FLOATING_PANEL_CLASS}__conv`);
     click(requireElement<HTMLButtonElement>(row, `.${FLOATING_PANEL_CLASS}__icon-button--star`));
-    click(requireElement<HTMLButtonElement>(row, `.${FLOATING_PANEL_CLASS}__icon-button--remove`));
+    const renameButton = requireElement<HTMLButtonElement>(
+      row,
+      `.${FLOATING_PANEL_CLASS}__icon-button--rename-conversation`,
+    );
+    expect(renameButton.querySelector('svg')).not.toBeNull();
+    expect(renameButton.getAttribute('aria-describedby')).toBe(
+      row.querySelector(`.${FLOATING_PANEL_CLASS}__conv-title`)?.id,
+    );
+    click(renameButton);
+    let renameInput = requireElement<HTMLInputElement>(
+      handle.element,
+      `.${FLOATING_PANEL_CLASS}__inline-input`,
+    );
+    expect(renameInput.getAttribute('aria-label')).toContain('Conversation A');
+    expect(renameInput.hasAttribute('maxlength')).toBe(false);
+    const longAlias = 'A deliberately long conversation alias that exceeds fifty characters';
+    renameInput.value = longAlias;
+    renameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    handle.update(createData());
+    renameInput = requireElement<HTMLInputElement>(
+      handle.element,
+      `.${FLOATING_PANEL_CLASS}__inline-input`,
+    );
+    expect(renameInput.value).toBe(longAlias);
+    keydown(renameInput, 'Enter');
+    click(
+      requireElement<HTMLButtonElement>(
+        handle.element,
+        `.${FLOATING_PANEL_CLASS}__icon-button--remove`,
+      ),
+    );
 
     expect(onToggleStar).toHaveBeenCalledWith('folder-a', 'conv-a');
+    expect(onRenameConversation).toHaveBeenCalledWith('folder-a', 'conv-a', longAlias);
     expect(onRemoveConversation).toHaveBeenCalledWith('folder-a', 'conv-a');
   });
 

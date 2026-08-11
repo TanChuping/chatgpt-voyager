@@ -368,6 +368,15 @@
   "conversation_move_to_folder": {
     "message": "Move to folder"
   },
+  "conversation_rename": {
+    "message": "Rename chat"
+  },
+  "conversation_rename_current": {
+    "message": "Rename current conversation"
+  },
+  "conversation_rename_unavailable": {
+    "message": "ChatGPT's rename action is temporarily unavailable"
+  },
   "conversation_move_to_folder_title": {
     "message": "Move to folder"
   },
@@ -481,6 +490,12 @@
   },
   "folder_search_collapse": {
     "message": "Collapse search"
+  },
+  "folder_expand": {
+    "message": "Expand folder"
+  },
+  "folder_collapse": {
+    "message": "Collapse folder"
   },
   "folder_search_mode_folder": {
     "message": "Folders only"
@@ -1407,10 +1422,10 @@
     "message": "Attach reusable instructions to a folder and insert them into chats."
   },
   "folderHeaderButton_enable": {
-    "message": "Folder button in the header"
+    "message": "Conversation shortcuts in the header"
   },
   "folderHeaderButton_description": {
-    "message": "Show a folder button at the top-left of a conversation to file it into a folder — the same action as \"Move to folder\" in the \"…\" menu."
+    "message": "Show folder and rename shortcuts at the top-left of the current conversation."
   },
   "folderBelowProjects": {
     "message": "Place folders below Projects"

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   createNativeMenuOwnershipSnapshot,
+  findRenameConversationMenuItem,
   isOwnedNativeConversationMenu,
 } from '../nativeConversationBridge';
 
@@ -98,5 +99,22 @@ describe('isOwnedNativeConversationMenu', () => {
     createNativeMenuOwnershipSnapshot(trigger, CONVERSATION_ID, 'token-2', document);
 
     expect(isOwnedNativeConversationMenu(menu, stale!)).toBe(false);
+  });
+
+  it('finds current, legacy, and localized native rename menu items', () => {
+    const menu = mountMenu('rename-menu', 'rename-trigger');
+
+    const current = document.createElement('button');
+    current.setAttribute('role', 'menuitem');
+    current.setAttribute('data-testid', 'rename-chat-menu-item');
+    menu.appendChild(current);
+    expect(findRenameConversationMenuItem(menu)).toBe(current);
+
+    current.remove();
+    const localized = document.createElement('button');
+    localized.setAttribute('role', 'menuitem');
+    localized.textContent = '重命名';
+    menu.appendChild(localized);
+    expect(findRenameConversationMenuItem(menu)).toBe(localized);
   });
 });

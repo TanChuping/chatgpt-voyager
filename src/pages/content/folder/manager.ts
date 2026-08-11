@@ -38,8 +38,14 @@ import {
   getChatGptConversationUrl,
   normalizeChatGptConversationId,
 } from '../chatgptDom';
+import { findActivePageHeader } from '../shared/headerActionSlot';
 import { type ConversationSortMode, sortConversationsByPriority } from './conversationSort';
-import { type FloatingFabPos, mountFloatingFab, unmountFloatingFab } from './floatingModeFab';
+import {
+  type FloatingFabPos,
+  isFloatingFabMounted,
+  mountFloatingFab,
+  unmountFloatingFab,
+} from './floatingModeFab';
 import { unmountFloatingModeNudge } from './floatingModeNudge';
 import {
   type FloatingPanelHandle,
@@ -100,6 +106,7 @@ const FOLDER_TREE_INDENT_DEFAULT = -8;
 // *new* creation. Moves remain unconstrained for the same reason.
 const MAX_FOLDER_DEPTH = 1;
 const FOLDER_NAME_SINGLE_CLICK_DELAY_MS = 220;
+const FLOATING_STORAGE_READ_TIMEOUT_MS = 1500;
 const FOLDER_NAVIGATION_CONFIRM_DELAY_MS = 300;
 const FOLDER_SEARCH_DEBOUNCE_MS = 200;
 
@@ -126,9 +133,23 @@ export function calculateFolderConversationPaddingLeft(level: number, indent: nu
 }
 
 type FolderSearchCriteria = { mode: 'all' | 'folder'; query: string };
+type NativeConversationDragElement = HTMLElement & {
+  _gvConversationDragCleanup?: () => void;
+};
 
 function normalizeFolderSearchText(value: string): string {
   return value.normalize('NFKC').toLocaleLowerCase().trim();
+}
+
+function getFolderContentDomId(folderId: string): string {
+  // FNV-1a over UTF-16 code units is deterministic and cannot throw on a
+  // malformed imported surrogate, unlike encodeURIComponent.
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < folderId.length; index++) {
+    hash ^= folderId.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `gv-folder-content-${folderId.length}-${(hash >>> 0).toString(36)}`;
 }
 
 function parseFolderSearchCriteria(value: string): FolderSearchCriteria {
@@ -244,6 +265,7 @@ export class FolderManager {
   private folderProjectEnabled: boolean = false; // Whether Folder-as-Project feature is enabled
   private folderBelowProjects: boolean = false; // Mount folder panel below Projects / above Recent (non-sticky) instead of pinned at top
   private belowProjectsRelocateTries: number = 0; // Bounded-retry counter for relocating below Projects while the Recent list streams in
+  private belowProjectsRelocateTimer: number | null = null;
   private hideArchivedConversations: boolean = false; // Whether to hide conversations in folders
   private hideArchivedNudgeShown: boolean = false; // Whether the first-archive nudge has been shown/dismissed
   private folderTreeIndent: number = FOLDER_TREE_INDENT_DEFAULT; // Tree indentation width (px)
@@ -257,13 +279,17 @@ export class FolderManager {
   private activeStorageKey: string = STORAGE_KEY; // Storage key currently used for folder data
   private navPoller: number | null = null;
   private lastPathname: string | null = null;
-  // Debounced "container still attached?" check (set up in initializeFolderUI).
-  // Stored on the instance so the route-change listener can invoke it too:
-  // ChatGPT's 2026-07 redesign re-renders the whole sidebar when entering
-  // routes like /library, detaching the folder container AND every observer
-  // bound to the old DOM — without a route-driven check the panel stayed dead
-  // until a window resize.
-  private domRecoveryCheck: (() => void) | null = null;
+  /**
+   * Mount recovery must not be owned by the sidebar DOM it is meant to repair.
+   * ChatGPT can replace that whole subtree during hydration or SPA navigation;
+   * observers attached to the old sidebar disappear with it. These document-
+   * level handles live for the lifetime of FolderManager instead and keep
+   * retrying until a healthy embedded mount exists.
+   */
+  private mountRecoveryObserver: MutationObserver | null = null;
+  private mountRecoveryTimer: number | null = null;
+  private mountRecoveryInterval: number | null = null;
+  private mountRecoveryEventHandler: (() => void) | null = null;
   private savePromise: Promise<boolean> | null = null;
   private saveRequested = false;
   private saveDirty = false;
@@ -274,15 +300,15 @@ export class FolderManager {
     revision: number;
   } | null = null;
   private pendingTitleUpdates: Map<string, string> = new Map(); // Buffer title updates during render
-  private pendingRemovals: Map<string, number> = new Map(); // Pending conversation removals with timer IDs
-  private removalCheckDelay: number = 300; // Delay (ms) before confirming conversation deletion
   private isDestroyed: boolean = false; // Flag to prevent callbacks after destruction
   private sidebarWaitTimer: number | null = null;
   private sidebarWaitCancel: (() => void) | null = null;
+  private mountAttemptInProgress: boolean = false;
   private reinitializePromise: Promise<void> | null = null; // Prevent duplicate reinitialization cascades
   private activeColorPicker: HTMLElement | null = null; // Currently open color picker dialog
   private activeColorPickerFolderId: string | null = null; // Folder ID of currently open color picker
   private activeColorPickerCloseHandler: ((e: MouseEvent) => void) | null = null; // Event handler for closing color picker
+  private activeColorPickerListenerTimeout: number | null = null;
 
   // Track active UI elements to prevent duplicate creation
   private activeFolderInput: HTMLElement | null = null; // Currently open folder name input
@@ -301,6 +327,7 @@ export class FolderManager {
   // Cleanup references
   private routeChangeCleanup: (() => void) | null = null;
   private sidebarClickListener: ((e: Event) => void) | null = null;
+  private sidebarClickListenerOwner: HTMLElement | null = null;
   private conversationMenuClickListener: ((event: Event) => void) | null = null;
   private storageChangeListener:
     | ((changes: Record<string, browser.Storage.StorageChange>, areaName: string) => void)
@@ -311,6 +338,10 @@ export class FolderManager {
   private pendingNativeMenuWatch: PendingNativeMenuWatch | null = null;
   private pendingNativeDialogWatch: PendingNativeDialogWatch | null = null;
   private suppressedConversationMenuTrigger: HTMLElement | null = null;
+  private authoritativeNativeTitles: Map<
+    string,
+    { title: string; staleTitles: ReadonlySet<string>; createdAt: number }
+  > = new Map();
   private activeNativeRemovalWatch: NativeRemovalWatch | null = null;
   private outsideClickHandler: ((e: MouseEvent) => void) | null = null; // For exiting multi-select on outside click
 
@@ -337,6 +368,10 @@ export class FolderManager {
   private floatingPanelHandle: FloatingPanelHandle | null = null;
   private floatingModeEnabled: boolean = false;
   private floatingModeActive: boolean = false;
+  private floatingModeGeneration = 0;
+  private floatingPanelOpenPromise: Promise<void> | null = null;
+  private floatingFabMountPromise: Promise<void> | null = null;
+  private floatingRecoveryInterval: number | null = null;
 
   constructor() {
     // Create storage adapter based on browser (Factory Pattern)
@@ -415,9 +450,18 @@ export class FolderManager {
       this.setupMessageListener();
       if (this.isDestroyed) return;
 
+      // Route monitoring survives sidebar replacement and lets mount mode be
+      // reconciled when navigating into or out of Codex.
+      this.installRouteChangeListener();
+      if (this.isDestroyed) return;
+
       // If folder feature is disabled, skip initialization
       if (!this.folderEnabled) {
         this.debug('Folder feature is disabled, skipping initialization');
+        return;
+      }
+      if (location.pathname.startsWith('/codex')) {
+        this.reconcileFolderMountMode();
         return;
       }
 
@@ -427,6 +471,8 @@ export class FolderManager {
       if (this.floatingModeEnabled) {
         await this.startFloatingMode();
       } else {
+        // A failed first attempt must remain recoverable without a refresh.
+        this.setupPersistentMountRecovery();
         await this.initializeFolderUI();
       }
       if (this.isDestroyed) return;
@@ -450,19 +496,6 @@ export class FolderManager {
     this.cancelSidebarWait();
     this.backupService.destroy();
 
-    // Clear all pending removal timers
-    let clearedCount = 0;
-    this.pendingRemovals.forEach((timerId, conversationId) => {
-      clearTimeout(timerId);
-      clearedCount++;
-      this.debug(`Cleared pending removal timer for ${conversationId}`);
-    });
-    this.pendingRemovals.clear();
-
-    if (clearedCount > 0) {
-      this.debug(`Cleared ${clearedCount} pending removal timer(s)`);
-    }
-
     // Clear other timers
     if (this.longPressTimeout) {
       clearTimeout(this.longPressTimeout);
@@ -472,6 +505,10 @@ export class FolderManager {
     if (this.folderNameClickTimeout !== null) {
       clearTimeout(this.folderNameClickTimeout);
       this.folderNameClickTimeout = null;
+    }
+    if (this.belowProjectsRelocateTimer !== null) {
+      window.clearTimeout(this.belowProjectsRelocateTimer);
+      this.belowProjectsRelocateTimer = null;
     }
     this.clearFolderSearchDebounceTimer();
 
@@ -484,6 +521,10 @@ export class FolderManager {
       clearInterval(this.navPoller);
       this.navPoller = null;
     }
+
+    this.cleanupNativeConversationEnhancements();
+    this.clearSelection();
+    this.teardownPersistentMountRecovery();
 
     // Disconnect mutation observers
     if (this.sideNavObserver) {
@@ -499,11 +540,19 @@ export class FolderManager {
     this.cancelNativeMenuWatch();
     this.cancelNativeDialogWatch();
     this.cleanupNativeRemovalWatch();
+    document
+      .querySelectorAll<HTMLElement>('.gv-move-to-folder-btn')
+      .forEach((menuItem) => menuItem.remove());
     this.suppressedConversationMenuTrigger = null;
+    this.authoritativeNativeTitles.clear();
 
     // Tear down floating-mode UI if it was surfaced.
     unmountFloatingModeNudge();
     unmountFloatingFab();
+    if (this.floatingRecoveryInterval !== null) {
+      window.clearInterval(this.floatingRecoveryInterval);
+      this.floatingRecoveryInterval = null;
+    }
     if (this.floatingPanelHandle) {
       this.floatingPanelHandle.destroy();
       this.floatingPanelHandle = null;
@@ -515,13 +564,18 @@ export class FolderManager {
       this.routeChangeCleanup = null;
     }
 
-    if (this.sidebarClickListener && this.sidebarContainer) {
+    if (this.sidebarClickListener && this.sidebarClickListenerOwner) {
       try {
-        this.sidebarContainer.removeEventListener('click', this.sidebarClickListener, true);
+        this.sidebarClickListenerOwner.removeEventListener(
+          'click',
+          this.sidebarClickListener,
+          true,
+        );
       } catch {
         // Ignore
       }
       this.sidebarClickListener = null;
+      this.sidebarClickListenerOwner = null;
     }
 
     if (this.conversationMenuClickListener) {
@@ -556,15 +610,21 @@ export class FolderManager {
       this.tooltipElement = null;
     }
 
+    this.closeFolderActionsMenu();
+
     // Remove active color picker
+    if (this.activeColorPickerListenerTimeout !== null) {
+      window.clearTimeout(this.activeColorPickerListenerTimeout);
+      this.activeColorPickerListenerTimeout = null;
+    }
     if (this.activeColorPicker) {
       this.activeColorPicker.remove();
-      if (this.activeColorPickerCloseHandler) {
-        document.removeEventListener('click', this.activeColorPickerCloseHandler);
-        this.activeColorPickerCloseHandler = null;
-      }
       this.activeColorPicker = null;
       this.activeColorPickerFolderId = null;
+    }
+    if (this.activeColorPickerCloseHandler) {
+      document.removeEventListener('click', this.activeColorPickerCloseHandler);
+      this.activeColorPickerCloseHandler = null;
     }
 
     this.closeActiveImportExportMenu();
@@ -621,96 +681,187 @@ export class FolderManager {
   }
 
   private async initializeFolderUI(): Promise<void> {
-    // Wait for sidebar to be available (with a hard timeout so a DOM change on
-    // ChatGPT's side doesn't silently hang the folder feature forever).
-    const sidebarFound = await this.waitForSidebar();
-    if (this.isDestroyed) return;
-    if (!sidebarFound) {
-      this.debugWarn('Sidebar anchor never appeared 鈥?folder panel unavailable');
-      return;
+    if (this.mountAttemptInProgress || !this.shouldMaintainEmbeddedFolderMount()) return;
+    this.mountAttemptInProgress = true;
+    try {
+      // Wait for sidebar to be available (with a hard timeout so a DOM change on
+      // ChatGPT's side doesn't silently hang the folder feature forever).
+      const sidebarFound = await this.waitForSidebar();
+      if (!this.shouldMaintainEmbeddedFolderMount()) return;
+      if (!sidebarFound) {
+        this.debugWarn('Sidebar anchor never appeared 鈥?folder panel unavailable');
+        return;
+      }
+
+      // Find the Recent section
+      this.findRecentSection();
+
+      if (!this.recentSection) {
+        this.debugWarn('Could not find Recent section 鈥?folder panel unavailable');
+        return;
+      }
+
+      // Create and inject folder UI
+      this.createFolderUI();
+
+      // Make conversations draggable
+      this.makeConversationsDraggable();
+
+      // Set up mutation observer to handle dynamically added conversations
+      this.setupMutationObserver();
+
+      // Set up sidebar visibility observer
+      this.setupSideNavObserver();
+
+      // Initial visibility check
+      this.updateVisibilityBasedOnSideNav();
+
+      // Set up native conversation menu injection
+      this.setupConversationClickTracking();
+      this.setupNativeConversationMenuObserver();
+    } finally {
+      this.mountAttemptInProgress = false;
+      if (!this.isEmbeddedFolderMountHealthy()) {
+        this.scheduleEmbeddedMountRecovery('mount-attempt-incomplete', 1000);
+      }
+    }
+  }
+
+  private shouldMaintainEmbeddedFolderMount(): boolean {
+    return (
+      !this.isDestroyed &&
+      this.folderEnabled &&
+      !this.floatingModeEnabled &&
+      !location.pathname.startsWith('/codex')
+    );
+  }
+
+  private isEmbeddedFolderMountStructurallyConnected(): boolean {
+    const container = this.containerElement;
+    const sidebar = this.sidebarContainer;
+    return Boolean(
+      container?.isConnected &&
+      sidebar?.isConnected &&
+      (container === sidebar || sidebar.contains(container)),
+    );
+  }
+
+  private isEmbeddedFolderMountHealthy(): boolean {
+    const container = this.containerElement;
+    const sidebar = this.sidebarContainer;
+    if (!this.isEmbeddedFolderMountStructurallyConnected() || !container || !sidebar) return false;
+
+    const appRoot = document.querySelector('#app-root');
+    const activeSidebar = findChatGptSidebar();
+    // A newly hydrated visible sidebar always wins, even on ChatGPT variants
+    // that do not expose the legacy side-nav-open class. Otherwise a connected
+    // but hidden old subtree can look structurally healthy forever.
+    if (
+      activeSidebar &&
+      activeSidebar !== sidebar &&
+      this.isElementActuallyVisible(activeSidebar)
+    ) {
+      return false;
     }
 
-    // Find the Recent section
-    this.findRecentSection();
+    const appRootClass = appRoot?.getAttribute('class') || '';
+    const hasExplicitSideNavState = /\bside-nav-/.test(appRootClass);
+    const sidebarExplicitlyOpen = appRoot?.classList.contains('side-nav-open') === true;
+    const sidebarExplicitlyClosed = hasExplicitSideNavState && !sidebarExplicitlyOpen;
+    if (sidebarExplicitlyClosed) return true;
 
-    if (!this.recentSection) {
-      this.debugWarn('Could not find Recent section 鈥?folder panel unavailable');
-      return;
+    // When no visible host can be identified, tolerate a connected sidebar as
+    // a collapsed/transitioning state. Once this sidebar is visibly active,
+    // however, our own container must not retain a stale hidden state.
+    if (!activeSidebar) return !sidebarExplicitlyOpen;
+    if (
+      !hasExplicitSideNavState &&
+      activeSidebar === sidebar &&
+      !this.isElementActuallyVisible(sidebar)
+    ) {
+      return true;
     }
+    if (activeSidebar !== sidebar || !this.isElementActuallyVisible(sidebar)) return false;
+    const containerStyle = window.getComputedStyle(container);
+    return !(
+      container.hidden ||
+      container.getAttribute('aria-hidden') === 'true' ||
+      containerStyle.display === 'none' ||
+      containerStyle.visibility === 'hidden'
+    );
+  }
 
-    // Create and inject folder UI
-    this.createFolderUI();
+  /**
+   * Queue one bounded health check. Repeated document mutations do not reset
+   * the timer, so a streaming answer cannot starve recovery indefinitely.
+   */
+  private scheduleEmbeddedMountRecovery(reason: string, delayMs: number = 150): void {
+    if (this.mountRecoveryTimer !== null) return;
+    if (!this.shouldMaintainEmbeddedFolderMount() || this.isEmbeddedFolderMountHealthy()) return;
 
-    // Make conversations draggable
-    this.makeConversationsDraggable();
-
-    // Set up mutation observer to handle dynamically added conversations
-    this.setupMutationObserver();
-
-    // Set up sidebar visibility observer
-    this.setupSideNavObserver();
-
-    // Initial visibility check
-    this.updateVisibilityBasedOnSideNav();
-
-    // Set up native conversation menu injection
-    this.setupConversationClickTracking();
-    this.setupNativeConversationMenuObserver();
-
-    // 鈹€鈹€鈹€ DOM recovery (resize / print) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-    // ChatGPT may re-render the sidebar DOM during window resize or
-    // window.print(), detaching the folder container.  The sideNavObserver
-    // (watching `side-nav-open` on #app-root) CANNOT catch all cases because
-    // when the sidebar closes AND the DOM is rebuilt simultaneously, the
-    // observer fires with isSideNavOpen=false and skips reinitialization.
-    // A debounced resize listener provides a reliable fallback.
-    let domRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const domRecoveryCheck = () => {
-      if (domRecoveryTimer !== null) clearTimeout(domRecoveryTimer);
-      domRecoveryTimer = setTimeout(() => {
-        domRecoveryTimer = null;
-        if (this.isDestroyed) return;
-        // Codex has no folder panel by design (see createFolderUI) — a missing
-        // container there is expected, not a loss to recover from.
-        if (location.pathname.startsWith('/codex')) return;
-        this.updateVisibilityBasedOnSideNav();
-        if (
-          this.containerElement &&
-          document.body.contains(this.containerElement) &&
-          this.sidebarContainer &&
-          document.body.contains(this.sidebarContainer)
-        ) {
-          return; // Everything still attached 鈥?nothing to do.
-        }
-        // Only reinitialize if the sidebar is currently visible (open).
-        // If it is closed, the sideNavObserver will trigger reinitialization
-        // when it reopens.
-        const appRoot = document.querySelector('#app-root');
-        if (appRoot && !appRoot.classList.contains('side-nav-open')) {
-          this.debug('DOM recovery: container lost but sidebar closed, deferring');
+    this.mountRecoveryTimer = window.setTimeout(
+      () => {
+        this.mountRecoveryTimer = null;
+        if (!this.shouldMaintainEmbeddedFolderMount() || this.isEmbeddedFolderMountHealthy())
           return;
-        }
-        this.debug('DOM recovery: folder UI lost from DOM, reinitializing');
+        this.debug(`Persistent mount recovery (${reason})`);
         this.reinitializeFolderUI();
-      }, 800);
-    };
+      },
+      Math.max(0, delayMs),
+    );
+  }
 
-    window.addEventListener('resize', domRecoveryCheck);
-    window.addEventListener('gv-print-cleanup', domRecoveryCheck);
-    window.addEventListener('afterprint', domRecoveryCheck);
-    // Expose to the route-change listener (installRouteChangeListener) so SPA
-    // navigations run the same recovery pass — the debounce + attached-check
-    // make repeated calls cheap and idempotent.
-    this.domRecoveryCheck = domRecoveryCheck;
+  /**
+   * Lifetime-scoped recovery net. The observer catches sidebar replacement as
+   * soon as it happens; the low-frequency interval covers missed browser/DOM
+   * transitions and failed initial waits. Neither is tied to the sidebar node.
+   */
+  private setupPersistentMountRecovery(): void {
+    if (this.mountRecoveryObserver || !this.shouldMaintainEmbeddedFolderMount()) return;
 
-    this.addCleanupTask(() => {
-      if (domRecoveryTimer !== null) clearTimeout(domRecoveryTimer);
-      this.domRecoveryCheck = null;
-      window.removeEventListener('resize', domRecoveryCheck);
-      window.removeEventListener('gv-print-cleanup', domRecoveryCheck);
-      window.removeEventListener('afterprint', domRecoveryCheck);
+    this.mountRecoveryObserver = new MutationObserver(() => {
+      // Keep the hot mutation path layout-free. The 2-second watchdog and
+      // side-nav class observer perform the more expensive active-host check.
+      if (!this.isEmbeddedFolderMountStructurallyConnected()) {
+        this.scheduleEmbeddedMountRecovery('document-mutation');
+      }
     });
+    this.mountRecoveryObserver.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+
+    this.mountRecoveryInterval = window.setInterval(() => {
+      if (!this.isEmbeddedFolderMountHealthy()) {
+        this.scheduleEmbeddedMountRecovery('health-watchdog', 0);
+      }
+    }, 2000);
+
+    this.mountRecoveryEventHandler = () => {
+      this.scheduleEmbeddedMountRecovery('window-lifecycle', 100);
+    };
+    window.addEventListener('resize', this.mountRecoveryEventHandler);
+    window.addEventListener('gv-print-cleanup', this.mountRecoveryEventHandler);
+    window.addEventListener('afterprint', this.mountRecoveryEventHandler);
+  }
+
+  private teardownPersistentMountRecovery(): void {
+    this.mountRecoveryObserver?.disconnect();
+    this.mountRecoveryObserver = null;
+    if (this.mountRecoveryTimer !== null) {
+      window.clearTimeout(this.mountRecoveryTimer);
+      this.mountRecoveryTimer = null;
+    }
+    if (this.mountRecoveryInterval !== null) {
+      window.clearInterval(this.mountRecoveryInterval);
+      this.mountRecoveryInterval = null;
+    }
+    if (this.mountRecoveryEventHandler) {
+      window.removeEventListener('resize', this.mountRecoveryEventHandler);
+      window.removeEventListener('gv-print-cleanup', this.mountRecoveryEventHandler);
+      window.removeEventListener('afterprint', this.mountRecoveryEventHandler);
+      this.mountRecoveryEventHandler = null;
+    }
   }
 
   private isElementActuallyVisible(element: HTMLElement | null): boolean {
@@ -762,7 +913,7 @@ export class FolderManager {
    * `localStorage['gv-force-folder-fail'] = '1'` in the ChatGPT page and
    * reloading.
    */
-  private async waitForSidebar(timeoutMs: number = 10000): Promise<boolean> {
+  private async waitForSidebar(timeoutMs: number = 4000): Promise<boolean> {
     if (this.isDestroyed) return false;
     this.cancelSidebarWait();
     try {
@@ -833,14 +984,26 @@ export class FolderManager {
    * being open.
    */
   private async startFloatingMode(): Promise<void> {
-    if (this.floatingModeActive) return;
+    if (this.floatingModeActive) {
+      // ChatGPT can replace/remove body children during SPA transitions. A
+      // stale handle must not suppress recovery forever.
+      if (this.floatingPanelHandle && !this.floatingPanelHandle.element.isConnected) {
+        this.floatingPanelHandle.destroy();
+        this.floatingPanelHandle = null;
+        await this.openFloatingPanel(this.floatingModeGeneration);
+      }
+      this.ensureFloatingRecoveryWatchdog();
+      return;
+    }
     this.floatingModeActive = true;
+    const generation = ++this.floatingModeGeneration;
     this.debug('Entering floating mode');
 
     this.setupConversationClickTracking();
     this.setupNativeConversationMenuObserver();
+    this.ensureFloatingRecoveryWatchdog();
 
-    await this.openFloatingPanel();
+    await this.openFloatingPanel(generation);
   }
 
   /**
@@ -849,6 +1012,13 @@ export class FolderManager {
    */
   private stopFloatingMode(): void {
     this.floatingModeActive = false;
+    this.floatingModeGeneration++;
+    this.floatingPanelOpenPromise = null;
+    this.floatingFabMountPromise = null;
+    if (this.floatingRecoveryInterval !== null) {
+      window.clearInterval(this.floatingRecoveryInterval);
+      this.floatingRecoveryInterval = null;
+    }
     unmountFloatingModeNudge();
     unmountFloatingFab();
     if (this.floatingPanelHandle) {
@@ -857,17 +1027,144 @@ export class FolderManager {
     }
   }
 
+  private isFloatingGenerationCurrent(generation: number): boolean {
+    return (
+      generation === this.floatingModeGeneration &&
+      this.floatingModeActive &&
+      this.folderEnabled &&
+      this.floatingModeEnabled &&
+      !this.isDestroyed &&
+      !location.pathname.startsWith('/codex')
+    );
+  }
+
+  private ensureFloatingRecoveryWatchdog(): void {
+    if (this.floatingRecoveryInterval !== null) return;
+    this.floatingRecoveryInterval = window.setInterval(() => {
+      const generation = this.floatingModeGeneration;
+      if (!this.isFloatingGenerationCurrent(generation)) return;
+
+      if (this.floatingPanelHandle) {
+        if (!this.floatingPanelHandle.element.isConnected) {
+          this.floatingPanelHandle.destroy();
+          this.floatingPanelHandle = null;
+          void this.openFloatingPanel(generation);
+        }
+        return;
+      }
+
+      if (!isFloatingFabMounted()) this.showFloatingFab(generation);
+    }, 2000);
+  }
+
+  private stopConversationMenuTracking(): void {
+    this.cancelNativeMenuWatch();
+    this.cancelNativeDialogWatch();
+    this.cleanupNativeRemovalWatch();
+    document
+      .querySelectorAll<HTMLElement>('.gv-move-to-folder-btn')
+      .forEach((menuItem) => menuItem.remove());
+    if (this.conversationMenuClickListener) {
+      document.removeEventListener('click', this.conversationMenuClickListener, true);
+      this.conversationMenuClickListener = null;
+    }
+  }
+
+  /** Tear down resources owned by the embedded sidebar mount only. */
+  private teardownEmbeddedFolderUI(): void {
+    this.cancelSidebarWait();
+    if (this.longPressTimeout !== null) {
+      window.clearTimeout(this.longPressTimeout);
+      this.longPressTimeout = null;
+    }
+    if (this.belowProjectsRelocateTimer !== null) {
+      window.clearTimeout(this.belowProjectsRelocateTimer);
+      this.belowProjectsRelocateTimer = null;
+    }
+    this.exitMultiSelectMode();
+    this.cleanupNativeConversationEnhancements();
+    this.closeFolderActionsMenu();
+    if (this.activeColorPickerListenerTimeout !== null) {
+      window.clearTimeout(this.activeColorPickerListenerTimeout);
+      this.activeColorPickerListenerTimeout = null;
+    }
+    if (this.activeColorPicker) {
+      this.activeColorPicker.remove();
+      this.activeColorPicker = null;
+      this.activeColorPickerFolderId = null;
+    }
+    if (this.activeColorPickerCloseHandler) {
+      document.removeEventListener('click', this.activeColorPickerCloseHandler);
+      this.activeColorPickerCloseHandler = null;
+    }
+    this.cleanupTasks.forEach((task) => task());
+    this.cleanupTasks = [];
+
+    this.sideNavObserver?.disconnect();
+    this.sideNavObserver = null;
+    this.conversationObserver?.disconnect();
+    this.conversationObserver = null;
+    this.cancelNativeMenuWatch();
+    this.cancelNativeDialogWatch();
+    this.cleanupNativeRemovalWatch();
+
+    if (this.sidebarClickListener && this.sidebarClickListenerOwner) {
+      this.sidebarClickListenerOwner.removeEventListener('click', this.sidebarClickListener, true);
+    }
+    this.sidebarClickListener = null;
+    this.sidebarClickListenerOwner = null;
+
+    // remove() also detaches from an offline subtree. This prevents ChatGPT
+    // from later reattaching a stale sidebar containing a duplicate panel.
+    this.containerElement?.remove();
+    this.containerElement = null;
+    this.sidebarContainer = null;
+    this.recentSection = null;
+    this.closeActiveImportExportMenu();
+    this.closeActiveImportDialog();
+    this.clearActiveFolderInput();
+  }
+
+  /** Reconcile the single allowed presentation: disabled, floating, or embedded. */
+  private reconcileFolderMountMode(): void {
+    if (this.isDestroyed) return;
+
+    const onCodexRoute = location.pathname.startsWith('/codex');
+    if (!this.folderEnabled || onCodexRoute) {
+      this.teardownPersistentMountRecovery();
+      this.teardownEmbeddedFolderUI();
+      this.stopFloatingMode();
+      this.stopConversationMenuTracking();
+      return;
+    }
+
+    if (this.floatingModeEnabled) {
+      this.teardownPersistentMountRecovery();
+      this.teardownEmbeddedFolderUI();
+      void this.startFloatingMode();
+      return;
+    }
+
+    this.stopFloatingMode();
+    this.setupPersistentMountRecovery();
+    this.scheduleEmbeddedMountRecovery('mount-mode-reconcile', 0);
+  }
+
   /**
    * Mounts the small persistent FAB button in the corner. Safe to call multiple
    * times 鈥?the module is idempotent. Hydrates and persists position via
    * chrome.storage.sync so the user's chosen spot sticks across reloads.
    */
-  private showFloatingFab(): void {
+  private showFloatingFab(generation: number = this.floatingModeGeneration): void {
+    if (!this.isFloatingGenerationCurrent(generation)) return;
+    if (this.floatingFabMountPromise) return;
     // Fire-and-forget position read 鈥?worst case the FAB lands in its default
     // bottom-right spot for a frame before we re-place it.
-    void browser.storage.sync
-      .get({ [StorageKeys.FOLDER_FLOATING_FAB_POS]: null })
+    const mountPromise = this.readFloatingStorageWithFallback({
+      [StorageKeys.FOLDER_FLOATING_FAB_POS]: null,
+    })
       .then((raw) => {
+        if (!this.isFloatingGenerationCurrent(generation)) return;
         const candidate = raw[StorageKeys.FOLDER_FLOATING_FAB_POS] as unknown;
         let storedPos: FloatingFabPos | null = null;
         if (
@@ -881,7 +1178,9 @@ export class FolderManager {
         mountFloatingFab({
           storedPos,
           onClick: () => {
-            void this.openFloatingPanel();
+            if (this.isFloatingGenerationCurrent(generation)) {
+              void this.openFloatingPanel(generation);
+            }
           },
           onPosChange: (pos) => {
             void browser.storage.sync
@@ -897,17 +1196,62 @@ export class FolderManager {
       .catch((error) => {
         if (isExtensionContextInvalidatedError(error)) return;
         this.debugWarn('Failed to read floating FAB position:', error);
+        if (!this.isFloatingGenerationCurrent(generation)) return;
         // Still mount at default position so feature degrades gracefully.
         mountFloatingFab({
           onClick: () => {
-            void this.openFloatingPanel();
+            if (this.isFloatingGenerationCurrent(generation)) {
+              void this.openFloatingPanel(generation);
+            }
           },
         });
+      })
+      .finally(() => {
+        if (this.floatingFabMountPromise === mountPromise) {
+          this.floatingFabMountPromise = null;
+        }
       });
+    this.floatingFabMountPromise = mountPromise;
   }
 
-  private async openFloatingPanel(): Promise<void> {
-    if (this.floatingPanelHandle) return;
+  private openFloatingPanel(generation: number = this.floatingModeGeneration): Promise<void> {
+    if (!this.isFloatingGenerationCurrent(generation) || this.floatingPanelHandle) {
+      return Promise.resolve();
+    }
+    if (this.floatingPanelOpenPromise) return this.floatingPanelOpenPromise;
+
+    const openPromise = this.mountFloatingPanelForGeneration(generation)
+      .catch((error) => {
+        this.debugWarn('Failed to mount floating folder panel:', error);
+        if (this.isFloatingGenerationCurrent(generation)) this.showFloatingFab(generation);
+      })
+      .finally(() => {
+        if (this.floatingPanelOpenPromise === openPromise) this.floatingPanelOpenPromise = null;
+      });
+    this.floatingPanelOpenPromise = openPromise;
+    return openPromise;
+  }
+
+  private async readFloatingStorageWithFallback(
+    defaults: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    let timeoutId: number | null = null;
+    try {
+      return await Promise.race([
+        browser.storage.sync.get(defaults) as Promise<Record<string, unknown>>,
+        new Promise<Record<string, unknown>>((resolve) => {
+          timeoutId = window.setTimeout(
+            () => resolve({ ...defaults }),
+            FLOATING_STORAGE_READ_TIMEOUT_MS,
+          );
+        }),
+      ]);
+    } finally {
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+    }
+  }
+
+  private async mountFloatingPanelForGeneration(generation: number): Promise<void> {
     unmountFloatingModeNudge();
     // Only one entry point visible at a time 鈥?FAB hides when the panel is up.
     unmountFloatingFab();
@@ -915,7 +1259,7 @@ export class FolderManager {
     let storedPos: FloatingPanelPos | null = null;
     let storedSize: FloatingPanelSize | null = null;
     try {
-      const raw = await browser.storage.sync.get({
+      const raw = await this.readFloatingStorageWithFallback({
         [StorageKeys.FOLDER_FLOATING_POS]: null,
         [StorageKeys.FOLDER_FLOATING_SIZE]: null,
       });
@@ -941,6 +1285,7 @@ export class FolderManager {
       if (isExtensionContextInvalidatedError(error)) return;
       this.debugWarn('Failed to read floating-mode position/size:', error);
     }
+    if (!this.isFloatingGenerationCurrent(generation) || this.floatingPanelHandle) return;
 
     // All mutation callbacks share the same tail: persist to storage and push
     // a fresh snapshot into the floating panel. Factored out so each callback
@@ -975,7 +1320,7 @@ export class FolderManager {
       onClose: () => {
         this.floatingPanelHandle = null;
         // Panel is gone 鈥?bring the FAB back so the user can re-open later.
-        this.showFloatingFab();
+        this.showFloatingFab(generation);
       },
       onNavigate: (conv) => {
         this.navigateToConversation(conv.url, conv);
@@ -1002,6 +1347,16 @@ export class FolderManager {
         if (!folder) return;
         folder.name = newName;
         folder.updatedAt = Date.now();
+        afterMutation();
+      },
+      onRenameConversation: (folderId, conversationId, newName) => {
+        const conversation = this.data.folderContents[folderId]?.find(
+          (candidate) => candidate.conversationId === conversationId,
+        );
+        if (!conversation || conversation.title === newName) return;
+        conversation.title = newName;
+        conversation.customTitle = true;
+        conversation.updatedAt = Date.now();
         afterMutation();
       },
       onDeleteFolder: (folderId) => {
@@ -1053,16 +1408,7 @@ export class FolderManager {
     if (conversationsList) {
       this.recentSection = conversationsList as HTMLElement;
     } else {
-      this.debugWarn('Could not find Recent section - will retry');
-      // Retry after a delay
-      setTimeout(() => {
-        this.findRecentSection();
-        if (this.recentSection && !this.containerElement) {
-          this.createFolderUI();
-          this.makeConversationsDraggable();
-          this.setupMutationObserver();
-        }
-      }, 2000);
+      this.debugWarn('Could not find Recent section - persistent recovery will retry');
     }
   }
 
@@ -1123,6 +1469,8 @@ export class FolderManager {
       if (chatGptHeaderSection) {
         chatGptHeaderSection.classList.add('gv-folder-sticky-host');
         chatGptHeaderSection.appendChild(this.containerElement);
+      } else if (this.recentSection === this.sidebarContainer && this.sidebarContainer) {
+        this.sidebarContainer.insertBefore(this.containerElement, this.sidebarContainer.firstChild);
       } else {
         this.recentSection.parentElement?.insertBefore(this.containerElement, this.recentSection);
       }
@@ -1140,16 +1488,15 @@ export class FolderManager {
       this.tryRelocateBelowProjects();
     }
 
-    // Initial active conversation highlight and route listeners
+    // Initial active conversation highlight and sidebar listeners. Route
+    // monitoring is lifetime-scoped and starts before the first mount attempt.
     this.highlightActiveConversationInFolders();
-    this.installRouteChangeListener();
     this.installSidebarClickListener();
     this.installSidebarDragAutoScroll();
 
-    // Apply initial folder enabled setting
-    this.applyFolderEnabledSetting();
     this.applyFoldersCollapsedState();
     this.applyFoldersHiddenState();
+    this.flushPendingTitleUpdates();
   }
 
   /**
@@ -1234,7 +1581,11 @@ export class FolderManager {
     if (!chatsBlock?.parentElement) {
       if (this.belowProjectsRelocateTries < 12) {
         this.belowProjectsRelocateTries++;
-        setTimeout(() => {
+        if (this.belowProjectsRelocateTimer !== null) {
+          window.clearTimeout(this.belowProjectsRelocateTimer);
+        }
+        this.belowProjectsRelocateTimer = window.setTimeout(() => {
+          this.belowProjectsRelocateTimer = null;
           if (this.isDestroyed) return;
           this.tryRelocateBelowProjects();
         }, 500);
@@ -1273,7 +1624,8 @@ export class FolderManager {
   }
 
   private installSidebarDragAutoScroll(): void {
-    if (!this.sidebarContainer) return;
+    const owner = this.sidebarContainer;
+    if (!owner) return;
 
     const edgeSize = 72;
     const maxStep = 28;
@@ -1308,9 +1660,9 @@ export class FolderManager {
       }
     };
 
-    this.sidebarContainer.addEventListener('dragover', handleDragOver, true);
+    owner.addEventListener('dragover', handleDragOver, true);
     this.addCleanupTask(() => {
-      this.sidebarContainer?.removeEventListener('dragover', handleDragOver, true);
+      owner.removeEventListener('dragover', handleDragOver, true);
     });
   }
 
@@ -1484,12 +1836,7 @@ export class FolderManager {
     addButton.setAttribute('aria-label', this.t('folder_create'));
     addButton.addEventListener('click', () => this.createFolder());
 
-    actionsContainer.append(
-      visibilityButton,
-      importExportButton,
-      settingsButton,
-      addButton,
-    );
+    actionsContainer.append(visibilityButton, importExportButton, settingsButton, addButton);
 
     header.appendChild(titleContainer);
     header.appendChild(actionsContainer);
@@ -1614,7 +1961,11 @@ export class FolderManager {
     return list;
   }
 
-  private createFolderElement(folder: Folder, level = 0, includeEntireSubtree = false): HTMLElement {
+  private createFolderElement(
+    folder: Folder,
+    level = 0,
+    includeEntireSubtree = false,
+  ): HTMLElement {
     const isSearchActive = this.isFolderSearchActive();
     const includeFolderSubtree =
       includeEntireSubtree ||
@@ -1633,10 +1984,21 @@ export class FolderManager {
     // Expand/collapse button
     const expandBtn = document.createElement('button');
     expandBtn.className = 'gv-folder-expand-btn';
-    expandBtn.innerHTML = isExpanded
-      ? '<span class="google-symbols">expand_more</span>'
-      : '<span class="google-symbols">chevron_right</span>';
-    expandBtn.addEventListener('click', () => this.toggleFolder(folder.id));
+    expandBtn.type = 'button';
+    expandBtn.setAttribute('aria-expanded', String(isExpanded));
+    if (isExpanded) expandBtn.setAttribute('aria-controls', getFolderContentDomId(folder.id));
+    expandBtn.disabled = isSearchActive;
+    expandBtn.setAttribute(
+      'aria-label',
+      `${this.t(isExpanded ? 'folder_collapse' : 'folder_expand')}: ${folder.name}`,
+    );
+    // Keep one real SVG mounted and rotate it through CSS. The old fallback
+    // hid the stateful Material icon and drew a hard-coded ">" for both states.
+    expandBtn.replaceChildren(createChevronRightIcon(16));
+    expandBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.toggleFolder(folder.id);
+    });
 
     // Folder icon
     const folderIcon = document.createElement('span');
@@ -1703,57 +2065,61 @@ export class FolderManager {
 
     // Folder content (conversations and subfolders)
     if (isExpanded) {
-      const content = document.createElement('div');
-      content.className = 'gv-folder-content';
-      // Fix: Allow dropping into the content area of the folder (not just the header)
-      this.setupDropZone(content, folder.id);
-
-      // Render conversations in this folder (sorted: starred first)
-      const conversations = this.data.folderContents[folder.id] || [];
-      const filteredConversations = this.filterVisibleConversations(
-        conversations,
-        includeFolderSubtree,
-      );
-      const sortedConversations = this.sortConversations(filteredConversations);
-      sortedConversations.forEach((conv, i) => {
-        const convEl = this.createConversationElement(conv, folder.id, level + 1);
-        if (!isSearchActive && this.conversationSortMode === 'manual') {
-          this.setupConversationReorderZone(convEl, folder.id, i);
-        }
-        content.appendChild(convEl);
-      });
-
-      // Render subfolders (sorted)
-      const subfolders = this.data.folders.filter((f) => f.parentId === folder.id);
-      const sortedSubfolders = this.sortFolders(subfolders);
-      const visibleSubfolders = sortedSubfolders.filter((subfolder) =>
-        isSearchActive
-          ? includeFolderSubtree
-            ? true
-            : this.matchesFolderSearchTree(subfolder.id)
-          : true,
-      );
-      let subfolderIndex = 0;
-      if (!isSearchActive && visibleSubfolders.length > 0) {
-        content.appendChild(this.createReorderGap(folder.id, 'folder', 0));
-      }
-      visibleSubfolders.forEach((subfolder) => {
-        const subfolderEl = this.createFolderElement(
-          subfolder,
-          level + 1,
-          includeFolderSubtree,
-        );
-        content.appendChild(subfolderEl);
-        subfolderIndex++;
-        if (!isSearchActive) {
-          content.appendChild(this.createReorderGap(folder.id, 'folder', subfolderIndex));
-        }
-      });
-
-      folderEl.appendChild(content);
+      folderEl.appendChild(this.createFolderContent(folder, level, includeFolderSubtree));
     }
 
     return folderEl;
+  }
+
+  private createFolderContent(
+    folder: Folder,
+    level: number,
+    includeEntireSubtree = false,
+  ): HTMLElement {
+    const isSearchActive = this.isFolderSearchActive();
+    const includeFolderSubtree =
+      includeEntireSubtree ||
+      (this.isFolderOnlySearchActive() && this.matchesFolderSearchText(folder.name));
+    const content = document.createElement('div');
+    content.className = 'gv-folder-content';
+    content.id = getFolderContentDomId(folder.id);
+    this.setupDropZone(content, folder.id);
+
+    const conversations = this.data.folderContents[folder.id] || [];
+    const filteredConversations = this.filterVisibleConversations(
+      conversations,
+      includeFolderSubtree,
+    );
+    const sortedConversations = this.sortConversations(filteredConversations);
+    sortedConversations.forEach((conv, index) => {
+      const conversationElement = this.createConversationElement(conv, folder.id, level + 1);
+      if (!isSearchActive && this.conversationSortMode === 'manual') {
+        this.setupConversationReorderZone(conversationElement, folder.id, index);
+      }
+      content.appendChild(conversationElement);
+    });
+
+    const subfolders = this.data.folders.filter((candidate) => candidate.parentId === folder.id);
+    const visibleSubfolders = this.sortFolders(subfolders).filter((subfolder) =>
+      isSearchActive
+        ? includeFolderSubtree
+          ? true
+          : this.matchesFolderSearchTree(subfolder.id)
+        : true,
+    );
+    let subfolderIndex = 0;
+    if (!isSearchActive && visibleSubfolders.length > 0) {
+      content.appendChild(this.createReorderGap(folder.id, 'folder', 0));
+    }
+    visibleSubfolders.forEach((subfolder) => {
+      content.appendChild(this.createFolderElement(subfolder, level + 1, includeFolderSubtree));
+      subfolderIndex++;
+      if (!isSearchActive) {
+        content.appendChild(this.createReorderGap(folder.id, 'folder', subfolderIndex));
+      }
+    });
+
+    return content;
   }
 
   private clearPendingFolderNameClick(): void {
@@ -1879,10 +2245,13 @@ export class FolderManager {
     // Conversation title
     const title = document.createElement('span');
     title.className = 'gv-conversation-title gds-label-l';
+    title.id = `gv-conversation-title-${this.generateId()}`;
     title.textContent = displayTitle;
 
     // Add tooltip event listeners
-    title.addEventListener('mouseenter', () => this.showTooltip(title, displayTitle));
+    title.addEventListener('mouseenter', () =>
+      this.showTooltip(title, title.textContent?.trim() || displayTitle),
+    );
     title.addEventListener('mouseleave', () => this.hideTooltip());
 
     // Actions container for buttons
@@ -1902,6 +2271,22 @@ export class FolderManager {
       this.toggleConversationStar(folderId, conv.conversationId);
     });
 
+    // Use one explicit action for renaming. A title double-click races its two
+    // preceding navigation clicks, so the visible pencil replaces that hidden
+    // gesture while preserving the same local-alias data semantics.
+    const renameBtn = document.createElement('button');
+    renameBtn.className = 'gv-conversation-rename-btn';
+    renameBtn.type = 'button';
+    renameBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+    renameBtn.title = this.t('conversation_rename');
+    renameBtn.setAttribute('aria-label', this.t('conversation_rename'));
+    renameBtn.setAttribute('aria-describedby', title.id);
+    renameBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.renameConversation(folderId, conv.conversationId, title);
+    });
+
     // Remove button
     const removeBtn = document.createElement('button');
     removeBtn.className = 'gv-conversation-remove-btn';
@@ -1910,10 +2295,16 @@ export class FolderManager {
     removeBtn.title = this.t('folder_remove_conversation');
     removeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.confirmRemoveConversation(folderId, conv.conversationId, displayTitle, e);
+      this.confirmRemoveConversation(
+        folderId,
+        conv.conversationId,
+        title.textContent?.trim() || displayTitle,
+        e,
+      );
     });
 
     actionsContainer.appendChild(starBtn);
+    actionsContainer.appendChild(renameBtn);
     actionsContainer.appendChild(removeBtn);
 
     // Long-press detection for entering multi-select mode
@@ -1921,6 +2312,12 @@ export class FolderManager {
 
     convEl.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return; // Only left mouse button
+      if (
+        e.target instanceof Element &&
+        e.target.closest('.gv-conversation-actions, .gv-conversation-rename-input')
+      ) {
+        return;
+      }
       longPressTriggered = false;
 
       this.longPressTimeout = window.setTimeout(() => {
@@ -1973,12 +2370,6 @@ export class FolderManager {
         // Normal mode: navigate to conversation
         this.navigateToConversationById(folderId, conv.conversationId);
       }
-    });
-
-    // Double-click to rename
-    title.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-      this.renameConversation(folderId, conv.conversationId, title);
     });
 
     convEl.appendChild(icon);
@@ -2143,6 +2534,22 @@ export class FolderManager {
         conv.classList.remove('gv-conversation-archived');
       }
     });
+  }
+
+  private cleanupNativeConversationEnhancements(): void {
+    const sidebar = this.sidebarContainer;
+    if (!sidebar) return;
+    const enhanced = Array.from(
+      sidebar.querySelectorAll<HTMLElement>('[data-gv-conv-drag-attached="true"]'),
+    );
+    if (sidebar.dataset.gvConvDragAttached === 'true') enhanced.unshift(sidebar);
+    enhanced.forEach((conversation) => this.cleanupNativeConversationEnhancement(conversation));
+  }
+
+  private cleanupNativeConversationEnhancement(conversation: HTMLElement): void {
+    (conversation as NativeConversationDragElement)._gvConversationDragCleanup?.();
+    conversation.classList.remove('gv-conversation-selected', 'gv-conversation-archived');
+    conversation.style.opacity = '';
   }
 
   /**
@@ -2345,43 +2752,40 @@ export class FolderManager {
     element.addEventListener('mouseleave', handleMouseLeave);
 
     // Click handler for multi-select mode
-    element.addEventListener(
-      'click',
-      (e) => {
-        // Prevent navigation if long-press was triggered
-        if (longPressTriggered) {
-          e.preventDefault();
-          e.stopPropagation();
-          longPressTriggered = false;
-          return;
+    const handleClick = (e: MouseEvent) => {
+      // Prevent navigation if long-press was triggered
+      if (longPressTriggered) {
+        e.preventDefault();
+        e.stopPropagation();
+        longPressTriggered = false;
+        return;
+      }
+
+      if (this.isMultiSelectMode) {
+        // Multi-select mode: toggle selection
+        e.preventDefault();
+        e.stopPropagation();
+        const conversationId = this.extractConversationId(element);
+        // Snapshot the conversation BEFORE the toggle so virtualisation
+        // can't recycle the row out from under us — same reasoning as
+        // the long-press path.
+        const snapshot = this.captureNativeConversationSnapshot(element);
+        this.toggleConversationSelection(conversationId, snapshot ?? undefined);
+
+        // Update visual state
+        if (this.selectedConversations.has(conversationId)) {
+          element.classList.add('gv-conversation-selected');
+        } else {
+          element.classList.remove('gv-conversation-selected');
         }
 
-        if (this.isMultiSelectMode) {
-          // Multi-select mode: toggle selection
-          e.preventDefault();
-          e.stopPropagation();
-          const conversationId = this.extractConversationId(element);
-          // Snapshot the conversation BEFORE the toggle so virtualisation
-          // can't recycle the row out from under us — same reasoning as
-          // the long-press path.
-          const snapshot = this.captureNativeConversationSnapshot(element);
-          this.toggleConversationSelection(conversationId, snapshot ?? undefined);
+        this.updateConversationSelectionUI();
+        return;
+      }
+    };
+    element.addEventListener('click', handleClick, true); // Capture before navigation.
 
-          // Update visual state
-          if (this.selectedConversations.has(conversationId)) {
-            element.classList.add('gv-conversation-selected');
-          } else {
-            element.classList.remove('gv-conversation-selected');
-          }
-
-          this.updateConversationSelectionUI();
-          return;
-        }
-      },
-      true,
-    ); // Use capture phase to intercept before navigation
-
-    element.addEventListener('dragstart', (e) => {
+    const handleDragStart = (e: DragEvent) => {
       this.setReorderDropZonesExpanded(true);
       // Resolve the conversation from the ACTUAL drag target, not the closed-over
       // `element`. This listener can also be attached to a *container* (the
@@ -2484,9 +2888,10 @@ export class FolderManager {
         e.dataTransfer?.setData('application/json', JSON.stringify(dragData));
         dragEl.style.opacity = '0.5';
       }
-    });
+    };
+    element.addEventListener('dragstart', handleDragStart);
 
-    element.addEventListener('dragend', () => {
+    const handleDragEnd = () => {
       this.setReorderDropZonesExpanded(false);
       // Restore opacity for all selected conversations
       if (this.selectedConversations.size > 1) {
@@ -2506,7 +2911,24 @@ export class FolderManager {
         this.clearSelection();
         this.cleanupSelectionArtifacts();
       }
-    });
+    };
+    element.addEventListener('dragend', handleDragEnd);
+
+    (element as NativeConversationDragElement)._gvConversationDragCleanup = () => {
+      if (longPressTimeoutId !== null) window.clearTimeout(longPressTimeoutId);
+      element.removeEventListener('mousedown', handleMouseDown);
+      element.removeEventListener('mouseup', handleMouseUp);
+      element.removeEventListener('mouseleave', handleMouseLeave);
+      element.removeEventListener('click', handleClick, true);
+      element.removeEventListener('dragstart', handleDragStart);
+      element.removeEventListener('dragend', handleDragEnd);
+      delete element.dataset.gvConvDragAttached;
+      delete (element as NativeConversationDragElement)._gvConversationDragCleanup;
+      element.draggable = false;
+      element.style.cursor = '';
+      element.style.opacity = '';
+      element.classList.remove('gv-conversation-selected', 'gv-conversation-archived');
+    };
   }
 
   /**
@@ -2631,18 +3053,6 @@ export class FolderManager {
     };
   }
 
-  /**
-   * Extract conversation ID from a DOM element
-   * Used for handling removed/added conversations in MutationObserver
-   *
-   * @param element - The conversation element to extract ID from
-   * @returns The normalized ChatGPT conversation ID or undefined if not found
-   */
-  private extractConversationIdFromElement(element: Element): string | undefined {
-    const fromHref = element instanceof HTMLElement ? getChatGptConversationId(element) : null;
-    return fromHref ?? this.extractConversationIdFromJslog(element) ?? undefined;
-  }
-
   private setupMutationObserver(): void {
     if (!this.sidebarContainer) return;
 
@@ -2672,74 +3082,32 @@ export class FolderManager {
             conversations.forEach((convElement) => {
               this.makeConversationDraggable(convElement);
               this.applyHideArchivedToConversation(convElement);
-              this.cancelPendingRemovalForElement(convElement);
             });
           }
         });
       });
 
-      // 2. Handle removed conversations with safeguards
-      // CRITICAL FIX: Prevent data loss when network disconnects or UI refreshes
-
-      // Check 1: If offline, assume removals are due to network error
-      if (!navigator.onLine) {
-        this.debug('Network offline, ignoring conversation removals to prevent data loss');
-        return;
-      }
-
-      // Check 2: Calculate total conversations being removed in this batch
-      let totalRemovedCount = 0;
-      const nodesWithRemovals: HTMLElement[] = [];
-
+      // ChatGPT virtualises history rows. Remove our handlers as soon as a row
+      // leaves the live sidebar; if it is reattached, the added-node path above
+      // instruments the current row identity again.
       mutations.forEach((mutation) => {
         mutation.removedNodes.forEach((node) => {
-          if (node instanceof HTMLElement) {
-            const containedConvs = getChatGptConversationElements(node);
-            const isConv = !!getChatGptConversationId(node);
-            const containedConvsCount = containedConvs.length;
-
-            if (isConv) {
-              totalRemovedCount++;
-              nodesWithRemovals.push(node);
-            } else if (containedConvsCount > 0) {
-              totalRemovedCount += containedConvsCount;
-              nodesWithRemovals.push(node);
+          if (!(node instanceof HTMLElement)) return;
+          const enhanced = Array.from(
+            node.querySelectorAll<HTMLElement>('[data-gv-conv-drag-attached="true"]'),
+          );
+          if (node.dataset.gvConvDragAttached === 'true') enhanced.unshift(node);
+          new Set(enhanced).forEach((conversation) => {
+            if (!this.sidebarContainer?.contains(conversation)) {
+              this.cleanupNativeConversationEnhancement(conversation);
             }
-          }
+          });
         });
       });
 
-      // If no conversations were removed, we're done
-      if (totalRemovedCount === 0) return;
-
-      // Check 3: If multiple conversations are removed at once, it's likely a UI refresh/clear
-      // Users typically delete conversations one by one.
-      // EXCEPTION: If we are in multi-select mode, the user might be performing a bulk delete.
-      if (totalRemovedCount > 1 && !this.isMultiSelectMode) {
-        this.debugWarn(
-          `Ignored bulk removal of ${totalRemovedCount} conversations - likely UI refresh`,
-        );
-        return;
-      }
-
-      // NEW: Instead of immediately removing, schedule a delayed check
-      // This prevents false positives when ChatGPT temporarily removes/re-adds DOM elements during UI updates
-      nodesWithRemovals.forEach((node) => {
-        const conversations = getChatGptConversationId(node)
-          ? [node]
-          : getChatGptConversationElements(node);
-
-        conversations.forEach((conv) => {
-          // Extract conversation ID from the removed element
-          const conversationId = this.extractConversationIdFromElement(conv);
-
-          if (conversationId) {
-            this.debug('Detected potential conversation removal:', conversationId);
-            // Schedule delayed removal check
-            this.scheduleConversationRemovalCheck(conversationId);
-          }
-        });
-      });
+      // Never infer a destructive native deletion from DOM removal. ChatGPT
+      // virtualizes and reparents individual rows while scrolling; explicit
+      // native delete flows remove folder references only after dialog success.
     });
 
     this.conversationObserver.observe(this.sidebarContainer, {
@@ -2788,7 +3156,6 @@ export class FolderManager {
       this.isElementActuallyVisible(freshSidebar)
     ) {
       this.debug('Visible sidebar changed, reinitializing folder UI');
-      this.sidebarContainer = freshSidebar;
       this.reinitializeFolderUI();
       return;
     }
@@ -2832,6 +3199,11 @@ export class FolderManager {
    * This can happen during window resize or split-screen operations
    */
   private reinitializeFolderUI(): void {
+    if (!this.shouldMaintainEmbeddedFolderMount()) return;
+    if (this.mountAttemptInProgress) {
+      this.scheduleEmbeddedMountRecovery('mount-attempt-busy', 500);
+      return;
+    }
     if (this.reinitializePromise) {
       this.debug('Reinitialization already in progress, skipping duplicate request');
       return;
@@ -2839,61 +3211,7 @@ export class FolderManager {
 
     this.reinitializePromise = (async () => {
       this.debug('Reinitializing folder UI...');
-
-      // Execute general cleanup tasks first (including event listeners)
-      this.cleanupTasks.forEach((task) => task());
-      this.cleanupTasks = [];
-
-      // Clean up observers/listeners tied to stale DOM nodes
-      if (this.sideNavObserver) {
-        this.sideNavObserver.disconnect();
-        this.sideNavObserver = null;
-      }
-
-      if (this.conversationObserver) {
-        this.conversationObserver.disconnect();
-        this.conversationObserver = null;
-      }
-
-      this.cancelNativeMenuWatch();
-      this.cancelNativeDialogWatch();
-      this.cleanupNativeRemovalWatch();
-
-      if (this.routeChangeCleanup) {
-        try {
-          this.routeChangeCleanup();
-        } catch (error) {
-          this.debugWarn('Route change cleanup during reinit failed:', error);
-        }
-        this.routeChangeCleanup = null;
-      }
-
-      if (this.sidebarClickListener && this.sidebarContainer) {
-        try {
-          this.sidebarContainer.removeEventListener('click', this.sidebarClickListener, true);
-        } catch (error) {
-          this.debugWarn('Sidebar click listener cleanup failed:', error);
-        }
-        this.sidebarClickListener = null;
-      }
-
-      if (this.containerElement?.isConnected) {
-        try {
-          this.containerElement.remove();
-        } catch (error) {
-          this.debugWarn('Failed to remove existing folder container during reinit:', error);
-        }
-      }
-
-      this.closeActiveImportExportMenu();
-      this.closeActiveImportDialog();
-      this.clearActiveFolderInput();
-
-      // Clear existing references so initialization starts from a clean slate
-      this.containerElement = null;
-      this.sidebarContainer = null;
-      this.recentSection = null;
-
+      this.teardownEmbeddedFolderUI();
       await this.initializeFolderUI();
     })()
       .catch((error) => {
@@ -2901,6 +3219,9 @@ export class FolderManager {
       })
       .finally(() => {
         this.reinitializePromise = null;
+        if (!this.isEmbeddedFolderMountHealthy()) {
+          this.scheduleEmbeddedMountRecovery('reinitialize-incomplete', 1000);
+        }
       });
   }
 
@@ -3192,12 +3513,54 @@ export class FolderManager {
 
   private toggleFolder(folderId: string): void {
     const folder = this.data.folders.find((f) => f.id === folderId);
-    if (!folder) return;
+    if (!folder || this.isFolderSearchActive()) return;
 
     folder.isExpanded = !folder.isExpanded;
     folder.updatedAt = Date.now();
     this.saveData();
-    this.refresh();
+
+    const folderElement = Array.from(
+      this.containerElement?.querySelectorAll<HTMLElement>('.gv-folder-item') || [],
+    ).find((candidate) => candidate.dataset.folderId === folderId);
+    if (!folderElement) {
+      this.refresh();
+      return;
+    }
+
+    // Search temporarily forces every matching branch open; retain the saved
+    // preference but do not collapse a branch out from under active results.
+    const visiblyExpanded = folder.isExpanded || this.isFolderSearchActive();
+    const expandButton = folderElement.querySelector<HTMLButtonElement>(
+      ':scope > .gv-folder-item-header > .gv-folder-expand-btn',
+    );
+    expandButton?.setAttribute('aria-expanded', String(visiblyExpanded));
+    if (folder.isExpanded) {
+      expandButton?.setAttribute('aria-controls', getFolderContentDomId(folder.id));
+    } else {
+      expandButton?.removeAttribute('aria-controls');
+    }
+    expandButton?.setAttribute(
+      'aria-label',
+      `${this.t(visiblyExpanded ? 'folder_collapse' : 'folder_expand')}: ${folder.name}`,
+    );
+
+    const content = folderElement.querySelector<HTMLElement>(':scope > .gv-folder-content');
+    if (folder.isExpanded) {
+      if (!content) {
+        const level = Number.parseInt(folderElement.dataset.level || '0', 10) || 0;
+        const nextContent = this.createFolderContent(folder, level);
+        nextContent.classList.add('gv-folder-content--entering');
+        const clearEnteringState = () =>
+          nextContent.classList.remove('gv-folder-content--entering');
+        nextContent.addEventListener('animationend', clearEnteringState, { once: true });
+        window.setTimeout(clearEnteringState, 250);
+        folderElement.appendChild(nextContent);
+        this.flushPendingTitleUpdates();
+        this.highlightActiveConversationInFolders();
+      }
+    } else {
+      content?.remove();
+    }
   }
 
   private togglePinFolder(folderId: string): void {
@@ -4935,23 +5298,36 @@ export class FolderManager {
 
     const currentTitle = conv.title;
 
+    const parent = titleElement.parentElement;
+    if (!parent) return;
+    const existingInput = parent.querySelector<HTMLInputElement>(
+      ':scope > .gv-conversation-rename-input',
+    );
+    if (existingInput) {
+      existingInput.focus();
+      existingInput.select();
+      return;
+    }
+
     // Create inline input for renaming
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'gv-folder-name-input gv-conversation-rename-input';
     input.value = currentTitle;
     input.style.width = '100%';
+    input.setAttribute('aria-label', `${this.t('conversation_rename')}: ${currentTitle}`);
 
     // Replace title with input
-    const parent = titleElement.parentElement;
-    if (!parent) return;
-
+    const wasDraggable = parent.draggable;
+    parent.draggable = false;
+    parent.classList.add('gv-conversation-renaming');
     titleElement.style.display = 'none';
     parent.insertBefore(input, titleElement);
     input.focus();
     input.select();
 
     let finished = false;
+    const stopRowInteraction = (event: Event) => event.stopPropagation();
     const cleanup = () => {
       try {
         input.removeEventListener('blur', onBlur);
@@ -4962,6 +5338,9 @@ export class FolderManager {
         input.removeEventListener('keydown', onKeyDown);
       } catch (e) {
         this.debug('Failed to remove keydown listener:', e);
+      }
+      for (const eventName of ['click', 'mousedown', 'mouseup', 'dblclick']) {
+        input.removeEventListener(eventName, stopRowInteraction);
       }
     };
     const finalize = (commit: boolean) => {
@@ -4992,6 +5371,8 @@ export class FolderManager {
       } catch (e) {
         this.debug('Failed to restore title display:', e);
       }
+      parent.draggable = wasDraggable;
+      parent.classList.remove('gv-conversation-renaming');
       try {
         titleElement.textContent = conv.title;
       } catch (e) {
@@ -5014,6 +5395,9 @@ export class FolderManager {
 
     input.addEventListener('blur', onBlur);
     input.addEventListener('keydown', onKeyDown);
+    for (const eventName of ['click', 'mousedown', 'mouseup', 'dblclick']) {
+      input.addEventListener(eventName, stopRowInteraction);
+    }
   }
 
   private showFolderMenu(event: MouseEvent, folderId: string): void {
@@ -5172,6 +5556,10 @@ export class FolderManager {
   ): void {
     const folder = this.data.folders.find((f) => f.id === folderId);
     if (!folder) return;
+    if (this.activeColorPickerListenerTimeout !== null) {
+      window.clearTimeout(this.activeColorPickerListenerTimeout);
+      this.activeColorPickerListenerTimeout = null;
+    }
 
     // If a color picker is already open, close it first
     if (this.activeColorPicker) {
@@ -5302,7 +5690,17 @@ export class FolderManager {
       }
     };
     this.activeColorPickerCloseHandler = closeDialog;
-    setTimeout(() => document.addEventListener('click', closeDialog), 0);
+    this.activeColorPickerListenerTimeout = window.setTimeout(() => {
+      this.activeColorPickerListenerTimeout = null;
+      if (
+        this.isDestroyed ||
+        this.activeColorPicker !== dialog ||
+        this.activeColorPickerCloseHandler !== closeDialog
+      ) {
+        return;
+      }
+      document.addEventListener('click', closeDialog);
+    }, 0);
   }
 
   /**
@@ -5695,25 +6093,156 @@ export class FolderManager {
     try {
       const normalizedId = this.normalizeConversationId(conversationId);
       if (!normalizedId) return null;
+      const authoritative = this.authoritativeNativeTitles.get(normalizedId) ?? null;
 
-      // Try to find the conversation in the native sidebar by its ID
-      const conversations = getChatGptConversationElements(document);
-      for (const convEl of Array.from(conversations)) {
-        const currentId = this.normalizeConversationId(
-          this.extractNativeConversationId(convEl as HTMLElement),
-        );
-        if (currentId && currentId === normalizedId) {
-          const currentTitle = this.extractNativeConversationTitle(convEl as HTMLElement);
-          if (currentTitle) {
-            this.debug('Synced title from native:', currentTitle);
-            return currentTitle;
-          }
+      // Only the active history host is authoritative. Querying the whole
+      // document mixes hidden old sidebars and virtualized duplicate rows.
+      const activeSidebar = findChatGptSidebar();
+      if (!activeSidebar) return authoritative?.title ?? null;
+      const currentTitles = new Set<string>();
+      for (const convEl of getChatGptConversationElements(activeSidebar)) {
+        const currentId = this.normalizeConversationId(this.extractNativeConversationId(convEl));
+        if (currentId !== normalizedId) continue;
+        const currentTitle = this.extractNativeConversationTitle(convEl)?.trim();
+        if (currentTitle) currentTitles.add(currentTitle);
+      }
+      if (currentTitles.size === 0) return authoritative?.title ?? null;
+
+      if (!authoritative) {
+        if (currentTitles.size !== 1) return null;
+        const [currentTitle] = currentTitles;
+        this.debug('Synced title from native:', currentTitle);
+        return currentTitle;
+      }
+
+      if (currentTitles.has(authoritative.title)) {
+        // Keep the guard while duplicate stale rows still coexist. A single B
+        // row must not release it only for an A row to win after virtualization.
+        if (currentTitles.size > 1 || Date.now() - authoritative.createdAt < 15_000) {
+          return authoritative.title;
+        }
+        this.authoritativeNativeTitles.delete(normalizedId);
+        return authoritative.title;
+      }
+
+      if (currentTitles.size === 1) {
+        const [currentTitle] = currentTitles;
+        if (!authoritative.staleTitles.has(currentTitle)) {
+          this.authoritativeNativeTitles.delete(normalizedId);
+          return currentTitle;
+        }
+        if (
+          this.isCurrentPageTitleConfirmed(normalizedId, currentTitle) ||
+          (!this.isCurrentPageTitleObserved(normalizedId, authoritative.title) &&
+            Date.now() - authoritative.createdAt >= 15_000)
+        ) {
+          this.authoritativeNativeTitles.delete(normalizedId);
+          return currentTitle;
         }
       }
+      return authoritative.title;
     } catch (e) {
       this.debug('Error syncing title from native:', e);
     }
-    return null;
+    const normalizedId = this.normalizeConversationId(conversationId);
+    return normalizedId ? (this.authoritativeNativeTitles.get(normalizedId)?.title ?? null) : null;
+  }
+
+  private isCurrentPageTitleConfirmed(conversationId: string, expectedTitle: string): boolean {
+    const currentId = this.normalizeConversationId(this.getCurrentConversationId());
+    if (currentId !== conversationId) return false;
+
+    const candidates: string[] = [];
+    const headerTitle = findActivePageHeader()
+      ?.querySelector<HTMLElement>('[data-testid="conversation-title"], h1')
+      ?.textContent?.trim();
+    if (headerTitle) candidates.push(headerTitle);
+    const documentTitle = document.title.replace(/\s+-\s*(?:ChatGPT|OpenAI)\s*$/i, '').trim();
+    if (documentTitle) candidates.push(documentTitle);
+    // During native rename, ChatGPT's header and document title do not update
+    // atomically. Accepting a single matching stale source can immediately
+    // roll a committed title back. A later rename back to an old title is only
+    // authoritative once all currently available page-level sources agree.
+    return candidates.length > 0 && candidates.every((candidate) => candidate === expectedTitle);
+  }
+
+  private isCurrentPageTitleObserved(conversationId: string, expectedTitle: string): boolean {
+    const currentId = this.normalizeConversationId(this.getCurrentConversationId());
+    if (currentId !== conversationId) return false;
+    const headerTitle = findActivePageHeader()
+      ?.querySelector<HTMLElement>('[data-testid="conversation-title"], h1')
+      ?.textContent?.trim();
+    if (headerTitle === expectedTitle) return true;
+    const documentTitle = document.title.replace(/\s+-\s*(?:ChatGPT|OpenAI)\s*$/i, '').trim();
+    return documentTitle === expectedTitle;
+  }
+
+  /**
+   * Apply a title that the user explicitly committed through ChatGPT's native
+   * rename dialog. Manual Voyager aliases remain private to their folders;
+   * only references that already follow ChatGPT's native title are updated.
+   */
+  applyNativeConversationRename(conversationId: string, newTitle: string): void {
+    const normalizedId = this.normalizeConversationId(conversationId);
+    const title = newTitle.trim();
+    if (!normalizedId || !title) return;
+
+    let updated = false;
+    let hasNativeFollower = false;
+    const updatedAt = Date.now();
+    const staleTitles = new Set<string>();
+    for (const nativeConversation of getChatGptConversationElements(document)) {
+      const nativeId = this.normalizeConversationId(
+        this.extractNativeConversationId(nativeConversation),
+      );
+      if (nativeId !== normalizedId) continue;
+      const nativeTitle = this.extractNativeConversationTitle(nativeConversation)?.trim();
+      if (nativeTitle && nativeTitle !== title) staleTitles.add(nativeTitle);
+    }
+    for (const conversations of Object.values(this.data.folderContents)) {
+      for (const conversation of conversations) {
+        const candidateId = this.normalizeConversationId(conversation.conversationId);
+        const urlId = extractChatGptConversationIdFromUrl(conversation.url);
+        if (candidateId !== normalizedId && urlId !== normalizedId) continue;
+        if (conversation.customTitle === true) continue;
+        hasNativeFollower = true;
+        if (conversation.title === title) continue;
+
+        if (conversation.title.trim()) staleTitles.add(conversation.title.trim());
+        conversation.title = title;
+        conversation.updatedAt = updatedAt;
+        updated = true;
+      }
+    }
+
+    if (!hasNativeFollower) return;
+    if (staleTitles.size > 0) {
+      this.authoritativeNativeTitles.set(normalizedId, {
+        title,
+        staleTitles,
+        createdAt: Date.now(),
+      });
+    }
+    this.pendingTitleUpdates.delete(normalizedId);
+    if (!updated) return;
+    void this.saveData();
+    this.renderAllFolders();
+    this.floatingPanelHandle?.update(this.data);
+  }
+
+  /**
+   * The header rename shortcut opens the same native menu that this manager
+   * normally augments. Suppress only that synchronous programmatic click so
+   * the two ownership snapshots cannot overwrite each other.
+   */
+  runWithNativeConversationMenuTrackingSuppressed<T>(trigger: HTMLElement, action: () => T): T {
+    const previous = this.suppressedConversationMenuTrigger;
+    this.suppressedConversationMenuTrigger = trigger;
+    try {
+      return action();
+    } finally {
+      this.suppressedConversationMenuTrigger = previous;
+    }
   }
 
   private updateConversationTitle(conversationId: string, newTitle: string): void {
@@ -5743,124 +6272,10 @@ export class FolderManager {
   }
 
   /**
-   * Schedule a delayed check to confirm conversation deletion
-   * This prevents false positives when ChatGPT UI temporarily removes/re-adds elements
-   */
-  private scheduleConversationRemovalCheck(conversationId: string): void {
-    // Cancel any existing timer for this conversation
-    const existingTimer = this.pendingRemovals.get(conversationId);
-    if (existingTimer) {
-      clearTimeout(existingTimer);
-      this.debug(`Cancelled previous removal timer for ${conversationId}`);
-    }
-
-    // Schedule a new check after delay
-    const timerId = window.setTimeout(() => {
-      this.confirmConversationRemoval(conversationId);
-    }, this.removalCheckDelay);
-
-    this.pendingRemovals.set(conversationId, timerId);
-    this.debug(
-      `Scheduled removal check for ${conversationId} (delay: ${this.removalCheckDelay}ms)`,
-    );
-  }
-
-  /**
-   * Cancel pending removal for a conversation element that was re-added
-   */
-  private cancelPendingRemovalForElement(element: HTMLElement): void {
-    // Extract conversation ID from the element
-    const conversationId = this.extractConversationIdFromElement(element);
-
-    if (conversationId) {
-      const timerId = this.pendingRemovals.get(conversationId);
-      if (timerId) {
-        clearTimeout(timerId);
-        this.pendingRemovals.delete(conversationId);
-        this.debug(`Cancelled removal for ${conversationId} (conversation re-added to DOM)`);
-      }
-    }
-  }
-
-  /**
-   * Check if conversation still exists in DOM
-   * Returns true if conversation found, false if definitely deleted
-   * In case of errors, conservatively returns true to avoid false deletions
-   */
-  private isConversationInDOM(conversationId: string): boolean {
-    if (!this.sidebarContainer) {
-      this.debugWarn('Sidebar container not available for DOM check');
-      return true; // Conservative: assume conversation exists if we can't check
-    }
-
-    try {
-      const expectedId = normalizeChatGptConversationId(conversationId);
-      if (!expectedId) return true;
-      const found = getChatGptConversationElements(this.sidebarContainer).some(
-        (element) =>
-          normalizeChatGptConversationId(this.extractNativeConversationId(element)) === expectedId,
-      );
-      if (found) {
-        this.debug(`Found conversation ${conversationId} in the ChatGPT sidebar`);
-        return true;
-      }
-
-      // Not found in DOM
-      this.debug(`Conversation ${conversationId} not found in DOM`);
-      return false;
-    } catch (error) {
-      this.debugWarn(`DOM check failed for ${conversationId}:`, error);
-      // Conservative approach: if we can't check, assume it still exists
-      // This prevents accidental deletion during DOM reconstruction
-      return true;
-    }
-  }
-
-  /**
    * Get the conversation ID from current URL
    */
   private getCurrentConversationId(): string | null {
     return extractChatGptConversationIdFromUrl(window.location.href);
-  }
-
-  /**
-   * Confirm conversation removal after delay
-   * Only removes if conversation is truly deleted (not in DOM and not current conversation)
-   */
-  private confirmConversationRemoval(conversationId: string): void {
-    // Remove from pending list
-    this.pendingRemovals.delete(conversationId);
-
-    this.debug(`Confirming removal for conversation ${conversationId}`);
-    this.debug(`  Delay elapsed: ${this.removalCheckDelay}ms`);
-
-    // Check 1: Is this the currently active conversation?
-    const currentConvId = this.getCurrentConversationId();
-    const currentUrl = window.location.href;
-
-    if (currentConvId === conversationId) {
-      this.debug('  SKIPPED: Currently active conversation');
-      this.debug(`    Current URL: ${currentUrl}`);
-      this.debug(`    Matched ID: ${currentConvId}`);
-      this.debug('Removal skipped.');
-      return;
-    }
-
-    // Check 2: Is conversation still in DOM?
-    if (this.isConversationInDOM(conversationId)) {
-      this.debug('  SKIPPED: Conversation still exists in DOM');
-      this.debug(`    Likely a UI refresh, not a deletion`);
-      this.debug(`════════════════════════════════════════════════\n`);
-      return;
-    }
-
-    // Conversation is truly deleted - remove from folders
-    this.debug('  CONFIRMED DELETION: Removing from all folders');
-    this.debug(`    Reason: Not in current URL and not found in DOM`);
-    this.debug(`    Current URL: ${currentUrl}`);
-    this.debug(`════════════════════════════════════════════════\n`);
-
-    void this.removeConversationFromAllFolders(conversationId);
   }
 
   private async removeConversationFromAllFolders(conversationId: string): Promise<void> {
@@ -5934,7 +6349,10 @@ export class FolderManager {
     // Update active highlight after re-render
     this.highlightActiveConversationInFolders();
 
-    // Flush any pending title updates collected during rendering
+    this.flushPendingTitleUpdates();
+  }
+
+  private flushPendingTitleUpdates(): void {
     if (this.pendingTitleUpdates.size > 0) {
       this.debug(`Flushing ${this.pendingTitleUpdates.size} pending title updates`);
       // Save once after all title updates are applied (async, fire-and-forget)
@@ -6702,35 +7120,7 @@ export class FolderManager {
           if (next !== this.floatingModeEnabled) {
             this.floatingModeEnabled = next;
             this.debug('Floating-mode toggle changed:', next);
-
-            // When folders are disabled, remember the preference without
-            // skipping other keys delivered in the same storage event.
-            if (this.folderEnabled) {
-              if (next) {
-                // Switch to floating: drop any sidebar-mode UI and mount the
-                // floating panel. `reinitializeFolderUI` would normally tear down
-                // the sidebar bits but also re-run sidebar init; we want the
-                // teardown without the re-init, so do it inline.
-                if (this.containerElement) {
-                  this.containerElement.remove();
-                  this.containerElement = null;
-                }
-                if (this.conversationObserver) {
-                  this.conversationObserver.disconnect();
-                  this.conversationObserver = null;
-                }
-                if (this.sideNavObserver) {
-                  this.sideNavObserver.disconnect();
-                  this.sideNavObserver = null;
-                }
-                void this.startFloatingMode();
-              } else {
-                // Switch to sidebar: tear down floating, then ask the existing
-                // re-init pipeline to rebuild the sidebar panel.
-                this.stopFloatingMode();
-                this.reinitializeFolderUI();
-              }
-            }
+            this.reconcileFolderMountMode();
           }
         }
         if (changes[StorageKeys.FOLDER_HIDE_ARCHIVED_CONVERSATIONS]) {
@@ -6885,25 +7275,8 @@ export class FolderManager {
   }
 
   private applyFolderEnabledSetting(): void {
-    if (this.folderEnabled) {
-      // If folder UI doesn't exist yet, initialize it
-      if (!this.containerElement) {
-        this.debug('Folder feature enabled, initializing UI');
-        this.initializeFolderUI().catch((error) => {
-          console.error('[FolderManager] Failed to initialize folder UI:', error);
-        });
-      } else {
-        // UI already exists, sync it with the actual responsive sidebar state.
-        this.updateVisibilityBasedOnSideNav();
-        this.debug('Folder feature enabled');
-      }
-    } else {
-      // Hide the folder UI if it exists
-      if (this.containerElement) {
-        this.containerElement.style.display = 'none';
-        this.debug('Folder feature disabled');
-      }
-    }
+    this.debug(`Folder feature ${this.folderEnabled ? 'enabled' : 'disabled'}`);
+    this.reconcileFolderMountMode();
   }
 
   private applyHideArchivedSetting(): void {
@@ -7238,22 +7611,23 @@ export class FolderManager {
 
     // Ensure active conversation remains highlighted after full re-render
     this.highlightActiveConversationInFolders();
+    this.flushPendingTitleUpdates();
   }
 
   private installRouteChangeListener(): void {
+    if (this.routeChangeCleanup) return;
+
     const update = () => {
       if (this.isDestroyed) return;
+      window.dispatchEvent(new Event('gv-location-change'));
       setTimeout(() => {
+        if (this.isDestroyed) return;
         this.highlightActiveConversationInFolders();
         const currentConversationId = this.getCurrentConversationId();
         if (currentConversationId) {
           this.markConversationAsRecentlyOpened(currentConversationId);
         }
-        // Some routes (e.g. /library since the 2026-07 redesign) re-render the
-        // sidebar wholesale, detaching the folder container and orphaning its
-        // observers. Run the DOM-recovery pass on every route change so the
-        // panel comes back without waiting for a window resize.
-        this.domRecoveryCheck?.();
+        this.reconcileFolderMountMode();
       }, 0);
     };
 
@@ -7266,37 +7640,9 @@ export class FolderManager {
       this.debug('Failed to add popstate listener:', e);
     }
 
-    try {
-      const hist = history as History & Record<string, unknown>;
-      const originalPushState = hist.pushState;
-      const originalReplaceState = hist.replaceState;
-
-      const wrap = (
-        method: 'pushState' | 'replaceState',
-        original: (...args: unknown[]) => unknown,
-      ) => {
-        hist[method] = function (...args: unknown[]) {
-          const ret = original.apply(this, args);
-          try {
-            update();
-          } catch {
-            /* Ignore - update is non-critical */
-          }
-          return ret;
-        };
-      };
-      wrap('pushState', originalPushState as (...args: unknown[]) => unknown);
-      wrap('replaceState', originalReplaceState as (...args: unknown[]) => unknown);
-
-      cleanupFns.push(() => {
-        hist.pushState = originalPushState;
-        hist.replaceState = originalReplaceState;
-      });
-    } catch (e) {
-      this.debug('Failed to wrap history methods:', e);
-    }
-
-    // Fallback poller for routers/flows that don't emit events
+    // A small pathname poll avoids monkey-patching History. Several independent
+    // features used to wrap and restore pushState in different orders, which
+    // could resurrect stopped wrappers and retain stale manager closures.
     try {
       this.lastPathname = window.location.pathname;
       this.navPoller = window.setInterval(() => {
@@ -7327,6 +7673,9 @@ export class FolderManager {
     // Capture clicks in ChatGPT's native sidebar and update highlight after navigation happens
     const root = this.sidebarContainer;
     if (!root) return;
+    if (this.sidebarClickListener && this.sidebarClickListenerOwner) {
+      this.sidebarClickListenerOwner.removeEventListener('click', this.sidebarClickListener, true);
+    }
 
     this.sidebarClickListener = (e: Event) => {
       if (this.isDestroyed) return;
@@ -7340,7 +7689,10 @@ export class FolderManager {
 
     try {
       root.addEventListener('click', this.sidebarClickListener, true);
+      this.sidebarClickListenerOwner = root;
     } catch (e) {
+      this.sidebarClickListener = null;
+      this.sidebarClickListenerOwner = null;
       this.debug('Failed to add sidebar click listener:', e);
     }
   }
@@ -7423,9 +7775,7 @@ export class FolderManager {
         if (btn.classList.contains('gv-folder-add-btn')) {
           btn.title = this.t('folder_create');
         } else if (btn.classList.contains('gv-folder-visibility-toggle')) {
-          btn.title = this.t(
-            this.foldersHidden ? 'folder_show_section' : 'folder_hide_section',
-          );
+          btn.title = this.t(this.foldersHidden ? 'folder_show_section' : 'folder_hide_section');
         } else if (btn.classList.contains('gv-folder-import-export-btn')) {
           btn.title = this.t('folder_import_export');
         } else if (btn.classList.contains('gv-folder-settings-btn')) {
@@ -7441,6 +7791,21 @@ export class FolderManager {
     if (search && input && badge) this.updateFolderSearchInputState(search, input, badge);
     this.applyFoldersCollapsedState();
     this.applyFoldersHiddenState();
+
+    this.containerElement
+      .querySelectorAll<HTMLButtonElement>('.gv-folder-expand-btn')
+      .forEach((button) => {
+        const folderId = button.closest<HTMLElement>('.gv-folder-item')?.dataset.folderId;
+        const folder = folderId
+          ? this.data.folders.find((candidate) => candidate.id === folderId)
+          : null;
+        if (!folder) return;
+        const expanded = button.getAttribute('aria-expanded') === 'true';
+        button.setAttribute(
+          'aria-label',
+          `${this.t(expanded ? 'folder_collapse' : 'folder_expand')}: ${folder.name}`,
+        );
+      });
 
     // Update empty state text if present
     const emptyState = this.containerElement.querySelector('.gv-folder-empty');

@@ -32,14 +32,60 @@ export interface HeaderActionSlot {
   styleSource: HTMLElement;
 }
 
+function isUsablePageHeader(header: HTMLElement): boolean {
+  if (!header.isConnected) return false;
+  for (let current: HTMLElement | null = header; current; current = current.parentElement) {
+    if (
+      current.hidden ||
+      current.hasAttribute('inert') ||
+      current.getAttribute('aria-hidden') === 'true'
+    ) {
+      return false;
+    }
+    const style = getComputedStyle(current);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function findActivePageHeader(): HTMLElement | null {
+  const candidates = Array.from(
+    document.querySelectorAll<HTMLElement>('header#page-header'),
+  ).filter(isUsablePageHeader);
+  return (
+    candidates
+      .map((header, index) => {
+        const rect = header.getBoundingClientRect();
+        const visible =
+          rect.width > 24 &&
+          rect.height > 24 &&
+          rect.right > 0 &&
+          rect.bottom > 0 &&
+          rect.left < window.innerWidth &&
+          rect.top < window.innerHeight;
+        const hasOptions = Boolean(
+          header.querySelector('[data-testid="conversation-options-button"]'),
+        );
+        return { header, index, score: (visible ? 100 : 0) + (hasOptions ? 10 : 0) };
+      })
+      .sort((left, right) => right.score - left.score || right.index - left.index)[0]?.header ??
+    null
+  );
+}
+
 /**
  * The horizontal action row that holds the "…" conversation-options button.
  * Returns null outside a conversation (or on layouts without that button).
  */
 export function findOptionsButtonRow(): HeaderActionSlot | null {
-  const header = document.querySelector<HTMLElement>('#conversation-header-actions');
-  const options = header?.querySelector<HTMLElement>('[data-testid="conversation-options-button"]');
-  if (!header || !options) return null;
+  const pageHeader = findActivePageHeader();
+  const header = pageHeader?.querySelector<HTMLElement>('#conversation-header-actions');
+  const options = pageHeader?.querySelector<HTMLElement>(
+    '[data-testid="conversation-options-button"]',
+  );
+  if (!pageHeader || !header || !options) return null;
 
   const horizontal = findHorizontalRowAncestor(options, 7);
   if (horizontal) {
@@ -127,7 +173,7 @@ export function findHorizontalRowAncestor(
  * same header, same 36×36 icon-button treatment.
  */
 export function findHeaderLeftSlot(): HeaderActionSlot | null {
-  const header = document.querySelector<HTMLElement>('header#page-header');
+  const header = findActivePageHeader();
   if (!header) return null;
 
   const rightActions = header.querySelector<HTMLElement>(
@@ -143,9 +189,7 @@ export function findHeaderLeftSlot(): HeaderActionSlot | null {
   if (!leftGroup) return null;
 
   const styleSource =
-    findOptionsButtonRow()?.styleSource ??
-    header.querySelector<HTMLElement>('button') ??
-    leftGroup;
+    findOptionsButtonRow()?.styleSource ?? header.querySelector<HTMLElement>('button') ?? leftGroup;
 
   const cluster = leftGroup.querySelector<HTMLElement>('.translucent-surface');
   if (cluster) return { parent: cluster, before: null, styleSource };

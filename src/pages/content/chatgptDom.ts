@@ -21,6 +21,7 @@ const SIDEBAR_SELECTORS = [
   '#stage-slideover-sidebar',
   '[id="sidebar"]',
   '[id*="sidebar" i]',
+  '[data-testid*="sidebar" i]',
   'aside',
   'nav[aria-label]',
   '[aria-label*="History" i]',
@@ -38,6 +39,10 @@ const HISTORY_CONTAINER_SELECTORS = [
   'ol',
   'ul',
 ];
+
+const SIDEBAR_HISTORY_LABEL_SELECTOR = ['[aria-label*="History" i]', '[aria-label*="历史"]'].join(
+  ', ',
+);
 
 export function normalizeChatGptConversationId(value: string | null | undefined): string | null {
   const normalized = String(value || '')
@@ -127,27 +132,115 @@ function isUsableHostElement(element: HTMLElement): boolean {
   return true;
 }
 
+function isEligibleSidebarCandidate(element: HTMLElement): boolean {
+  if (!isUsableHostElement(element)) return false;
+  // Broad compatibility selectors such as [data-testid*="sidebar"] also
+  // match toggle/action controls. A control can never own the folder panel.
+  if (element.matches('button, a, input, select, textarea, [role="button"]')) return false;
+  const hasExactSidebarMarker = element.matches(
+    '#stage-slideover-sidebar, [id="sidebar"], [data-testid="sidebar"], [data-testid="history-sidebar"], [data-testid="conversation-sidebar"]',
+  );
+  if (hasExactSidebarMarker) return true;
+  const markerText = [
+    element.id,
+    element.getAttribute('data-testid'),
+    element.getAttribute('aria-label'),
+  ]
+    .filter(Boolean)
+    .join(' ');
+  if (/\b(?:canvas|artifacts?|tools?|inspector)\b/i.test(markerText)) return false;
+  if (
+    element.matches(
+      'immersive-editor, [data-canvas-id], [data-artifact-id], [data-testid*="canvas" i], [data-testid*="artifact" i]',
+    ) ||
+    element.querySelector(
+      'immersive-editor, [data-canvas-id], [data-artifact-id], [data-testid*="canvas" i], [data-testid*="artifact" i]',
+    )
+  ) {
+    return false;
+  }
+  const hasSidebarContainerShape = element.matches(
+    'nav, aside, [id*="sidebar" i], [data-testid*="sidebar" i]',
+  );
+  const hasHistorySemantics =
+    element.matches('[data-testid*="history" i]') ||
+    (element.matches('nav, aside') && element.matches(SIDEBAR_HISTORY_LABEL_SELECTOR)) ||
+    (hasSidebarContainerShape && Boolean(element.querySelector(CONVERSATION_LINK_SELECTOR)));
+  // A plain aside/nav without sidebar or history evidence may be Canvas, a
+  // tool inspector, or another auxiliary panel. Never mount folders into it.
+  // Wildcard "sidebar" ids are also ambiguous (for example a Canvas tools
+  // sidebar), so they require independent history evidence.
+  if (!hasHistorySemantics) return false;
+  return true;
+}
+
+function getHostVisibilityScore(element: HTMLElement): number {
+  let score = 0;
+  for (let current: HTMLElement | null = element; current; current = current.parentElement) {
+    const style = window.getComputedStyle(current);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+      return -1;
+    }
+  }
+
+  const rect = element.getBoundingClientRect();
+  if (
+    rect.width > 24 &&
+    rect.height > 24 &&
+    rect.right > 0 &&
+    rect.bottom > 0 &&
+    rect.left < window.innerWidth &&
+    rect.top < window.innerHeight
+  ) {
+    score += 100;
+  }
+  if (
+    element.matches(
+      '#stage-slideover-sidebar, [id="sidebar"], [id*="sidebar" i], [data-testid*="sidebar" i]',
+    )
+  ) {
+    score += 30;
+  } else if (element.matches('aside')) {
+    // Plain asides are weak evidence: ChatGPT can render unrelated utility
+    // panels alongside the real history navigation.
+    score += 5;
+  }
+  if (
+    element.matches('[data-testid*="history" i]') ||
+    (element.matches('nav, aside') && element.matches(SIDEBAR_HISTORY_LABEL_SELECTOR))
+  ) {
+    score += 50;
+  }
+  if (element.querySelector(CONVERSATION_LINK_SELECTOR)) score += 20;
+  return score;
+}
+
 export function findChatGptSidebar(): HTMLElement | null {
   const candidates: HTMLElement[] = [];
   const seen = new Set<HTMLElement>();
 
   for (const selector of SIDEBAR_SELECTORS) {
     for (const candidate of document.querySelectorAll<HTMLElement>(selector)) {
-      if (seen.has(candidate) || !isUsableHostElement(candidate)) continue;
+      if (seen.has(candidate) || !isEligibleSidebarCandidate(candidate)) continue;
       seen.add(candidate);
       candidates.push(candidate);
     }
   }
 
-  const conversationSidebar = candidates.find((candidate) =>
-    candidate.querySelector(CONVERSATION_LINK_SELECTOR),
-  );
-  if (conversationSidebar) return conversationSidebar;
-  if (candidates[0]) return candidates[0];
+  const rankedCandidates = candidates
+    .map((candidate, index) => ({ candidate, index, score: getHostVisibilityScore(candidate) }))
+    .filter(({ score }) => score >= 0)
+    .sort((left, right) => right.score - left.score || left.index - right.index);
+  // Rank visibility first and use sidebar/history semantics only as tie-break
+  // weights. A stale offscreen sidebar with old history links must not beat a
+  // visible replacement that is still hydrating its conversation list.
+  if (rankedCandidates[0]) return rankedCandidates[0].candidate;
 
   const firstLink = document.querySelector<HTMLAnchorElement>(CONVERSATION_LINK_SELECTOR);
   const fallback = firstLink?.closest<HTMLElement>('[id*="sidebar" i], aside, nav') || null;
-  return fallback && isUsableHostElement(fallback) ? fallback : null;
+  return fallback && isEligibleSidebarCandidate(fallback) && getHostVisibilityScore(fallback) >= 0
+    ? fallback
+    : null;
 }
 
 export function findChatGptHistoryContainer(sidebar: HTMLElement): HTMLElement | null {
@@ -284,8 +377,8 @@ export function isConversationOptionsTrigger(trigger: HTMLElement | null): boole
   if (!trigger) return false;
   return Boolean(
     trigger.matches(CHATGPT_CONVERSATION_OPTIONS_SELECTOR) ||
-      trigger.querySelector(CHATGPT_CONVERSATION_OPTIONS_SELECTOR) ||
-      trigger.closest(CHATGPT_CONVERSATION_OPTIONS_SELECTOR),
+    trigger.querySelector(CHATGPT_CONVERSATION_OPTIONS_SELECTOR) ||
+    trigger.closest(CHATGPT_CONVERSATION_OPTIONS_SELECTOR),
   );
 }
 

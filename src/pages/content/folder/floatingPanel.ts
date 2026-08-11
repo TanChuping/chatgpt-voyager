@@ -19,6 +19,7 @@ export type MountArgs = {
   onNavigate?: (conv: ConversationReference) => void;
   onCreateFolder?: (name: string, parentId: string | null) => void;
   onRenameFolder?: (folderId: string, newName: string) => void;
+  onRenameConversation?: (folderId: string, conversationId: string, newName: string) => void;
   onDeleteFolder?: (folderId: string) => void;
   onRemoveConversation?: (folderId: string, conversationId: string) => void;
   onToggleStar?: (folderId: string, conversationId: string) => void;
@@ -34,6 +35,8 @@ export type FloatingPanelHandle = {
   update: (data: FolderData) => void;
   destroy: () => void;
 };
+
+let activeFloatingPanelHandle: FloatingPanelHandle | null = null;
 
 const MIN_MARGIN = 8;
 const DEFAULT_WIDTH = 320;
@@ -51,7 +54,13 @@ const MAX_FOLDER_DEPTH = 1;
 
 type InlineEditorState =
   | { mode: 'create'; parentId: string | null }
-  | { mode: 'rename'; folderId: string };
+  | { mode: 'rename'; folderId: string }
+  | {
+      mode: 'rename-conversation';
+      folderId: string;
+      conversationId: string;
+      draft: string;
+    };
 
 type ContextMenuState =
   | { folderId: string; x: number; y: number; confirmingDelete: false }
@@ -68,6 +77,7 @@ type RenderActions = Pick<
   | 'onNavigate'
   | 'onCreateFolder'
   | 'onRenameFolder'
+  | 'onRenameConversation'
   | 'onDeleteFolder'
   | 'onRemoveConversation'
   | 'onToggleStar'
@@ -635,9 +645,45 @@ function renderConversationRow(
   row.dataset.conversationId = conv.conversationId;
   row.draggable = true;
 
+  const conversationEditor = context.inlineEditor;
+  if (
+    conversationEditor?.mode === 'rename-conversation' &&
+    conversationEditor.folderId === folderId &&
+    conversationEditor.conversationId === conv.conversationId
+  ) {
+    row.draggable = false;
+    const renameForm = createInlineForm(
+      conversationEditor.draft,
+      'conversation_rename',
+      (newName) => {
+        context.setInlineEditor(null);
+        if (newName && newName !== conv.title) {
+          context.actions.onRenameConversation?.(folderId, conv.conversationId, newName);
+        }
+        context.render();
+      },
+      () => {
+        context.setInlineEditor(null);
+        context.render();
+      },
+      context.registerInlineFormCleanup,
+    );
+    const renameInput = renameForm.querySelector<HTMLInputElement>(
+      `.${FLOATING_PANEL_CLASS}__inline-input`,
+    );
+    renameInput?.removeAttribute('maxlength');
+    renameInput?.setAttribute('aria-label', `${t('conversation_rename')}: ${conv.title}`);
+    renameInput?.addEventListener('input', () => {
+      conversationEditor.draft = renameInput.value;
+    });
+    row.appendChild(renameForm);
+    return row;
+  }
+
   const title = document.createElement('button');
   title.type = 'button';
   title.className = `${FLOATING_PANEL_CLASS}__conv-title`;
+  title.id = `${FLOATING_PANEL_CLASS}__conv-title-${folderId}-${conv.conversationId}`;
   title.textContent = conv.title || t('floatingPanelUntitled');
   title.title = conv.title || '';
   title.addEventListener('click', (e) => {
@@ -656,6 +702,24 @@ function renderConversationRow(
   );
   if (conv.starred) starBtn.classList.add(`${FLOATING_PANEL_CLASS}__icon-button--active`);
 
+  const renameBtn = createSvgIconButton(
+    'rename-conversation',
+    'conversation_rename',
+    'M120-120v-170l450-450 170 170-450 450H120Zm120-120h50l345-345-50-50-345 345v50Zm395-345-50-50 35-35q15-15 35-15t35 15l15 15q15 15 15 35t-15 35l-35 35Z',
+    (e) => {
+      e.stopPropagation();
+      context.setInlineEditor({
+        mode: 'rename-conversation',
+        folderId,
+        conversationId: conv.conversationId,
+        draft: conv.title,
+      });
+      context.setContextMenu(null);
+      context.render();
+    },
+  );
+  renameBtn.setAttribute('aria-describedby', title.id);
+
   const removeBtn = createIconButton('remove', 'floatingPanelRemoveConversation', '×', (e) => {
     e.stopPropagation();
     context.actions.onRemoveConversation?.(folderId, conv.conversationId);
@@ -663,6 +727,7 @@ function renderConversationRow(
 
   row.appendChild(title);
   row.appendChild(starBtn);
+  row.appendChild(renameBtn);
   row.appendChild(removeBtn);
 
   row.addEventListener('dragstart', (e) => {
@@ -837,6 +902,7 @@ export function mountFloatingPanel({
   onNavigate,
   onCreateFolder,
   onRenameFolder,
+  onRenameConversation,
   onDeleteFolder,
   onRemoveConversation,
   onToggleStar,
@@ -844,6 +910,7 @@ export function mountFloatingPanel({
   onMoveConversation,
   onSetFolderColor,
 }: MountArgs): FloatingPanelHandle {
+  activeFloatingPanelHandle?.destroy();
   const existing = document.querySelector(`.${FLOATING_PANEL_CLASS}`);
   if (existing) existing.remove();
 
@@ -1002,6 +1069,7 @@ export function mountFloatingPanel({
         onNavigate,
         onCreateFolder,
         onRenameFolder,
+        onRenameConversation,
         onDeleteFolder,
         onRemoveConversation,
         onToggleStar,
@@ -1045,7 +1113,11 @@ export function mountFloatingPanel({
   };
   document.addEventListener('click', onDocumentClick);
 
+  let destroyed = false;
+  let handle: FloatingPanelHandle;
   const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
     window.removeEventListener('resize', onResize);
     document.removeEventListener('click', onDocumentClick);
     resizeObserver?.disconnect();
@@ -1056,11 +1128,12 @@ export function mountFloatingPanel({
     inlineFormCleanup?.();
     inlineFormCleanup = null;
     panel.remove();
+    if (activeFloatingPanelHandle === handle) activeFloatingPanelHandle = null;
   };
 
   document.body.appendChild(panel);
 
-  return {
+  handle = {
     element: panel,
     update: (next) => {
       currentData = next;
@@ -1073,6 +1146,16 @@ export function mountFloatingPanel({
         if (!next.folders.some((folder) => folder.id === editingFolderId)) {
           inlineEditor = null;
         }
+      } else if (inlineEditor?.mode === 'rename-conversation') {
+        const editingConversationId = inlineEditor.conversationId;
+        const conversations = next.folderContents[inlineEditor.folderId] ?? [];
+        if (
+          !conversations.some(
+            (conversation) => conversation.conversationId === editingConversationId,
+          )
+        ) {
+          inlineEditor = null;
+        }
       }
       if (contextMenu && !next.folders.some((folder) => folder.id === contextMenu?.folderId)) {
         contextMenu = null;
@@ -1081,4 +1164,6 @@ export function mountFloatingPanel({
     },
     destroy,
   };
+  activeFloatingPanelHandle = handle;
+  return handle;
 }

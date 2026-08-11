@@ -4482,7 +4482,8 @@ body.light-theme {
 }
 
 .gv-folder-expand-btn::before {
-  content: '>';
+  content: none;
+  display: none;
 }
 
 .gv-folder-icon::before,
@@ -4948,8 +4949,41 @@ body.dark-theme .gv-folder-header .title,
   flex-shrink: 0;
 }
 
-.gv-folder-expand-btn .google-symbols {
-  font-size: 20px;
+.gv-folder-expand-btn > svg {
+  width: 16px;
+  height: 16px;
+  transform: rotate(0deg);
+  transform-origin: center;
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.gv-folder-expand-btn[aria-expanded='true'] > svg {
+  transform: rotate(90deg);
+}
+
+.gv-folder-content--entering {
+  animation: gv-folder-content-enter 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes gv-folder-content-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gv-folder-expand-btn > svg {
+    transition: none;
+  }
+
+  .gv-folder-content--entering {
+    animation: none;
+  }
 }
 
 .gv-folder-icon {
@@ -5339,8 +5373,8 @@ body.dark-theme .gv-folder-header .title,
 
 /* Star button - hidden by default, show on hover to save space */
 .gv-conversation-star-btn {
-  min-width: 24px;
-  width: 24px;
+  min-width: 0;
+  width: 0;
   height: 24px;
   border: none;
   background: transparent;
@@ -5354,16 +5388,25 @@ body.dark-theme .gv-folder-header .title,
   flex-shrink: 0;
   padding: 0;
   opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.gv-folder-conversation:hover .gv-conversation-star-btn {
+.gv-folder-conversation:hover .gv-conversation-star-btn,
+.gv-folder-conversation:focus-within .gv-conversation-star-btn {
+  min-width: 24px;
+  width: 24px;
   opacity: 1;
+  pointer-events: auto;
 }
 
 /* Starred state */
 .gv-conversation-star-btn.starred {
+  min-width: 24px;
+  width: 24px;
   opacity: 1 !important;
   color: #fbbf24;
+  pointer-events: auto;
 }
 
 .gv-conversation-star-btn:hover {
@@ -5387,10 +5430,56 @@ body.dark-theme .gv-folder-header .title,
   transform: scale(0.9);
 }
 
-/* Remove button - only visible on hover */
-.gv-conversation-remove-btn {
+/* Rename button - discoverable alternative to double-clicking the title */
+.gv-conversation-rename-btn {
   min-width: 24px;
   width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--folder-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  opacity: 0.72;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.gv-folder-conversation:hover .gv-conversation-rename-btn,
+.gv-folder-conversation:focus-within .gv-conversation-rename-btn {
+  opacity: 1;
+}
+
+.gv-conversation-rename-btn:hover {
+  background-color: color-mix(in srgb, currentColor 10%, transparent);
+  color: var(--folder-text);
+  transform: scale(1.05);
+}
+
+.gv-conversation-rename-btn:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--folder-selected-accent);
+  outline-offset: 1px;
+}
+
+.gv-conversation-rename-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.gv-conversation-rename-btn:active svg {
+  transform: scale(0.9);
+}
+
+/* Remove button - only visible on hover */
+.gv-conversation-remove-btn {
+  min-width: 0;
+  width: 0;
   height: 24px;
   border: none;
   background: transparent;
@@ -5404,10 +5493,26 @@ body.dark-theme .gv-folder-header .title,
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
   padding: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.gv-folder-conversation:hover .gv-conversation-remove-btn {
+.gv-folder-conversation:hover .gv-conversation-remove-btn,
+.gv-folder-conversation:focus-within .gv-conversation-remove-btn {
+  min-width: 24px;
+  width: 24px;
   opacity: 1;
+  pointer-events: auto;
+}
+
+.gv-folder-conversation.gv-conversation-renaming .gv-conversation-actions {
+  display: none;
+}
+
+.gv-conversation-rename-input {
+  min-width: 0;
+  box-sizing: border-box;
+  flex: 1;
 }
 
 .gv-conversation-remove-btn:hover {
@@ -9818,6 +9923,9 @@ html.dark .gv-input-vim-cursor-moving {
   .gv-floating-folder-panel__icon-button--add-child,
 .gv-floating-folder-panel__conv:hover .gv-floating-folder-panel__icon-button--star,
 .gv-floating-folder-panel__conv:focus-within .gv-floating-folder-panel__icon-button--star,
+.gv-floating-folder-panel__conv:hover .gv-floating-folder-panel__icon-button--rename-conversation,
+.gv-floating-folder-panel__conv:focus-within
+  .gv-floating-folder-panel__icon-button--rename-conversation,
 .gv-floating-folder-panel__conv:hover .gv-floating-folder-panel__icon-button--remove,
 .gv-floating-folder-panel__conv:focus-within .gv-floating-folder-panel__icon-button--remove,
 .gv-floating-folder-panel__icon-button--active {
@@ -10369,6 +10477,7 @@ html.light-theme .gv-floating-folder-panel__folder-body::before {
 .gv-floating-folder-panel__folder-header .gv-floating-folder-panel__icon-button--add-child,
 .gv-floating-folder-panel__folder-header .gv-floating-folder-panel__icon-button--placeholder,
 .gv-floating-folder-panel__conv .gv-floating-folder-panel__icon-button--star,
+.gv-floating-folder-panel__conv .gv-floating-folder-panel__icon-button--rename-conversation,
 .gv-floating-folder-panel__conv .gv-floating-folder-panel__icon-button--remove {
   width: 28px;
   height: 28px;
@@ -10387,10 +10496,34 @@ html.light-theme .gv-floating-folder-panel__folder-body::before {
   .gv-floating-folder-panel__icon-button--add-child,
 .gv-floating-folder-panel__conv:hover .gv-floating-folder-panel__icon-button--star,
 .gv-floating-folder-panel__conv:focus-within .gv-floating-folder-panel__icon-button--star,
+.gv-floating-folder-panel__conv:hover .gv-floating-folder-panel__icon-button--rename-conversation,
+.gv-floating-folder-panel__conv:focus-within
+  .gv-floating-folder-panel__icon-button--rename-conversation,
 .gv-floating-folder-panel__conv:hover .gv-floating-folder-panel__icon-button--remove,
 .gv-floating-folder-panel__conv:focus-within .gv-floating-folder-panel__icon-button--remove,
 .gv-floating-folder-panel__icon-button--active {
   opacity: 1;
+}
+
+/* Keep hidden actions out of layout; this must follow the Material-size
+ * override above so narrow floating rows retain title space. */
+.gv-floating-folder-panel__conv
+  .gv-floating-folder-panel__icon-button--star:not(.gv-floating-folder-panel__icon-button--active),
+.gv-floating-folder-panel__conv .gv-floating-folder-panel__icon-button--remove {
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.gv-floating-folder-panel__conv:hover .gv-floating-folder-panel__icon-button--star,
+.gv-floating-folder-panel__conv:focus-within .gv-floating-folder-panel__icon-button--star,
+.gv-floating-folder-panel__conv:hover .gv-floating-folder-panel__icon-button--remove,
+.gv-floating-folder-panel__conv:focus-within .gv-floating-folder-panel__icon-button--remove,
+.gv-floating-folder-panel__icon-button--active {
+  width: 28px;
+  min-width: 28px;
+  pointer-events: auto;
 }
 
 /* Placeholder keeps the trailing slot's footprint so subfolder rows line up

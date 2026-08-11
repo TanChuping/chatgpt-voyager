@@ -13,6 +13,14 @@ const HEADER_OPTIONS_SELECTOR = '[data-testid="conversation-options-button"]';
 const CONVERSATION_MENU_MARKERS =
   '[data-testid="delete-chat-menu-item"], [data-testid="share-chat-menu-item"]';
 const DELETE_DIALOG_CONFIRM_SELECTOR = '[data-testid="delete-conversation-confirm-button"]';
+const RENAME_CONVERSATION_MENU_ITEM_SELECTOR = [
+  '[data-testid="rename-chat-menu-item"]',
+  '[data-testid="rename-conversation-menu-item"]',
+  '[data-testid="rename-button"]',
+  '[data-test-id="rename-button"]',
+  '[data-testid*="rename" i][role="menuitem"]',
+  '[data-test-id*="rename" i][role="menuitem"]',
+].join(', ');
 const EXPLICIT_DIALOG_TITLE_SELECTOR = [
   '[data-testid="delete-conversation-title"]',
   '[data-testid="conversation-title"]',
@@ -71,6 +79,7 @@ export function isElementOpen(element: HTMLElement): boolean {
 
   const hiddenAncestor = element.closest<HTMLElement>('[hidden], [aria-hidden="true"]');
   if (hiddenAncestor) return false;
+  if (element.closest<HTMLElement>('[inert]')) return false;
 
   const stateOwner = element.matches('[data-state]')
     ? element
@@ -80,8 +89,13 @@ export function isElementOpen(element: HTMLElement): boolean {
     return false;
   }
 
-  const style = window.getComputedStyle(element);
-  return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+  for (let current: HTMLElement | null = element; current; current = current.parentElement) {
+    const style = window.getComputedStyle(current);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+      return false;
+    }
+  }
+  return true;
 }
 
 export function isNativeConversationMenu(menu: HTMLElement): boolean {
@@ -197,6 +211,31 @@ export function isOwnedNativeConversationMenu(
 export function findDeleteConversationMenuItem(menu: HTMLElement): HTMLElement | null {
   if (!isNativeConversationMenu(menu) || !isElementOpen(menu)) return null;
   return menu.querySelector<HTMLElement>('[data-testid="delete-chat-menu-item"][role="menuitem"]');
+}
+
+export function findRenameConversationMenuItem(menu: HTMLElement): HTMLElement | null {
+  if (!isNativeConversationMenu(menu) || !isElementOpen(menu)) return null;
+  const explicit = menu.querySelector<HTMLElement>(RENAME_CONVERSATION_MENU_ITEM_SELECTOR);
+  if (explicit) return explicit;
+
+  // Last-resort compatibility for locale/layout variants that dropped the
+  // test id. Keep this deliberately bounded to real menuitems and known native
+  // labels so an unrelated "edit" action can never be activated.
+  const labelPattern =
+    /^(rename|rename chat|rename conversation|重命名|重命名聊天|名前を変更|이름 바꾸기|renommer|umbenennen|renombrar|renomear|переименовать)$/iu;
+  return (
+    Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((item) => {
+      const label = (
+        item.getAttribute('aria-label') ||
+        item.getAttribute('title') ||
+        item.textContent ||
+        ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+      return labelPattern.test(label);
+    }) || null
+  );
 }
 
 export function getNativeDeleteDialogs(root: ParentNode = document): HTMLElement[] {

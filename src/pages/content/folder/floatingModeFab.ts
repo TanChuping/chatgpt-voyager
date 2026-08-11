@@ -15,6 +15,9 @@ type MountArgs = {
   onPosChange?: (pos: FloatingFabPos) => void;
 };
 
+type FloatingFabElement = HTMLElement & { __gvResizeCleanup?: () => void };
+let activeFab: FloatingFabElement | null = null;
+
 function clampPos(pos: FloatingFabPos): FloatingFabPos {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -50,7 +53,12 @@ export function mountFloatingFab({
   storedPos,
   onPosChange,
 }: MountArgs): HTMLElement | null {
-  const existing = document.querySelector(`.${FLOATING_FAB_CLASS}`);
+  if (activeFab && !activeFab.isConnected) {
+    activeFab.__gvResizeCleanup?.();
+    activeFab = null;
+  }
+  const existing =
+    activeFab ?? document.querySelector<FloatingFabElement>(`.${FLOATING_FAB_CLASS}`);
   if (existing) return existing as HTMLElement;
 
   const label = getTranslationSyncUnsafe('floatingFabLabel');
@@ -151,23 +159,25 @@ export function mountFloatingFab({
   };
   window.addEventListener('resize', onResize);
   // Stash cleanup handle on the element so unmount can reliably remove it.
-  (btn as HTMLElement & { __gvResizeCleanup?: () => void }).__gvResizeCleanup = () => {
+  const trackedButton = btn as FloatingFabElement;
+  trackedButton.__gvResizeCleanup = () => {
     window.removeEventListener('resize', onResize);
   };
 
   document.body.appendChild(btn);
+  activeFab = trackedButton;
   requestAnimationFrame(() => btn.classList.add(`${FLOATING_FAB_CLASS}--show`));
   return btn;
 }
 
 export function unmountFloatingFab(): void {
-  const el = document.querySelector(`.${FLOATING_FAB_CLASS}`);
+  const el = activeFab ?? document.querySelector<FloatingFabElement>(`.${FLOATING_FAB_CLASS}`);
   if (!el) return;
-  const cleanup = (el as HTMLElement & { __gvResizeCleanup?: () => void }).__gvResizeCleanup;
-  if (cleanup) cleanup();
+  el.__gvResizeCleanup?.();
   el.remove();
+  if (activeFab === el) activeFab = null;
 }
 
 export function isFloatingFabMounted(): boolean {
-  return !!document.querySelector(`.${FLOATING_FAB_CLASS}`);
+  return Boolean(activeFab?.isConnected || document.querySelector(`.${FLOATING_FAB_CLASS}`));
 }
