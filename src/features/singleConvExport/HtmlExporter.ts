@@ -20,12 +20,14 @@ import type { LinearAttachment, LinearConversation, LinearMessage } from '../con
 import { filterForSimple } from './simpleFilter';
 
 function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  const replacements: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return input.replace(/[&<>"']/g, (character) => replacements[character]);
 }
 
 function formatTimestamp(epochSeconds: number | null | undefined): string {
@@ -157,4 +159,85 @@ ${messages}
 </body>
 </html>
 `;
+}
+
+export interface ChunkedHtmlOptions {
+  chunkSize?: number;
+  yieldEveryChunks?: number;
+  yieldToMain?: () => Promise<void>;
+}
+
+const DEFAULT_HTML_CHUNK_SIZE = 128 * 1024;
+const DEFAULT_YIELD_EVERY_CHUNKS = 4;
+
+function defaultYieldToMain(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+async function appendEscapedChunks(
+  parts: BlobPart[],
+  text: string,
+  options: Required<ChunkedHtmlOptions>,
+  chunkCounter: { value: number },
+): Promise<void> {
+  if (!text) return;
+  for (let offset = 0; offset < text.length; offset += options.chunkSize) {
+    parts.push(escapeHtml(text.slice(offset, offset + options.chunkSize)));
+    chunkCounter.value += 1;
+    if (chunkCounter.value % options.yieldEveryChunks === 0) {
+      await options.yieldToMain();
+    }
+  }
+}
+
+/**
+ * Production HTML path for long conversations. It returns Blob parts instead
+ * of repeatedly joining/copying one giant document string and yields between
+ * bounded chunks so the ChatGPT page remains interactive.
+ */
+export async function toHtmlBlobParts(
+  linear: LinearConversation,
+  partialOptions: ChunkedHtmlOptions = {},
+): Promise<BlobPart[]> {
+  const options: Required<ChunkedHtmlOptions> = {
+    chunkSize: Math.max(1024, partialOptions.chunkSize ?? DEFAULT_HTML_CHUNK_SIZE),
+    yieldEveryChunks: Math.max(1, partialOptions.yieldEveryChunks ?? DEFAULT_YIELD_EVERY_CHUNKS),
+    yieldToMain: partialOptions.yieldToMain ?? defaultYieldToMain,
+  };
+  const filtered = filterForSimple(linear);
+  const title = escapeHtml(filtered.title || 'Untitled conversation');
+  const created = formatTimestamp(filtered.createTime);
+  const metaParts: string[] = [];
+  if (created) metaParts.push(`Created: ${escapeHtml(created)}`);
+  metaParts.push(`Exported: ${escapeHtml(new Date().toISOString())}`);
+  const meta = metaParts.join(' &middot; ');
+  const parts: BlobPart[] = [
+    `<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8" />\n<meta name="viewport" content="width=device-width, initial-scale=1" />\n<title>${title}</title>\n<style>${STYLE}</style>\n</head>\n<body>\n<main>\n  <h1>${title}</h1>\n  <p class="meta">${meta}</p>\n`,
+  ];
+  const chunkCounter = { value: 0 };
+
+  for (const message of filtered.messages) {
+    const roleClass = message.role === 'user' ? 'user' : 'assistant';
+    const roleLabel = message.role === 'user' ? 'You' : 'ChatGPT';
+    const timestamp = formatTimestamp(message.createTime);
+    const timestampHtml = timestamp
+      ? `<time datetime="${escapeHtml(timestamp)}">${escapeHtml(timestamp)}</time>`
+      : '';
+    parts.push(
+      `<article class="message ${roleClass}">\n  <header><span class="role">${escapeHtml(
+        roleLabel,
+      )}</span>${timestampHtml}</header>\n`,
+    );
+    const attachments = attachmentsHtml(message.attachments);
+    if (attachments) parts.push(attachments, '\n');
+    if (message.text) {
+      parts.push('<pre class="content">');
+      await appendEscapedChunks(parts, message.text, options, chunkCounter);
+      parts.push('</pre>\n');
+    }
+    parts.push('</article>\n');
+  }
+
+  parts.push('</main>\n</body>\n</html>\n');
+  return parts;
 }

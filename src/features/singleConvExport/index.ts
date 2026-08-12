@@ -8,7 +8,7 @@ import {
   getConversationCaptureService,
 } from '../conversationApi/ConversationCaptureService';
 import type { LinearConversation } from '../conversationApi/types';
-import { toHtml } from './HtmlExporter';
+import { toHtml, toHtmlBlobParts } from './HtmlExporter';
 import { toJson } from './JsonExporter';
 import { toJsonSimple } from './JsonSimpleExporter';
 import { toMarkdown } from './MarkdownExporter';
@@ -119,10 +119,26 @@ function formatLinear(
   }
 }
 
-function performExport(linear: LinearConversation, format: SingleConvExportFormat): void {
+async function performExport(
+  linear: LinearConversation,
+  format: SingleConvExportFormat,
+): Promise<void> {
+  if (format === 'html') {
+    const parts = await toHtmlBlobParts(linear);
+    downloadBlob(parts, buildFilename(linear, format), 'text/html');
+    return;
+  }
   const { body, mime } = formatLinear(linear, format);
   const filename = buildFilename(linear, format);
   downloadBlob(body, filename, mime);
+}
+
+/** Export a snapshot that has already passed live-cache reconciliation. */
+export function exportPreparedConversation(
+  linear: LinearConversation,
+  format: SingleConvExportFormat,
+): Promise<void> {
+  return performExport(linear, format);
 }
 
 function readPending(): PendingExport | null {
@@ -183,7 +199,7 @@ export function exportConversation(
   const svc = options.captureService ?? getConversationCaptureService();
   const linear = svc.getLatest(convId);
   if (linear) {
-    performExport(linear, format);
+    void performExport(linear, format);
     return true;
   }
   // Not yet captured. Store intent and navigate to the conversation.
@@ -231,7 +247,7 @@ export function exportConversationSubset(
   const messages = linear.messages.filter((m) => selectedMessageIds.has(m.messageId));
   if (messages.length === 0) return 'empty';
 
-  performExport({ ...linear, messages }, format);
+  void performExport({ ...linear, messages }, format);
   return 'ok';
 }
 
@@ -246,7 +262,7 @@ function armResumeWaiter(convId: string, format: SingleConvExportFormat): void {
     off();
     resumeArmed = false;
     clearPending();
-    performExport(entry.linear, format);
+    void performExport(entry.linear, format);
   });
   const stopTimer = window.setTimeout(() => {
     off();
@@ -278,7 +294,7 @@ export function resumePendingExport(): void {
   const linear = svc.getLatest(pending.convId);
   if (linear) {
     clearPending();
-    performExport(linear, pending.format);
+    void performExport(linear, pending.format);
     return;
   }
   armResumeWaiter(pending.convId, pending.format);

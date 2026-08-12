@@ -9,9 +9,14 @@
  * + URL.createObjectURL — works inside content scripts because no extension
  * privileges are required for same-origin Object URLs.
  */
-export function downloadBlob(content: string, filename: string, mime: string): void {
+export function downloadBlob(
+  content: BlobPart | readonly BlobPart[],
+  filename: string,
+  mime: string,
+): void {
   try {
-    const blob = new Blob([content], { type: mime });
+    const parts = Array.isArray(content) ? content : [content];
+    const blob = new Blob(parts as BlobPart[], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

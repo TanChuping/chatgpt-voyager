@@ -14,7 +14,7 @@ import { StorageKeys } from '@/core/types/common';
 import {
   DEFAULT_SINGLE_CONV_EXPORT_FORMAT,
   type SingleConvExportFormat,
-  exportConversation,
+  exportPreparedConversation,
   isSingleConvExportFormat,
 } from '@/features/singleConvExport';
 import { getTranslationSync } from '@/utils/i18n';
@@ -23,6 +23,7 @@ import { extractChatGptConversationIdFromUrl } from '../chatgptDom';
 import { buildClonedButtonClassName } from '../shared/clonedButtonClass';
 import { findOptionsButtonRow } from '../shared/headerActionSlot';
 import { isChatGptResponseGenerating } from './generationState';
+import { prepareWholeConversationExport } from './prepareExport';
 import { enterSelectionMode, exitSelectionMode } from './selectionMode';
 
 const TAG = 'data-gv-export-btn';
@@ -243,9 +244,41 @@ function toggleExportMenu(anchor: HTMLElement, generation: number): void {
       // Resolve format from the popup setting at click time so a running ChatGPT
       // tab picks up popup changes without a reload. The generation guard keeps
       // a late storage result from exporting after feature teardown.
-      void resolveExportFormat().then((fmt) => {
-        if (isActiveGeneration(generation) && !isChatGptResponseGenerating()) {
-          exportConversation(convId, fmt);
+      void resolveExportFormat().then(async (fmt) => {
+        if (!isActiveGeneration(generation) || isChatGptResponseGenerating()) return;
+        const currentPath = window.location.pathname;
+        anchor.setAttribute('aria-busy', 'true');
+        if (anchor instanceof HTMLButtonElement) anchor.disabled = true;
+        try {
+          const prepared = await prepareWholeConversationExport(convId, {
+            onStage: (stage, discovered) => {
+              if (!isActiveGeneration(generation)) return;
+              anchor.title =
+                stage === 'rebuilding'
+                  ? `Loading conversation history (${discovered ?? 0})…`
+                  : stage === 'incremental'
+                    ? 'Updating conversation cache…'
+                    : 'Checking conversation cache…';
+            },
+          });
+          if (
+            isActiveGeneration(generation) &&
+            window.location.pathname === currentPath &&
+            !isChatGptResponseGenerating()
+          ) {
+            await exportPreparedConversation(prepared, fmt);
+          }
+        } catch (error) {
+          console.warn('[GPT-Voyager] export: unable to prepare complete conversation', error);
+          alert(
+            'GPT-Voyager could not safely load the complete conversation. Please keep this chat open and try again.',
+          );
+        } finally {
+          if (isActiveGeneration(generation) && anchor.isConnected) {
+            anchor.removeAttribute('aria-busy');
+            anchor.title = getTranslationSync('singleConvExportButtonTooltip');
+            if (anchor instanceof HTMLButtonElement) anchor.disabled = false;
+          }
         }
       });
     },

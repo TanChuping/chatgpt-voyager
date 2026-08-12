@@ -8,10 +8,9 @@
  * selection is just a `Set<string>` of those ids that we hand to
  * `exportConversationSubset`.
  *
- * The selectable "universe" is derived from the captured API payload (filtered
- * to the user-facing messages via `isSimpleVisibleMessage`), NOT from the
- * mounted DOM — so "Select all" / role filters cover messages that ChatGPT has
- * virtualised out of the DOM, and a selection survives scrolling.
+ * The selectable universe starts with the captured API payload and is extended
+ * by messages mounted while the user scrolls. This keeps virtualised selections
+ * stable while allowing a cold or stale capture to catch up without auto-scroll.
  */
 import { StorageKeys } from '@/core/types/common';
 import { getConversationCaptureService } from '@/features/conversationApi/ConversationCaptureService';
@@ -21,6 +20,11 @@ import {
   exportConversationSubset,
   isSingleConvExportFormat,
 } from '@/features/singleConvExport';
+import {
+  collectLiveConversationMessages,
+  mergeLiveConversationMessages,
+  rebuildConversationFromLive,
+} from '@/features/singleConvExport/liveSnapshot';
 import { isSimpleVisibleMessage } from '@/features/singleConvExport/simpleFilter';
 import { getTranslationSync } from '@/utils/i18n';
 
@@ -30,7 +34,6 @@ const HOST_CLASS = 'gv-export-pick-host';
 const HOST_SELECTED_CLASS = 'gv-export-pick-host--selected';
 const CHECKBOX_CLASS = 'gv-export-pick-checkbox';
 const BAR_CLASS = 'gv-export-pick-bar';
-const MESSAGE_SELECTOR = '[data-message-id][data-message-author-role]';
 
 interface SelectionUniverse {
   all: Set<string>;
@@ -48,6 +51,9 @@ let countEl: HTMLElement | null = null;
 let exportButton: HTMLButtonElement | null = null;
 let observer: MutationObserver | null = null;
 let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+let selectionPolicy: 'all' | 'user' | 'assistant' | null = null;
+let observerSyncTimer: number | null = null;
+const observerRoots = new Set<HTMLElement>();
 
 function t(key: Parameters<typeof getTranslationSync>[0]): string {
   return getTranslationSync(key);
@@ -73,7 +79,23 @@ async function resolveExportFormat(): Promise<SingleConvExportFormat> {
  * or has no exportable messages.
  */
 function buildUniverse(convId: string): SelectionUniverse | null {
-  const linear = getConversationCaptureService().getLatest(convId);
+  const capture = getConversationCaptureService();
+  const live = collectLiveConversationMessages();
+  const cached = capture.getLatest(convId);
+  const linear = cached
+    ? capture.updateLatest(convId, mergeLiveConversationMessages(cached, live))
+    : live.length > 0
+      ? capture.updateLatest(
+          convId,
+          rebuildConversationFromLive(
+            null,
+            convId,
+            document.title.replace(/\s*[-|]\s*ChatGPT\s*$/i, '').trim(),
+            live,
+          ),
+          { force: true },
+        )
+      : null;
   if (!linear) return null;
   const all = new Set<string>();
   const user = new Set<string>();
@@ -89,7 +111,8 @@ function buildUniverse(convId: string): SelectionUniverse | null {
 }
 
 function updateCount(): void {
-  if (countEl) countEl.textContent = `${t('singleConvExportSelectSelected')}: ${selectedIds.size}`;
+  const countText = `${t('singleConvExportSelectSelected')}: ${selectedIds.size}`;
+  if (countEl && countEl.textContent !== countText) countEl.textContent = countText;
   if (!exportButton) return;
   const selectedResponseIsStreaming =
     isChatGptResponseGenerating() &&
@@ -122,6 +145,25 @@ function selectExactly(target: Set<string>): void {
   target.forEach((id) => setSelected(id, true));
 }
 
+function applySelectionPolicy(policy: 'all' | 'user' | 'assistant' | null): void {
+  selectionPolicy = policy;
+  if (policy === null) return;
+  if (policy === 'all') selectExactly(universe.all);
+  else if (policy === 'user') selectExactly(universe.user);
+  else selectExactly(universe.assistant);
+}
+
+function extendUniverse(messageId: string, role: 'user' | 'assistant'): void {
+  if (universe.all.has(messageId)) return;
+  universe.all.add(messageId);
+  if (role === 'user') universe.user.add(messageId);
+  else universe.assistant.add(messageId);
+
+  if (selectionPolicy === 'all' || selectionPolicy === role) {
+    setSelected(messageId, true);
+  }
+}
+
 function attachCheckbox(host: HTMLElement): void {
   const id = host.getAttribute('data-message-id');
   if (!id || !universe.all.has(id)) return;
@@ -130,6 +172,11 @@ function attachCheckbox(host: HTMLElement): void {
   if (existing && existing.isConnected && host.contains(existing)) {
     idToHost.set(id, host);
     return;
+  }
+  if (existing?.isConnected) existing.remove();
+  const previousHost = idToHost.get(id);
+  if (previousHost && previousHost !== host) {
+    previousHost.classList.remove(HOST_CLASS, HOST_SELECTED_CLASS);
   }
   // No live checkbox for this id (first time, or ChatGPT virtualised/replaced
   // the message node). (Re)create it on the current host, reflecting the
@@ -156,6 +203,7 @@ function attachCheckbox(host: HTMLElement): void {
   );
   checkbox.addEventListener('click', (e) => {
     swallow(e);
+    selectionPolicy = null;
     setSelected(id, !selectedIds.has(id));
   });
 
@@ -164,8 +212,24 @@ function attachCheckbox(host: HTMLElement): void {
   idToHost.set(id, host);
 }
 
-function syncCheckboxes(): void {
-  document.querySelectorAll<HTMLElement>(MESSAGE_SELECTOR).forEach(attachCheckbox);
+function syncLiveSelectionMessages(convId: string, roots?: Iterable<HTMLElement>): void {
+  const live = roots
+    ? Array.from(roots).flatMap((root) => collectLiveConversationMessages(root))
+    : collectLiveConversationMessages();
+  const uniqueLive = Array.from(
+    new Map(live.map((item) => [item.message.messageId, item])).values(),
+  );
+  const capture = getConversationCaptureService();
+  const cached = capture.getLatest(convId);
+  if (cached && uniqueLive.length > 0) {
+    capture.updateLatest(convId, mergeLiveConversationMessages(cached, uniqueLive));
+  }
+
+  for (const item of uniqueLive) {
+    if (!isSimpleVisibleMessage(item.message)) continue;
+    extendUniverse(item.message.messageId, item.message.role as 'user' | 'assistant');
+    attachCheckbox(item.host);
+  }
 }
 
 function makeBarButton(label: string): HTMLButtonElement {
@@ -185,16 +249,19 @@ function buildBar(convId: string): void {
   title.textContent = t('singleConvExportSelectTitle');
 
   const allBtn = makeBarButton(t('singleConvExportSelectAll'));
-  allBtn.addEventListener('click', () => selectExactly(universe.all));
+  allBtn.addEventListener('click', () => applySelectionPolicy('all'));
 
   const noneBtn = makeBarButton(t('singleConvExportSelectNone'));
-  noneBtn.addEventListener('click', () => clearSelection());
+  noneBtn.addEventListener('click', () => {
+    selectionPolicy = null;
+    clearSelection();
+  });
 
   const userBtn = makeBarButton(t('singleConvExportSelectUser'));
-  userBtn.addEventListener('click', () => selectExactly(universe.user));
+  userBtn.addEventListener('click', () => applySelectionPolicy('user'));
 
   const aiBtn = makeBarButton(t('singleConvExportSelectAI'));
-  aiBtn.addEventListener('click', () => selectExactly(universe.assistant));
+  aiBtn.addEventListener('click', () => applySelectionPolicy('assistant'));
 
   countEl = document.createElement('span');
   countEl.className = 'gv-export-pick-bar__count';
@@ -266,14 +333,33 @@ export function enterSelectionMode(convId: string): void {
   selectedIds.clear();
   idToCheckbox.clear();
   idToHost.clear();
+  selectionPolicy = null;
 
   document.body.classList.add('gv-export-pick-active');
   buildBar(convId);
-  syncCheckboxes();
+  syncLiveSelectionMessages(convId);
 
-  observer = new MutationObserver(() => {
-    syncCheckboxes();
-    updateCount();
+  observer = new MutationObserver((records) => {
+    for (const record of records) {
+      for (const added of record.addedNodes) {
+        if (!(added instanceof HTMLElement)) continue;
+        if (
+          added.matches('[data-message-id][data-message-author-role]') ||
+          added.querySelector('[data-message-id][data-message-author-role]')
+        ) {
+          observerRoots.add(added);
+        }
+      }
+    }
+    if (observerRoots.size === 0 || observerSyncTimer !== null) return;
+    observerSyncTimer = window.setTimeout(() => {
+      observerSyncTimer = null;
+      const roots = Array.from(observerRoots);
+      observerRoots.clear();
+      if (!active) return;
+      syncLiveSelectionMessages(convId, roots);
+      updateCount();
+    }, 30);
   });
   observer.observe(document.body, { childList: true, subtree: true });
 
@@ -292,6 +378,11 @@ export function exitSelectionMode(): void {
 
   observer?.disconnect();
   observer = null;
+  if (observerSyncTimer !== null) {
+    window.clearTimeout(observerSyncTimer);
+    observerSyncTimer = null;
+  }
+  observerRoots.clear();
 
   if (keydownHandler) {
     window.removeEventListener('keydown', keydownHandler, true);
@@ -303,6 +394,7 @@ export function exitSelectionMode(): void {
   idToCheckbox.clear();
   idToHost.clear();
   selectedIds.clear();
+  selectionPolicy = null;
 
   bar?.remove();
   bar = null;

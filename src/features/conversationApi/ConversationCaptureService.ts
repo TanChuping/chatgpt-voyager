@@ -20,6 +20,12 @@ export type CaptureListener = (convId: string, entry: CaptureEntry) => void;
  */
 export class ConversationCaptureService {
   private readonly entries = new Map<string, CaptureEntry>();
+  /**
+   * User-facing records reconciled from the live ChatGPT page after the last
+   * full API capture. Kept separately so an old replayed session payload
+   * cannot silently erase newly appended/edited messages.
+   */
+  private readonly reconciledLinear = new Map<string, LinearConversation>();
   private readonly listeners = new Set<CaptureListener>();
   private installed = false;
 
@@ -87,7 +93,12 @@ export class ConversationCaptureService {
       console.warn('[GPT-Voyager] conversation parser failed', err);
       return null;
     }
-    const entry: CaptureEntry = { api, linear, capturedAt: Date.now() };
+    const reconciled = this.reconciledLinear.get(convId);
+    if (reconciled && isCaptureAtLeastAsFresh(reconciled, linear)) {
+      this.reconciledLinear.delete(convId);
+    }
+    const effectiveLinear = this.reconciledLinear.get(convId) ?? linear;
+    const entry: CaptureEntry = { api, linear: effectiveLinear, capturedAt: Date.now() };
     this.entries.set(convId, entry);
     for (const cb of this.listeners) {
       try {
@@ -100,11 +111,30 @@ export class ConversationCaptureService {
   }
 
   getLatest(convId: string): LinearConversation | null {
-    return this.entries.get(convId)?.linear ?? null;
+    return this.reconciledLinear.get(convId) ?? this.entries.get(convId)?.linear ?? null;
   }
 
   getEntry(convId: string): CaptureEntry | null {
-    return this.entries.get(convId) ?? null;
+    const entry = this.entries.get(convId);
+    if (!entry) return null;
+    const reconciled = this.reconciledLinear.get(convId);
+    return reconciled ? { ...entry, linear: reconciled } : entry;
+  }
+
+  /**
+   * Replace the export-facing linear snapshot after reconciling mounted live
+   * messages. This does not mutate the captured raw API payload and therefore
+   * cannot mislead API consumers that need the original mapping.
+   */
+  updateLatest(
+    convId: string,
+    linear: LinearConversation,
+    options: { force?: boolean } = {},
+  ): LinearConversation {
+    const current = this.getLatest(convId);
+    if (!options.force && current && isClearlyOlderLinear(linear, current)) return current;
+    this.reconciledLinear.set(convId, linear);
+    return linear;
   }
 
   on(event: 'captured', cb: CaptureListener): () => void {
@@ -116,6 +146,7 @@ export class ConversationCaptureService {
   /** Test-only: clear in-memory state. */
   reset(): void {
     this.entries.clear();
+    this.reconciledLinear.clear();
     this.listeners.clear();
   }
 
@@ -136,6 +167,47 @@ export class ConversationCaptureService {
     if (typeof convId !== 'string') return;
     this.ingest(convId, convData);
   };
+}
+
+function visibleMessageIds(linear: LinearConversation): string[] {
+  return linear.messages
+    .filter((message) => message.role === 'user' || message.role === 'assistant')
+    .map((message) => message.messageId);
+}
+
+function isCaptureAtLeastAsFresh(
+  reconciled: LinearConversation,
+  candidate: LinearConversation,
+): boolean {
+  if (
+    candidate.updateTime != null &&
+    reconciled.updateTime != null &&
+    candidate.updateTime > reconciled.updateTime
+  ) {
+    return true;
+  }
+  const candidateIds = new Set(visibleMessageIds(candidate));
+  const requiredTail = visibleMessageIds(reconciled).slice(-5);
+  return requiredTail.length > 0 && requiredTail.every((id) => candidateIds.has(id));
+}
+
+/** Candidate-first ordering: true means candidate must not replace current. */
+export function isClearlyOlderLinear(
+  candidate: LinearConversation,
+  current: LinearConversation,
+): boolean {
+  if (
+    candidate.updateTime != null &&
+    current.updateTime != null &&
+    candidate.updateTime < current.updateTime
+  ) {
+    return true;
+  }
+
+  const candidateIds = new Set(visibleMessageIds(candidate));
+  const currentIds = visibleMessageIds(current);
+  if (candidateIds.size >= currentIds.length) return false;
+  return currentIds.slice(-5).some((id) => !candidateIds.has(id));
 }
 
 let singleton: ConversationCaptureService | null = null;

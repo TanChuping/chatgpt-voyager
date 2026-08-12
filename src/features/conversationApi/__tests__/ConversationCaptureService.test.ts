@@ -31,6 +31,35 @@ function makeApi(id: string): ApiConversation {
   };
 }
 
+function makeApiWithMessages(id: string, count: number, updateTime = 0): ApiConversation {
+  const mapping: ApiConversation['mapping'] = {};
+  let parent: string | null = null;
+  for (let index = 0; index < count; index += 1) {
+    const messageId = `11111111-1111-1111-1111-${String(index + 1).padStart(12, '0')}`;
+    mapping[messageId] = {
+      id: messageId,
+      message: {
+        id: messageId,
+        author: { role: index % 2 === 0 ? 'user' : 'assistant' },
+        create_time: index,
+        content: { content_type: 'text', parts: [`message ${index + 1}`] },
+      },
+      parent,
+      children: [],
+    };
+    if (parent) mapping[parent].children.push(messageId);
+    parent = messageId;
+  }
+  return {
+    conversation_id: id,
+    title: 'Hi',
+    create_time: 0,
+    update_time: updateTime,
+    current_node: parent || '',
+    mapping,
+  };
+}
+
 describe('ConversationCaptureService', () => {
   beforeEach(() => {
     __resetConversationCaptureServiceForTests();
@@ -111,5 +140,38 @@ describe('ConversationCaptureService', () => {
     off();
     svc.ingest('conv-1', makeApi('conv-1'));
     expect(cb).not.toHaveBeenCalled();
+  });
+
+  it('keeps a reconciled longer snapshot when an older capture is replayed', () => {
+    const svc = new ConversationCaptureService();
+    svc.ingest('conv-1', makeApiWithMessages('conv-1', 18, 18));
+    const current = svc.getLatest('conv-1');
+    expect(current).not.toBeNull();
+    svc.updateLatest('conv-1', {
+      ...current!,
+      messages: [
+        ...current!.messages,
+        {
+          ...current!.messages[0],
+          messageId: '11111111-1111-1111-1111-000000000019',
+          turnId: 'u-11111111-1111-1111-1111-000000000019',
+          text: 'message 19',
+        },
+      ],
+    });
+
+    svc.ingest('conv-1', makeApiWithMessages('conv-1', 18, 18));
+    expect(svc.getLatest('conv-1')?.messages).toHaveLength(19);
+  });
+
+  it('accepts a newer authoritative capture after a reconciled snapshot', () => {
+    const svc = new ConversationCaptureService();
+    svc.ingest('conv-1', makeApiWithMessages('conv-1', 18, 18));
+    const current = svc.getLatest('conv-1')!;
+    svc.updateLatest('conv-1', { ...current, messages: [...current.messages] });
+
+    svc.ingest('conv-1', makeApiWithMessages('conv-1', 20, 20));
+    expect(svc.getLatest('conv-1')?.messages).toHaveLength(20);
+    expect(svc.getLatest('conv-1')?.updateTime).toBe(20);
   });
 });
