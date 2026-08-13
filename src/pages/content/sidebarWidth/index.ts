@@ -1,4 +1,6 @@
 /* Adjust ChatGPT's sidebar through its live --sidebar-width CSS variable. */
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
+
 const STYLE_ID = 'gv-sidebar-width-style';
 const STORAGE_KEY = 'gptSidebarWidth';
 const LEGACY_ENABLED_KEY = 'gvSidebarWidthEnabled';
@@ -13,7 +15,7 @@ let lifecycleGeneration = 0;
 let storageChangeHandler:
   | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
   | null = null;
-let beforeUnloadHandler: (() => void) | null = null;
+let removePageExitListener: (() => void) | null = null;
 
 function isActiveGeneration(generation: number): boolean {
   return started && generation === lifecycleGeneration;
@@ -76,9 +78,9 @@ export function stopSidebarWidthAdjuster(): void {
     } catch {}
     storageChangeHandler = null;
   }
-  if (beforeUnloadHandler) {
-    window.removeEventListener('beforeunload', beforeUnloadHandler);
-    beforeUnloadHandler = null;
+  if (removePageExitListener) {
+    removePageExitListener();
+    removePageExitListener = null;
   }
   removeStyles();
 }
@@ -122,7 +124,6 @@ export function startSidebarWidthAdjuster(): () => void {
     storageChangeHandler = null;
   }
 
-  beforeUnloadHandler = () => stopSidebarWidthAdjuster();
-  window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
+  removePageExitListener = addPageExitListener(stopSidebarWidthAdjuster);
   return stopSidebarWidthAdjuster;
 }

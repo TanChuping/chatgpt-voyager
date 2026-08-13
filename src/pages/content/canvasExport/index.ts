@@ -1,4 +1,5 @@
 import { StorageKeys } from '@/core/types/common';
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
 import { getCurrentLanguage, getTranslation } from '@/utils/i18n';
 import { normalizeLanguage } from '@/utils/language';
 import type { TranslationKey } from '@/utils/translations';
@@ -24,7 +25,7 @@ let canvasMenuObserver: MutationObserver | null = null;
 let canvasStorageHandler:
   | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
   | null = null;
-let canvasBeforeUnloadHandler: (() => void) | null = null;
+let removeCanvasPageExitListener: (() => void) | null = null;
 let currentLabels = { label: 'Copy as Markdown', tooltip: 'Copy Canvas content as Markdown' };
 let toolbarScanTimer: number | null = null;
 const pendingTimers = new Set<number>();
@@ -227,8 +228,7 @@ export async function startCanvasExport(): Promise<void> {
     chrome.storage?.onChanged?.addListener(canvasStorageHandler);
   } catch {}
 
-  canvasBeforeUnloadHandler = () => stopCanvasExport();
-  window.addEventListener('beforeunload', canvasBeforeUnloadHandler, { once: true });
+  removeCanvasPageExitListener = addPageExitListener(stopCanvasExport);
 }
 
 export function stopCanvasExport(): void {
@@ -249,10 +249,10 @@ export function stopCanvasExport(): void {
     } catch {}
   }
   canvasStorageHandler = null;
-  if (canvasBeforeUnloadHandler) {
-    window.removeEventListener('beforeunload', canvasBeforeUnloadHandler);
+  if (removeCanvasPageExitListener) {
+    removeCanvasPageExitListener();
   }
-  canvasBeforeUnloadHandler = null;
+  removeCanvasPageExitListener = null;
 
   removeInjectedButtonsFrom(document);
 }

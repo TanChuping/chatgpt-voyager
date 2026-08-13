@@ -23,6 +23,7 @@
  * Code blocks deliberately keep their monospace, and KaTeX/MathJax keep
  * their specialist glyph fonts.
  */
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
 
 const STYLE_ID = 'gv-chat-font-family';
 const FONT_FACE_ID = 'gv-chat-font-family-face';
@@ -200,7 +201,7 @@ let lifecycleGeneration = 0;
 let storageChangeHandler:
   | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
   | null = null;
-let beforeUnloadHandler: (() => void) | null = null;
+let removePageExitListener: (() => void) | null = null;
 
 function isActiveGeneration(generation: number): boolean {
   return started && generation === lifecycleGeneration;
@@ -246,9 +247,9 @@ export function stopChatFontFamilyAdjuster(): void {
     } catch {}
     storageChangeHandler = null;
   }
-  if (beforeUnloadHandler) {
-    window.removeEventListener('beforeunload', beforeUnloadHandler);
-    beforeUnloadHandler = null;
+  if (removePageExitListener) {
+    removePageExitListener();
+    removePageExitListener = null;
   }
   removeStyles();
 }
@@ -323,7 +324,6 @@ export function startChatFontFamilyAdjuster(): () => void {
     storageChangeHandler = null;
   }
 
-  beforeUnloadHandler = () => stopChatFontFamilyAdjuster();
-  window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
+  removePageExitListener = addPageExitListener(stopChatFontFamilyAdjuster);
   return stopChatFontFamilyAdjuster;
 }

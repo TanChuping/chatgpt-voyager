@@ -1,4 +1,5 @@
 import { StorageKeys } from '@/core/types/common';
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
 
 import { TimelineManager } from './manager';
 
@@ -40,7 +41,7 @@ let timelineGeneration = 0;
 let timelineStorageChangeHandler:
   | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
   | null = null;
-let timelineBeforeUnloadHandler: (() => void) | null = null;
+let removeTimelinePageExitListener: (() => void) | null = null;
 let timelineSuspendHandler: (() => void) | null = null;
 
 function isActiveTimelineGeneration(generation: number): boolean {
@@ -380,9 +381,9 @@ export function stopTimeline(): void {
     timelineStorageChangeHandler = null;
   }
 
-  if (timelineBeforeUnloadHandler) {
-    window.removeEventListener('beforeunload', timelineBeforeUnloadHandler);
-    timelineBeforeUnloadHandler = null;
+  if (removeTimelinePageExitListener) {
+    removeTimelinePageExitListener();
+    removeTimelinePageExitListener = null;
   }
   if (timelineSuspendHandler) {
     try {
@@ -413,9 +414,7 @@ export function startTimeline(): () => void {
     if (timelineEnabled) setupTimelineWhenBodyReady(generation);
   });
 
-  // Setup cleanup on page unload
-  timelineBeforeUnloadHandler = () => stopTimeline();
-  window.addEventListener('beforeunload', timelineBeforeUnloadHandler, { once: true });
+  removeTimelinePageExitListener = addPageExitListener(stopTimeline);
 
   // Also cleanup on extension unload (if content script is removed)
   if (typeof chrome !== 'undefined' && chrome.runtime) {

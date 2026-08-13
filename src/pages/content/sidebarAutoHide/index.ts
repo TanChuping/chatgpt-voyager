@@ -1,3 +1,5 @@
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
+
 import { findChatGptSidebar } from '../chatgptDom';
 
 const STYLE_ID = 'gv-sidebar-auto-hide-style';
@@ -50,7 +52,7 @@ let lifecycleGeneration = 0;
 let storageChangeHandler:
   | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
   | null = null;
-let beforeUnloadHandler: (() => void) | null = null;
+let removePageExitListener: (() => void) | null = null;
 
 function isActiveGeneration(generation: number): boolean {
   return started && generation === lifecycleGeneration;
@@ -380,9 +382,9 @@ export function stopSidebarAutoHide(restoreSidebar = true): void {
     }
     storageChangeHandler = null;
   }
-  if (beforeUnloadHandler) {
-    window.removeEventListener('beforeunload', beforeUnloadHandler);
-    beforeUnloadHandler = null;
+  if (removePageExitListener) {
+    removePageExitListener();
+    removePageExitListener = null;
   }
 }
 
@@ -415,8 +417,7 @@ export function startSidebarAutoHide(): () => void {
     storageChangeHandler = null;
   }
 
-  beforeUnloadHandler = () => stopSidebarAutoHide(false);
-  window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
+  removePageExitListener = addPageExitListener(() => stopSidebarAutoHide(false));
 
   chrome.storage?.sync?.get({ [AUTO_HIDE_KEY]: false, [FULL_HIDE_KEY]: false }, (result) => {
     if (!isActiveGeneration(generation)) return;

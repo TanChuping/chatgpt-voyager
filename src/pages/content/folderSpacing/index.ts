@@ -1,6 +1,7 @@
 /**
  * Adjusts spacing between GPT-Voyager folders and conversation rows.
  */
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
 
 const STYLE_ID = 'gv-folder-spacing-style';
 const STORAGE_KEY = 'gvFolderSpacing';
@@ -55,6 +56,7 @@ export function startFolderSpacingAdjuster(): () => void {
 
   let currentSpacing = DEFAULT_SPACING;
   let disposed = false;
+  let removePageExitListener: (() => void) | null = null;
 
   const storageChangeHandler = (
     changes: Record<string, chrome.storage.StorageChange>,
@@ -73,7 +75,8 @@ export function startFolderSpacingAdjuster(): () => void {
     if (disposed) return;
     disposed = true;
     removeStyles();
-    window.removeEventListener('beforeunload', cleanup);
+    removePageExitListener?.();
+    removePageExitListener = null;
     try {
       chrome.storage?.onChanged?.removeListener(storageChangeHandler);
     } catch {
@@ -94,7 +97,7 @@ export function startFolderSpacingAdjuster(): () => void {
   });
 
   chrome.storage?.onChanged?.addListener(storageChangeHandler);
-  window.addEventListener('beforeunload', cleanup, { once: true });
+  removePageExitListener = addPageExitListener(cleanup);
 
   return cleanup;
 }

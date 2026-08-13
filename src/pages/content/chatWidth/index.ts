@@ -1,6 +1,7 @@
 /**
  * Adjusts the chat area width based on user settings (stored as viewport %)
  */
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
 
 const STYLE_ID = 'gpt-voyager-chat-width';
 const DEFAULT_PERCENT = 70;
@@ -252,7 +253,7 @@ let storageChangeHandler:
   | null = null;
 let widthObserver: MutationObserver | null = null;
 let debounceTimer: number | null = null;
-let beforeUnloadHandler: (() => void) | null = null;
+let removePageExitListener: (() => void) | null = null;
 
 function isActiveGeneration(generation: number): boolean {
   return started && generation === lifecycleGeneration;
@@ -275,9 +276,9 @@ export function stopChatWidthAdjuster(): void {
     } catch {}
     storageChangeHandler = null;
   }
-  if (beforeUnloadHandler) {
-    window.removeEventListener('beforeunload', beforeUnloadHandler);
-    beforeUnloadHandler = null;
+  if (removePageExitListener) {
+    removePageExitListener();
+    removePageExitListener = null;
   }
   removeStyles();
 }
@@ -392,7 +393,6 @@ export function startChatWidthAdjuster(): () => void {
     });
   }
 
-  beforeUnloadHandler = () => stopChatWidthAdjuster();
-  window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
+  removePageExitListener = addPageExitListener(stopChatWidthAdjuster);
   return stopChatWidthAdjuster;
 }

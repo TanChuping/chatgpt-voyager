@@ -33,7 +33,9 @@ describe('folderSpacing', () => {
   });
 
   afterEach(() => {
-    window.dispatchEvent(new Event('beforeunload'));
+    const event = new Event('pagehide') as PageTransitionEvent;
+    Object.defineProperty(event, 'persisted', { value: false });
+    window.dispatchEvent(event);
   });
 
   // ===== Gemini platform tests =====
@@ -269,13 +271,19 @@ describe('folderSpacing', () => {
   // ===== Shared behavior tests =====
 
   describe('shared behavior', () => {
-    it('removes style element on beforeunload', async () => {
+    it('keeps styles on beforeunload but removes them once the page is discarded', async () => {
       const { startFolderSpacingAdjuster } = await import('../index');
       startFolderSpacingAdjuster('gemini');
 
       expect(document.getElementById(STYLE_ID)).not.toBeNull();
 
       window.dispatchEvent(new Event('beforeunload'));
+
+      expect(document.getElementById(STYLE_ID)).not.toBeNull();
+
+      const event = new Event('pagehide') as PageTransitionEvent;
+      Object.defineProperty(event, 'persisted', { value: false });
+      window.dispatchEvent(event);
 
       expect(document.getElementById(STYLE_ID)).toBeNull();
     });

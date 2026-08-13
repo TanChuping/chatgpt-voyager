@@ -17,12 +17,9 @@
  */
 import { ANNOUNCEMENT_JSON_URL } from '@/core/constants/project';
 import { StorageKeys } from '@/core/types/common';
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
 
-import type {
-  AnnouncementCacheEntry,
-  RemoteAnnouncement,
-  RemoteAnnouncementFile,
-} from './types';
+import type { AnnouncementCacheEntry, RemoteAnnouncement, RemoteAnnouncementFile } from './types';
 
 const CACHE_TTL_MS = 30 * 60 * 1000; // refetch at most every 30 min
 
@@ -103,7 +100,10 @@ async function readCache(): Promise<AnnouncementCacheEntry | null> {
         if (cache.payload !== null && !isAnnouncementFile(cache.payload)) {
           return resolve(null);
         }
-        resolve({ fetchedAt: cache.fetchedAt, payload: cache.payload as RemoteAnnouncementFile | null });
+        resolve({
+          fetchedAt: cache.fetchedAt,
+          payload: cache.payload as RemoteAnnouncementFile | null,
+        });
       });
     } catch {
       resolve(null);
@@ -247,7 +247,11 @@ async function evaluate(payload: RemoteAnnouncementFile | null): Promise<Announc
 }
 
 const listeners = new Set<Listener>();
-let lastSnapshot: AnnouncementSnapshot = { current: null, shouldPopBubble: false, hasUnread: false };
+let lastSnapshot: AnnouncementSnapshot = {
+  current: null,
+  shouldPopBubble: false,
+  hasUnread: false,
+};
 let installed = false;
 let pollTimer: number | null = null;
 
@@ -351,16 +355,15 @@ export function subscribe(cb: Listener): () => void {
  * Install storage-change watchers + start the periodic refresh loop.
  * Safe to call multiple times — second call is a no-op.
  */
-export function installAnnouncementWatchers(onChange: (snapshot: AnnouncementSnapshot) => void): void {
+export function installAnnouncementWatchers(
+  onChange: (snapshot: AnnouncementSnapshot) => void,
+): void {
   if (installed) return;
   installed = true;
 
   // Storage change watcher: any tab marking SEEN or BUBBLE_SHOWN should
   // propagate to this tab's bubble/dot immediately.
-  const onStorage = (
-    changes: Record<string, chrome.storage.StorageChange>,
-    area: string,
-  ) => {
+  const onStorage = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
     if (area !== 'local') return;
     if (
       changes[StorageKeys.ANNOUNCEMENT_SEEN_ID] ||
@@ -402,21 +405,17 @@ export function installAnnouncementWatchers(onChange: (snapshot: AnnouncementSna
     }
   });
 
-  window.addEventListener(
-    'beforeunload',
-    () => {
-      if (pollTimer !== null) {
-        window.clearInterval(pollTimer);
-        pollTimer = null;
-      }
-      try {
-        chrome.storage?.onChanged?.removeListener(onStorage);
-      } catch {
-        /* ignore */
-      }
-    },
-    { once: true },
-  );
+  addPageExitListener(() => {
+    if (pollTimer !== null) {
+      window.clearInterval(pollTimer);
+      pollTimer = null;
+    }
+    try {
+      chrome.storage?.onChanged?.removeListener(onStorage);
+    } catch {
+      /* ignore */
+    }
+  });
 }
 
 /** Test-only: reset module state. */

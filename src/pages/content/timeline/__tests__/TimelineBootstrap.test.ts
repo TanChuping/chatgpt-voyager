@@ -13,7 +13,9 @@ describe('Timeline bootstrap', () => {
   });
 
   afterEach(() => {
-    window.dispatchEvent(new Event('beforeunload'));
+    const event = new Event('pagehide') as PageTransitionEvent;
+    Object.defineProperty(event, 'persisted', { value: false });
+    window.dispatchEvent(event);
   });
 
   it('startTimeline initializes only once when body already exists', async () => {
@@ -64,5 +66,25 @@ describe('Timeline bootstrap', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 900));
     expect(initSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('stays mounted when beforeunload fires without a confirmed page exit', async () => {
+    const managerModule = await import('../manager');
+    const destroySpy = vi
+      .spyOn(managerModule.TimelineManager.prototype, 'destroy')
+      .mockImplementation(() => {});
+    vi.spyOn(managerModule.TimelineManager.prototype, 'init').mockImplementation(async () => {
+      const bar = document.createElement('div');
+      bar.className = 'gpt-timeline-bar';
+      document.body.appendChild(bar);
+    });
+    const { startTimeline } = await import('../index');
+
+    startTimeline();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    window.dispatchEvent(new Event('beforeunload'));
+
+    expect(document.querySelector('.gpt-timeline-bar')).not.toBeNull();
+    expect(destroySpy).not.toHaveBeenCalled();
   });
 });

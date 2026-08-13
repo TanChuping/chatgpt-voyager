@@ -14,6 +14,7 @@
  *   #2c2c2a — elevated "front" panels (menus, dialogs)
  *   #3d3d3b — borders / strokes
  */
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
 
 const STYLE_ID = 'gv-gentle-dark-style';
 const STORAGE_KEY = 'gvGentleDarkMode';
@@ -23,7 +24,7 @@ let lifecycleGeneration = 0;
 let storageChangeHandler:
   | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
   | null = null;
-let beforeUnloadHandler: (() => void) | null = null;
+let removePageExitListener: (() => void) | null = null;
 
 function isActiveGeneration(generation: number): boolean {
   return started && generation === lifecycleGeneration;
@@ -123,9 +124,9 @@ export function stopGentleDarkMode(): void {
     storageChangeHandler = null;
   }
 
-  if (beforeUnloadHandler) {
-    window.removeEventListener('beforeunload', beforeUnloadHandler);
-    beforeUnloadHandler = null;
+  if (removePageExitListener) {
+    removePageExitListener();
+    removePageExitListener = null;
   }
 }
 
@@ -147,8 +148,7 @@ export function startGentleDarkMode(): () => void {
     storageChangeHandler = null;
   }
 
-  beforeUnloadHandler = () => stopGentleDarkMode();
-  window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
+  removePageExitListener = addPageExitListener(stopGentleDarkMode);
 
   try {
     chrome.storage?.sync?.get({ [STORAGE_KEY]: DEFAULT_ENABLED }, (res) => {

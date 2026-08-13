@@ -24,7 +24,9 @@ describe('sidebarAutoHide', () => {
   });
 
   afterEach(() => {
-    window.dispatchEvent(new Event('beforeunload'));
+    const event = new Event('pagehide') as PageTransitionEvent;
+    Object.defineProperty(event, 'persisted', { value: false });
+    window.dispatchEvent(event);
     vi.useRealTimers();
   });
 

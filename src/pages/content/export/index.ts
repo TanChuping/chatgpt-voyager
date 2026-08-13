@@ -7,6 +7,7 @@ import {
   buildRouteConversationIdFromUrl,
   extractConversationIdFromUrl as extractNativeConversationIdFromUrl,
 } from '@/core/utils/conversationIdentity';
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
 import { type AppLanguage, normalizeLanguage } from '@/utils/language';
 import { extractMessageDictionary } from '@/utils/localeMessages';
 import type { TranslationKey } from '@/utils/translations';
@@ -83,7 +84,7 @@ let exportMenuTriggerInteractionHandler: ((event: Event) => void) | null = null;
 let exportStorageChangeHandler:
   | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
   | null = null;
-let exportBeforeUnloadHandler: (() => void) | null = null;
+let removeExportPageExitListener: (() => void) | null = null;
 let activeExportSelectionCleanup: (() => void) | null = null;
 let exportStartupAbortController: AbortController | null = null;
 const exportInjectionTimers = new Set<number>();
@@ -2098,8 +2099,7 @@ export async function startExportButton(): Promise<void> {
     chrome.storage?.onChanged?.addListener(exportStorageChangeHandler);
   } catch {}
 
-  exportBeforeUnloadHandler = () => stopExportButton();
-  window.addEventListener('beforeunload', exportBeforeUnloadHandler, { once: true });
+  removeExportPageExitListener = addPageExitListener(stopExportButton);
 }
 
 async function showExportDialog(
@@ -2188,10 +2188,10 @@ export function stopExportButton(): void {
   }
   exportStorageChangeHandler = null;
 
-  if (exportBeforeUnloadHandler) {
-    window.removeEventListener('beforeunload', exportBeforeUnloadHandler);
+  if (removeExportPageExitListener) {
+    removeExportPageExitListener();
   }
-  exportBeforeUnloadHandler = null;
+  removeExportPageExitListener = null;
 
   exportInjectionTimers.forEach((timer) => window.clearTimeout(timer));
   exportInjectionTimers.clear();

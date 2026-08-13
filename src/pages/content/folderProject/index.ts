@@ -6,6 +6,7 @@
  * and automatically assigns the new conversation to the selected folder.
  */
 import { StorageKeys } from '@/core/types/common';
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
 import { getTranslationSyncUnsafe } from '@/utils/i18n';
 
 import { findChatInput } from '../chatInput/index';
@@ -43,7 +44,7 @@ let activationGeneration = 0;
 let storageChangeHandler:
   | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
   | null = null;
-let beforeUnloadHandler: (() => void) | null = null;
+let removePageExitListener: (() => void) | null = null;
 
 const SEND_BUTTON_SELECTOR =
   'button[aria-label*="Send"], button[aria-label*="send"], ' +
@@ -689,7 +690,7 @@ function activateFolderProject(manager: FolderManager): void {
 }
 
 export function stopFolderProject(): void {
-  if (!started && !featureInitialized && !storageChangeHandler && !beforeUnloadHandler) return;
+  if (!started && !featureInitialized && !storageChangeHandler && !removePageExitListener) return;
   started = false;
   lifecycleGeneration += 1;
   deactivateFolderProject(false);
@@ -704,9 +705,9 @@ export function stopFolderProject(): void {
     storageChangeHandler = null;
   }
 
-  if (beforeUnloadHandler) {
-    window.removeEventListener('beforeunload', beforeUnloadHandler);
-    beforeUnloadHandler = null;
+  if (removePageExitListener) {
+    removePageExitListener();
+    removePageExitListener = null;
   }
 }
 
@@ -746,8 +747,7 @@ export function startFolderProject(manager: FolderManager): () => void {
     storageChangeHandler = null;
   }
 
-  beforeUnloadHandler = stopFolderProject;
-  window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
+  removePageExitListener = addPageExitListener(stopFolderProject);
 
   chrome.storage?.sync?.get(
     {

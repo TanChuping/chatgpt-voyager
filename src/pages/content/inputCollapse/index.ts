@@ -1,6 +1,7 @@
 import browser from 'webextension-polyfill';
 
 import { StorageKeys } from '@/core/types/common';
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
 
 import { getTranslationSync } from '../../../utils/i18n';
 import { extractChatGptConversationIdFromUrl } from '../chatgptDom';
@@ -442,7 +443,7 @@ let processedContainers = new WeakSet<HTMLElement>();
 let settingsChangeHandler:
   | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
   | null = null;
-let beforeUnloadHandler: (() => void) | null = null;
+let removePageExitListener: (() => void) | null = null;
 let languageChangeHandler:
   | ((changes: Record<string, browser.Storage.StorageChange>, areaName: string) => void)
   | null = null;
@@ -452,16 +453,15 @@ const SETTINGS_DEFAULTS = {
   [StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY]: false,
 };
 
-function ensureBeforeUnloadHandler(): void {
-  if (beforeUnloadHandler) return;
-  beforeUnloadHandler = () => cleanup();
-  window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
+function ensurePageExitListener(): void {
+  if (removePageExitListener) return;
+  removePageExitListener = addPageExitListener(cleanup);
 }
 
-function removeBeforeUnloadHandler(): void {
-  if (!beforeUnloadHandler) return;
-  window.removeEventListener('beforeunload', beforeUnloadHandler);
-  beforeUnloadHandler = null;
+function removeRegisteredPageExitListener(): void {
+  if (!removePageExitListener) return;
+  removePageExitListener();
+  removePageExitListener = null;
 }
 
 function scheduleTimer(callback: () => void, delay: number): number {
@@ -496,7 +496,7 @@ export function cleanup() {
     settingsChangeHandler = null;
   }
 
-  removeBeforeUnloadHandler();
+  removeRegisteredPageExitListener();
 
   started = false;
 }
@@ -549,7 +549,7 @@ function teardownInputCollapse() {
 
   initialized = false;
   processedContainers = new WeakSet<HTMLElement>();
-  removeBeforeUnloadHandler();
+  removeRegisteredPageExitListener();
 }
 
 function setCollapsedState(container: HTMLElement, collapsed: boolean): void {
@@ -672,7 +672,7 @@ function initInputCollapse(allowCollapseNotEmpty: boolean = false) {
     return;
   }
   initialized = true;
-  ensureBeforeUnloadHandler();
+  ensurePageExitListener();
 
   injectStyles();
 

@@ -2,6 +2,7 @@ import {
   hasValidExtensionContext,
   isExtensionContextInvalidatedError,
 } from '@/core/utils/extensionContext';
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
 import { startFormulaCopy, stopFormulaCopy } from '@/features/formulaCopy';
 import { initI18n } from '@/utils/i18n';
 
@@ -176,19 +177,13 @@ function bootstrapContentScript(): void {
       onError: (error) => reportFeatureError('settings bootstrap', error),
     });
 
-    pageRouter = createPageSignalRouter(
-      (signal) => {
-        activeRuntime.trigger(
-          signal === 'canvas' ? PAGE_SIGNAL_FEATURE_IDS.canvas : PAGE_SIGNAL_FEATURE_IDS.tempChat,
-        );
-      },
-      hasPendingTempHandoff,
-    );
+    pageRouter = createPageSignalRouter((signal) => {
+      activeRuntime.trigger(
+        signal === 'canvas' ? PAGE_SIGNAL_FEATURE_IDS.canvas : PAGE_SIGNAL_FEATURE_IDS.tempChat,
+      );
+    }, hasPendingTempHandoff);
 
-    businessDemandRouter = createBusinessDemandRouter(
-      triggerBusinessDemand,
-      hasPendingTempHandoff,
-    );
+    businessDemandRouter = createBusinessDemandRouter(triggerBusinessDemand, hasPendingTempHandoff);
 
     pageRouter.start();
     businessDemandRouter.start();
@@ -233,13 +228,12 @@ function bootstrapContentScript(): void {
     window.removeEventListener('vite:preloadError', onPreloadError);
     window.removeEventListener('unhandledrejection', onUnhandledRejection);
     window.removeEventListener('error', onWindowError);
-    window.removeEventListener('beforeunload', shutdown);
   };
 
   window.addEventListener('vite:preloadError', onPreloadError);
   window.addEventListener('unhandledrejection', onUnhandledRejection);
   window.addEventListener('error', onWindowError);
-  window.addEventListener('beforeunload', shutdown, { once: true });
+  addPageExitListener(shutdown);
 
   if (isChatGPTSite()) startChatGptBootstrap();
   else startCustomWebsiteBootstrap();

@@ -1,6 +1,7 @@
 /**
  * Adjusts the chat message font size based on user settings (stored as percentage)
  */
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
 
 const STYLE_ID = 'gpt-voyager-chat-font-size';
 const CODE_STYLE_ID = 'gpt-voyager-code-font-size';
@@ -130,16 +131,15 @@ let codeEnabled = false;
 let storageChangeHandler:
   | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
   | null = null;
-let beforeUnloadHandler: (() => void) | null = null;
+let removePageExitListener: (() => void) | null = null;
 
-function updateBeforeUnloadHandler(): void {
+function updatePageExitListener(): void {
   const needsLifecycleCleanup = enabled || codeEnabled;
-  if (needsLifecycleCleanup && !beforeUnloadHandler) {
-    beforeUnloadHandler = () => stopChatFontSizeAdjuster();
-    window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
-  } else if (!needsLifecycleCleanup && beforeUnloadHandler) {
-    window.removeEventListener('beforeunload', beforeUnloadHandler);
-    beforeUnloadHandler = null;
+  if (needsLifecycleCleanup && !removePageExitListener) {
+    removePageExitListener = addPageExitListener(stopChatFontSizeAdjuster);
+  } else if (!needsLifecycleCleanup && removePageExitListener) {
+    removePageExitListener();
+    removePageExitListener = null;
   }
 }
 
@@ -205,9 +205,9 @@ export function stopChatFontSizeAdjuster(): void {
     storageChangeHandler = null;
   }
 
-  if (beforeUnloadHandler) {
-    window.removeEventListener('beforeunload', beforeUnloadHandler);
-    beforeUnloadHandler = null;
+  if (removePageExitListener) {
+    removePageExitListener();
+    removePageExitListener = null;
   }
 
   started = false;
@@ -234,7 +234,7 @@ export function startChatFontSizeAdjuster() {
       settingRevisions[key] = revision;
       applySettingValue(key, changes[key].newValue);
     }
-    updateBeforeUnloadHandler();
+    updatePageExitListener();
   };
 
   chrome.storage?.onChanged?.addListener(storageChangeHandler);
@@ -250,6 +250,6 @@ export function startChatFontSizeAdjuster() {
         applySettingValue(key, res?.[key]);
       }
     }
-    updateBeforeUnloadHandler();
+    updatePageExitListener();
   });
 }

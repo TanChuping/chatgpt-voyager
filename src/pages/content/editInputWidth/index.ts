@@ -5,6 +5,7 @@
  * turn. The bottom unified composer is intentionally outside this feature.
  * Named `.edit-mode` rules remain as lightweight Gemini-era compatibility.
  */
+import { addPageExitListener } from '@/core/utils/pageLifecycle';
 
 const STYLE_ID = 'gpt-voyager-edit-input-width';
 const VALUE_KEY = 'gptEditInputWidth';
@@ -98,7 +99,7 @@ let enabledRevision = 0;
 let currentWidthPercent = DEFAULT_PERCENT;
 let enabled = false;
 let storageChangeHandler: StorageChangeHandler | null = null;
-let beforeUnloadHandler: (() => void) | null = null;
+let removePageExitListener: (() => void) | null = null;
 
 function persistSyncValue(value: Record<string, unknown>): void {
   try {
@@ -108,13 +109,12 @@ function persistSyncValue(value: Record<string, unknown>): void {
   }
 }
 
-function updateBeforeUnloadHandler(): void {
-  if (enabled && !beforeUnloadHandler) {
-    beforeUnloadHandler = () => stopEditInputWidthAdjuster();
-    window.addEventListener('beforeunload', beforeUnloadHandler, { once: true });
-  } else if (!enabled && beforeUnloadHandler) {
-    window.removeEventListener('beforeunload', beforeUnloadHandler);
-    beforeUnloadHandler = null;
+function updatePageExitListener(): void {
+  if (enabled && !removePageExitListener) {
+    removePageExitListener = addPageExitListener(stopEditInputWidthAdjuster);
+  } else if (!enabled && removePageExitListener) {
+    removePageExitListener();
+    removePageExitListener = null;
   }
 }
 
@@ -135,7 +135,7 @@ function applyEnabled(value: unknown): void {
   enabled = value === true;
   if (enabled) applyWidth(currentWidthPercent);
   else removeStyles();
-  updateBeforeUnloadHandler();
+  updatePageExitListener();
 }
 
 export function stopEditInputWidthAdjuster(): void {
@@ -152,9 +152,9 @@ export function stopEditInputWidthAdjuster(): void {
     storageChangeHandler = null;
   }
 
-  if (beforeUnloadHandler) {
-    window.removeEventListener('beforeunload', beforeUnloadHandler);
-    beforeUnloadHandler = null;
+  if (removePageExitListener) {
+    removePageExitListener();
+    removePageExitListener = null;
   }
 
   started = false;
