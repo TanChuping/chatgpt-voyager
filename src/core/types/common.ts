@@ -123,6 +123,7 @@ export const StorageKeys = {
   INPUT_COLLAPSE_ENABLED: 'gvInputCollapseEnabled',
   INPUT_COLLAPSE_WHEN_NOT_EMPTY: 'gvInputCollapseWhenNotEmpty',
   INPUT_VIM_MODE: 'gvInputVimMode',
+  PLAIN_TEXT_INPUT_ENABLED: 'gvPlainTextInputEnabled',
   DRAFT_AUTO_SAVE: 'gvDraftAutoSave',
   PREVENT_AUTO_SCROLL_ENABLED: 'gvPreventAutoScrollEnabled',
 

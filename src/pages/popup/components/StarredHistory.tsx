@@ -78,7 +78,7 @@ export function StarredHistory({ onClose }: StarredHistoryProps) {
   };
 
   return (
-    <div className="bg-background text-foreground flex h-[600px] w-[360px] flex-col">
+    <div className="bg-background text-foreground flex h-full min-h-0 w-[360px] flex-col overflow-hidden">
       {/* Header */}
       <div className="from-primary/10 via-accent/5 border-border/50 border-b bg-linear-to-br to-transparent px-5 py-4 backdrop-blur-sm">
         <div className="mb-2 flex items-center justify-between">

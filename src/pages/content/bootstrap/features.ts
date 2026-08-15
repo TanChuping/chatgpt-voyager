@@ -26,6 +26,7 @@ export const BOOTSTRAP_SETTING_KEYS = [
   StorageKeys.SAFARI_ENTER_FIX,
   StorageKeys.INPUT_COLLAPSE_ENABLED,
   StorageKeys.INPUT_VIM_MODE,
+  StorageKeys.PLAIN_TEXT_INPUT_ENABLED,
   StorageKeys.DRAFT_AUTO_SAVE,
   StorageKeys.PREVENT_AUTO_SCROLL_ENABLED,
   StorageKeys.QUOTE_REPLY_ENABLED,
@@ -252,6 +253,15 @@ export function createLazyFeatureDefinitions(
       load: async () => {
         const module = await import('../chatInput/vimMode');
         return { start: module.startInputVimMode, stop: module.stopInputVimMode };
+      },
+    },
+    {
+      id: 'plain-text-input',
+      initial: 'immediate',
+      isEnabled: (settings) => isTrue(settings, StorageKeys.PLAIN_TEXT_INPUT_ENABLED),
+      load: async () => {
+        const module = await import('../plainTextInput/index');
+        return { start: module.startPlainTextInput, stop: module.stopPlainTextInput };
       },
     },
     {

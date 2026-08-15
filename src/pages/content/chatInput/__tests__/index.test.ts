@@ -102,6 +102,25 @@ describe('chat input helpers', () => {
     expect(findChatInput()).toBe(visibleInput);
   });
 
+  it('prefers the visible Voyager plain-text editor over the hidden native editor', () => {
+    document.body.innerHTML = `
+      <rich-textarea>
+        <div id="prompt-textarea" contenteditable="true" role="textbox"></div>
+        <textarea data-gv-plain-text-input="true"></textarea>
+      </rich-textarea>
+    `;
+    const nativeInput = document.getElementById('prompt-textarea');
+    const plainInput = document.querySelector('textarea[data-gv-plain-text-input="true"]');
+    if (!(nativeInput instanceof HTMLElement) || !(plainInput instanceof HTMLTextAreaElement)) {
+      throw new Error('Expected plain-text composer fixture.');
+    }
+    nativeInput.getBoundingClientRect = () =>
+      ({ height: 0, width: 0, top: 0, left: 0, right: 0, bottom: 0, x: 0, y: 0 }) as DOMRect;
+    setVisibleRect(plainInput);
+
+    expect(findChatInput()).toBe(plainInput);
+  });
+
   it('still prefers visible input when hidden matches are allowed', () => {
     document.body.innerHTML = `
       <rich-textarea>

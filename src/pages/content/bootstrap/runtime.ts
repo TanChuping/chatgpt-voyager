@@ -52,6 +52,7 @@ interface FeatureState {
   scheduled?: IdleJob;
   started: boolean;
   starting?: Promise<void>;
+  stopping?: Promise<void>;
 }
 
 export interface LazyFeatureRuntimeOptions {
@@ -307,16 +308,31 @@ export class LazyFeatureRuntime {
 
   private stopStartedFeature(featureId: string, state: FeatureState): Promise<void> | undefined {
     if (!state.started) return undefined;
+    if (state.stopping) return state.stopping;
     const stop = state.cleanup ?? state.adapter?.stop;
 
     // Start-only modules remain mounted and own their internal setting bridge.
     // This avoids duplicate listeners if the user enables them again.
     if (!stop) return undefined;
 
-    state.started = false;
-    state.cleanup = undefined;
     try {
-      return Promise.resolve(stop()).catch((error) => this.onError(featureId, error));
+      let completed = false;
+      const stopping = Promise.resolve(stop())
+        .then(() => {
+          completed = true;
+          state.started = false;
+          state.cleanup = undefined;
+        })
+        .catch((error) => this.onError(featureId, error))
+        .finally(() => {
+          if (state.stopping === stopping) state.stopping = undefined;
+          if (completed && !this.closed && state.desired) {
+            const definition = this.definitions.get(featureId);
+            if (definition) this.reconcileDefinition(definition, state, false);
+          }
+        });
+      state.stopping = stopping;
+      return stopping;
     } catch (error) {
       this.onError(featureId, error);
       return Promise.resolve();

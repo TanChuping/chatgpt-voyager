@@ -9,6 +9,16 @@ body {
     Arial,
     sans-serif;
 }
+
+html,
+body,
 #__root {
-  display: inline-block;
+  width: 360px;
+  height: min(600px, 100vh);
+  max-height: 100vh;
+  overflow: hidden;
+}
+
+#__root {
+  display: block;
 }

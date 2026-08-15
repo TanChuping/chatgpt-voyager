@@ -1076,6 +1076,12 @@
   "inputVimModeHint": {
     "message": "Use i and Escape to switch insert/normal mode in the composer."
   },
+  "plainTextInput": {
+    "message": "Plain text input"
+  },
+  "plainTextInputHint": {
+    "message": "Keep Markdown characters unchanged while editing; render them normally after sending."
+  },
   "ctrlEnterSend": {
     "message": "{modifier}+Enter to send"
   },

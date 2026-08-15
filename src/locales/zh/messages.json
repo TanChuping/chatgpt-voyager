@@ -1076,6 +1076,12 @@
   "inputVimModeHint": {
     "message": "在输入框中使用 i 和 Esc 切换插入/普通模式。"
   },
+  "plainTextInput": {
+    "message": "纯文本输入模式"
+  },
+  "plainTextInputHint": {
+    "message": "编辑时原样保留 Markdown 字符，发送后仍正常渲染。"
+  },
   "ctrlEnterSend": {
     "message": "{modifier}+Enter 发送"
   },

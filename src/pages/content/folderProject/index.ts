@@ -13,6 +13,11 @@ import { findChatInput } from '../chatInput/index';
 import { extractChatGptConversationIdFromUrl } from '../chatgptDom';
 import { getFolderColor, isDarkMode } from '../folder/folderColors';
 import type { FolderManager } from '../folder/manager';
+import {
+  PLAIN_TEXT_BEFORE_SEND_EVENT,
+  PLAIN_TEXT_NATIVE_SEND_ATTRIBUTE,
+  type PlainTextBeforeSendDetail,
+} from '../shared/plainTextInputBridge';
 import { setInputText } from '../utils/inputHelper';
 import {
   buildInstructionBlock,
@@ -38,6 +43,7 @@ let pendingSend = false;
 let pendingSendResetTimer: ReturnType<typeof setTimeout> | null = null;
 let sendClickListener: ((e: Event) => void) | null = null;
 let sendKeydownListener: ((e: KeyboardEvent) => void) | null = null;
+let plainTextBeforeSendListener: ((e: Event) => void) | null = null;
 let started = false;
 let lifecycleGeneration = 0;
 let activationGeneration = 0;
@@ -47,9 +53,10 @@ let storageChangeHandler:
 let removePageExitListener: (() => void) | null = null;
 
 const SEND_BUTTON_SELECTOR =
-  'button[aria-label*="Send"], button[aria-label*="send"], ' +
+  'button[data-testid="send-button"], button[aria-label*="Send"], button[aria-label*="send"], ' +
   'button[data-tooltip*="Send"], button[data-tooltip*="send"], ' +
   '[data-send-button], .send-button';
+const PLAIN_TEXT_NATIVE_SEND_SELECTOR = `[${PLAIN_TEXT_NATIVE_SEND_ATTRIBUTE}="true"]`;
 
 function isCurrentLifecycle(generation: number): boolean {
   return started && generation === lifecycleGeneration;
@@ -230,11 +237,12 @@ function isEditableTarget(target: EventTarget | null): target is HTMLElement {
 }
 
 function setupSendDetection(): void {
-  if (sendClickListener || sendKeydownListener) return;
+  if (sendClickListener || sendKeydownListener || plainTextBeforeSendListener) return;
 
   sendClickListener = (e: Event) => {
     if (!selectedFolderId) return;
     const target = e.target as HTMLElement;
+    if (target.closest(PLAIN_TEXT_NATIVE_SEND_SELECTOR)) return;
     if (target.closest(SEND_BUTTON_SELECTOR)) {
       markPendingSend(findChatInput());
     }
@@ -245,8 +253,16 @@ function setupSendDetection(): void {
     markPendingSend(e.target);
   };
 
+  plainTextBeforeSendListener = (event: Event) => {
+    if (!selectedFolderId) return;
+    const input = (event as CustomEvent<PlainTextBeforeSendDetail>).detail?.input;
+    if (!(input instanceof HTMLTextAreaElement) || !input.isConnected) return;
+    markPendingSend(input);
+  };
+
   document.addEventListener('click', sendClickListener, true);
   document.addEventListener('keydown', sendKeydownListener, true);
+  document.addEventListener(PLAIN_TEXT_BEFORE_SEND_EVENT, plainTextBeforeSendListener);
 }
 
 function teardownSendDetection(): void {
@@ -257,6 +273,10 @@ function teardownSendDetection(): void {
   if (sendKeydownListener) {
     document.removeEventListener('keydown', sendKeydownListener, true);
     sendKeydownListener = null;
+  }
+  if (plainTextBeforeSendListener) {
+    document.removeEventListener(PLAIN_TEXT_BEFORE_SEND_EVENT, plainTextBeforeSendListener);
+    plainTextBeforeSendListener = null;
   }
   clearPendingSendState();
 }

@@ -336,6 +336,7 @@ export default function Popup() {
   const [inputCollapse, setInputCollapse] = useState(false);
   const [inputCollapseWhenNotEmpty, setInputCollapseWhenNotEmpty] = useState(false);
   const [vimMode, setVimMode] = useState(false);
+  const [plainTextInput, setPlainTextInput] = useState(false);
   const [draftAutoSave, setDraftAutoSave] = useState(false);
   const [preventAutoScroll, setPreventAutoScroll] = useState(false);
   const [quoteReply, setQuoteReply] = useState(true);
@@ -489,6 +490,7 @@ export default function Popup() {
         [StorageKeys.INPUT_COLLAPSE_ENABLED]: false,
         [StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY]: false,
         [StorageKeys.INPUT_VIM_MODE]: false,
+        [StorageKeys.PLAIN_TEXT_INPUT_ENABLED]: false,
         [StorageKeys.DRAFT_AUTO_SAVE]: false,
         [StorageKeys.PREVENT_AUTO_SCROLL_ENABLED]: false,
         [StorageKeys.QUOTE_REPLY_ENABLED]: true,
@@ -610,6 +612,7 @@ export default function Popup() {
         setInputCollapse(result[StorageKeys.INPUT_COLLAPSE_ENABLED] === true);
         setInputCollapseWhenNotEmpty(result[StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY] === true);
         setVimMode(result[StorageKeys.INPUT_VIM_MODE] === true);
+        setPlainTextInput(result[StorageKeys.PLAIN_TEXT_INPUT_ENABLED] === true);
         setDraftAutoSave(result[StorageKeys.DRAFT_AUTO_SAVE] === true);
         setPreventAutoScroll(result[StorageKeys.PREVENT_AUTO_SCROLL_ENABLED] === true);
         setQuoteReply(result[StorageKeys.QUOTE_REPLY_ENABLED] !== false);
@@ -729,8 +732,8 @@ export default function Popup() {
   }
 
   return (
-    <div className="bg-background text-foreground w-[360px]">
-      <div className="border-border/50 flex items-center justify-between border-b px-5 py-5">
+    <div className="bg-background text-foreground flex h-full min-h-0 w-[360px] flex-col overflow-hidden">
+      <div className="border-border/50 flex shrink-0 items-center justify-between border-b px-5 py-5">
         <h1 className="text-primary text-2xl font-extrabold tracking-tight">{t('extName')}</h1>
         <div className="flex items-center gap-1">
           <DarkModeToggle />
@@ -738,7 +741,7 @@ export default function Popup() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 p-5">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-5">
         <Section title={t('timelineOptions')}>
           <ToggleRow
             id="timeline-enabled"
@@ -1177,6 +1180,15 @@ export default function Popup() {
             onChange={(value) => updateToggle(setVimMode, StorageKeys.INPUT_VIM_MODE, value)}
           />
           <ToggleRow
+            id="plain-text-input"
+            title={t('plainTextInput')}
+            description={t('plainTextInputHint')}
+            checked={plainTextInput}
+            onChange={(value) =>
+              updateToggle(setPlainTextInput, StorageKeys.PLAIN_TEXT_INPUT_ENABLED, value)
+            }
+          />
+          <ToggleRow
             id="draft-save"
             title={t('draftAutoSave')}
             description={t('draftAutoSaveHint')}
@@ -1390,7 +1402,7 @@ export default function Popup() {
         </Section>
       </div>
 
-      <div className="text-muted-foreground border-border/50 flex items-center justify-center gap-3 border-t px-5 py-3 text-center text-xs">
+      <div className="text-muted-foreground border-border/50 flex shrink-0 items-center justify-center gap-3 border-t px-5 py-3 text-center text-xs">
         <span>{extVersion ? `v${extVersion}` : 'GPT-Voyager'}</span>
         <a
           href={PROJECT_REPOSITORY_URL}

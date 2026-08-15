@@ -228,6 +228,27 @@ describe('sendBehavior', () => {
     cleanup();
   });
 
+  it('does not start a second send for the Voyager plain-text layer', async () => {
+    const inputContainer = document.createElement('div');
+    inputContainer.className = 'text-input-field';
+    const textarea = document.createElement('textarea');
+    textarea.setAttribute('data-gv-plain-text-input', 'true');
+    const sendButton = document.createElement('button');
+    sendButton.setAttribute('aria-label', 'Send message');
+    markElementVisible(sendButton);
+    inputContainer.append(textarea, sendButton);
+    document.body.append(inputContainer);
+    const sendClickSpy = vi.spyOn(sendButton, 'click');
+
+    const { startSendBehavior } = await import('../index');
+    const cleanup = await startSendBehavior();
+    const event = fireCtrlEnter(textarea);
+
+    expect(sendClickSpy).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+    cleanup();
+  });
+
   it('inserts a textarea newline through execCommand when the browser command succeeds', async () => {
     const textarea = document.createElement('textarea');
     textarea.value = 'hello';

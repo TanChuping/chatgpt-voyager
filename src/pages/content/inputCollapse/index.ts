@@ -302,6 +302,7 @@ export function collapseInput(): void {
 function isInputEmpty(container: HTMLElement): boolean {
   // Check the text content of the rich-textarea
   const textarea =
+    container.querySelector('textarea[data-gv-plain-text-input="true"]') ||
     container.querySelector('rich-textarea') ||
     container.querySelector('textarea') ||
     container.querySelector('[contenteditable="true"]');
@@ -830,8 +831,9 @@ function expand(container: HTMLElement, moveCursorToEnd: boolean = false) {
   if (container.classList.contains(COLLAPSED_CLASS)) {
     setCollapsedState(container, false);
 
-    // Auto-focus the Quill editor
+    // Focus the visible plain-text layer first when that mode owns the composer.
     const editor =
+      container.querySelector('textarea[data-gv-plain-text-input="true"]') ||
       container.querySelector('.ql-editor') ||
       container.querySelector('[contenteditable]') ||
       container.querySelector('rich-textarea');
@@ -852,6 +854,12 @@ function expand(container: HTMLElement, moveCursorToEnd: boolean = false) {
  * Moves the cursor to the end of the content in a contenteditable element
  */
 function moveCursorToEndOfElement(element: HTMLElement): void {
+  if (element instanceof HTMLTextAreaElement) {
+    const end = element.value.length;
+    element.setSelectionRange(end, end);
+    return;
+  }
+
   const selection = window.getSelection();
   if (!selection) return;
 

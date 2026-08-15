@@ -421,6 +421,10 @@ function handleKeyDown(event: KeyboardEvent): void {
 
   const target = event.target as HTMLElement;
 
+  // Plain-text mode owns the textarea's complete Enter/send pipeline. Letting
+  // both modules handle the same event can start two button-click retries.
+  if (target.matches('textarea[data-gv-plain-text-input="true"]')) return;
+
   // Check if we're in an editable area (ChatGPT uses contenteditable divs)
   const isContentEditable =
     target.isContentEditable || target.getAttribute('contenteditable') === 'true';

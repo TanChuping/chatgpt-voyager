@@ -30,6 +30,7 @@ describe('SettingsBackupService', () => {
         [StorageKeys.CHAT_WIDTH]: 88,
         [StorageKeys.CHAT_FONT_SIZE]: 100,
         [StorageKeys.CODE_FONT_SIZE]: 100,
+        [StorageKeys.PLAIN_TEXT_INPUT_ENABLED]: false,
       }),
     });
     expect(payload.data).not.toHaveProperty('unknownKey');
@@ -44,6 +45,7 @@ describe('SettingsBackupService', () => {
     const restored = await restoreBackupableSyncSettings(
       {
         [StorageKeys.CHAT_WIDTH]: 92,
+        [StorageKeys.PLAIN_TEXT_INPUT_ENABLED]: true,
         unknownKey: 'ignore-me',
       },
       storageArea,
@@ -51,9 +53,11 @@ describe('SettingsBackupService', () => {
 
     expect(restored).toEqual({
       [StorageKeys.CHAT_WIDTH]: 92,
+      [StorageKeys.PLAIN_TEXT_INPUT_ENABLED]: true,
     });
     expect(storageArea.set).toHaveBeenCalledWith({
       [StorageKeys.CHAT_WIDTH]: 92,
+      [StorageKeys.PLAIN_TEXT_INPUT_ENABLED]: true,
     });
   });
 

@@ -47,6 +47,7 @@ const SEND_CHECK_INTERVAL_MS = 1000;
 
 /** Selectors for finding the chat input */
 const INPUT_SELECTORS = [
+  'textarea[data-gv-plain-text-input="true"]',
   'rich-textarea [contenteditable="true"]',
   'div[contenteditable="true"][role="textbox"]',
   '.input-area textarea',

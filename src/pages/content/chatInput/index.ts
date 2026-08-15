@@ -1,4 +1,5 @@
 const CHAT_INPUT_SELECTORS = [
+  'textarea[data-gv-plain-text-input="true"]',
   'rich-textarea [contenteditable="true"]',
   'div[contenteditable="true"][role="textbox"]',
   '.input-area textarea',
