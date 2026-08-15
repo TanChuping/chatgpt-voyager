@@ -7,6 +7,8 @@ import type { ForkNode, ForkNodesData } from '@/pages/content/fork/forkTypes';
 import type { StarredMessage, StarredMessagesData } from '@/pages/content/timeline/starredTypes';
 import { getTranslation } from '@/utils/i18n';
 
+import { createSettingsSurfaceOpener } from './openSettingsSurface';
+
 const CUSTOM_CONTENT_SCRIPT_ID = 'gv-custom-content-script';
 const CUSTOM_WEBSITE_KEY = StorageKeys.PROMPT_CUSTOM_WEBSITES;
 const RESPONSE_NOTIFICATION_PREFIX = 'gv-response-complete:';
@@ -567,6 +569,19 @@ class ForkNodesManager {
 
 const starredMessagesManager = new StarredMessagesManager();
 const forkNodesManager = new ForkNodesManager();
+const openSettingsSurface = createSettingsSurfaceOpener({
+  focusWindow: (windowId) => chrome.windows.update(windowId, { focused: true }),
+  getSettingsUrl: () => chrome.runtime.getURL('src/pages/popup/index.html'),
+  openActionPopup: () => chrome.action.openPopup(),
+  openWindow: (url) =>
+    chrome.windows.create({
+      focused: true,
+      height: 660,
+      type: 'popup',
+      url,
+      width: 400,
+    }),
+});
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
@@ -667,15 +682,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
 
       if (message?.type === 'gv.openPopup') {
-        try {
-          await chrome.action.openPopup();
-          sendResponse({ ok: true });
-        } catch (error) {
-          sendResponse({
-            ok: false,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
+        sendResponse(await openSettingsSurface());
         return;
       }
 
