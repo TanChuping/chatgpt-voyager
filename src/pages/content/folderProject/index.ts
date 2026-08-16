@@ -237,7 +237,9 @@ function isEditableTarget(target: EventTarget | null): target is HTMLElement {
 }
 
 function setupSendDetection(): void {
-  if (sendClickListener || sendKeydownListener || plainTextBeforeSendListener) return;
+  if (sendClickListener || sendKeydownListener || plainTextBeforeSendListener) {
+    return;
+  }
 
   sendClickListener = (e: Event) => {
     if (!selectedFolderId) return;
@@ -249,7 +251,15 @@ function setupSendDetection(): void {
   };
 
   sendKeydownListener = (e: KeyboardEvent) => {
-    if (!selectedFolderId || !isKeyboardSend(e) || !isEditableTarget(e.target)) return;
+    if (!selectedFolderId || !isEditableTarget(e.target)) return;
+    if (e.target.classList.contains('gv-plain-text-input-native')) return;
+    if (
+      e.target instanceof HTMLTextAreaElement &&
+      e.target.hasAttribute('data-gv-plain-text-input')
+    ) {
+      return;
+    }
+    if (!isKeyboardSend(e)) return;
     markPendingSend(e.target);
   };
 

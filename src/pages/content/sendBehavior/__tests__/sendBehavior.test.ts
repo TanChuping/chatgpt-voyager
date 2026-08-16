@@ -249,6 +249,28 @@ describe('sendBehavior', () => {
     cleanup();
   });
 
+  it('does not intercept the plain-text replay on the hidden native editor', async () => {
+    const inputContainer = document.createElement('div');
+    inputContainer.className = 'text-input-field';
+    const editor = document.createElement('div');
+    editor.contentEditable = 'true';
+    editor.classList.add('gv-plain-text-input-native');
+    const sendButton = document.createElement('button');
+    sendButton.setAttribute('aria-label', 'Send message');
+    markElementVisible(sendButton);
+    inputContainer.append(editor, sendButton);
+    document.body.append(inputContainer);
+    const sendClickSpy = vi.spyOn(sendButton, 'click');
+
+    const { startSendBehavior } = await import('../index');
+    const cleanup = await startSendBehavior();
+    const event = fireCtrlEnter(editor);
+
+    expect(sendClickSpy).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+    cleanup();
+  });
+
   it('inserts a textarea newline through execCommand when the browser command succeeds', async () => {
     const textarea = document.createElement('textarea');
     textarea.value = 'hello';

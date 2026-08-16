@@ -571,7 +571,7 @@ const starredMessagesManager = new StarredMessagesManager();
 const forkNodesManager = new ForkNodesManager();
 const openSettingsSurface = createSettingsSurfaceOpener({
   focusWindow: (windowId) => chrome.windows.update(windowId, { focused: true }),
-  getSettingsUrl: () => chrome.runtime.getURL('src/pages/popup/index.html'),
+  getSettingsUrl: () => `${chrome.runtime.getURL('src/pages/popup/index.html')}?surface=window`,
   openActionPopup: () => chrome.action.openPopup(),
   openWindow: (url) =>
     chrome.windows.create({

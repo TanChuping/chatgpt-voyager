@@ -17,6 +17,16 @@ body {
   overflow: hidden;
 }
 
+/* The anchored action popup needs a concrete bootstrap size: Chromium may
+   initially report a zero viewport. The explicit fallback window already has
+   a real viewport, so fit that surface instead of hiding its footer below the
+   browser chrome. */
+html[data-settings-surface='window'],
+html[data-settings-surface='window'] body {
+  width: 100%;
+  height: 100vh;
+}
+
 #__root {
   width: 100%;
   height: 100%;

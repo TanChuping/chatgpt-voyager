@@ -95,6 +95,13 @@ describe('folderProject plain-text send bridge', () => {
       ?.querySelector<HTMLButtonElement>('[data-testid="send-button"]');
     if (!sendButton || !textarea) throw new Error('Expected composer controls.');
     vi.spyOn(textarea, 'getBoundingClientRect').mockReturnValue({ height: 24 } as DOMRect);
+
+    // The legacy Voyager Enter setting must not prepend instructions directly
+    // to the visible plain textarea. ChatGPT decides whether the key sends;
+    // the plain-text bridge injects instructions only after a real send starts.
+    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(textarea.value).toBe('question');
+
     sendButton.dispatchEvent(
       new CustomEvent(PLAIN_TEXT_BEFORE_SEND_EVENT, {
         bubbles: true,

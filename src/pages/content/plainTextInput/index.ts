@@ -1,5 +1,3 @@
-import { StorageKeys } from '@/core/types/common';
-
 import {
   PLAIN_TEXT_BEFORE_SEND_EVENT,
   PLAIN_TEXT_NATIVE_SEND_ATTRIBUTE,
@@ -82,16 +80,15 @@ interface PlainComposer {
   hydrationObserver: MutationObserver | null;
   operationController: AbortController | null;
   syncingNative: boolean;
+  nativeSyncText: string | null;
   sending: boolean;
   disposed: boolean;
   composing: boolean;
   hasUserEdited: boolean;
-  onInput: () => void;
-  onBlur: () => void;
+  onInput: (event: Event) => void;
+  onClick: (event: MouseEvent) => void;
   onCompositionStart: () => void;
   onCompositionEnd: () => void;
-  onKeyDown: (event: KeyboardEvent) => void;
-  onPaste: (event: ClipboardEvent) => void;
   onDrop: (event: DragEvent) => void;
   onNativeInput: () => void;
 }
@@ -101,11 +98,6 @@ let stopping = false;
 let observer: MutationObserver | null = null;
 let routeTimer: number | null = null;
 let lifecycleController: AbortController | null = null;
-let storageListener:
-  | ((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void)
-  | null = null;
-let ctrlEnterSendEnabled = false;
-let ctrlEnterSettingRevision = 0;
 let bypassSendInterception = 0;
 let activeRouteKey = '';
 let routeTransition: { createdAt: number; routeKey: string; staleNativeTexts: Set<string> } | null =
@@ -163,9 +155,31 @@ function installStyle(): void {
   (document.head || document.documentElement).appendChild(style);
 }
 
+function serializeEditorNode(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
+  if (!(node instanceof HTMLElement)) return '';
+  if (node.tagName === 'BR') {
+    return node.classList.contains('ProseMirror-trailingBreak') ? '' : '\n';
+  }
+
+  const children = Array.from(node.childNodes);
+  const containsBlockChildren = children.some(
+    (child) =>
+      child instanceof HTMLElement &&
+      /^(ADDRESS|ARTICLE|ASIDE|BLOCKQUOTE|DIV|FIGCAPTION|FIGURE|FOOTER|H[1-6]|HEADER|LI|MAIN|NAV|OL|P|PRE|SECTION|UL)$/.test(
+        child.tagName,
+      ),
+  );
+  const separator = containsBlockChildren ? '\n' : '';
+  return children.map(serializeEditorNode).join(separator);
+}
+
 function readEditorText(editor: HTMLElement): string {
   if (editor instanceof HTMLTextAreaElement) return editor.value;
-  return editor.innerText ?? editor.textContent ?? '';
+  return Array.from(editor.childNodes)
+    .map(serializeEditorNode)
+    .join('\n')
+    .replace(/\u00a0/g, ' ');
 }
 
 function resizeTextarea(textarea: HTMLTextAreaElement): void {
@@ -388,20 +402,19 @@ async function synchronizeNativeText(
   const selectionStart = textarea.selectionStart;
   const selectionEnd = textarea.selectionEnd;
   const selectionDirection = textarea.selectionDirection;
+  record.nativeSyncText = text;
 
   if (readEditorText(editor) !== text) {
     record.syncingNative = true;
     try {
       editor.focus({ preventScroll: true });
-      if (!selectEditorContents(editor)) return false;
+      if (readEditorText(editor).length > 0) {
+        if (!selectEditorContents(editor) || !document.execCommand('delete', false)) return false;
+        if (readEditorText(editor).length > 0) return false;
+      }
 
       const pasteDispatched = dispatchPlainTextPaste(editor, text);
       if (text.length > 0 && !pasteDispatched) return false;
-
-      if (text.length === 0 && readEditorText(editor).length > 0) {
-        selectEditorContents(editor);
-        document.execCommand('delete', false);
-      }
     } catch (error) {
       console.warn('[GPT-Voyager] Plain text input sync failed:', error);
       return false;
@@ -419,6 +432,8 @@ async function synchronizeNativeText(
     record.lastNativeText = text;
     record.nativeRouteBaseline = null;
     clearRecoveredDraft(record, text);
+  } else if (record.nativeSyncText === text) {
+    record.nativeSyncText = null;
   }
   return synchronized;
 }
@@ -631,6 +646,24 @@ function createTextarea(editor: HTMLElement, initial: InitialComposerText): HTML
   textarea.autocapitalize = editor.getAttribute('autocapitalize') || 'sentences';
   textarea.spellcheck = editor.spellcheck;
   textarea.value = initial.text;
+
+  // The plain layer replaces only the editor implementation. Keep the native
+  // ProseMirror box metrics so the composer does not jump upward or shrink.
+  const layout = window.getComputedStyle(editor);
+  textarea.style.marginTop = layout.marginTop;
+  textarea.style.marginRight = layout.marginRight;
+  textarea.style.marginBottom = layout.marginBottom;
+  textarea.style.marginLeft = layout.marginLeft;
+  textarea.style.paddingTop = layout.paddingTop;
+  textarea.style.paddingRight = layout.paddingRight;
+  textarea.style.paddingBottom = layout.paddingBottom;
+  textarea.style.paddingLeft = layout.paddingLeft;
+  textarea.style.fontFamily = layout.fontFamily;
+  textarea.style.fontSize = layout.fontSize;
+  textarea.style.fontStyle = layout.fontStyle;
+  textarea.style.fontWeight = layout.fontWeight;
+  textarea.style.lineHeight = layout.lineHeight;
+  textarea.style.letterSpacing = layout.letterSpacing;
   return textarea;
 }
 
@@ -643,6 +676,7 @@ function refreshPristineComposer(record: PlainComposer): void {
     record.nativeRouteBaseline = null;
   }
   record.lastNativeText = nativeText;
+  if (record.nativeSyncText !== null && nativeText === record.nativeSyncText) return;
   if (record.textarea.value === nativeText) return;
   record.textarea.value = nativeText;
   resizeTextarea(record.textarea);
@@ -732,6 +766,7 @@ function transitionComposerRoute(
   record.operationController = null;
   record.sending = false;
   record.composing = false;
+  record.nativeSyncText = null;
   cancelScheduledSync(record);
 
   const nextId = draftId(nextRouteKey, record.slotKey);
@@ -812,26 +847,31 @@ function attachComposer(editor: HTMLElement): void {
     hydrationObserver: null,
     operationController: null,
     syncingNative: false,
+    nativeSyncText: null,
     sending: false,
     disposed: false,
     composing: false,
     hasUserEdited: false,
     onInput: () => undefined,
-    onBlur: () => undefined,
+    onClick: () => undefined,
     onCompositionStart: () => undefined,
     onCompositionEnd: () => undefined,
-    onKeyDown: () => undefined,
-    onPaste: () => undefined,
     onDrop: () => undefined,
     onNativeInput: () => undefined,
   };
 
-  record.onInput = () => {
+  record.onInput = (event: Event) => {
     reconcileRoute();
     if (record.routeKey !== currentRouteKey()) return;
     record.hasUserEdited = true;
     cancelScheduledSync(record);
     resizeTextarea(textarea);
+  };
+  record.onClick = (event: MouseEvent) => {
+    // ChatGPT's composer surface focuses ProseMirror from a parent click
+    // handler. Do not let a completed textarea selection bubble into that
+    // handler and steal the caret back to the hidden native editor.
+    event.stopPropagation();
   };
   record.onCompositionStart = () => {
     record.composing = true;
@@ -840,35 +880,6 @@ function attachComposer(editor: HTMLElement): void {
   record.onCompositionEnd = () => {
     record.composing = false;
     resizeTextarea(textarea);
-  };
-  record.onBlur = () => {
-    if (!record.composing) scheduleNativeSync(record);
-  };
-  record.onKeyDown = (event: KeyboardEvent) => {
-    reconcileRoute();
-    if (record.routeKey !== currentRouteKey()) return;
-    if (event.key !== 'Enter' || event.isComposing || record.composing || event.keyCode === 229) {
-      return;
-    }
-
-    const modifierPressed = event.ctrlKey || event.metaKey;
-    const shouldSend = ctrlEnterSendEnabled
-      ? modifierPressed && !event.shiftKey && !event.altKey
-      : !modifierPressed && !event.shiftKey && !event.altKey;
-
-    // The plain layer is the sole owner of Enter. This also prevents the
-    // separately enabled sendBehavior feature from starting a second send.
-    event.stopImmediatePropagation();
-    if (!shouldSend) return;
-    event.preventDefault();
-    requestSend(record);
-  };
-  record.onPaste = (event: ClipboardEvent) => {
-    reconcileRoute();
-    if (record.routeKey !== currentRouteKey()) return;
-    if (!forwardFilesToNative(record, event.clipboardData)) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
   };
   record.onDrop = (event: DragEvent) => {
     reconcileRoute();
@@ -889,6 +900,17 @@ function attachComposer(editor: HTMLElement): void {
         record.nativeRouteBaseline = null;
       }
       record.lastNativeText = nativeText;
+      if (record.nativeSyncText !== null && nativeText === record.nativeSyncText) {
+        if (document.activeElement === editor && textarea.isConnected) {
+          const selectionStart = textarea.selectionStart;
+          const selectionEnd = textarea.selectionEnd;
+          const selectionDirection = textarea.selectionDirection;
+          textarea.focus({ preventScroll: true });
+          textarea.setSelectionRange(selectionStart, selectionEnd, selectionDirection);
+        }
+        return;
+      }
+      record.nativeSyncText = null;
       if (record.sending && nativeText.trim().length === 0) {
         textarea.value = '';
         record.hasUserEdited = false;
@@ -914,11 +936,9 @@ function attachComposer(editor: HTMLElement): void {
   resizeTextarea(textarea);
 
   textarea.addEventListener('input', record.onInput);
-  textarea.addEventListener('blur', record.onBlur);
+  textarea.addEventListener('click', record.onClick);
   textarea.addEventListener('compositionstart', record.onCompositionStart);
   textarea.addEventListener('compositionend', record.onCompositionEnd);
-  textarea.addEventListener('keydown', record.onKeyDown, { capture: true });
-  textarea.addEventListener('paste', record.onPaste, { capture: true });
   textarea.addEventListener('drop', record.onDrop, { capture: true });
   editor.addEventListener('input', record.onNativeInput, { capture: true });
   composers.add(record);
@@ -952,11 +972,9 @@ function detachComposer(record: PlainComposer, preserveText: boolean): void {
   stopHydrationWatch(record);
 
   record.textarea.removeEventListener('input', record.onInput);
-  record.textarea.removeEventListener('blur', record.onBlur);
+  record.textarea.removeEventListener('click', record.onClick);
   record.textarea.removeEventListener('compositionstart', record.onCompositionStart);
   record.textarea.removeEventListener('compositionend', record.onCompositionEnd);
-  record.textarea.removeEventListener('keydown', record.onKeyDown, { capture: true });
-  record.textarea.removeEventListener('paste', record.onPaste, { capture: true });
   record.textarea.removeEventListener('drop', record.onDrop, { capture: true });
   record.editor.removeEventListener('input', record.onNativeInput, { capture: true });
   record.textarea.remove();
@@ -979,7 +997,31 @@ function scanForComposers(root: ParentNode = document): void {
 
 function pruneDetachedComposers(): void {
   for (const record of Array.from(composers)) {
-    if (!record.editor.isConnected) detachComposer(record, true);
+    if (!record.editor.isConnected) {
+      detachComposer(record, true);
+      continue;
+    }
+    if (record.textarea.isConnected) continue;
+
+    // ChatGPT can preserve the ProseMirror node while rebuilding its parent
+    // after a send. Reattach the existing plain layer instead of leaving the
+    // still-hidden native editor as the only input.
+    const nextHost = record.editor.parentElement;
+    if (!nextHost) continue;
+    if (record.host !== nextHost) {
+      if (!record.host.querySelector(`[${TEXTAREA_ATTRIBUTE}]`)) {
+        record.host.classList.remove(HOST_CLASS);
+      }
+      record.host = nextHost;
+    }
+    record.host.classList.add(HOST_CLASS);
+    record.host.appendChild(record.textarea);
+    resizeTextarea(record.textarea);
+    if (document.activeElement === record.editor) {
+      record.textarea.focus({ preventScroll: true });
+      const caret = record.textarea.value.length;
+      record.textarea.setSelectionRange(caret, caret);
+    }
   }
 }
 
@@ -1019,6 +1061,142 @@ function stopDomMonitoring(): void {
   }
 }
 
+function recordForTextarea(textarea: HTMLTextAreaElement): PlainComposer | null {
+  for (const record of composers) {
+    if (record.textarea === textarea) return record;
+  }
+  return null;
+}
+
+const CHATGPT_SHORTCUT_STORAGE_PREFIX = 'oai/apps/keyboardShortcuts/';
+
+function readChatGptSendBinding(): string[] | null {
+  try {
+    const keys = new Set(Object.keys(window.localStorage));
+    if (typeof window.localStorage.key === 'function') {
+      for (let index = 0; index < window.localStorage.length; index += 1) {
+        const key = window.localStorage.key(index);
+        if (key) keys.add(key);
+      }
+    }
+    for (const key of keys) {
+      if (!key.startsWith(CHATGPT_SHORTCUT_STORAGE_PREFIX)) continue;
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as {
+        composerSubmit?: { binding?: unknown; enabled?: unknown };
+      };
+      const shortcut = parsed.composerSubmit;
+      if (!shortcut) continue;
+      if (shortcut.enabled === false) return null;
+      if (
+        Array.isArray(shortcut.binding) &&
+        shortcut.binding.length > 0 &&
+        shortcut.binding.every((token): token is string => typeof token === 'string')
+      ) {
+        return shortcut.binding;
+      }
+    }
+  } catch {
+    // ChatGPT may change or temporarily withhold its shortcut state.
+  }
+
+  // ChatGPT's current default when no override is stored.
+  return ['Enter'];
+}
+
+function matchesChatGptSendBinding(event: KeyboardEvent, binding: string[] | null): boolean {
+  if (!binding) return false;
+  const tokens = new Set(binding.map((token) => token.toLowerCase()));
+  if (!tokens.has(event.key.toLowerCase())) return false;
+
+  const expectsMod = tokens.has('mod');
+  const expectsCtrl = tokens.has('control') || tokens.has('ctrl');
+  const expectsMeta = tokens.has('meta') || tokens.has('command') || tokens.has('cmd');
+  const ctrlMetaMatches = expectsMod
+    ? event.ctrlKey || event.metaKey
+    : event.ctrlKey === expectsCtrl && event.metaKey === expectsMeta;
+
+  return (
+    ctrlMetaMatches &&
+    event.shiftKey === tokens.has('shift') &&
+    event.altKey === (tokens.has('alt') || tokens.has('option'))
+  );
+}
+
+function dispatchBeforeSend(record: PlainComposer, target: HTMLElement): void {
+  target.dispatchEvent(
+    new CustomEvent<PlainTextBeforeSendDetail>(PLAIN_TEXT_BEFORE_SEND_EVENT, {
+      bubbles: true,
+      detail: { input: record.textarea },
+    }),
+  );
+}
+
+function onBeforeInput(event: InputEvent): void {
+  const target = event.target;
+  if (!(target instanceof HTMLTextAreaElement) || !target.hasAttribute(TEXTAREA_ATTRIBUTE)) return;
+
+  // ChatGPT listens on the surrounding form during capture and otherwise
+  // applies the same keystroke to ProseMirror as well as this textarea. Keep
+  // the browser's textarea default, but isolate it from the rich editor.
+  event.stopPropagation();
+}
+
+function onPaste(event: ClipboardEvent): void {
+  const target = event.target;
+  if (!(target instanceof HTMLTextAreaElement) || !target.hasAttribute(TEXTAREA_ATTRIBUTE)) return;
+  const record = recordForTextarea(target);
+  if (!record) return;
+
+  reconcileRoute();
+  if (record.routeKey !== currentRouteKey()) return;
+  if (forwardFilesToNative(record, event.clipboardData)) event.preventDefault();
+  event.stopPropagation();
+}
+
+function onKeyDown(event: KeyboardEvent): void {
+  const target = event.target;
+  if (!(target instanceof HTMLTextAreaElement) || !target.hasAttribute(TEXTAREA_ATTRIBUTE)) return;
+  const record = recordForTextarea(target);
+  if (
+    !record ||
+    event.key !== 'Enter' ||
+    event.isComposing ||
+    record.composing ||
+    event.keyCode === 229
+  ) {
+    return;
+  }
+
+  reconcileRoute();
+  if (record.routeKey !== currentRouteKey()) return;
+
+  // ChatGPT stores the active composer shortcut in its own page-local shortcut
+  // registry. Honor that source directly: matching Enter combinations use the
+  // verified click/send pipeline; every other Enter combination is a newline.
+  event.stopPropagation();
+  event.preventDefault();
+  if (matchesChatGptSendBinding(event, readChatGptSendBinding())) {
+    dispatchBeforeSend(record, record.textarea);
+    requestSend(record);
+    return;
+  }
+
+  record.textarea.setRangeText(
+    '\n',
+    record.textarea.selectionStart,
+    record.textarea.selectionEnd,
+    'end',
+  );
+  record.textarea.dispatchEvent(
+    new InputEvent('input', {
+      bubbles: true,
+      inputType: 'insertLineBreak',
+    }),
+  );
+}
+
 function onClick(event: MouseEvent): void {
   if (bypassSendInterception > 0) return;
   reconcileRoute();
@@ -1029,48 +1207,13 @@ function onClick(event: MouseEvent): void {
   const record = recordForSendButton(button);
   if (!record) return;
 
-  button.dispatchEvent(
-    new CustomEvent<PlainTextBeforeSendDetail>(PLAIN_TEXT_BEFORE_SEND_EVENT, {
-      bubbles: true,
-      detail: { input: record.textarea },
-    }),
-  );
+  dispatchBeforeSend(record, button);
 
   // Stop the original click before it can send stale ProseMirror state. Other
   // document-capture listeners still run and may update the visible textarea.
   event.preventDefault();
   event.stopPropagation();
   requestSend(record);
-}
-
-function loadCtrlEnterSetting(): Promise<void> {
-  const requestedAtRevision = ctrlEnterSettingRevision;
-  return new Promise((resolve) => {
-    try {
-      chrome.storage?.sync?.get({ [StorageKeys.CTRL_ENTER_SEND]: false }, (result) => {
-        if (started && requestedAtRevision === ctrlEnterSettingRevision) {
-          ctrlEnterSendEnabled = result?.[StorageKeys.CTRL_ENTER_SEND] === true;
-        }
-        resolve();
-      });
-    } catch {
-      ctrlEnterSendEnabled = false;
-      resolve();
-    }
-  });
-}
-
-function installStorageListener(): void {
-  storageListener = (changes, areaName) => {
-    if (!started || areaName !== 'sync' || !changes[StorageKeys.CTRL_ENTER_SEND]) return;
-    ctrlEnterSettingRevision += 1;
-    ctrlEnterSendEnabled = changes[StorageKeys.CTRL_ENTER_SEND].newValue === true;
-  };
-  try {
-    chrome.storage?.onChanged?.addListener(storageListener);
-  } catch {
-    storageListener = null;
-  }
 }
 
 async function syncLatestBeforeStop(record: PlainComposer, signal: AbortSignal): Promise<boolean> {
@@ -1125,24 +1268,16 @@ export async function stopPlainTextInput(): Promise<void> {
   lifecycleController?.abort();
   lifecycleController = null;
   document.removeEventListener('click', onClick, true);
+  document.removeEventListener('beforeinput', onBeforeInput, true);
+  document.removeEventListener('keydown', onKeyDown, true);
+  document.removeEventListener('paste', onPaste, true);
 
   for (const record of Array.from(composers)) detachComposer(record, false);
   pendingTransitions.clear();
   sessionDrafts.clear();
   routeTransition = null;
   activeRouteKey = '';
-  ctrlEnterSendEnabled = false;
-  ctrlEnterSettingRevision = 0;
   bypassSendInterception = 0;
-
-  if (storageListener) {
-    try {
-      chrome.storage?.onChanged?.removeListener(storageListener);
-    } catch {
-      // Ignore extension teardown races.
-    }
-    storageListener = null;
-  }
   document.getElementById(STYLE_ID)?.remove();
   stopping = false;
 }
@@ -1153,22 +1288,24 @@ export async function startPlainTextInput(): Promise<() => Promise<void>> {
   stopping = false;
   activeRouteKey = currentRouteKey();
   routeTransition = null;
-  ctrlEnterSendEnabled = false;
-  ctrlEnterSettingRevision = 0;
   lifecycleController = new AbortController();
   installStyle();
-  installStorageListener();
-  await Promise.all([loadCtrlEnterSetting(), loadRecoveryDrafts()]);
+  await loadRecoveryDrafts();
   if (!started || stopping) return stopPlainTextInput;
   scanForComposers();
   installComposerObserver();
   startRouteMonitor();
   document.addEventListener('click', onClick, true);
+  document.addEventListener('beforeinput', onBeforeInput, true);
+  document.addEventListener('keydown', onKeyDown, true);
+  document.addEventListener('paste', onPaste, true);
   return stopPlainTextInput;
 }
 
 export const plainTextInputTestApi = {
   beforeSendEvent: PLAIN_TEXT_BEFORE_SEND_EVENT,
+  matchesChatGptSendBinding,
   nativeSendAttribute: PLAIN_TEXT_NATIVE_SEND_ATTRIBUTE,
+  readChatGptSendBinding,
   textareaAttribute: TEXTAREA_ATTRIBUTE,
 };

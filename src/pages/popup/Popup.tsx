@@ -199,7 +199,7 @@ function SupportPopover({ label }: { label: string }) {
       </button>
       {visible ? (
         <div
-          className="bg-popover text-popover-foreground border-border absolute right-0 bottom-6 z-50 w-80 rounded-lg border p-4 text-left shadow-xl"
+          className="bg-popover text-popover-foreground border-border fixed bottom-12 left-1/2 z-50 max-h-[calc(100vh-4rem)] w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 overflow-y-auto rounded-lg border p-4 text-left shadow-xl"
           onMouseEnter={() => {
             hoveringPopoverRef.current = true;
             openPopover();

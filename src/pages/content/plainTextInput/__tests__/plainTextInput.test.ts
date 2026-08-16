@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { StorageKeys } from '@/core/types/common';
-
 interface ClipboardPayload {
   clipboardData?: DataTransfer;
   bubbles?: boolean;
@@ -99,6 +97,15 @@ async function advance(ms: number): Promise<void> {
   await Promise.resolve();
 }
 
+function setChatGptSendBinding(binding: string[]): void {
+  const key = 'oai/apps/keyboardShortcuts/test-user/test-account';
+  window.localStorage.setItem(key, JSON.stringify({ composerSubmit: { binding } }));
+  Object.defineProperty(window.localStorage, 'key', {
+    configurable: true,
+    value: (index: number) => (index === 0 ? key : null),
+  });
+}
+
 describe('plain text input mode', () => {
   let cleanup: (() => void | Promise<void>) | null;
 
@@ -109,6 +116,7 @@ describe('plain text input mode', () => {
     cleanup = null;
     document.head.innerHTML = '';
     document.body.innerHTML = '';
+    window.localStorage.clear();
     window.history.replaceState({}, '', '/');
 
     Object.defineProperty(globalThis, 'DataTransfer', {
@@ -121,7 +129,13 @@ describe('plain text input mode', () => {
     });
     Object.defineProperty(document, 'execCommand', {
       configurable: true,
-      value: vi.fn(() => false),
+      value: vi.fn((command: string) => {
+        const active = document.activeElement;
+        if (command !== 'delete' || !(active instanceof HTMLElement)) return false;
+        active.textContent = '';
+        active.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+      }),
     });
     (chrome.storage.sync.get as unknown as ReturnType<typeof vi.fn>).mockImplementation(
       (_defaults: unknown, callback: (result: Record<string, unknown>) => void) => callback({}),
@@ -155,9 +169,58 @@ describe('plain text input mode', () => {
     expect(editor.getAttribute('tabindex')).toBe('-1');
   });
 
+  it('reattaches the plain textarea when ChatGPT rebuilds the composer host', async () => {
+    const { editor } = mountComposer('existing draft');
+    const { startPlainTextInput } = await import('../index');
+    cleanup = await startPlainTextInput();
+    const textarea = document.querySelector<HTMLTextAreaElement>(
+      'textarea[data-gv-plain-text-input="true"]',
+    )!;
+    const host = editor.parentElement!;
+
+    host.replaceChildren(editor);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(textarea.isConnected).toBe(true);
+    expect(textarea.parentElement).toBe(host);
+    expect(textarea.value).toBe('existing draft');
+    expect(document.querySelectorAll('textarea[data-gv-plain-text-input="true"]')).toHaveLength(1);
+  });
+
+  it('maps native ProseMirror paragraphs to single newlines', async () => {
+    const { editor } = mountComposer();
+    editor.innerHTML = '<p>first line</p><p>second line</p>';
+    const { startPlainTextInput } = await import('../index');
+
+    cleanup = await startPlainTextInput();
+
+    expect(
+      document.querySelector<HTMLTextAreaElement>('textarea[data-gv-plain-text-input="true"]')
+        ?.value,
+    ).toBe('first line\nsecond line');
+  });
+
+  it('keeps the native editor vertical metrics on the plain textarea', async () => {
+    const { editor } = mountComposer('first line');
+    editor.style.marginTop = '16px';
+    editor.style.paddingBottom = '16px';
+    editor.style.lineHeight = '26px';
+    const { startPlainTextInput } = await import('../index');
+
+    cleanup = await startPlainTextInput();
+
+    const textarea = document.querySelector<HTMLTextAreaElement>(
+      'textarea[data-gv-plain-text-input="true"]',
+    )!;
+    expect(textarea.style.marginTop).toBe('16px');
+    expect(textarea.style.paddingBottom).toBe('16px');
+    expect(textarea.style.lineHeight).toBe('26px');
+  });
+
   it('follows editor hydration until the user starts editing the plain layer', async () => {
     const { editor, button } = mountComposer('pre-hydration draft');
-    installPasteTransaction(editor, button);
+    const pasted = installPasteTransaction(editor, button);
     const { startPlainTextInput } = await import('../index');
 
     cleanup = await startPlainTextInput();
@@ -177,7 +240,7 @@ describe('plain text input mode', () => {
     expect(textarea.value).toBe('user-owned `*` source');
   });
 
-  it('syncs the exact Markdown source through a verified native paste transaction', async () => {
+  it('syncs the exact Markdown source at the native Enter boundary', async () => {
     const { editor, button } = mountComposer();
     const pasted = installPasteTransaction(editor, button);
     const { startPlainTextInput } = await import('../index');
@@ -189,12 +252,43 @@ describe('plain text input mode', () => {
     const source = '`*` \n```text\na_b * c\n```';
     textarea.value = source;
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    textarea.dispatchEvent(new FocusEvent('blur'));
+    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     await advance(120);
 
     expect(pasted.at(-1)).toBe(source);
     expect(editor.textContent).toBe(source);
     expect(textarea.value).toBe(source);
+  });
+
+  it('ignores delayed native sync echoes while the user continues typing', async () => {
+    const { editor } = mountComposer();
+    editor.addEventListener('paste', (event) => {
+      const text = (event as ClipboardEvent).clipboardData?.getData('text/plain') ?? '';
+      event.preventDefault();
+      editor.textContent = text;
+      window.setTimeout(() => {
+        editor.focus();
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
+      }, 0);
+    });
+    const { startPlainTextInput } = await import('../index');
+    cleanup = await startPlainTextInput();
+
+    const textarea = document.querySelector<HTMLTextAreaElement>(
+      'textarea[data-gv-plain-text-input="true"]',
+    )!;
+    textarea.focus();
+    textarea.value = 'first line';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    textarea.value = 'first line\nsecond line';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    await advance(100);
+
+    expect(textarea.value).toBe('first line\nsecond line');
+    expect(document.activeElement).toBe(textarea);
+    expect(textarea.selectionStart).toBe(textarea.value.length);
   });
 
   it('clears stale native text before allowing an immediate mouse send', async () => {
@@ -218,11 +312,18 @@ describe('plain text input mode', () => {
     expect(sent).not.toHaveBeenCalled();
   });
 
-  it('supports attachment-only Enter after verifying an empty native editor', async () => {
+  it('supports attachment-only native Enter after verifying an empty editor', async () => {
     const { editor, button } = mountComposer();
     installPasteTransaction(editor, button, { keepButtonEnabledWhenEmpty: true });
     const sent = vi.fn();
     button.addEventListener('click', sent);
+    editor.closest('form')?.addEventListener(
+      'keydown',
+      (event) => {
+        if ((event as KeyboardEvent).key === 'Enter') button.click();
+      },
+      { capture: true },
+    );
     const { startPlainTextInput } = await import('../index');
     cleanup = await startPlainTextInput();
 
@@ -274,10 +375,10 @@ describe('plain text input mode', () => {
 
     expect(sent).not.toHaveBeenCalled();
     expect(textarea.value).toBe('latest `*` source');
-    expect(editor.textContent).toBe('old native text');
+    expect(editor.textContent).toBe('');
 
     // Restore a synchronizable state so lifecycle cleanup can complete.
-    textarea.value = 'old native text';
+    textarea.value = '';
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
@@ -306,9 +407,11 @@ describe('plain text input mode', () => {
     expect(sent).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps Enter under one owner when another keydown handler is attached', async () => {
+  it('sends through the verified pipeline without replaying Enter to competing editors', async () => {
     const { editor, button } = mountComposer('question');
-    installPasteTransaction(editor, button);
+    const pasted = installPasteTransaction(editor, button);
+    const nativePolicy = vi.fn();
+    editor.closest('form')?.addEventListener('keydown', nativePolicy, { capture: true });
     const competingHandler = vi.fn();
     const { startPlainTextInput } = await import('../index');
     cleanup = await startPlainTextInput();
@@ -316,49 +419,92 @@ describe('plain text input mode', () => {
     const textarea = document.querySelector<HTMLTextAreaElement>(
       'textarea[data-gv-plain-text-input="true"]',
     )!;
+    textarea.value = 'raw **Markdown**\nsecond line';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
     textarea.addEventListener('keydown', competingHandler, { capture: true });
     textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     await advance(100);
 
+    expect(pasted.at(-1)).toBe('raw **Markdown**\nsecond line');
+    expect(editor.textContent).toBe('raw **Markdown**\nsecond line');
+    expect(nativePolicy).not.toHaveBeenCalled();
     expect(competingHandler).not.toHaveBeenCalled();
   });
 
-  it('locks repeated Enter presses to a single send attempt', async () => {
+  it('does not focus or rewrite the native editor when textarea selection loses focus', async () => {
     const { editor, button } = mountComposer('question');
-    installPasteTransaction(editor, button);
-    const sent = vi.fn();
-    button.addEventListener('click', sent);
+    const pasted = installPasteTransaction(editor, button);
     const { startPlainTextInput } = await import('../index');
     cleanup = await startPlainTextInput();
     const textarea = document.querySelector<HTMLTextAreaElement>(
       'textarea[data-gv-plain-text-input="true"]',
     )!;
 
-    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    textarea.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, repeat: true }),
-    );
+    textarea.value = 'select this text';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.setSelectionRange(2, 9);
+    textarea.dispatchEvent(new FocusEvent('blur'));
     await advance(100);
 
-    expect(sent).toHaveBeenCalledTimes(1);
+    expect(pasted).toEqual([]);
+    expect(textarea.selectionStart).toBe(2);
+    expect(textarea.selectionEnd).toBe(9);
   });
 
-  it('owns Ctrl+Enter mode without swallowing plain newline or IME events', async () => {
-    (chrome.storage.sync.get as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      (_defaults: unknown, callback: (result: Record<string, unknown>) => void) =>
-        callback({ [StorageKeys.CTRL_ENTER_SEND]: true }),
-    );
+  it('does not let composer click handlers steal focus from the plain textarea', async () => {
+    const { editor } = mountComposer('question');
+    const composerClick = vi.fn();
+    editor.parentElement?.parentElement?.addEventListener('click', composerClick);
+    const { startPlainTextInput } = await import('../index');
+    cleanup = await startPlainTextInput();
+
+    const textarea = document.querySelector<HTMLTextAreaElement>(
+      'textarea[data-gv-plain-text-input="true"]',
+    )!;
+    textarea.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(composerClick).not.toHaveBeenCalled();
+  });
+
+  it('isolates textarea beforeinput from ChatGPT rich-editor capture handlers', async () => {
+    const { editor } = mountComposer();
+    const nativeBeforeInput = vi.fn();
+    editor.closest('form')?.addEventListener('beforeinput', nativeBeforeInput, { capture: true });
+    const { startPlainTextInput } = await import('../index');
+    cleanup = await startPlainTextInput();
+
+    const textarea = document.querySelector<HTMLTextAreaElement>(
+      'textarea[data-gv-plain-text-input="true"]',
+    )!;
+    const event = new InputEvent('beforeinput', {
+      bubbles: true,
+      cancelable: true,
+      data: '*',
+      inputType: 'insertText',
+    });
+    textarea.dispatchEvent(event);
+
+    expect(nativeBeforeInput).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('follows ChatGPT composerSubmit policy for Enter versus Ctrl+Enter', async () => {
     const { editor, button } = mountComposer('question');
     installPasteTransaction(editor, button);
     const sent = vi.fn();
     button.addEventListener('click', sent);
+    setChatGptSendBinding(['mod', 'Enter']);
     const { startPlainTextInput } = await import('../index');
     cleanup = await startPlainTextInput();
     const textarea = document.querySelector<HTMLTextAreaElement>(
       'textarea[data-gv-plain-text-input="true"]',
     )!;
 
-    const plainEnter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+    const plainEnter = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    });
     textarea.dispatchEvent(plainEnter);
     const imeEnter = new KeyboardEvent('keydown', {
       key: 'Enter',
@@ -366,55 +512,64 @@ describe('plain text input mode', () => {
       isComposing: true,
     });
     textarea.dispatchEvent(imeEnter);
-    textarea.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, ctrlKey: true }),
-    );
+    const ctrlEnter = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+    });
+    textarea.dispatchEvent(ctrlEnter);
     await advance(100);
 
-    expect(plainEnter.defaultPrevented).toBe(false);
+    expect(plainEnter.defaultPrevented).toBe(true);
     expect(imeEnter.defaultPrevented).toBe(false);
+    expect(ctrlEnter.defaultPrevented).toBe(true);
     expect(sent).toHaveBeenCalledTimes(1);
   });
 
-  it('does not mount an Enter handler before the Ctrl+Enter policy is loaded', async () => {
-    let finishSettingsLoad: ((result: Record<string, unknown>) => void) | null = null;
-    (chrome.storage.sync.get as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      (_defaults: unknown, callback: (result: Record<string, unknown>) => void) => {
-        finishSettingsLoad = callback;
-      },
-    );
-    const { editor, button } = mountComposer('question');
-    installPasteTransaction(editor, button);
-    const sent = vi.fn();
+  it('does not append the textarea default newline when native Ctrl+Enter sends', async () => {
+    const { editor, button } = mountComposer();
+    const pasted = installPasteTransaction(editor, button);
+    const sentTexts: string[] = [];
+    const sent = vi.fn(() => sentTexts.push(editor.textContent ?? ''));
     button.addEventListener('click', sent);
-    const { startPlainTextInput } = await import('../index');
-
-    const starting = startPlainTextInput();
-    await Promise.resolve();
-    expect(document.querySelector('textarea[data-gv-plain-text-input="true"]')).toBeNull();
-
-    const settingListener = (
-      chrome.storage.onChanged.addListener as unknown as ReturnType<typeof vi.fn>
-    ).mock.calls.at(-1)?.[0] as
-      | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
-      | undefined;
-    settingListener?.(
-      { [StorageKeys.CTRL_ENTER_SEND]: { oldValue: false, newValue: true } },
-      'sync',
-    );
-    if (!finishSettingsLoad) throw new Error('Expected delayed settings callback.');
-    finishSettingsLoad({ [StorageKeys.CTRL_ENTER_SEND]: false });
-    cleanup = await starting;
+    setChatGptSendBinding(['mod', 'Enter']);
+    const { plainTextInputTestApi, startPlainTextInput } = await import('../index');
+    cleanup = await startPlainTextInput();
     const textarea = document.querySelector<HTMLTextAreaElement>(
       'textarea[data-gv-plain-text-input="true"]',
     )!;
-    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    textarea.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, ctrlKey: true }),
+    textarea.value = 'question';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+    const sendEvent = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+    });
+    expect(window.localStorage.getItem('oai/apps/keyboardShortcuts/test-user/test-account')).toBe(
+      JSON.stringify({ composerSubmit: { binding: ['mod', 'Enter'] } }),
     );
+    expect(plainTextInputTestApi.readChatGptSendBinding()).toEqual(['mod', 'Enter']);
+    expect(plainTextInputTestApi.matchesChatGptSendBinding(sendEvent, ['mod', 'Enter'])).toBe(true);
+    textarea.dispatchEvent(sendEvent);
+    await Promise.resolve();
     await advance(100);
 
     expect(sent).toHaveBeenCalledTimes(1);
+    expect(sentTexts).toEqual(['question']);
+    expect(pasted.at(-1)).toBe('question');
+  });
+
+  it('mounts without consulting Voyager send-shortcut settings', async () => {
+    mountComposer('question');
+    const { startPlainTextInput } = await import('../index');
+    cleanup = await startPlainTextInput();
+
+    expect(chrome.storage.sync.get).not.toHaveBeenCalled();
+    expect(document.querySelector('textarea[data-gv-plain-text-input="true"]')).not.toBeNull();
   });
 
   it('forwards pasted files to the hidden native editor', async () => {
@@ -485,7 +640,7 @@ describe('plain text input mode', () => {
     expect(textarea.value).toBe('');
     textarea.value = 'new conversation text';
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    button.click();
     await advance(100);
     expect(editor.textContent).toBe('new conversation text');
   });
