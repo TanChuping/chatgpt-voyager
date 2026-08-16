@@ -216,6 +216,7 @@ describe('plain text input mode', () => {
     expect(textarea.style.marginTop).toBe('16px');
     expect(textarea.style.paddingBottom).toBe('16px');
     expect(textarea.style.lineHeight).toBe('26px');
+    expect(textarea.rows).toBe(1);
   });
 
   it('follows editor hydration until the user starts editing the plain layer', async () => {

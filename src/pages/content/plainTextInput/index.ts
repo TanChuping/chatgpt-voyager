@@ -645,6 +645,7 @@ function createTextarea(editor: HTMLElement, initial: InitialComposerText): HTML
   textarea.autocomplete = 'off';
   textarea.autocapitalize = editor.getAttribute('autocapitalize') || 'sentences';
   textarea.spellcheck = editor.spellcheck;
+  textarea.rows = 1;
   textarea.value = initial.text;
 
   // The plain layer replaces only the editor implementation. Keep the native
