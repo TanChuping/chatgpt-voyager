@@ -8,6 +8,7 @@ const STYLE_ID = 'gv-plain-text-input-style';
 const TEXTAREA_ATTRIBUTE = 'data-gv-plain-text-input';
 const HOST_CLASS = 'gv-plain-text-input-host';
 const NATIVE_CLASS = 'gv-plain-text-input-native';
+const SEND_READY_ATTRIBUTE = 'data-gv-plain-text-send-ready';
 const SYNC_DELAY_MS = 0;
 const SYNC_VERIFY_INTERVAL_MS = 20;
 const SYNC_VERIFY_ATTEMPTS = 6;
@@ -142,6 +143,7 @@ function installStyle(): void {
       overflow-y: auto;
       border: 0;
       outline: 0;
+      box-shadow: none !important;
       background: transparent;
       color: inherit;
       font: inherit;
@@ -319,6 +321,44 @@ function recordForSendButton(button: HTMLButtonElement): PlainComposer | null {
 
 function isClickableButton(button: HTMLButtonElement | null): button is HTMLButtonElement {
   return !!button && !button.disabled && button.getAttribute('aria-disabled') !== 'true';
+}
+
+function updateSendButtonAvailability(record: PlainComposer): void {
+  const button = findSendButton(record);
+  if (!button || record.sending) return;
+
+  const hasText = record.textarea.value.trim().length > 0;
+  if (hasText) {
+    if (button.disabled) {
+      button.disabled = false;
+      button.setAttribute(SEND_READY_ATTRIBUTE, 'true');
+    }
+    return;
+  }
+
+  if (!button.hasAttribute(SEND_READY_ATTRIBUTE)) return;
+  button.removeAttribute(SEND_READY_ATTRIBUTE);
+  const hasNativeText = readEditorText(record.editor).trim().length > 0;
+  const hasAttachments =
+    composerBoundary(record.editor).querySelectorAll(ATTACHMENT_PREVIEW_SELECTOR).length > 0;
+  if (!hasNativeText && !hasAttachments) button.disabled = true;
+}
+
+function releaseForcedSendButton(record: PlainComposer): void {
+  const button = findSendButton(record);
+  if (!button?.hasAttribute(SEND_READY_ATTRIBUTE)) return;
+  button.removeAttribute(SEND_READY_ATTRIBUTE);
+  button.disabled = true;
+}
+
+function restoreForcedSendButton(record: PlainComposer): void {
+  const button = findSendButton(record);
+  if (!button?.hasAttribute(SEND_READY_ATTRIBUTE)) return;
+  button.removeAttribute(SEND_READY_ATTRIBUTE);
+  const hasNativeText = readEditorText(record.editor).trim().length > 0;
+  const hasAttachments =
+    composerBoundary(record.editor).querySelectorAll(ATTACHMENT_PREVIEW_SELECTOR).length > 0;
+  if (!hasNativeText && !hasAttachments) button.disabled = true;
 }
 
 function selectEditorContents(editor: HTMLElement): boolean {
@@ -517,6 +557,7 @@ async function performSend(record: PlainComposer): Promise<void> {
   lifecycleSignal?.addEventListener('abort', abortFromLifecycle, { once: true });
   record.operationController?.abort();
   record.operationController = controller;
+  releaseForcedSendButton(record);
 
   try {
     // Mouse sends are intercepted on document capture. Yield once so later
@@ -568,6 +609,7 @@ async function performSend(record: PlainComposer): Promise<void> {
     lifecycleSignal?.removeEventListener('abort', abortFromLifecycle);
     if (record.operationController === controller) record.operationController = null;
     if (!record.disposed) record.sending = false;
+    updateSendButtonAvailability(record);
   }
 }
 
@@ -797,6 +839,7 @@ function transitionComposerRoute(
   record.hasUserEdited = owned;
   record.textarea.value = text;
   resizeTextarea(record.textarea);
+  updateSendButtonAvailability(record);
   if (owned) scheduleNativeSync(record);
 }
 
@@ -867,6 +910,7 @@ function attachComposer(editor: HTMLElement): void {
     record.hasUserEdited = true;
     cancelScheduledSync(record);
     resizeTextarea(textarea);
+    updateSendButtonAvailability(record);
   };
   record.onClick = (event: MouseEvent) => {
     // ChatGPT's composer surface focuses ProseMirror from a parent click
@@ -943,6 +987,7 @@ function attachComposer(editor: HTMLElement): void {
   textarea.addEventListener('drop', record.onDrop, { capture: true });
   editor.addEventListener('input', record.onNativeInput, { capture: true });
   composers.add(record);
+  updateSendButtonAvailability(record);
   startHydrationWatch(record);
 
   record.hasUserEdited = initial.owned;
@@ -971,6 +1016,7 @@ function detachComposer(record: PlainComposer, preserveText: boolean): void {
   record.operationController = null;
   cancelScheduledSync(record);
   stopHydrationWatch(record);
+  restoreForcedSendButton(record);
 
   record.textarea.removeEventListener('input', record.onInput);
   record.textarea.removeEventListener('click', record.onClick);
@@ -1018,6 +1064,7 @@ function pruneDetachedComposers(): void {
     record.host.classList.add(HOST_CLASS);
     record.host.appendChild(record.textarea);
     resizeTextarea(record.textarea);
+    updateSendButtonAvailability(record);
     if (document.activeElement === record.editor) {
       record.textarea.focus({ preventScroll: true });
       const caret = record.textarea.value.length;
@@ -1041,6 +1088,7 @@ function installComposerObserver(): void {
         scanForComposers(node);
       }
     }
+    for (const record of composers) updateSendButtonAvailability(record);
   });
   observer.observe(document.body || document.documentElement, {
     childList: true,
@@ -1271,7 +1319,7 @@ export async function stopPlainTextInput(): Promise<void> {
   document.removeEventListener('click', onClick, true);
   document.removeEventListener('beforeinput', onBeforeInput, true);
   document.removeEventListener('keydown', onKeyDown, true);
-  document.removeEventListener('paste', onPaste, true);
+  window.removeEventListener('paste', onPaste, true);
 
   for (const record of Array.from(composers)) detachComposer(record, false);
   pendingTransitions.clear();
@@ -1299,7 +1347,7 @@ export async function startPlainTextInput(): Promise<() => Promise<void>> {
   document.addEventListener('click', onClick, true);
   document.addEventListener('beforeinput', onBeforeInput, true);
   document.addEventListener('keydown', onKeyDown, true);
-  document.addEventListener('paste', onPaste, true);
+  window.addEventListener('paste', onPaste, true);
   return stopPlainTextInput;
 }
 

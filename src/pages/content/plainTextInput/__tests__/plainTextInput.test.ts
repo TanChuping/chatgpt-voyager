@@ -217,6 +217,9 @@ describe('plain text input mode', () => {
     expect(textarea.style.paddingBottom).toBe('16px');
     expect(textarea.style.lineHeight).toBe('26px');
     expect(textarea.rows).toBe(1);
+    expect(document.getElementById('gv-plain-text-input-style')?.textContent).toContain(
+      'box-shadow: none !important',
+    );
   });
 
   it('follows editor hydration until the user starts editing the plain layer', async () => {
@@ -489,6 +492,49 @@ describe('plain text input mode', () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
+  it('stops text paste before ChatGPT document capture can take over the native editor', async () => {
+    mountComposer();
+    const pagePaste = vi.fn();
+    document.addEventListener('paste', pagePaste, { capture: true });
+    const { startPlainTextInput } = await import('../index');
+    cleanup = await startPlainTextInput();
+    const textarea = document.querySelector<HTMLTextAreaElement>(
+      'textarea[data-gv-plain-text-input="true"]',
+    )!;
+    const transfer = new FakeDataTransfer();
+    transfer.setData('text/plain', 'copied fragment');
+    const event = new FakeClipboardEvent('paste', {
+      clipboardData: transfer as unknown as DataTransfer,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    textarea.dispatchEvent(event);
+    document.removeEventListener('paste', pagePaste, { capture: true });
+
+    expect(pagePaste).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('makes ChatGPT existing send button available while the plain draft has text', async () => {
+    const { editor, button } = mountComposer();
+    button.disabled = true;
+    const { startPlainTextInput } = await import('../index');
+    cleanup = await startPlainTextInput();
+    const textarea = document.querySelector<HTMLTextAreaElement>(
+      'textarea[data-gv-plain-text-input="true"]',
+    )!;
+
+    textarea.value = 'plain draft';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(button.disabled).toBe(false);
+    expect(editor.textContent).toBe('');
+
+    textarea.value = '';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(button.disabled).toBe(true);
+  });
+
   it('follows ChatGPT composerSubmit policy for Enter versus Ctrl+Enter', async () => {
     const { editor, button } = mountComposer('question');
     installPasteTransaction(editor, button);
@@ -733,6 +779,7 @@ describe('plain text input mode', () => {
     expect(editor.classList.contains('gv-plain-text-input-native')).toBe(false);
     expect(editor.hasAttribute('aria-hidden')).toBe(false);
     expect(editor.hasAttribute('tabindex')).toBe(false);
+    expect(button.hasAttribute('data-gv-plain-text-send-ready')).toBe(false);
   });
 
   it('persists an unsynced draft before detaching, including on a hidden page', async () => {
