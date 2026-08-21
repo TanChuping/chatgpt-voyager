@@ -8,7 +8,6 @@ const STYLE_ID = 'gv-plain-text-input-style';
 const TEXTAREA_ATTRIBUTE = 'data-gv-plain-text-input';
 const HOST_CLASS = 'gv-plain-text-input-host';
 const NATIVE_CLASS = 'gv-plain-text-input-native';
-const SEND_READY_ATTRIBUTE = 'data-gv-plain-text-send-ready';
 const SYNC_DELAY_MS = 0;
 const SYNC_VERIFY_INTERVAL_MS = 20;
 const SYNC_VERIFY_ATTEMPTS = 6;
@@ -323,44 +322,6 @@ function isClickableButton(button: HTMLButtonElement | null): button is HTMLButt
   return !!button && !button.disabled && button.getAttribute('aria-disabled') !== 'true';
 }
 
-function updateSendButtonAvailability(record: PlainComposer): void {
-  const button = findSendButton(record);
-  if (!button || record.sending) return;
-
-  const hasText = record.textarea.value.trim().length > 0;
-  if (hasText) {
-    if (button.disabled) {
-      button.disabled = false;
-      button.setAttribute(SEND_READY_ATTRIBUTE, 'true');
-    }
-    return;
-  }
-
-  if (!button.hasAttribute(SEND_READY_ATTRIBUTE)) return;
-  button.removeAttribute(SEND_READY_ATTRIBUTE);
-  const hasNativeText = readEditorText(record.editor).trim().length > 0;
-  const hasAttachments =
-    composerBoundary(record.editor).querySelectorAll(ATTACHMENT_PREVIEW_SELECTOR).length > 0;
-  if (!hasNativeText && !hasAttachments) button.disabled = true;
-}
-
-function releaseForcedSendButton(record: PlainComposer): void {
-  const button = findSendButton(record);
-  if (!button?.hasAttribute(SEND_READY_ATTRIBUTE)) return;
-  button.removeAttribute(SEND_READY_ATTRIBUTE);
-  button.disabled = true;
-}
-
-function restoreForcedSendButton(record: PlainComposer): void {
-  const button = findSendButton(record);
-  if (!button?.hasAttribute(SEND_READY_ATTRIBUTE)) return;
-  button.removeAttribute(SEND_READY_ATTRIBUTE);
-  const hasNativeText = readEditorText(record.editor).trim().length > 0;
-  const hasAttachments =
-    composerBoundary(record.editor).querySelectorAll(ATTACHMENT_PREVIEW_SELECTOR).length > 0;
-  if (!hasNativeText && !hasAttachments) button.disabled = true;
-}
-
 function selectEditorContents(editor: HTMLElement): boolean {
   const selection = window.getSelection();
   if (!selection) return false;
@@ -438,7 +399,11 @@ async function synchronizeNativeText(
   }
 
   const { editor, textarea } = record;
-  const restoreFocus = document.activeElement === textarea;
+  // ChatGPT's composer can move focus from the visible textarea back to its
+  // hidden ProseMirror while the textarea input event is still bubbling. That
+  // focus still belongs to this composer and must return to the visible layer;
+  // otherwise the next Ctrl+Enter bypasses our send/cleanup path.
+  const restoreFocus = document.activeElement === textarea || document.activeElement === editor;
   const selectionStart = textarea.selectionStart;
   const selectionEnd = textarea.selectionEnd;
   const selectionDirection = textarea.selectionDirection;
@@ -468,6 +433,14 @@ async function synchronizeNativeText(
   }
 
   const synchronized = await waitForNativeText(record, text, signal);
+  if (
+    restoreFocus &&
+    textarea.isConnected &&
+    (document.activeElement === editor || document.activeElement === textarea)
+  ) {
+    textarea.focus({ preventScroll: true });
+    textarea.setSelectionRange(selectionStart, selectionEnd, selectionDirection);
+  }
   if (synchronized) {
     record.lastNativeText = text;
     record.nativeRouteBaseline = null;
@@ -499,6 +472,14 @@ function scheduleNativeSync(record: PlainComposer): void {
   }, SYNC_DELAY_MS);
 }
 
+function reconcileNativeAvailability(record: PlainComposer): void {
+  if (record.disposed || record.sending || record.composing) return;
+  const plainHasText = record.textarea.value.trim().length > 0;
+  const nativeHasText = readEditorText(record.editor).trim().length > 0;
+  if (plainHasText !== nativeHasText) scheduleNativeSync(record);
+  else cancelScheduledSync(record);
+}
+
 async function waitForSendButton(
   record: PlainComposer,
   expectedText: string,
@@ -525,20 +506,19 @@ async function waitForSendCompletion(
   while (!signal.aborted && performance.now() <= deadline) {
     if (record.disposed || !record.editor.isConnected) return true;
     if (expectedText.trim() && readEditorText(record.editor).trim().length === 0) return true;
-    if (!expectedText.trim()) {
-      const attachmentCountNow = composerBoundary(record.editor).querySelectorAll(
-        ATTACHMENT_PREVIEW_SELECTOR,
-      ).length;
-      if (
-        !clickedButton.isConnected ||
-        clickedButton.disabled ||
-        clickedButton.getAttribute('aria-disabled') === 'true' ||
-        findSendButton(record) !== clickedButton ||
-        attachmentCountNow < attachmentCountBefore ||
-        !!composerBoundary(record.editor).querySelector('button[data-testid="stop-button"]')
-      ) {
-        return true;
-      }
+    const attachmentCountNow = composerBoundary(record.editor).querySelectorAll(
+      ATTACHMENT_PREVIEW_SELECTOR,
+    ).length;
+    const buttonOnlyBecameDisabled =
+      clickedButton.disabled || clickedButton.getAttribute('aria-disabled') === 'true';
+    if (
+      !clickedButton.isConnected ||
+      findSendButton(record) !== clickedButton ||
+      attachmentCountNow < attachmentCountBefore ||
+      !!composerBoundary(record.editor).querySelector('button[data-testid="stop-button"]') ||
+      (!expectedText.trim() && buttonOnlyBecameDisabled)
+    ) {
+      return true;
     }
     if (!(await waitForDelay(25, signal))) return false;
   }
@@ -557,7 +537,6 @@ async function performSend(record: PlainComposer): Promise<void> {
   lifecycleSignal?.addEventListener('abort', abortFromLifecycle, { once: true });
   record.operationController?.abort();
   record.operationController = controller;
-  releaseForcedSendButton(record);
 
   try {
     // Mouse sends are intercepted on document capture. Yield once so later
@@ -609,7 +588,7 @@ async function performSend(record: PlainComposer): Promise<void> {
     lifecycleSignal?.removeEventListener('abort', abortFromLifecycle);
     if (record.operationController === controller) record.operationController = null;
     if (!record.disposed) record.sending = false;
-    updateSendButtonAvailability(record);
+    reconcileNativeAvailability(record);
   }
 }
 
@@ -839,7 +818,6 @@ function transitionComposerRoute(
   record.hasUserEdited = owned;
   record.textarea.value = text;
   resizeTextarea(record.textarea);
-  updateSendButtonAvailability(record);
   if (owned) scheduleNativeSync(record);
 }
 
@@ -910,7 +888,7 @@ function attachComposer(editor: HTMLElement): void {
     record.hasUserEdited = true;
     cancelScheduledSync(record);
     resizeTextarea(textarea);
-    updateSendButtonAvailability(record);
+    reconcileNativeAvailability(record);
   };
   record.onClick = (event: MouseEvent) => {
     // ChatGPT's composer surface focuses ProseMirror from a parent click
@@ -925,6 +903,7 @@ function attachComposer(editor: HTMLElement): void {
   record.onCompositionEnd = () => {
     record.composing = false;
     resizeTextarea(textarea);
+    reconcileNativeAvailability(record);
   };
   record.onDrop = (event: DragEvent) => {
     reconcileRoute();
@@ -987,7 +966,6 @@ function attachComposer(editor: HTMLElement): void {
   textarea.addEventListener('drop', record.onDrop, { capture: true });
   editor.addEventListener('input', record.onNativeInput, { capture: true });
   composers.add(record);
-  updateSendButtonAvailability(record);
   startHydrationWatch(record);
 
   record.hasUserEdited = initial.owned;
@@ -1016,7 +994,6 @@ function detachComposer(record: PlainComposer, preserveText: boolean): void {
   record.operationController = null;
   cancelScheduledSync(record);
   stopHydrationWatch(record);
-  restoreForcedSendButton(record);
 
   record.textarea.removeEventListener('input', record.onInput);
   record.textarea.removeEventListener('click', record.onClick);
@@ -1064,7 +1041,6 @@ function pruneDetachedComposers(): void {
     record.host.classList.add(HOST_CLASS);
     record.host.appendChild(record.textarea);
     resizeTextarea(record.textarea);
-    updateSendButtonAvailability(record);
     if (document.activeElement === record.editor) {
       record.textarea.focus({ preventScroll: true });
       const caret = record.textarea.value.length;
@@ -1088,7 +1064,6 @@ function installComposerObserver(): void {
         scanForComposers(node);
       }
     }
-    for (const record of composers) updateSendButtonAvailability(record);
   });
   observer.observe(document.body || document.documentElement, {
     childList: true,

@@ -12,6 +12,7 @@ export type BusinessDemandSignal =
   | 'broken-markdown'
   | 'user-message-latex'
   | 'conversation-route'
+  | 'response-action'
   | 'export-menu-interaction'
   | 'pending-export'
   | 'announcement-interaction';
@@ -32,6 +33,8 @@ const LEGACY_CONVERSATION_MENU_TRIGGER_SELECTOR =
   '[data-test-id="actions-menu-button"], [data-testid="actions-menu-button"]';
 const RESPONSE_MENU_TRIGGER_SELECTOR =
   '[data-test-id="more-menu-button"], [data-testid="more-menu-button"]';
+const RESPONSE_COPY_ACTION_SELECTOR =
+  '[data-test-id="copy-button"], [data-testid="copy-turn-action-button"]';
 const EDITABLE_SELECTOR =
   '.ProseMirror, rich-textarea, textarea, input, [contenteditable]:not([contenteditable="false"]), [role="textbox"]';
 const TEMP_CHAT_ACTIVE_SELECTOR =
@@ -282,6 +285,15 @@ export function createBusinessDemandRouter(
       matchingElements(root, USER_MESSAGE_LATEX_SELECTOR).some(isUserMessageLatexCandidate)
     ) {
       emit('user-message-latex');
+    }
+
+    if (
+      !emitted.has('response-action') &&
+      matchingElements(root, RESPONSE_COPY_ACTION_SELECTOR).some(
+        (button) => getTurnRole(button) === 'assistant',
+      )
+    ) {
+      emit('response-action');
     }
   };
 

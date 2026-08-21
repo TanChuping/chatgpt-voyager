@@ -76,7 +76,7 @@ function mountComposer(initialText = ''): {
 function installPasteTransaction(
   editor: HTMLElement,
   button: HTMLButtonElement,
-  options: { keepButtonEnabledWhenEmpty?: boolean } = {},
+  options: { keepButtonEnabledWhenEmpty?: boolean; useVisualDisabledState?: boolean } = {},
 ): string[] {
   const pasted: string[] = [];
   editor.addEventListener('paste', (event) => {
@@ -86,7 +86,19 @@ function installPasteTransaction(
     pasted.push(text);
     event.preventDefault();
     editor.textContent = text;
-    button.disabled = options.keepButtonEnabledWhenEmpty ? false : text.trim().length === 0;
+    const disabled = !options.keepButtonEnabledWhenEmpty && text.trim().length === 0;
+    if (options.useVisualDisabledState) {
+      button.disabled = false;
+      if (disabled) {
+        button.setAttribute('aria-disabled', 'true');
+        button.setAttribute('data-visually-disabled', 'true');
+      } else {
+        button.removeAttribute('aria-disabled');
+        button.removeAttribute('data-visually-disabled');
+      }
+    } else {
+      button.disabled = disabled;
+    }
     editor.dispatchEvent(new Event('input', { bubbles: true }));
   });
   return pasted;
@@ -361,6 +373,54 @@ describe('plain text input mode', () => {
     expect(sent).toHaveBeenCalledTimes(1);
   });
 
+  it('clears the plain draft when an attachment disappearing proves the mixed send started', async () => {
+    const { editor, button } = mountComposer();
+    installPasteTransaction(editor, button, { useVisualDisabledState: true });
+    const attachment = document.createElement('div');
+    attachment.setAttribute('data-testid', 'attachment-preview');
+    editor.closest('[data-testid="composer"]')?.appendChild(attachment);
+    const sent = vi.fn(() => attachment.remove());
+    button.addEventListener('click', sent);
+    button.setAttribute('aria-disabled', 'true');
+    button.setAttribute('data-visually-disabled', 'true');
+    const { startPlainTextInput } = await import('../index');
+    cleanup = await startPlainTextInput();
+
+    const textarea = document.querySelector<HTMLTextAreaElement>(
+      'textarea[data-gv-plain-text-input="true"]',
+    )!;
+    textarea.value = 'caption for image';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await advance(250);
+
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(attachment.isConnected).toBe(false);
+    expect(textarea.value).toBe('');
+  });
+
+  it('keeps a text draft when the send button only becomes disabled', async () => {
+    const { editor, button } = mountComposer();
+    installPasteTransaction(editor, button, { useVisualDisabledState: true });
+    button.addEventListener('click', () => {
+      button.setAttribute('aria-disabled', 'true');
+      button.setAttribute('data-visually-disabled', 'true');
+    });
+    const { startPlainTextInput } = await import('../index');
+    cleanup = await startPlainTextInput();
+
+    const textarea = document.querySelector<HTMLTextAreaElement>(
+      'textarea[data-gv-plain-text-input="true"]',
+    )!;
+    textarea.value = 'draft that was not sent';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await advance(1400);
+
+    expect(textarea.value).toBe('draft that was not sent');
+    expect(editor.textContent).toBe('draft that was not sent');
+  });
+
   it('refuses to send when the native editor ignores the paste transaction', async () => {
     const { editor, button } = mountComposer('old native text');
     const sent = vi.fn();
@@ -516,9 +576,12 @@ describe('plain text input mode', () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
-  it('makes ChatGPT existing send button available while the plain draft has text', async () => {
+  it('lets ChatGPT enable its visually-disabled send button from the hidden native editor', async () => {
     const { editor, button } = mountComposer();
-    button.disabled = true;
+    installPasteTransaction(editor, button, { useVisualDisabledState: true });
+    editor.closest('form')?.addEventListener('input', () => queueMicrotask(() => editor.focus()));
+    button.setAttribute('aria-disabled', 'true');
+    button.setAttribute('data-visually-disabled', 'true');
     const { startPlainTextInput } = await import('../index');
     cleanup = await startPlainTextInput();
     const textarea = document.querySelector<HTMLTextAreaElement>(
@@ -526,13 +589,26 @@ describe('plain text input mode', () => {
     )!;
 
     textarea.value = 'plain draft';
+    textarea.focus();
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    await advance(100);
     expect(button.disabled).toBe(false);
-    expect(editor.textContent).toBe('');
+    expect(button.hasAttribute('aria-disabled')).toBe(false);
+    expect(button.hasAttribute('data-visually-disabled')).toBe(false);
+    expect(editor.textContent).toBe('plain draft');
+    expect(document.activeElement).toBe(textarea);
+
+    textarea.value = 'plain draft updated';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    await advance(100);
+    expect(editor.textContent).toBe('plain draft');
 
     textarea.value = '';
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    expect(button.disabled).toBe(true);
+    await advance(100);
+    expect(editor.textContent).toBe('');
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(button.hasAttribute('data-visually-disabled')).toBe(true);
   });
 
   it('follows ChatGPT composerSubmit policy for Enter versus Ctrl+Enter', async () => {
@@ -576,7 +652,9 @@ describe('plain text input mode', () => {
 
   it('does not append the textarea default newline when native Ctrl+Enter sends', async () => {
     const { editor, button } = mountComposer();
-    const pasted = installPasteTransaction(editor, button);
+    const pasted = installPasteTransaction(editor, button, { useVisualDisabledState: true });
+    button.setAttribute('aria-disabled', 'true');
+    button.setAttribute('data-visually-disabled', 'true');
     const sentTexts: string[] = [];
     const sent = vi.fn(() => sentTexts.push(editor.textContent ?? ''));
     button.addEventListener('click', sent);
@@ -779,7 +857,6 @@ describe('plain text input mode', () => {
     expect(editor.classList.contains('gv-plain-text-input-native')).toBe(false);
     expect(editor.hasAttribute('aria-hidden')).toBe(false);
     expect(editor.hasAttribute('tabindex')).toBe(false);
-    expect(button.hasAttribute('data-gv-plain-text-send-ready')).toBe(false);
   });
 
   it('persists an unsynced draft before detaching, including on a hidden page', async () => {

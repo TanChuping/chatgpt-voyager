@@ -50,6 +50,7 @@ export const BUSINESS_DEMAND_FEATURE_IDS: Readonly<
   'broken-markdown': ['markdown-patcher'],
   'user-message-latex': ['user-latex'],
   'conversation-route': ['conversation-export'],
+  'response-action': ['export-button'],
   'export-menu-interaction': ['export-button'],
   'pending-export': ['export-button', 'conversation-export'],
   'announcement-interaction': ['announcement'],

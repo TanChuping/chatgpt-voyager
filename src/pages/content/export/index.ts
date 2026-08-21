@@ -635,6 +635,31 @@ function resolveAssistantMessageIdFromMenuTrigger(trigger: HTMLElement | null): 
   return target?.messageId || null;
 }
 
+export function buildResponseImageTurnForTrigger(trigger: HTMLElement): ExportChatTurn | null {
+  const assistantHost =
+    findAssistantTurnForElement(trigger) ||
+    (trigger.closest(
+      '.response-container, response-container, .model-response, model-response, .presented-response-container',
+    ) as HTMLElement | null);
+  if (!assistantHost) return null;
+
+  const assistantElement =
+    queryOutsideThoughts<HTMLElement>(
+      assistantHost,
+      'message-content, .markdown, .markdown-main-panel',
+    ) || assistantHost;
+  const assistant = extractAssistantText(assistantHost);
+  if (!assistant && assistantElement === assistantHost) return null;
+
+  return {
+    user: '',
+    assistant,
+    starred: false,
+    omitEmptySections: true,
+    assistantElement,
+  };
+}
+
 async function loadDictionaries(): Promise<Record<AppLanguage, Record<string, string>>> {
   try {
     const [enRaw, zhRaw] = await Promise.all([
@@ -1830,20 +1855,14 @@ async function handleResponseCopyImageClick(
   trigger.dataset.gvCopyImageBusy = '1';
 
   const texts = getResponseCopyImageTexts(getCurrentLanguage());
-  const messageId = resolveAssistantMessageIdFromMenuTrigger(trigger);
   let blobForFallback: Blob | null = null;
   try {
-    if (!messageId) {
+    const turn = buildResponseImageTurnForTrigger(trigger);
+    if (!turn) {
       showExportToast(texts.targetMissing);
       return;
     }
-
-    const selectedMessageIds = new Set<string>([messageId]);
-    const turnsForExport = buildTurnsForSelectedMessageIds(selectedMessageIds, collectChatPairs());
-    if (turnsForExport.length === 0) {
-      showExportToast(texts.targetMissing);
-      return;
-    }
+    const turnsForExport = [turn];
 
     const metadata: ConversationMetadata = {
       url: location.href,

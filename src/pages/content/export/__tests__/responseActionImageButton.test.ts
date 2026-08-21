@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { buildResponseImageTurnForTrigger } from '../index';
 import { injectResponseActionCopyImageButtons } from '../responseActionImageButton';
 
 function createNativeActionButton({
@@ -222,5 +223,37 @@ describe('responseActionImageButton', () => {
 
     expect(injected).toHaveLength(1);
     expect(buttons.querySelector('[data-test-id="gv-copy-image-button"]')).toBeTruthy();
+  });
+
+  it('injects into the current ChatGPT action row and resolves that exact reply', () => {
+    document.body.innerHTML = `
+      <section data-testid="conversation-turn-2">
+        <div data-message-author-role="assistant">
+          <message-content data-testid="assistant-message-content">
+            <div class="markdown"><p>Current reply body</p></div>
+          </message-content>
+          <div role="group">
+            <button type="button" data-testid="copy-turn-action-button" aria-label="Copy">
+              <svg aria-hidden="true"></svg>
+            </button>
+            <button type="button" data-testid="more-turn-action-button" aria-label="More"></button>
+          </div>
+        </div>
+      </section>
+    `;
+
+    const injected = injectResponseActionCopyImageButtons(document, {
+      label: 'Copy response as image',
+      tooltip: 'Copy response as image',
+      onClick: vi.fn(),
+    });
+
+    expect(injected).toHaveLength(1);
+    expect(injected[0].previousElementSibling?.getAttribute('data-testid')).toBe(
+      'copy-turn-action-button',
+    );
+    const turn = buildResponseImageTurnForTrigger(injected[0]);
+    expect(turn?.assistant).toBe('Current reply body');
+    expect(turn?.assistantElement?.getAttribute('data-testid')).toBe('assistant-message-content');
   });
 });
