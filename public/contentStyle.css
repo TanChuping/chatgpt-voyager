@@ -4359,6 +4359,32 @@ body.light-theme {
   --folder-selected-glow: rgba(91, 33, 182, 0.14);
 }
 
+/* Current conversation title beside the header folder/rename shortcuts. */
+.gv-conversation-title-header {
+  box-sizing: border-box;
+  display: block;
+  width: clamp(120px, 18vw, 280px);
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  overflow: hidden;
+  border-inline-start: 1px solid color-mix(in oklab, currentColor 12%, transparent);
+  color: var(--text-primary, currentColor);
+  font: inherit;
+  font-size: 14px;
+  line-height: 36px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .gv-conversation-title-header {
+    width: 96px;
+    padding-inline: 8px;
+    font-size: 13px;
+  }
+}
+
 /* Folder Container */
 .gv-folder-container {
   --gv-folder-section-gutter: 14px;

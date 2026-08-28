@@ -10,6 +10,7 @@ import { getTranslationSync } from '@/utils/i18n';
 
 import {
   extractChatGptConversationIdFromUrl,
+  findChatGptSidebar,
   getChatGptConversationElements,
   getChatGptConversationId,
   getChatGptConversationTitle,
@@ -21,18 +22,22 @@ import {
   clearNativeMenuOwnership,
   closeNativeConversationMenu,
   createNativeMenuOwnershipSnapshot,
+  findConversationOptionsButton,
   findRenameConversationMenuItem,
   getNativeConversationMenus,
   isElementOpen,
   isOwnedNativeConversationMenu,
+  resolveSidebarConversationContext,
 } from '../folder/nativeConversationBridge';
 import { buildClonedButtonClassName } from '../shared/clonedButtonClass';
 import { findActivePageHeader, findHeaderLeftSlot } from '../shared/headerActionSlot';
 
 const FOLDER_TAG = 'data-gv-folder-header-btn';
 const RENAME_TAG = 'data-gv-conversation-rename-header-btn';
+const TITLE_TAG = 'data-gv-conversation-title-header';
 const INJECT_DEBOUNCE_MS = 50;
 const NATIVE_MENU_WAIT_MS = 2500;
+const SIDEBAR_REVEAL_STABLE_MS = 550;
 const NATIVE_EDITOR_WAIT_MS = 2500;
 const NATIVE_RENAME_LIFECYCLE_MS = 120_000;
 const NATIVE_COMMIT_CONFIRM_MS = 15_000;
@@ -44,8 +49,10 @@ let lifecycleGeneration = 0;
 let activeGeneration: number | null = null;
 let injectedFolderButton: HTMLButtonElement | null = null;
 let injectedRenameButton: HTMLButtonElement | null = null;
+let injectedTitle: HTMLSpanElement | null = null;
 let folderManager: FolderManager | null = null;
 let observer: MutationObserver | null = null;
+let titleObserver: MutationObserver | null = null;
 let injectTimer: number | null = null;
 let locationChangeHandler: (() => void) | null = null;
 let activeRenameController: AbortController | null = null;
@@ -99,14 +106,222 @@ function cancelActiveRenameOperation(): void {
 function removeTrackedButtons(cancelRename = true): void {
   injectedFolderButton?.remove();
   injectedRenameButton?.remove();
+  injectedTitle?.remove();
   injectedFolderButton = null;
   injectedRenameButton = null;
+  injectedTitle = null;
   if (cancelRename) cancelActiveRenameOperation();
 }
 
 function normalizeTitle(value: string | null | undefined): string | null {
   const title = (value || '').replace(/\s+/g, ' ').trim();
   return title || null;
+}
+
+function findSidebarRenameTrigger(conversationId: string): HTMLElement | null {
+  const sidebar = findChatGptSidebar();
+  if (!sidebar || !isSidebarExpandedAndInteractive(sidebar)) return null;
+  const matchingTriggers = getChatGptConversationElements(sidebar)
+    .filter((conversation) => getChatGptConversationId(conversation) === conversationId)
+    .map((conversation) => findConversationOptionsButton(conversation))
+    .filter((trigger): trigger is HTMLElement => trigger !== null);
+
+  return matchingTriggers[0] ?? null;
+}
+
+function isActuallyVisible(element: HTMLElement): boolean {
+  if (!element.isConnected) return false;
+  for (let current: HTMLElement | null = element; current; current = current.parentElement) {
+    if (
+      current.hidden ||
+      current.hasAttribute('inert') ||
+      current.getAttribute('aria-hidden') === 'true'
+    ) {
+      return false;
+    }
+    const style = window.getComputedStyle(current);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isSidebarExpandedAndInteractive(sidebar: HTMLElement): boolean {
+  if (!isActuallyVisible(sidebar) || sidebar.getAttribute('data-state') === 'closed') return false;
+
+  const controlsId = sidebar.id;
+  if (controlsId) {
+    const visibleControls = Array.from(
+      document.querySelectorAll<HTMLElement>('[aria-controls][aria-expanded]'),
+    ).filter(
+      (candidate) =>
+        candidate.getAttribute('aria-controls') === controlsId && isActuallyVisible(candidate),
+    );
+    if (
+      visibleControls.some((candidate) => candidate.getAttribute('aria-expanded') === 'false') &&
+      !visibleControls.some((candidate) => candidate.getAttribute('aria-expanded') === 'true')
+    ) {
+      return false;
+    }
+  }
+
+  // Ignore zero-sized rectangles in DOM-only test environments. In a real
+  // browser, a transformed force-mounted sidebar outside the viewport is not
+  // an interactive source even if its descendants remain in the DOM.
+  const rect = sidebar.getBoundingClientRect();
+  if (
+    (rect.width > 0 || rect.height > 0) &&
+    (rect.right <= 0 ||
+      rect.bottom <= 0 ||
+      rect.left >= window.innerWidth ||
+      rect.top >= window.innerHeight)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function findSidebarToggle(expanded: boolean, controlsId?: string): HTMLElement | null {
+  return (
+    Array.from(document.querySelectorAll<HTMLElement>('[aria-controls][aria-expanded]')).find(
+      (candidate) => {
+        const candidateControls = candidate.getAttribute('aria-controls') || '';
+        return (
+          candidate.getAttribute('aria-expanded') === String(expanded) &&
+          (controlsId
+            ? candidateControls === controlsId
+            : /(?:^|[-_])sidebar(?:$|[-_])/i.test(candidateControls)) &&
+          isActuallyVisible(candidate)
+        );
+      },
+    ) ?? null
+  );
+}
+
+function waitForSidebarRenameTrigger(
+  conversationId: string,
+  signal: AbortSignal,
+): Promise<HTMLElement | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let stableTrigger: HTMLElement | null = null;
+    let stableSince = 0;
+    const mutationObserver = new MutationObserver(check);
+    const poll = window.setInterval(check, 50);
+    const timer = window.setTimeout(() => finish(null), NATIVE_MENU_WAIT_MS);
+
+    function finish(trigger: HTMLElement | null): void {
+      if (settled) return;
+      settled = true;
+      mutationObserver.disconnect();
+      window.clearInterval(poll);
+      window.clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      resolve(trigger);
+    }
+    function onAbort(): void {
+      finish(null);
+    }
+    function check(): void {
+      const trigger = findSidebarRenameTrigger(conversationId);
+      if (!trigger) {
+        stableTrigger = null;
+        stableSince = 0;
+        return;
+      }
+      if (stableTrigger !== trigger) {
+        stableTrigger = trigger;
+        stableSince = Date.now();
+        return;
+      }
+      if (Date.now() - stableSince >= SIDEBAR_REVEAL_STABLE_MS) finish(trigger);
+    }
+
+    if (signal.aborted) {
+      finish(null);
+      return;
+    }
+    signal.addEventListener('abort', onAbort, { once: true });
+    mutationObserver.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['aria-hidden', 'aria-expanded', 'data-state', 'hidden', 'inert', 'style'],
+      childList: true,
+      subtree: true,
+    });
+    check();
+  });
+}
+
+interface SidebarRevealLease {
+  trigger: HTMLElement | null;
+  keepOpen: () => boolean;
+  preserveOpen: () => void;
+  release: () => void;
+}
+
+async function revealSidebarForRename(
+  conversationId: string,
+  signal: AbortSignal,
+): Promise<SidebarRevealLease> {
+  const existingTrigger = findSidebarRenameTrigger(conversationId);
+  if (existingTrigger) {
+    return {
+      trigger: existingTrigger,
+      keepOpen: () => false,
+      preserveOpen: () => undefined,
+      release: () => undefined,
+    };
+  }
+
+  const revealToggle = findSidebarToggle(false);
+  if (!revealToggle) {
+    return {
+      trigger: null,
+      keepOpen: () => false,
+      preserveOpen: () => undefined,
+      release: () => undefined,
+    };
+  }
+
+  const controlsId = revealToggle.getAttribute('aria-controls') || '';
+  let released = false;
+  let restoreOnRelease = true;
+  let userChangedSidebarState = false;
+  const recordUserToggle = (event: Event) => {
+    if (!event.isTrusted || !(event.target instanceof Element)) return;
+    const control = event.target.closest<HTMLElement>('[aria-controls][aria-expanded]');
+    if (control?.getAttribute('aria-controls') === controlsId) userChangedSidebarState = true;
+  };
+  document.addEventListener('click', recordUserToggle, true);
+  revealToggle.click();
+
+  const keepOpen = () => {
+    if (released || userChangedSidebarState) return false;
+    const collapsedToggle = findSidebarToggle(false, controlsId);
+    if (!collapsedToggle) return false;
+    collapsedToggle.click();
+    return true;
+  };
+  const preserveOpen = () => {
+    restoreOnRelease = false;
+  };
+  const release = () => {
+    if (released) return;
+    released = true;
+    document.removeEventListener('click', recordUserToggle, true);
+    if (userChangedSidebarState || !restoreOnRelease) return;
+    findSidebarToggle(true, controlsId)?.click();
+  };
+  const trigger = await waitForSidebarRenameTrigger(conversationId, signal);
+  return { trigger, keepOpen, preserveOpen, release };
+}
+
+function isCurrentConversationSidebarTrigger(
+  trigger: HTMLElement,
+  conversationId: string,
+): boolean {
+  return resolveSidebarConversationContext(trigger)?.id === conversationId;
 }
 
 type NativeTitleSource = 'sidebar-title' | 'header-title' | 'document-title';
@@ -117,7 +332,8 @@ function readNativeConversationTitleSources(
 ): Map<NativeTitleSource, string | null> {
   const titles = new Map<NativeTitleSource, string | null>();
   const sidebarTitles = new Set<string>();
-  for (const conversation of getChatGptConversationElements(document)) {
+  const sidebar = findChatGptSidebar();
+  for (const conversation of sidebar ? getChatGptConversationElements(sidebar) : []) {
     if (getChatGptConversationId(conversation) !== conversationId) continue;
     const sidebarTitle = normalizeTitle(getChatGptConversationTitle(conversation));
     if (sidebarTitle) sidebarTitles.add(sidebarTitle);
@@ -154,6 +370,28 @@ function readNativeConversationTitles(conversationId: string): string[] {
   ];
 }
 
+function readCurrentConversationTitle(conversationId: string): string {
+  const sources = readNativeConversationTitleSources(conversationId);
+  return (
+    sources.get('sidebar-title') ||
+    sources.get('header-title') ||
+    sources.get('document-title') ||
+    getTranslationSync('conversation_untitled')
+  );
+}
+
+function refreshInjectedTitle(): void {
+  if (!injectedTitle?.isConnected) return;
+  const conversationId = getCurrentConversationId();
+  if (!conversationId) return;
+  const title = readCurrentConversationTitle(conversationId);
+  if (injectedTitle.textContent !== title) injectedTitle.textContent = title;
+  if (injectedTitle.title !== title) injectedTitle.title = title;
+  if (injectedTitle.getAttribute('aria-label') !== title) {
+    injectedTitle.setAttribute('aria-label', title);
+  }
+}
+
 function waitForOwnedNativeMenu(
   snapshot: NativeMenuOwnershipSnapshot,
   signal: AbortSignal,
@@ -179,6 +417,10 @@ function waitForOwnedNativeMenu(
       if (menu) finish(menu);
     };
 
+    if (signal.aborted) {
+      finish(null);
+      return;
+    }
     signal.addEventListener('abort', onAbort, { once: true });
     mutationObserver.observe(document.body, {
       attributes: true,
@@ -199,6 +441,13 @@ function waitForOwnedNativeMenu(
 }
 
 function activateNativeMenuTrigger(trigger: HTMLElement): void {
+  // ChatGPT's sidebar Radix trigger opens reliably from its native click.
+  // Sending pointerdown followed by click can toggle that same menu twice and
+  // leave it closed. The header wrapper still needs the pointerdown bridge.
+  if (resolveSidebarConversationContext(trigger)) {
+    trigger.click();
+    return;
+  }
   const eventInit: PointerEventInit & MouseEventInit = {
     bubbles: true,
     cancelable: true,
@@ -289,6 +538,10 @@ function waitForNativeRenameEditor(
       if (editor) finish(editor);
     }
 
+    if (signal.aborted) {
+      finish(null);
+      return;
+    }
     signal.addEventListener('abort', onAbort, { once: true });
     observer.observe(document.body, {
       attributes: true,
@@ -372,21 +625,33 @@ function startPostCommitVerification(
     }
     if (Date.now() - candidateSince < NATIVE_COMMIT_STABLE_MS) return;
     folderManager?.applyNativeConversationRename(conversationId, nextCandidate);
+    refreshInjectedTitle();
     finish();
   }, 250);
   postCommitVerificationCleanup = finish;
 }
 
+type NativeRenameLifecycleOutcome =
+  | 'aborted'
+  | 'cancelled'
+  | 'committed'
+  | 'editor-closed'
+  | 'hidden-abnormal'
+  | 'idle-timeout'
+  | 'submitted-timeout';
+
 function monitorNativeRenameLifecycle(
   conversationId: string,
   editor: HTMLElement,
   controller: AbortController,
-): Promise<void> {
+  keepEditorVisible: () => boolean = () => false,
+): Promise<NativeRenameLifecycleOutcome> {
   return new Promise((resolve) => {
     const { signal } = controller;
     const scope =
       editor.closest<HTMLElement>('[role="dialog"]') ||
       editor.closest<HTMLElement>('form') ||
+      editor.parentElement ||
       editor;
     const form = editor.closest<HTMLFormElement>('form');
     const initialEditorTitle = readRenameEditorTitle(editor);
@@ -394,17 +659,21 @@ function monitorNativeRenameLifecycle(
       readNativeConversationTitleSources(conversationId);
     let settled = false;
     let submittedTitle: string | null = null;
+    let submissionAttempted = false;
     let confirmationDeadline = 0;
     let matchingTitleSince = 0;
     const interval = window.setInterval(check, 250);
-    const timeout = window.setTimeout(finish, NATIVE_RENAME_LIFECYCLE_MS);
+    const timeout = window.setTimeout(
+      () => finish(submissionAttempted ? 'submitted-timeout' : 'idle-timeout'),
+      NATIVE_RENAME_LIFECYCLE_MS,
+    );
 
-    function finish(): void {
+    function finish(outcome: NativeRenameLifecycleOutcome): void {
       if (settled) return;
       settled = true;
       window.clearInterval(interval);
       window.clearTimeout(timeout);
-      signal.removeEventListener('abort', finish);
+      signal.removeEventListener('abort', onAbort);
       form?.removeEventListener('submit', onSubmit, true);
       scope.removeEventListener('click', onClick, true);
       scope.removeEventListener('keydown', onKeyDown, true);
@@ -412,14 +681,19 @@ function monitorNativeRenameLifecycle(
         activeRenameController = null;
         if (injectedRenameButton?.isConnected) injectedRenameButton.disabled = false;
       }
-      resolve();
+      resolve(outcome);
+    }
+
+    function onAbort(): void {
+      finish('aborted');
     }
 
     function beginConfirmation(): void {
       if (settled || getCurrentConversationId() !== conversationId) {
-        finish();
+        finish('aborted');
         return;
       }
+      submissionAttempted = true;
       const title = readRenameEditorTitle(editor);
       if (!title || title === initialEditorTitle) {
         submittedTitle = null;
@@ -441,7 +715,7 @@ function monitorNativeRenameLifecycle(
         event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button') : null;
       if (!button) return;
       if (isCancelRenameControl(button)) {
-        queueMicrotask(finish);
+        queueMicrotask(() => finish('cancelled'));
       } else if (isCommitRenameControl(button)) {
         queueMicrotask(beginConfirmation);
       }
@@ -450,19 +724,27 @@ function monitorNativeRenameLifecycle(
     function onKeyDown(event: Event): void {
       if (!(event instanceof KeyboardEvent)) return;
       if (event.key === 'Escape') {
-        queueMicrotask(finish);
+        queueMicrotask(() => finish('cancelled'));
       } else if (event.key === 'Enter' && !event.shiftKey) {
         queueMicrotask(beginConfirmation);
       }
     }
 
     function check(): void {
-      if (settled || signal.aborted || getCurrentConversationId() !== conversationId) {
-        finish();
+      if (settled) return;
+      if (signal.aborted || getCurrentConversationId() !== conversationId) {
+        finish('aborted');
         return;
       }
       if (!submittedTitle) {
-        if (!editor.isConnected || !isElementOpen(editor) || !isElementOpen(scope)) finish();
+        if (!editor.isConnected) {
+          finish('editor-closed');
+        } else if (!isElementOpen(editor) || !isElementOpen(scope)) {
+          // ChatGPT can auto-collapse a temporarily revealed sidebar in the
+          // same turn that it mounts the inline title editor. Keep the editor
+          // reachable unless the user explicitly changed sidebar state.
+          if (!keepEditorVisible()) finish('hidden-abnormal');
+        }
         return;
       }
       const editorClosed = !editor.isConnected || !isElementOpen(editor) || !isElementOpen(scope);
@@ -502,19 +784,38 @@ function monitorNativeRenameLifecycle(
           }
         }
         folderManager?.applyNativeConversationRename(conversationId, submittedTitle);
+        refreshInjectedTitle();
         startPostCommitVerification(conversationId, submittedTitle, confirmedSources);
-        finish();
+        finish('committed');
       } else if (Date.now() >= confirmationDeadline) {
-        finish();
+        finish('submitted-timeout');
       }
     }
 
-    signal.addEventListener('abort', finish, { once: true });
+    signal.addEventListener('abort', onAbort, { once: true });
     form?.addEventListener('submit', onSubmit, true);
     scope.addEventListener('click', onClick, true);
     scope.addEventListener('keydown', onKeyDown, true);
     check();
   });
+}
+
+function isCurrentRenameOperation(
+  generation: number,
+  conversationId: string,
+  operationButton: HTMLButtonElement,
+  operationHeader: HTMLElement,
+  controller: AbortController,
+): boolean {
+  return (
+    activeRenameController === controller &&
+    !controller.signal.aborted &&
+    isActiveGeneration(generation) &&
+    getCurrentConversationId() === conversationId &&
+    operationButton.isConnected &&
+    operationHeader.contains(operationButton) &&
+    findActivePageHeader() === operationHeader
+  );
 }
 
 async function openNativeRenameDialog(
@@ -524,80 +825,180 @@ async function openNativeRenameDialog(
   const conversationId = getCurrentConversationId();
   const manager = folderManager;
   const operationHeader = operationButton.closest<HTMLElement>('header#page-header');
-  const trigger = operationHeader?.querySelector<HTMLElement>(
-    '[data-testid="conversation-options-button"]',
-  );
-  if (!conversationId || !manager || !trigger || !isActiveGeneration(generation)) return false;
-
-  cancelActiveRenameOperation();
-  const controller = new AbortController();
-  activeRenameController = controller;
-  const snapshot = createNativeMenuOwnershipSnapshot(
-    trigger,
-    conversationId,
-    `header-rename-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-  );
-  if (!snapshot) {
-    cancelActiveRenameOperation();
+  if (!conversationId || !manager || !operationHeader || !isActiveGeneration(generation)) {
     return false;
   }
 
-  const previousTitles = new Set(readNativeConversationTitles(conversationId));
-  let renameActivated = false;
-  let editorSnapshot: RenameEditorSnapshot | null = null;
+  cancelActiveRenameOperation();
+  operationButton.disabled = true;
+  const controller = new AbortController();
+  activeRenameController = controller;
+  let sidebarLease: SidebarRevealLease = {
+    trigger: null,
+    keepOpen: () => false,
+    preserveOpen: () => undefined,
+    release: () => undefined,
+  };
+
   try {
-    manager.runWithNativeConversationMenuTrackingSuppressed(trigger, () =>
-      activateNativeMenuTrigger(trigger),
+    sidebarLease = await revealSidebarForRename(conversationId, controller.signal);
+    if (
+      !isCurrentRenameOperation(
+        generation,
+        conversationId,
+        operationButton,
+        operationHeader,
+        controller,
+      )
+    ) {
+      return false;
+    }
+
+    const headerTrigger = operationHeader.querySelector<HTMLElement>(
+      '[data-testid="conversation-options-button"]',
     );
-    const menu = await waitForOwnedNativeMenu(snapshot, controller.signal);
+    const triggers = [sidebarLease.trigger, headerTrigger].filter(
+      (trigger, index, candidates): trigger is HTMLElement =>
+        trigger !== null && trigger !== undefined && candidates.indexOf(trigger) === index,
+    );
+    if (triggers.length === 0) return false;
+
+    const previousTitles = new Set(readNativeConversationTitles(conversationId));
+    let editorSnapshot: RenameEditorSnapshot | null = null;
+    for (const trigger of triggers) {
+      if (
+        !isCurrentRenameOperation(
+          generation,
+          conversationId,
+          operationButton,
+          operationHeader,
+          controller,
+        )
+      ) {
+        return false;
+      }
+      const triggerStillOwnsConversation =
+        trigger === headerTrigger
+          ? operationHeader.contains(trigger)
+          : findSidebarRenameTrigger(conversationId) === trigger &&
+            isCurrentConversationSidebarTrigger(trigger, conversationId);
+      if (!triggerStillOwnsConversation) continue;
+
+      const snapshot = createNativeMenuOwnershipSnapshot(
+        trigger,
+        conversationId,
+        `header-rename-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      );
+      if (!snapshot) continue;
+
+      let menu: HTMLElement | null = null;
+      try {
+        manager.runWithNativeConversationMenuTrackingSuppressed(trigger, () =>
+          activateNativeMenuTrigger(trigger),
+        );
+        menu = await waitForOwnedNativeMenu(snapshot, controller.signal);
+        if (
+          !isCurrentRenameOperation(
+            generation,
+            conversationId,
+            operationButton,
+            operationHeader,
+            controller,
+          )
+        ) {
+          return false;
+        }
+        if (!menu) continue;
+        const stillOwned =
+          trigger === headerTrigger
+            ? operationHeader.contains(trigger)
+            : findSidebarRenameTrigger(conversationId) === trigger &&
+              isCurrentConversationSidebarTrigger(trigger, conversationId);
+        if (!stillOwned) {
+          closeNativeConversationMenu(menu);
+          continue;
+        }
+
+        const renameItem = findRenameConversationMenuItem(menu);
+        if (
+          !renameItem ||
+          renameItem.getAttribute('aria-disabled') === 'true' ||
+          (renameItem instanceof HTMLButtonElement && renameItem.disabled)
+        ) {
+          closeNativeConversationMenu(menu);
+          continue;
+        }
+
+        editorSnapshot = captureRenameEditorSnapshot();
+        renameItem.click();
+        break;
+      } finally {
+        clearNativeMenuOwnership(snapshot);
+      }
+    }
+
+    if (!editorSnapshot) return false;
     if (
-      !menu ||
-      controller.signal.aborted ||
-      !isActiveGeneration(generation) ||
-      getCurrentConversationId() !== conversationId ||
-      !operationHeader?.contains(trigger) ||
-      findActivePageHeader() !== operationHeader
+      !isCurrentRenameOperation(
+        generation,
+        conversationId,
+        operationButton,
+        operationHeader,
+        controller,
+      )
+    ) {
+      return false;
+    }
+    const editor = await waitForNativeRenameEditor(
+      editorSnapshot,
+      previousTitles,
+      controller.signal,
+    );
+    if (
+      !editor ||
+      !isCurrentRenameOperation(
+        generation,
+        conversationId,
+        operationButton,
+        operationHeader,
+        controller,
+      )
     ) {
       return false;
     }
 
-    const renameItem = findRenameConversationMenuItem(menu);
+    const lifecycleOutcome = await monitorNativeRenameLifecycle(
+      conversationId,
+      editor,
+      controller,
+      sidebarLease.keepOpen,
+    );
+    // Preserve the temporarily revealed sidebar only for an idle editor that
+    // ChatGPT unexpectedly hid or left open until our safety timeout. Normal
+    // cancel, submit and navigation/abort paths must restore its prior state,
+    // even when Radix keeps the editor mounted.
+    const operationStillCurrent =
+      !controller.signal.aborted &&
+      isActiveGeneration(generation) &&
+      getCurrentConversationId() === conversationId &&
+      operationButton.isConnected &&
+      operationHeader.contains(operationButton) &&
+      findActivePageHeader() === operationHeader;
     if (
-      !renameItem ||
-      renameItem.getAttribute('aria-disabled') === 'true' ||
-      (renameItem instanceof HTMLButtonElement && renameItem.disabled)
+      operationStillCurrent &&
+      editor.isConnected &&
+      (lifecycleOutcome === 'hidden-abnormal' || lifecycleOutcome === 'idle-timeout')
     ) {
-      closeNativeConversationMenu(menu);
-      return false;
+      sidebarLease.keepOpen();
+      sidebarLease.preserveOpen();
     }
-
-    editorSnapshot = captureRenameEditorSnapshot();
-    renameItem.click();
-    renameActivated = true;
+    return true;
   } finally {
-    clearNativeMenuOwnership(snapshot);
-    if (!renameActivated && activeRenameController === controller) {
+    sidebarLease.release();
+    if (activeRenameController === controller) {
       cancelActiveRenameOperation();
     }
   }
-
-  if (!editorSnapshot || getCurrentConversationId() !== conversationId) {
-    cancelActiveRenameOperation();
-    return false;
-  }
-  const editor = await waitForNativeRenameEditor(editorSnapshot, previousTitles, controller.signal);
-  if (
-    !editor ||
-    controller.signal.aborted ||
-    !isActiveGeneration(generation) ||
-    getCurrentConversationId() !== conversationId
-  ) {
-    if (activeRenameController === controller) cancelActiveRenameOperation();
-    return false;
-  }
-
-  await monitorNativeRenameLifecycle(conversationId, editor, controller);
-  return true;
 }
 
 function createHeaderButton(
@@ -617,22 +1018,33 @@ function createHeaderButton(
   return button;
 }
 
+function createHeaderTitle(): HTMLSpanElement {
+  const title = document.createElement('span');
+  title.className = 'gv-conversation-title-header';
+  title.setAttribute(TITLE_TAG, '1');
+  return title;
+}
+
 function injectIfNeeded(generation: number): void {
   if (!isActiveGeneration(generation)) return;
   if (!isConversationPage()) {
+    titleObserver?.disconnect();
+    titleObserver = null;
     removeTrackedButtons();
     return;
   }
 
   if (injectedFolderButton && !injectedFolderButton.isConnected) injectedFolderButton = null;
   if (injectedRenameButton && !injectedRenameButton.isConnected) injectedRenameButton = null;
+  if (injectedTitle && !injectedTitle.isConnected) injectedTitle = null;
 
   const slot = findHeaderLeftSlot();
   if (!slot) return;
   const { parent: host, before, styleSource } = slot;
   if (
     (injectedFolderButton && injectedFolderButton.parentElement !== host) ||
-    (injectedRenameButton && injectedRenameButton.parentElement !== host)
+    (injectedRenameButton && injectedRenameButton.parentElement !== host) ||
+    (injectedTitle && injectedTitle.parentElement !== host)
   ) {
     removeTrackedButtons(false);
   }
@@ -654,7 +1066,7 @@ function injectIfNeeded(generation: number): void {
       event.stopPropagation();
       folderManager?.openMoveToFolderDialogForCurrentConversation();
     });
-    host.insertBefore(injectedFolderButton, before);
+    host.insertBefore(injectedFolderButton, injectedRenameButton ?? injectedTitle ?? before);
   }
 
   injectedRenameButton =
@@ -689,29 +1101,103 @@ function injectIfNeeded(generation: number): void {
           }
         })
         .finally(() => {
-          if (operationButton.isConnected && isActiveGeneration(generation)) {
+          if (
+            operationButton.isConnected &&
+            isActiveGeneration(generation) &&
+            activeRenameController === null
+          ) {
             operationButton.disabled = false;
           }
         });
     });
-    host.insertBefore(injectedRenameButton, before);
+    host.insertBefore(injectedRenameButton, injectedTitle ?? before);
+  }
+
+  injectedTitle = host.querySelector<HTMLSpanElement>(`[${TITLE_TAG}]`) || injectedTitle;
+  if (!injectedTitle) {
+    injectedTitle = createHeaderTitle();
+    host.insertBefore(injectedTitle, before);
+  }
+  refreshInjectedTitle();
+  bindNativeTitleObserver(generation);
+}
+
+function bindNativeTitleObserver(generation: number): void {
+  titleObserver?.disconnect();
+  titleObserver = null;
+  if (!isActiveGeneration(generation) || !isConversationPage()) return;
+
+  const targets = new Set<HTMLElement>();
+  const sidebar = findChatGptSidebar();
+  if (sidebar) targets.add(sidebar);
+  const headerTitle = findActivePageHeader()?.querySelector<HTMLElement>(
+    '[data-testid="conversation-title"], h1',
+  );
+  if (headerTitle) targets.add(headerTitle);
+  const documentTitle = document.querySelector<HTMLElement>('title');
+  if (documentTitle) targets.add(documentTitle);
+  if (targets.size === 0) return;
+
+  titleObserver = new MutationObserver(() => {
+    if (isActiveGeneration(generation)) refreshInjectedTitle();
+  });
+  for (const target of targets) {
+    titleObserver.observe(target, {
+      attributes: true,
+      attributeFilter: ['aria-label', 'title'],
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
   }
 }
 
-function nodeTouchesHeader(node: Node, header: HTMLElement | null): boolean {
-  if (!(node instanceof Element)) return false;
-  if (header && (node === header || header.contains(node) || node.contains(header))) return true;
-  return node.querySelector('header#page-header') !== null;
+function nodeTouchesHeader(
+  node: Node,
+  header: HTMLElement | null,
+  includeDescendants = false,
+): boolean {
+  const element = node instanceof Element ? node : node.parentElement;
+  if (!element) return false;
+  if (header && (element === header || header.contains(element))) {
+    return true;
+  }
+  return (
+    element.matches('header#page-header') ||
+    element.closest('header#page-header') !== null ||
+    (includeDescendants && element.querySelector('header#page-header') !== null)
+  );
 }
 
 function mutationsMayAffectHeader(records: MutationRecord[]): boolean {
+  const trackedButtonInvalid =
+    (injectedFolderButton && !injectedFolderButton.isConnected) ||
+    (injectedRenameButton && !injectedRenameButton.isConnected) ||
+    (injectedTitle && !injectedTitle.isConnected);
+  const knownHeader =
+    injectedFolderButton?.closest<HTMLElement>('header#page-header') ||
+    injectedRenameButton?.closest<HTMLElement>('header#page-header') ||
+    injectedTitle?.closest<HTMLElement>('header#page-header') ||
+    null;
+  const recordsTouchHeader = records.some(
+    (record) =>
+      nodeTouchesHeader(record.target, knownHeader) ||
+      [...record.addedNodes, ...record.removedNodes].some((node) =>
+        nodeTouchesHeader(node, knownHeader, true),
+      ),
+  );
+  // Streaming answer text mutates the main conversation tree. Avoid the
+  // visibility/layout work below unless the header itself or a tracked node
+  // actually changed.
+  if (!trackedButtonInvalid && !recordsTouchHeader) return false;
+
   const header = findActivePageHeader();
   if (
     !header ||
-    (injectedFolderButton && !injectedFolderButton.isConnected) ||
-    (injectedRenameButton && !injectedRenameButton.isConnected) ||
+    trackedButtonInvalid ||
     (injectedFolderButton && injectedFolderButton.closest('header#page-header') !== header) ||
-    (injectedRenameButton && injectedRenameButton.closest('header#page-header') !== header)
+    (injectedRenameButton && injectedRenameButton.closest('header#page-header') !== header) ||
+    (injectedTitle && injectedTitle.closest('header#page-header') !== header)
   ) {
     return true;
   }
@@ -721,9 +1207,31 @@ function mutationsMayAffectHeader(records: MutationRecord[]): boolean {
       return true;
     if (header.contains(record.target)) return true;
     return [...record.addedNodes, ...record.removedNodes].some((node) =>
-      nodeTouchesHeader(node, header),
+      nodeTouchesHeader(node, header, true),
     );
   });
+}
+
+function nodeTouchesSidebarHost(node: Node, includeDescendants = false): boolean {
+  const element = node instanceof Element ? node : node.parentElement;
+  if (!element) return false;
+  const selector =
+    '#stage-slideover-sidebar, [id="sidebar"], [data-testid="sidebar"], [data-testid="history-sidebar"], [data-testid="conversation-sidebar"]';
+  return (
+    element.matches(selector) ||
+    element.closest(selector) !== null ||
+    (includeDescendants && element.querySelector(selector) !== null)
+  );
+}
+
+function mutationsMayAffectSidebarHost(records: MutationRecord[]): boolean {
+  return records.some(
+    (record) =>
+      nodeTouchesSidebarHost(record.target) ||
+      [...record.addedNodes, ...record.removedNodes].some((node) =>
+        nodeTouchesSidebarHost(node, true),
+      ),
+  );
 }
 
 function scheduleInjection(generation: number): void {
@@ -748,7 +1256,9 @@ export function startFolderHeaderButton(manager: FolderManager): () => void {
   injectIfNeeded(generation);
 
   observer = new MutationObserver((records) => {
-    if (mutationsMayAffectHeader(records)) scheduleInjection(generation);
+    if (mutationsMayAffectHeader(records) || mutationsMayAffectSidebarHost(records)) {
+      scheduleInjection(generation);
+    }
   });
   observer.observe(document.body, {
     attributes: true,
@@ -778,6 +1288,8 @@ export function stopFolderHeaderButton(): void {
   }
   observer?.disconnect();
   observer = null;
+  titleObserver?.disconnect();
+  titleObserver = null;
   if (locationChangeHandler) {
     window.removeEventListener('popstate', locationChangeHandler);
     window.removeEventListener('hashchange', locationChangeHandler);
@@ -786,6 +1298,6 @@ export function stopFolderHeaderButton(): void {
   }
   removeTrackedButtons();
   document
-    .querySelectorAll<HTMLElement>(`[${FOLDER_TAG}], [${RENAME_TAG}]`)
+    .querySelectorAll<HTMLElement>(`[${FOLDER_TAG}], [${RENAME_TAG}], [${TITLE_TAG}]`)
     .forEach((button) => button.remove());
 }

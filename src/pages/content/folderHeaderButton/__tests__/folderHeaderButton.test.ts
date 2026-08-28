@@ -10,6 +10,7 @@ vi.mock('@/utils/i18n', () => ({
 
 const BUTTON = '[data-gv-folder-header-btn]';
 const RENAME_BUTTON = '[data-gv-conversation-rename-header-btn]';
+const TITLE = '[data-gv-conversation-title-header]';
 const CONVERSATION_ID = '69ecf9a2-d5b4-83ea-a03c-80b3b2514998';
 
 /**
@@ -32,6 +33,39 @@ function mountHeader(): void {
         </div>
       </div>
     </header>`;
+}
+
+function mountSidebarConversation(title = 'Original title'): {
+  sidebar: HTMLDivElement;
+  row: HTMLLIElement;
+  link: HTMLAnchorElement;
+  titleNode: HTMLSpanElement;
+  options: HTMLButtonElement;
+} {
+  let sidebar = document.querySelector<HTMLDivElement>('#stage-slideover-sidebar');
+  if (!sidebar) {
+    sidebar = document.createElement('div');
+    sidebar.id = 'stage-slideover-sidebar';
+    sidebar.dataset.state = 'open';
+    document.body.appendChild(sidebar);
+  }
+  const row = document.createElement('li');
+  const link = document.createElement('a');
+  link.href = `/c/${CONVERSATION_ID}`;
+  const titleNode = document.createElement('span');
+  titleNode.textContent = title;
+  const options = document.createElement('button');
+  options.id = 'sidebar-options-trigger';
+  options.type = 'button';
+  options.dataset.testid = 'history-item-10-options';
+  options.dataset.conversationOptionsTrigger = CONVERSATION_ID;
+  options.setAttribute('aria-haspopup', 'menu');
+  options.setAttribute('aria-expanded', 'false');
+  options.setAttribute('data-state', 'closed');
+  link.append(titleNode, options);
+  row.appendChild(link);
+  sidebar.appendChild(row);
+  return { sidebar, row, link, titleNode, options };
 }
 
 function fakeManager(open = vi.fn().mockReturnValue(true)) {
@@ -57,6 +91,52 @@ function fakeManager(open = vi.fn().mockReturnValue(true)) {
     runSuppressed,
     isSuppressed: (trigger: HTMLElement) => suppressedTrigger === trigger,
   };
+}
+
+function wireNativeRenameMenu(
+  options: HTMLButtonElement,
+  menuId: string,
+  onEditorOpened?: () => void,
+): ReturnType<typeof vi.fn> {
+  const onClick = vi.fn(() => {
+    options.id ||= `${menuId}-trigger`;
+    options.setAttribute('aria-expanded', 'true');
+    options.setAttribute('aria-controls', menuId);
+    options.setAttribute('data-state', 'open');
+    const menu = document.createElement('div');
+    menu.id = menuId;
+    menu.setAttribute('role', 'menu');
+    menu.setAttribute('data-state', 'open');
+    menu.setAttribute('aria-labelledby', options.id);
+    const rename = document.createElement('button');
+    rename.setAttribute('role', 'menuitem');
+    rename.dataset.testid = 'rename-chat-menu-item';
+    rename.textContent = 'Rename';
+    rename.addEventListener('click', () => {
+      const dialog = document.createElement('div');
+      dialog.setAttribute('role', 'dialog');
+      dialog.setAttribute('data-state', 'open');
+      dialog.setAttribute('aria-label', 'Rename conversation');
+      const input = document.createElement('input');
+      input.value = 'Original title';
+      input.dataset.testid = 'rename-conversation-input';
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.dataset.testid = 'rename-cancel';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', () => dialog.remove());
+      dialog.append(input, cancel);
+      document.body.appendChild(dialog);
+      onEditorOpened?.();
+    });
+    const remove = document.createElement('button');
+    remove.setAttribute('role', 'menuitem');
+    remove.dataset.testid = 'delete-chat-menu-item';
+    menu.append(rename, remove);
+    document.body.appendChild(menu);
+  });
+  options.addEventListener('click', onClick);
+  return onClick;
 }
 
 beforeEach(() => {
@@ -110,6 +190,20 @@ describe('folder header button', () => {
 
     document.querySelector<HTMLElement>(BUTTON)!.click();
     expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the current conversation title beside the shortcuts and keeps it synced', async () => {
+    const { titleNode } = mountSidebarConversation('Current conversation');
+    const { manager } = fakeManager();
+    startFolderHeaderButton(manager);
+
+    const title = document.querySelector<HTMLElement>(TITLE)!;
+    expect(title.textContent).toBe('Current conversation');
+    expect(title.title).toBe('Current conversation');
+
+    titleNode.textContent = 'Renamed conversation';
+    await vi.waitFor(() => expect(title.textContent).toBe('Renamed conversation'));
+    expect(title.getAttribute('aria-label')).toBe('Renamed conversation');
   });
 
   it('does not inject outside a conversation', () => {
@@ -229,6 +323,169 @@ describe('folder header button', () => {
     expect(runSuppressed).toHaveBeenCalledTimes(1);
     document.removeEventListener('click', competingCaptureListener, true);
   }, 10_000);
+
+  it('uses the current sidebar menu when ChatGPT removes rename from the header menu', async () => {
+    const { options } = mountSidebarConversation();
+    const sidebarPointerDown = vi.fn();
+    options.addEventListener('pointerdown', sidebarPointerDown);
+    options.addEventListener('mousedown', sidebarPointerDown);
+    const headerOptions = document.querySelector<HTMLButtonElement>(
+      '[data-testid="conversation-options-button"]',
+    )!;
+    const headerClick = vi.fn();
+    headerOptions.addEventListener('click', headerClick);
+
+    options.addEventListener('click', () => {
+      const menuId = 'sidebar-conversation-menu';
+      options.setAttribute('aria-expanded', 'true');
+      options.setAttribute('aria-controls', menuId);
+      options.setAttribute('data-state', 'open');
+      const menu = document.createElement('div');
+      menu.id = menuId;
+      menu.setAttribute('role', 'menu');
+      menu.setAttribute('data-state', 'open');
+      menu.setAttribute('aria-labelledby', options.id);
+
+      const rename = document.createElement('button');
+      rename.setAttribute('role', 'menuitem');
+      rename.textContent = '重命名';
+      rename.addEventListener('click', () => {
+        const dialog = document.createElement('div');
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('data-state', 'open');
+        dialog.setAttribute('aria-label', '重命名对话');
+        const input = document.createElement('input');
+        input.value = 'Original title';
+        input.dataset.testid = 'rename-conversation-input';
+        dialog.appendChild(input);
+        document.body.appendChild(dialog);
+      });
+
+      const remove = document.createElement('button');
+      remove.setAttribute('role', 'menuitem');
+      remove.dataset.testid = 'delete-chat-menu-item';
+      menu.append(rename, remove);
+      document.body.appendChild(menu);
+    });
+
+    const { manager } = fakeManager();
+    startFolderHeaderButton(manager);
+    document.querySelector<HTMLButtonElement>(RENAME_BUTTON)!.click();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-testid="rename-conversation-input"]')).not.toBeNull();
+    });
+    expect(headerClick).not.toHaveBeenCalled();
+    expect(sidebarPointerDown).not.toHaveBeenCalled();
+  });
+
+  it('restores a collapsed sidebar after cancel with a force-mounted editor', async () => {
+    const { sidebar, options } = mountSidebarConversation();
+    sidebar.dataset.state = 'closed';
+    const toggle = document.createElement('button');
+    toggle.setAttribute('aria-controls', sidebar.id);
+    toggle.setAttribute('aria-expanded', 'false');
+    let toggleClicks = 0;
+    toggle.addEventListener('click', () => {
+      toggleClicks++;
+      const opening = toggle.getAttribute('aria-expanded') === 'false';
+      toggle.setAttribute('aria-expanded', String(opening));
+      sidebar.dataset.state = opening ? 'open' : 'closed';
+    });
+    document.body.appendChild(toggle);
+    const renameMenuClick = wireNativeRenameMenu(options, 'collapsed-sidebar-menu', () => {
+      const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+      if (dialog) {
+        dialog.removeAttribute('role');
+        dialog.removeAttribute('data-state');
+        sidebar.appendChild(dialog);
+        const cancel = dialog.querySelector<HTMLButtonElement>('[data-testid="rename-cancel"]')!;
+        cancel.addEventListener(
+          'click',
+          (event) => {
+            event.stopImmediatePropagation();
+            dialog.dataset.state = 'closed';
+            dialog.hidden = true;
+          },
+          { capture: true },
+        );
+      }
+      window.setTimeout(() => toggle.click(), 0);
+    });
+
+    const { manager } = fakeManager();
+    startFolderHeaderButton(manager);
+    document.querySelector<HTMLButtonElement>(RENAME_BUTTON)!.click();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-testid="rename-conversation-input"]')).not.toBeNull();
+    });
+    expect(renameMenuClick).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(toggleClicks).toBeGreaterThanOrEqual(3));
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    document.querySelector<HTMLButtonElement>('[data-testid="rename-cancel"]')!.click();
+    await vi.waitFor(() => expect(toggle.getAttribute('aria-expanded')).toBe('false'));
+    expect(toggleClicks).toBeGreaterThanOrEqual(4);
+    expect(sidebar.dataset.state).toBe('closed');
+    expect(document.querySelector('[data-testid="rename-conversation-input"]')).not.toBeNull();
+  });
+
+  it('restores a collapsed sidebar after abort with a connected editor', async () => {
+    const { sidebar, options } = mountSidebarConversation();
+    sidebar.dataset.state = 'closed';
+    const toggle = document.createElement('button');
+    toggle.setAttribute('aria-controls', sidebar.id);
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.addEventListener('click', () => {
+      const opening = toggle.getAttribute('aria-expanded') === 'false';
+      toggle.setAttribute('aria-expanded', String(opening));
+      sidebar.dataset.state = opening ? 'open' : 'closed';
+    });
+    document.body.appendChild(toggle);
+    wireNativeRenameMenu(options, 'abort-connected-editor-menu', () => {
+      const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+      if (dialog) sidebar.appendChild(dialog);
+    });
+
+    const { manager } = fakeManager();
+    startFolderHeaderButton(manager);
+    document.querySelector<HTMLButtonElement>(RENAME_BUTTON)!.click();
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-testid="rename-conversation-input"]')).not.toBeNull();
+      expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    });
+
+    window.dispatchEvent(new Event('gv-location-change'));
+
+    await vi.waitFor(() => expect(toggle.getAttribute('aria-expanded')).toBe('false'));
+    expect(sidebar.dataset.state).toBe('closed');
+    expect(document.querySelector('[data-testid="rename-conversation-input"]')).not.toBeNull();
+  });
+
+  it('ignores a hidden stale sidebar row with the same conversation id', async () => {
+    const staleSidebar = document.createElement('div');
+    staleSidebar.id = 'sidebar';
+    staleSidebar.style.display = 'none';
+    document.body.appendChild(staleSidebar);
+    const staleRow = document.createElement('li');
+    staleRow.innerHTML = `<a href="/c/${CONVERSATION_ID}"><span>Stale title</span><button data-testid="history-item-stale-options" data-conversation-options-trigger="${CONVERSATION_ID}" aria-haspopup="menu">…</button></a>`;
+    staleSidebar.appendChild(staleRow);
+    const staleOptions = staleRow.querySelector<HTMLButtonElement>('button')!;
+    const staleClick = vi.fn();
+    staleOptions.addEventListener('click', staleClick);
+
+    const { options } = mountSidebarConversation();
+    const activeClick = wireNativeRenameMenu(options, 'active-sidebar-menu');
+    const { manager } = fakeManager();
+    startFolderHeaderButton(manager);
+    document.querySelector<HTMLButtonElement>(RENAME_BUTTON)!.click();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-testid="rename-conversation-input"]')).not.toBeNull();
+    });
+    expect(activeClick).toHaveBeenCalledTimes(1);
+    expect(staleClick).not.toHaveBeenCalled();
+  });
 
   it('does not treat cancel followed by an automatic title change as a committed rename', async () => {
     const sidebarRow = document.createElement('li');
@@ -595,7 +852,7 @@ describe('folder header button', () => {
     expect(applyRename).toHaveBeenCalledTimes(1);
   }, 10_000);
 
-  it('does not let an old header operation re-enable a replacement rename button', async () => {
+  it('does not let an old header operation change a replacement rename button', async () => {
     const { manager } = fakeManager();
     startFolderHeaderButton(manager);
     const oldRenameButton = document.querySelector<HTMLButtonElement>(RENAME_BUTTON)!;
@@ -609,8 +866,73 @@ describe('folder header button', () => {
     });
 
     const replacementButton = document.querySelector<HTMLButtonElement>(RENAME_BUTTON)!;
-    expect(replacementButton.disabled).toBe(true);
-    await vi.waitFor(() => expect(replacementButton.disabled).toBe(false), { timeout: 4000 });
+    expect(replacementButton.disabled).toBe(false);
+  });
+
+  it('does not let an aborted wait cancel a newer rename operation', async () => {
+    const options = document.querySelector<HTMLButtonElement>(
+      '[data-testid="conversation-options-button"]',
+    )!;
+    let clickCount = 0;
+    options.addEventListener('click', () => {
+      clickCount++;
+      if (clickCount === 1) {
+        window.setTimeout(() => {
+          const staleMenu = document.createElement('div');
+          staleMenu.setAttribute('role', 'menu');
+          staleMenu.setAttribute('data-state', 'open');
+          staleMenu.setAttribute('aria-labelledby', options.id);
+          document.body.appendChild(staleMenu);
+        }, 100);
+        return;
+      }
+      options.id = 'newer-rename-trigger';
+      const menuId = 'newer-rename-menu';
+      options.setAttribute('aria-expanded', 'true');
+      options.setAttribute('aria-controls', menuId);
+      const menu = document.createElement('div');
+      menu.id = menuId;
+      menu.setAttribute('role', 'menu');
+      menu.setAttribute('data-state', 'open');
+      menu.setAttribute('aria-labelledby', options.id);
+      const rename = document.createElement('button');
+      rename.setAttribute('role', 'menuitem');
+      rename.dataset.testid = 'rename-chat-menu-item';
+      rename.addEventListener('click', () => {
+        const dialog = document.createElement('div');
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('data-state', 'open');
+        const input = document.createElement('input');
+        input.value = 'Original title';
+        input.dataset.testid = 'rename-conversation-input';
+        dialog.appendChild(input);
+        document.body.appendChild(dialog);
+      });
+      const remove = document.createElement('button');
+      remove.setAttribute('role', 'menuitem');
+      remove.dataset.testid = 'delete-chat-menu-item';
+      menu.append(rename, remove);
+      document.body.appendChild(menu);
+    });
+
+    const { manager } = fakeManager();
+    startFolderHeaderButton(manager);
+    const renameButton = document.querySelector<HTMLButtonElement>(RENAME_BUTTON)!;
+    renameButton.click();
+    await vi.waitFor(() => expect(clickCount).toBe(1));
+    window.dispatchEvent(new Event('gv-location-change'));
+    renameButton.click();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-testid="rename-conversation-input"]')).not.toBeNull();
+    });
+    await new Promise((resolve) => window.setTimeout(resolve, 150));
+    expect(clickCount).toBe(2);
+    expect(renameButton.disabled).toBe(true);
+    document
+      .querySelector<HTMLElement>('[role="dialog"]')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await vi.waitFor(() => expect(renameButton.disabled).toBe(false));
   });
 
   it('moves shortcuts from a force-mounted hidden header to the active replacement', async () => {
