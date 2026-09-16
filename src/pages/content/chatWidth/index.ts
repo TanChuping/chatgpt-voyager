@@ -1,5 +1,5 @@
 /**
- * Adjusts the chat area width based on user settings (stored as viewport %)
+ * Adjusts the chat area width (ChatGPT: percentage of the available pane).
  */
 import { addPageExitListener } from '@/core/utils/pageLifecycle';
 
@@ -66,10 +66,8 @@ const normalizePercent = (value: number, fallback: number) => {
 
 function applyWidth(widthPercent: number) {
   const normalizedPercent = normalizePercent(widthPercent, DEFAULT_PERCENT);
-  // Use screen width as reference to compute pixel-based max-width.
-  // This provides adaptive behavior for split-screen / narrow windows:
-  // - Fullscreen: width 鈮?percent% of screen (as intended by the slider)
-  // - Split-screen: content fills available space since pixel max-width > viewport
+  // Retain the legacy pixel caps for non-ChatGPT selectors. On current
+  // ChatGPT these inner elements fill the native percentage-width host below.
   const screenWidth = screen.availWidth || screen.width || 1920;
   const widthValue = `${Math.round((normalizedPercent / 100) * screenWidth)}px`;
 
@@ -93,12 +91,13 @@ function applyWidth(widthPercent: number) {
   const GAP_PX = 10;
 
   style.textContent = `
-    /* ChatGPT current thread and unified-composer width hosts.
-       Only replace ChatGPT's width variable so its native max-width and
-       mx-auto rules keep both surfaces centered within the current main pane. */
+    /* ChatGPT's native max-width resolves percentages against the available
+       main pane (after sidebar and gutters), not the physical screen. A
+       screen-sized pixel cap saturates early in narrow/zoomed windows, making
+       much of the slider appear unresponsive. Keep native centering intact. */
     [class*="group/turn-messages"],
     #thread-bottom [class*="--thread-content-max-width"]:has(form[data-type="unified-composer"]) {
-      --thread-content-max-width: ${widthValue} !important;
+      --thread-content-max-width: ${normalizedPercent}% !important;
     }
 
     /* Remove width constraints from outer containers that contain conversations */

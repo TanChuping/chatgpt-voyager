@@ -104,9 +104,24 @@ describe('chatWidth', () => {
     expectSingleTableScrollbarRules(styleText);
   });
 
-  it('adapts width for narrow viewports (split-screen behavior)', async () => {
-    // Simulate: user sets 70% on a 1920px screen 鈫?1344px max-width
-    // In split-screen (960px viewport), min(100%, 1344px) fills the viewport
+  it('uses the available ChatGPT pane for the slider instead of a screen-sized cap', async () => {
+    const { startChatWidthAdjuster } = await import('../index');
+    startChatWidthAdjuster();
+
+    const nativeRule = () =>
+      (getInjectedStyle().textContent ?? '').match(
+        /\[class\*="group\/turn-messages"\][\s\S]*?\{([^}]+)\}/,
+      )?.[1];
+    expect(nativeRule()).toContain('--thread-content-max-width: 85% !important');
+    storageChangeListeners[0]({ [STORAGE_KEY]: { oldValue: 85, newValue: 69 } }, 'sync');
+    expect(nativeRule()).toContain('--thread-content-max-width: 69% !important');
+    storageChangeListeners[0]({ [STORAGE_KEY]: { oldValue: 69, newValue: 100 } }, 'sync');
+    expect(nativeRule()).toContain('--thread-content-max-width: 100% !important');
+  });
+
+  it('retains legacy inner caps inside the percentage-based native host', async () => {
+    // Legacy inner elements fill their parent, while the native ChatGPT host
+    // remains 70% of the available pane even in split-screen windows.
     (chrome.storage.sync.get as unknown as ReturnType<typeof vi.fn>).mockImplementation(
       (_defaults: Record<string, unknown>, callback: (value: Record<string, unknown>) => void) => {
         callback({ [STORAGE_KEY]: 70, gvChatWidthEnabled: true });
@@ -117,7 +132,8 @@ describe('chatWidth', () => {
     startChatWidthAdjuster();
 
     const styleText = getInjectedStyle().textContent ?? '';
-    const expectedPx = percentToPixels(70); // 1344
+    expect(styleText).toContain('--thread-content-max-width: 70% !important');
+    const expectedPx = percentToPixels(70);
     expect(styleText).toContain(`max-width: ${expectedPx}px !important`);
     expect(styleText).toContain(`width: min(100%, ${expectedPx}px) !important`);
   });
