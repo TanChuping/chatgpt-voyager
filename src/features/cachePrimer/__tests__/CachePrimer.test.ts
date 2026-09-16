@@ -278,6 +278,29 @@ describe('CachePrimer', () => {
       expect(cache.setSpy).toHaveBeenCalledTimes(2);
     });
 
+    it('replays the already-captured current conversation after late manager hydration', () => {
+      const cache = fakeCache();
+      const uuid = '12345678-1234-1234-1234-123456789abc';
+      vi.mocked(cache.getConversationId).mockReturnValue(`gpt:conv:${uuid}`);
+      const svc = new ConversationCaptureService();
+      svc.ingest(uuid, makeApi(uuid, ['first', 'middle', 'last']));
+      svc.ingest('other', makeApi('other', ['unrelated']));
+      const onPrimed = vi.fn();
+      const handle = installCachePrimerForManager(cache, svc, onPrimed);
+
+      expect([...cache.entries.values()].map((entry) => entry.summary)).toEqual([
+        'first',
+        'middle',
+        'last',
+      ]);
+      expect(onPrimed).toHaveBeenCalledOnce();
+      svc.ingest(uuid, makeApi(uuid, ['changed']));
+      expect([...cache.entries.values()].map((entry) => entry.summary)).toEqual(['changed']);
+      handle.dispose();
+      svc.ingest(uuid, makeApi(uuid, ['after dispose']));
+      expect(onPrimed).toHaveBeenCalledTimes(2);
+    });
+
     it('matches across the namespaced / raw-UUID format split (the regression that bit us)', () => {
       const cache = fakeCache();
       // TurnTextCache binds under the timeline's namespaced form…

@@ -27,6 +27,7 @@ import {
   extractConversationIdFromUrl,
 } from '@/core/utils/conversationIdentity';
 import { isExtensionContextInvalidatedError } from '@/core/utils/extensionContext';
+import { buildStarredMessageUrl } from '@/core/utils/starredNavigation';
 import { migrateFromLocalStorage } from '@/core/utils/storageMigration';
 import { EXTENSION_VERSION } from '@/core/utils/version';
 import {
@@ -44,8 +45,6 @@ import {
 } from '@/utils/language';
 import type { TranslationKey } from '@/utils/translations';
 
-import { keepPromptManagerMounted } from './mountGuard';
-
 import { insertTextIntoChatInput } from '../chatInput/index';
 import { showJumpConfirmDialog } from '../favorites/jumpConfirmDialog';
 import { mountFavoritesSidebar } from '../favorites/sidebar';
@@ -55,6 +54,7 @@ import { eventBus } from '../timeline/EventBus';
 import type { StarredMessage } from '../timeline/starredTypes';
 import { extractPlainTitle } from './compactTitle';
 import { parsePromptImportPayload } from './importPayload';
+import { keepPromptManagerMounted } from './mountGuard';
 import { activatePromptText } from './promptClickAction';
 import { getScrollHintState } from './scrollHint';
 
@@ -83,6 +83,15 @@ function getCurrentChatGptConversationId(): string | null {
 function jumpToStarredInPage(turnId: string): void {
   if (!turnId) return;
   try {
+    const targetUrl = buildStarredMessageUrl(window.location.href, turnId);
+    const messageId = new URL(targetUrl).searchParams.get('messageId');
+    // Keep the fast in-page jump when the target already has a scroll anchor.
+    // Otherwise let ChatGPT load the message instead of retrying a missing DOM
+    // node and eventually discarding the user's navigation request.
+    if (messageId && !document.querySelector(`[data-turn-id-container="${messageId}"]`)) {
+      window.location.assign(targetUrl);
+      return;
+    }
     const base = window.location.pathname + window.location.search;
     if (window.location.hash) {
       window.history.replaceState(null, '', base);
@@ -108,7 +117,7 @@ async function jumpToStarredCrossConversation(message: StarredMessage): Promise<
   if (!confirmed) return;
   if (!message.conversationUrl) return;
   try {
-    const targetUrl = `${message.conversationUrl}#gv-turn-${message.turnId}`;
+    const targetUrl = buildStarredMessageUrl(message.conversationUrl, message.turnId);
     window.location.assign(targetUrl);
   } catch (error) {
     logger.warn('[PromptManager] Failed to navigate to starred message', {
@@ -2069,8 +2078,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
         if (!browser.runtime?.id) {
           // Extension context invalidated, show fallback message
           setNotice(
-            i18n.t('pm_settings_fallback') ||
-              '请点击浏览器工具栏中的扩展图标打开设置',
+            i18n.t('pm_settings_fallback') || '请点击浏览器工具栏中的扩展图标打开设置',
             'err',
           );
           return;
@@ -2083,8 +2091,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
         if (!response?.ok) {
           // If programmatic opening failed, show a helpful message
           setNotice(
-            i18n.t('pm_settings_fallback') ||
-              '请点击浏览器工具栏中的扩展图标打开设置',
+            i18n.t('pm_settings_fallback') || '请点击浏览器工具栏中的扩展图标打开设置',
             'err',
           );
         }
@@ -2092,16 +2099,14 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
         // Silently handle extension context errors
         if (isExtensionContextInvalidatedError(err)) {
           setNotice(
-            i18n.t('pm_settings_fallback') ||
-              '请点击浏览器工具栏中的扩展图标打开设置',
+            i18n.t('pm_settings_fallback') || '请点击浏览器工具栏中的扩展图标打开设置',
             'err',
           );
           return;
         }
         console.warn('[PromptManager] Failed to open settings:', err);
         setNotice(
-          i18n.t('pm_settings_fallback') ||
-            '请点击浏览器工具栏中的扩展图标打开设置',
+          i18n.t('pm_settings_fallback') || '请点击浏览器工具栏中的扩展图标打开设置',
           'err',
         );
       }

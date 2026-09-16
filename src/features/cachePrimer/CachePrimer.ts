@@ -99,12 +99,12 @@ export function installCachePrimerForManager(
   captureService: ConversationCaptureService,
   onPrimed?: () => void,
 ): CachePrimerHandle {
-  const off = captureService.on('captured', (convId, entry) => {
+  const prime = (convId: string, messages: LinearMessage[]) => {
     const boundId = normaliseConvIdForCompare(turnTextCache.getConversationId());
     const captureId = normaliseConvIdForCompare(convId);
     if (!boundId || !captureId || boundId !== captureId) return;
     try {
-      const primed = primeCacheFromLinear(turnTextCache, entry.linear.messages);
+      const primed = primeCacheFromLinear(turnTextCache, messages);
       // A fresh capture may reveal turns ChatGPT has virtualised out of the
       // DOM entirely; the timeline can only anchor onto them once it knows
       // their ids, so nudge it to reconcile instead of waiting for the next
@@ -113,7 +113,15 @@ export function installCachePrimerForManager(
     } catch (err) {
       console.warn('[GPT-Voyager] cache primer failed', err);
     }
-  });
+  };
+  const off = captureService.on('captured', (convId, entry) =>
+    prime(convId, entry.linear.messages),
+  );
+  // The native message-targeted fetch can finish before manager hydration.
+  // Reuse that capture instead of waiting for another fetch or user scroll.
+  const boundId = normaliseConvIdForCompare(turnTextCache.getConversationId());
+  const latest = boundId ? captureService.getLatest(boundId) : null;
+  if (boundId && latest) prime(boundId, latest.messages);
   return { dispose: off };
 }
 

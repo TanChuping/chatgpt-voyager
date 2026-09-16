@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { buildStarredMessageUrl } from '@/core/utils/starredNavigation';
 import { StarredMessagesService } from '@/pages/content/timeline/StarredMessagesService';
 import type { StarredMessage } from '@/pages/content/timeline/starredTypes';
 
@@ -33,7 +34,7 @@ export function StarredHistory({ onClose }: StarredHistoryProps) {
 
   const handleMessageClick = async (message: StarredMessage) => {
     const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    const targetUrl = `${message.conversationUrl}#gv-turn-${message.turnId}`;
+    const targetUrl = buildStarredMessageUrl(message.conversationUrl, message.turnId);
 
     const isChatGPTPage =
       currentTab?.url?.includes('chatgpt.com') || currentTab?.url?.includes('chat.openai.com');
