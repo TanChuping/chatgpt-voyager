@@ -73,6 +73,8 @@ announcements.json
 .worktrees/
 
 # Local agent outputs
+# Development docs (dev log, adapter notes, handoffs, release notes) stay local only
+docs/
 .agent/
 LOCAL_DEVELOPMENT.md
 公式交接.md
