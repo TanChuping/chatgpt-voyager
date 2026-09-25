@@ -3,6 +3,7 @@
 > 给后续开发（人或 agent）用的**索引 + 历史**。目的：不用重读整个代码库就能定位问题。
 > 项目总交接文档见 `公式交接.md`；agent 行为约束见 `CLAUDE.md`。
 > **新增条目请往「变更历史」顶部加**，并同步更新下面的「子系统索引」。
+> **ChatGPT 又改版、一串功能同时失效时**：先看 `docs/CHATGPT-DOM-ADAPTER.md`，在页面上跑 `__gvDomHealth()` 体检，只修适配层。
 
 ---
 
@@ -10,11 +11,15 @@
 
 | 症状 | 入口文件 | 备注 |
 | --- | --- | --- |
-| 右侧时间轴（豆/dots）数量、位置、跳转 | `src/pages/content/timeline/manager.ts` | 6800+ 行，核心是 `findCriticalElements`（选择器选举）+ `recalculateAndRenderMarkers`（每次重建 marker） |
-| 时间轴豆没了 / 只剩几个 | `src/pages/content/timeline/turnAnchors.ts` | ChatGPT 虚拟化补丁，见 2026-07-29 条目 |
-| 豆上没文字 / “消息未加载” | `src/features/cachePrimer/CachePrimer.ts` + `FiberFallback.ts` | 文本来源：`/backend-api/conversation` 抓包 → React fiber 兜底 |
+| **一串功能同时失效（ChatGPT 改版）** | `src/pages/content/shared/domCompat.ts`, `shared/domHealth.ts` | 先跑 `__gvDomHealth()`；分层与原语表见 `docs/CHATGPT-DOM-ADAPTER.md` |
+| 右侧时间轴（豆/dots）数量、位置、跳转 | `src/pages/content/timeline/manager.ts` | 6900+ 行，核心是 `findCriticalElements`（选择器选举）+ `recalculateAndRenderMarkers`（每次重建 marker）；有锚点时只用锚点（`queryUserTurns`） |
+| 时间轴豆没了 / 只剩几个（2026-09 布局） | `src/pages/pageWorld/threadMirror.ts` + `timeline/threadAnchors.ts` | 读 React 虚拟列表写 `[data-gv-thread-anchor]` 锚点，见 2026-09-25 条目 |
+| 时间轴豆没了 / 只剩几个（2026-07 布局） | `src/pages/content/timeline/turnAnchors.ts` | 给 `div[data-turn-id-container]` 打标签，见 2026-07-29 条目 |
+| 豆上没文字 / “消息未加载” | 2026-09：锚点的 `data-gv-text`；2026-07：`src/features/cachePrimer/CachePrimer.ts` + `FiberFallback.ts` | 2026-07 文本来源：`/backend-api/conversation` 抓包 → React fiber 兜底 |
+| 点豆跳到最底部 / 跳不动 | `timeline/manager.ts` `getScrollBounds()` | 2026-09 滚动容器是 `column-reverse`，scrollTop 为负 |
 | 对话文本缓存（跨刷新） | `src/pages/content/timeline/turnTextCache.ts` | localStorage `gptTimelineTurnTextCache:gpt:conv:<uuid>` |
 | 导出对话（选择模式、注入勾选框） | `src/pages/content/export/index.ts` | `collectChatPairs()` 从 DOM 配对 user/assistant |
+| 整段导出不全 / 「could not safely load the complete conversation」 | `conversationExport/prepareExport.ts` + `historyHydrator.ts` + `features/conversationApi/ConversationCaptureService.ts` | 2026-09 分页：缓存 `complete` 为假时跳到顶部等 ChatGPT 分页加载 |
 | 导出内容抽取 / 格式化 | `src/features/export/services/` | `DOMContentExtractor` 里仍有 Gemini 遗留选择器 |
 | 公式复制（拖选 / 原生按钮 / 点击） | `src/core/utils/latexFromDom.ts`, `src/features/formulaCopy/`, `src/pages/pageWorld/clipboardLatexFix.ts` | 三条复制路径共用 `recoverMathSource`；2026-08 GPT 去掉了 MathML，见下方条目 + memory `latex-copy-paths` |
 | 复制的公式粘不进 Desmos / 计算器 | `src/features/formulaCopy/desmosLatex.ts` | MathQuill 粘贴是全有或全无，`\displaystyle` `\,` 之类会整条丢弃，见 2026-08-08 条目 |
@@ -23,10 +28,30 @@
 | 往对话顶栏**左侧**注入按钮 | `src/pages/content/shared/headerActionSlot.ts` (`findHeaderLeftSlot`) | 右侧用 `findOptionsButtonRow`；左侧组要按 `position!=='absolute'` 跳过居中切换器 |
 | 新功能要「默认关但开了才加载」 | `src/pages/content/bootstrap/features.ts` | 照 `folder-header-button` / `folder-project` 写 lazy feature，`isEnabled` 为假就不会 `import()` |
 | 文件夹面板 | `src/pages/content/folder/manager.ts` | 8300+ 行 |
-| 深色模式 / 布局滑块 | `src/pages/content/gentleDarkMode/`, `chatWidth/`, `chatFontSize/` | 2026-07 改版后 token 选择器有坑 |
-| 页面世界（MAIN world）钩子 | `src/pages/pageWorld/conversationHook.ts` | fetch/XHR 抓包 + fiberReader + 剪贴板补丁的总入口 |
+| 深色模式 / 布局滑块 | `src/pages/content/gentleDarkMode/`, `chatWidth/`, `chatFontSize/` | 2026-09 温和深色 = 官方主题生成函数以 #1f1f1e 算出的 token（见 2026-09-25 条目） |
+| 侧边栏宽度 | `src/pages/content/sidebarWidth/index.ts` | 2026-09：`--app-shell-left-panel-width` + 内层内联宽度 |
+| 页面世界（MAIN world）钩子 | `src/pages/pageWorld/conversationHook.ts` | fetch/XHR 抓包（含 2026-09 分页接口）+ threadMirror + fiberReader + 剪贴板补丁的总入口；**不能 import 共享模块** |
 
-### ChatGPT DOM 关键事实（2026-07 改版后，2026-07-29 实测；数学部分 2026-08-08 更新）
+### ChatGPT DOM 关键事实（2026-09 Codex 外壳，2026-09-25 实测）
+
+完整的原语对照表见 `docs/CHATGPT-DOM-ADAPTER.md`，这里只记最容易踩的：
+
+```
+.thread-scroll-container            flex-direction: column-reverse（scrollTop 0 = 底部，往上为负）
+  └ div.relative.shrink-0[style=height:<总高>]          虚拟列表容器（threadMirror 的锚点层挂在这里）
+      └ div.flex.flex-col[style=margin-top:<偏移>]
+          └ div[data-turn-key="<用户消息 id>"]            一整轮（问+答）；视口外整轮卸载，不留占位
+              ├ [data-chatgpt-search-unit-key$=":user"]      用户消息（气泡 [data-user-message-bubble]）
+              └ [data-chatgpt-search-unit-key$=":assistant"] 回答（正文 [data-markdown-text-style=assistant-message]）
+```
+
+- 对话数据分页：`/backend-api/conversations/<id>?num_turns=10` + `/messages?before=<id>`，旧的整段接口不再调用。
+- React 虚拟列表组件（从任一 `[data-turn-key]` 的 fiber 往上约 5 层）：`props.entries[i].turn.items` 有用户原文 /
+  附件（文件名在 `label`）；一个 `useRef` 里是 `{turnKeys, topOffsetsPx, heightsPx}`，与已渲染行逐像素一致。
+- 几乎没有 `data-testid`；按钮只有随界面语言变化的 `aria-label`。
+- 深色：`<html data-theme="dark">`；主题 token 在 `<style data-codex-app-themes>` 的 `@layer theme` 里。
+
+### ChatGPT DOM 关键事实（2026-07 布局，已被 2026-09 取代；2026-07-29 实测，数学部分 2026-08-08 更新）
 
 ```
 div[data-turn-id-container="<uuid>"]      ← 每一轮对话一个，**虚拟化时也在**，保留真实高度
@@ -54,6 +79,37 @@ div[data-turn-id-container="<uuid>"]      ← 每一轮对话一个，**虚拟�
 ---
 
 ## 变更历史
+
+### 2026-09-25 — ChatGPT 换成 Codex 外壳，二十多个功能同时失效（1.8.14）
+
+**症状**：时间轴一个豆都没有、温和深色不生效、文件夹面板挂错位置、顶栏导出按钮和「移动到文件夹」菜单项消失、
+长代码块折叠 / Mermaid 不工作、侧边栏宽度无效。插件本身加载正常（`gv-*` 样式和按钮都在）。
+
+**根因**：功能代码没坏，是它们共用的原语全变了——侧边栏对话不再是 `<a href="/c/…">`、消息没有
+`data-message-*`、几乎所有 `data-testid` 消失、回合行 `div[data-turn-key]` 视口外整轮卸载不留占位、
+滚动容器变成 `column-reverse`、对话数据改为分页接口、输入框没有 `#prompt-textarea`、代码块没有 `<pre>`、
+深色标记变成 `data-theme`。
+
+**修法**（全部在适配层，详见 `docs/CHATGPT-DOM-ADAPTER.md`）：
+- `shared/domCompat.ts`（新）：把旧钩子补回新 DOM——侧边栏隐藏 `/c/` 链接、消息角色 / id / 正文、
+  顶栏与侧边栏 `…` 的 testid、菜单项 testid（按 `aria-labelledby` 归属）、输入框标记、发送 / 停止按钮。
+- `pageWorld/threadMirror.ts`（新）：读 React 虚拟列表，为每个已加载回合写不可见的定位锚点；
+  时间轴选锚点、读 `data-gv-text` / `data-gv-attachments`，`getScrollBounds()` 支持倒序滚动。
+  这同时修掉了 issue #20（滚到第一问后中间节点缺失）：分页加载的每一页都会进锚点。
+- `conversationHook` + `ConversationCaptureService`：抓分页接口、按 `before` 游标拼页、维护 `complete`；
+  整段导出在缓存不完整时跳到顶部等分页加载（长对话不再因步数上限失败），`CachePrimer` 只在完整时剪枝。
+- 温和深色：调用官方主题生成函数（`736644.*.js` 模块 `jbn` 导出的 `f`）以 ChatGPT 主题 + surface=#1f1f1e
+  算出整套 token，去掉强调色和主按钮配色后写进样式（未分层样式压过 `@layer theme`）。
+- 文件夹挂到面板置顶头部；菜单项用 `cloneAppShellMenuItem` 深克隆；侧边栏宽度改 `--app-shell-left-panel-width`；
+  代码块折叠 / Mermaid / 按需加载探测认 `[data-markdown-copy="code-block"]`；顶栏各功能认 `header[data-app-shell-titlebar]`；
+  时间轴常驻元素 z-index 降到 45（低于 ChatGPT 菜单）。
+- `shared/domHealth.ts`（新）：`__gvDomHealth()` 体检。
+
+**验证**：browser-harness 真机——18 问的分页长对话滚到顶，节点 5→10→15→18 跟随；点第 2/4/10/17/1 个节点落点偏差 0px；
+整段导出清掉缓存后 10s 拿到 18 问 18 答；文件夹、菜单、顶栏按钮、代码块折叠、Mermaid、引用回复、选择导出通过。
+全量 vitest 失败集合与改动前逐条一致（95），新增 30 个测试。
+
+**没测到**：需要真的发消息的路径（流式输出中的时间轴追加、发送行为、回复完成通知、草稿、临时聊天退出）、fork、canvas 导出。
 
 ### 2026-08-08 — ChatGPT 改了 KaTeX 渲染，三条公式复制路径全断
 
@@ -392,3 +448,13 @@ browser-harness -c "$(cat probe.py)"
   `chrome://extensions` 的 DOM / `chrome.developerPrivate` 在 CDP 里够不到。
 - 量滚动一定要**高频采样**（50ms），别只测前后两个点——
   平滑滚动 + 容器高度随挂载变化，两点采样会得出“没动”的错误结论。
+- **被测窗口必须可见**（2026-09-25）：Windows 上 Chrome 窗口被完全遮挡 / 最小化时 `visibilityState=hidden`，
+  停止渲染：`Input.dispatchMouseEvent`、`Page.captureScreenshot` 会一直挂到 IPC 超时，IntersectionObserver
+  不触发（ChatGPT 不分页加载），隐藏超过 5 分钟后定时器被压到约每分钟一次。用 CDP 把窗口先最小化再还原即可
+  提到前台；不要用系统级置顶。读 DOM / 派发 DOM 事件在后台照常可用（Radix 触发按钮要派发 `pointerdown`，
+  插件自己的按钮用 `.click()`）。
+- 页面弹出 `alert()` 时所有 `Runtime.evaluate` 都会挂住：`Page.enable` 后监听 `Page.javascriptDialogOpening`，
+  用 `Page.handleJavaScriptDialog` 关掉。
+- 测导出不落盘：`Browser.setDownloadBehavior(deny)`，在扩展的 isolated context（`Runtime.executionContextCreated`
+  里 `auxData.type=isolated` 且 origin 是扩展）hook `URL.createObjectURL` 读 Blob 文本，测完恢复 `default`。
+- 在 Windows 上用 Python 改源码要 `open(..., newline="\n")`，否则写出 CRLF。

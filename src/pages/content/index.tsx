@@ -34,6 +34,8 @@ import { startFolderManager } from './folder/index';
 import { startGentleDarkMode } from './gentleDarkMode/index';
 import { initKaTeXConfig } from './katexConfig';
 import { startPromptManager } from './prompt/index';
+import { startChatGptDomCompat } from './shared/domCompat';
+import { exposeDomHealthCheck } from './shared/domHealth';
 import { startTimeline } from './timeline/index';
 
 const CHATGPT_HOSTS = new Set(['chatgpt.com', 'chat.openai.com']);
@@ -113,6 +115,15 @@ function bootstrapContentScript(): void {
 
     core = startCoreFeatures(
       [
+        // First: re-creates the legacy DOM hooks (sidebar links, message
+        // roles) on ChatGPT's 2026-09 layout that the features below rely on.
+        {
+          id: 'dom-compat',
+          start: () => {
+            exposeDomHealthCheck();
+            return startChatGptDomCompat();
+          },
+        },
         {
           id: 'formula-copy',
           start: () => {

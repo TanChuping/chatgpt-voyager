@@ -717,12 +717,16 @@ const renderMermaid = async (
   }
 };
 
+/** 2026-09 code block: no `<pre>`; the host is the copyable block itself. */
+const APP_SHELL_CODE_BLOCK_SELECTOR = '[data-markdown-copy="code-block"]';
+
 function getCodeBlockContainer(codeEl: Element): HTMLElement | null {
-  return codeEl.closest('code-block, .code-block, pre') as HTMLElement | null;
+  return codeEl.closest(
+    `code-block, .code-block, pre, ${APP_SHELL_CODE_BLOCK_SELECTOR}`,
+  ) as HTMLElement | null;
 }
 
-const CODE_BLOCK_SELECTOR =
-  'code[data-test-id="code-content"], code[data-testid="code-content"], code[class*="language-"], pre code';
+const CODE_BLOCK_SELECTOR = `code[data-test-id="code-content"], code[data-testid="code-content"], code[class*="language-"], pre code, ${APP_SHELL_CODE_BLOCK_SELECTOR} code`;
 
 function getLanguageFromCodeClass(codeEl: Element): string | null {
   for (const className of Array.from(codeEl.classList)) {
@@ -743,6 +747,13 @@ const getCodeBlockLanguage = (codeEl: Element): string | null => {
   // Navigate up to find the code-block container
   const codeBlock = getCodeBlockContainer(codeEl);
   if (!codeBlock) return null;
+
+  // 2026-09: the sticky header (`data-markdown-copy="exclude"`) holds the
+  // language name in its truncating label ("纯文本", "Python", "Mermaid").
+  if (codeBlock.matches(APP_SHELL_CODE_BLOCK_SELECTOR)) {
+    const label = codeBlock.querySelector(':scope > [data-markdown-copy="exclude"] .truncate');
+    return label?.textContent?.trim().toLowerCase() || null;
+  }
 
   // Look for the language label in the header decoration
   // ChatGPT uses: <div class="code-block-decoration"><span>Language</span>...</div>
@@ -878,7 +889,9 @@ function removeMermaidDom(): void {
       delete element.dataset.mermaidCode;
     });
   document.querySelectorAll<HTMLElement>('.gv-mermaid-wrapper').forEach((wrapper) => {
-    const host = wrapper.querySelector<HTMLElement>('code-block, .code-block, pre');
+    const host = wrapper.querySelector<HTMLElement>(
+      `code-block, .code-block, pre, ${APP_SHELL_CODE_BLOCK_SELECTOR}`,
+    );
     if (host) {
       host.style.display = '';
       wrapper.parentElement?.insertBefore(host, wrapper);

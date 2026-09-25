@@ -1,3 +1,5 @@
+import { CONVERSATION_ROW_SELECTOR } from './shared/domCompat';
+
 const CONVERSATION_LINK_SELECTOR = 'a[href*="/c/"]';
 
 /** Current ChatGPT primitives. Legacy Angular selectors live only in the
@@ -74,6 +76,10 @@ export function getChatGptConversationLink(root: ParentNode): HTMLAnchorElement 
 }
 
 export function getChatGptConversationElement(element: HTMLElement): HTMLElement {
+  // 2026-09 layout: the row itself (its options button sits beside the
+  // DOM-compat shim link, not inside a link as before).
+  const appShellRow = element.closest<HTMLElement>(CONVERSATION_ROW_SELECTOR);
+  if (appShellRow) return appShellRow;
   const candidate = element.closest<HTMLElement>(
     '[data-testid*="history" i], [data-testid="conversation"], [data-test-id="conversation"], li, [role="listitem"], [role="treeitem"]',
   );
@@ -215,7 +221,30 @@ function getHostVisibilityScore(element: HTMLElement): number {
   return score;
 }
 
+/**
+ * ChatGPT 2026-09 (Codex app shell) sidebar: `#app-shell-sidebar` holds an icon
+ * rail plus a panel whose `nav[role="navigation"]` has a pinned header (title,
+ * search, 新聊天) and the scrolling history area. The panel nav is the sidebar
+ * our features work in; the outer shell (with the rail) is not.
+ */
+const APP_SHELL_SIDEBAR_SCROLL_SELECTOR = '#app-shell-sidebar [data-app-action-sidebar-scroll]';
+
+export function findAppShellSidebarScroll(root: ParentNode = document): HTMLElement | null {
+  return root.querySelector<HTMLElement>(
+    root === document ? APP_SHELL_SIDEBAR_SCROLL_SELECTOR : '[data-app-action-sidebar-scroll]',
+  );
+}
+
+function findAppShellSidebarPanel(): HTMLElement | null {
+  const scroll = findAppShellSidebarScroll();
+  const panel = scroll?.closest<HTMLElement>('nav') ?? scroll?.parentElement ?? null;
+  return panel && isUsableHostElement(panel) && getHostVisibilityScore(panel) >= 0 ? panel : null;
+}
+
 export function findChatGptSidebar(): HTMLElement | null {
+  const appShellPanel = findAppShellSidebarPanel();
+  if (appShellPanel) return appShellPanel;
+
   const candidates: HTMLElement[] = [];
   const seen = new Set<HTMLElement>();
 
@@ -245,6 +274,12 @@ export function findChatGptSidebar(): HTMLElement | null {
 
 export function findChatGptHistoryContainer(sidebar: HTMLElement): HTMLElement | null {
   const firstLink = sidebar.querySelector<HTMLAnchorElement>(CONVERSATION_LINK_SELECTOR);
+  // 2026-09 layout: rows (with their DOM-compat shim link) sit in a
+  // `[role="list"]`; climbing further would escape into the whole panel.
+  const appShellList = firstLink?.closest<HTMLElement>('[role="list"]');
+  if (appShellList && findAppShellSidebarScroll(sidebar)?.contains(appShellList)) {
+    return appShellList;
+  }
   if (!firstLink) {
     for (const selector of HISTORY_CONTAINER_SELECTORS) {
       const container = sidebar.querySelector<HTMLElement>(selector);

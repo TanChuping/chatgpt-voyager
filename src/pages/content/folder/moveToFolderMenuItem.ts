@@ -1,4 +1,7 @@
-import { createMenuItemFromNativeTemplate } from '../shared/nativeMenuItemTemplate';
+import {
+  cloneAppShellMenuItem,
+  createMenuItemFromNativeTemplate,
+} from '../shared/nativeMenuItemTemplate';
 
 import { createFolderSvgIcon } from './folderIcon';
 
@@ -24,6 +27,18 @@ function createRadixMenuItem(
   label: string,
   tooltip: string,
 ): HTMLElement | null {
+  const appShellItem = cloneAppShellMenuItem(menuContent, {
+    className: 'gv-move-to-folder-btn',
+    label,
+    tooltip,
+    icon: createFolderSvgIcon(16),
+    excludedClassNames: ['gv-export-conversation-menu-btn'],
+  });
+  if (appShellItem) {
+    makeKeyboardActivatable(appShellItem);
+    return appShellItem;
+  }
+
   const template = Array.from(menuContent.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
     (item) => !item.classList.contains('gv-move-to-folder-btn'),
   );

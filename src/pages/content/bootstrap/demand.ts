@@ -23,7 +23,7 @@ export interface BusinessDemandRouter {
 }
 
 const CODE_CANDIDATE_SELECTOR =
-  'code[data-test-id="code-content"], code[data-testid="code-content"], code[class*="language-"], pre code';
+  'code[data-test-id="code-content"], code[data-testid="code-content"], code[class*="language-"], pre code, [data-markdown-copy="code-block"] code';
 const USER_MESSAGE_LATEX_SELECTOR = '[data-message-author-role="user"] .whitespace-pre-wrap';
 const ASSISTANT_MESSAGE_SELECTOR =
   '[data-message-author-role="assistant"], [data-message-author-role="model"], article[data-author="assistant"], article[data-author="model"]';
@@ -78,8 +78,11 @@ function isEditable(element: Element): boolean {
   return element.closest(EDITABLE_SELECTOR) !== null;
 }
 
+/** Code block hosts: legacy `pre` / `code-block`, 2026-09 `[data-markdown-copy="code-block"]`. */
+const CODE_BLOCK_HOST_SELECTOR = 'code-block, .code-block, pre, [data-markdown-copy="code-block"]';
+
 function isMermaidCandidate(code: HTMLElement): boolean {
-  if (isEditable(code) || !code.closest('code-block, .code-block, pre')) return false;
+  if (isEditable(code) || !code.closest(CODE_BLOCK_HOST_SELECTOR)) return false;
 
   const classLanguage = [...code.classList]
     .map((className) =>
@@ -94,9 +97,11 @@ function isMermaidCandidate(code: HTMLElement): boolean {
     code.getAttribute('lang')?.trim().toLowerCase();
   if (classLanguage === 'mermaid' || attributeLanguage === 'mermaid') return true;
 
-  const container = code.closest<HTMLElement>('code-block, .code-block, pre');
+  const container = code.closest<HTMLElement>(CODE_BLOCK_HOST_SELECTOR);
   const label = container
-    ?.querySelector<HTMLElement>('.code-block-decoration > span')
+    ?.querySelector<HTMLElement>(
+      '.code-block-decoration > span, :scope > [data-markdown-copy="exclude"] .truncate',
+    )
     ?.textContent?.trim()
     .toLowerCase();
   if (label === 'mermaid') return true;
@@ -224,10 +229,14 @@ function hasTemporaryChatContext(hasPendingHandoff: boolean): boolean {
   return hasPendingHandoff || document.querySelector(TEMP_CHAT_ACTIVE_SELECTOR) !== null;
 }
 
+// 2026-07 header actions / 2026-09 app-shell title bar.
+const CONVERSATION_HEADER_SELECTOR =
+  '#conversation-header-actions, header[data-app-shell-titlebar]';
+
 function nodeContainsConversationHeader(node: Node): boolean {
-  if (node instanceof Element && node.matches('#conversation-header-actions')) return true;
-  if (isQueryableNode(node) && node.querySelector('#conversation-header-actions')) return true;
-  if (node instanceof Element && node.closest('#conversation-header-actions')) return true;
+  if (node instanceof Element && node.matches(CONVERSATION_HEADER_SELECTOR)) return true;
+  if (isQueryableNode(node) && node.querySelector(CONVERSATION_HEADER_SELECTOR)) return true;
+  if (node instanceof Element && node.closest(CONVERSATION_HEADER_SELECTOR)) return true;
   return isQueryableNode(node) && findConversationHeaderActions(node) !== null;
 }
 

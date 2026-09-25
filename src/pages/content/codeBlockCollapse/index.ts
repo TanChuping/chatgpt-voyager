@@ -4,10 +4,21 @@ import { getTranslationSync } from '@/utils/i18n';
 export const LONG_CODE_BLOCK_MIN_LINES = 24;
 export const LONG_CODE_BLOCK_MIN_HEIGHT = 520;
 
-const VIEWER_SELECTOR = '#code-block-viewer';
+/**
+ * The scrolling code surface: `#code-block-viewer` (≤2026-07), or in the
+ * 2026-09 layout the child of `[data-markdown-copy="code-block"]` that is not
+ * its sticky header (`data-markdown-copy="exclude"`) and holds `<code>`
+ * directly — there is no `<pre>` any more.
+ */
+const VIEWER_SELECTOR =
+  '#code-block-viewer, [data-markdown-copy="code-block"] > div:not([data-markdown-copy])';
 const TOGGLE_CLASS = 'gv-code-block-toggle';
-const COLLAPSIBLE_CLASS = 'gv-code-block-collapsible';
-const COLLAPSED_CLASS = 'gv-code-block-collapsed';
+/**
+ * State lives in data attributes, not classes: the 2026-09 host's `className`
+ * is React-managed and re-applied whenever a streaming block re-renders.
+ */
+const COLLAPSIBLE_ATTR = 'data-gv-code-collapsible';
+const COLLAPSED_ATTR = 'data-gv-code-collapsed';
 const SCAN_DEBOUNCE_MS = 120;
 
 interface CodeBlockParts {
@@ -40,7 +51,9 @@ function countLines(text: string): number {
 }
 
 function findCodeBlockParts(viewer: HTMLElement): CodeBlockParts | null {
-  const code = viewer.querySelector<HTMLElement>('pre > code');
+  const code =
+    viewer.querySelector<HTMLElement>('pre > code') ??
+    viewer.querySelector<HTMLElement>(':scope > code');
   if (!code) return null;
 
   // ChatGPT currently puts the language/copy toolbar in a sticky direct child
@@ -51,13 +64,19 @@ function findCodeBlockParts(viewer: HTMLElement): CodeBlockParts | null {
     const header = Array.from(host.children).find(
       (child): child is HTMLElement =>
         child instanceof HTMLElement &&
-        child.classList.contains('sticky') &&
+        (child.classList.contains('sticky') ||
+          child.getAttribute('data-markdown-copy') === 'exclude') &&
         child.querySelector('button') !== null,
     );
     if (!header) continue;
 
     const nativeButton = header.querySelector<HTMLButtonElement>('button');
-    const actions = nativeButton?.parentElement;
+    let actions = nativeButton?.parentElement ?? null;
+    // 2026-09 wraps each native button in a `display: contents` tooltip span;
+    // our toggle belongs in the flex row, beside the wrappers.
+    if (actions && getComputedStyle(actions).display === 'contents') {
+      actions = actions.parentElement;
+    }
     if (!nativeButton || !actions) return null;
     return { host, viewer, code, header, actions };
   }
@@ -100,7 +119,7 @@ function createToggleIcon(collapsed: boolean): SVGSVGElement {
 }
 
 function updateToggle(host: HTMLElement, button: HTMLButtonElement): void {
-  const collapsed = host.classList.contains(COLLAPSED_CLASS);
+  const collapsed = host.hasAttribute(COLLAPSED_ATTR);
   const label = getTranslationSync(collapsed ? 'codeBlockExpand' : 'codeBlockCollapse');
   button.title = label;
   button.setAttribute('aria-label', label);
@@ -114,7 +133,8 @@ function removeEnhancement(host: HTMLElement): void {
   button?.remove();
   buttonsByHost.delete(host);
   managedHosts.delete(host);
-  host.classList.remove(COLLAPSIBLE_CLASS, COLLAPSED_CLASS);
+  host.removeAttribute(COLLAPSIBLE_ATTR);
+  host.removeAttribute(COLLAPSED_ATTR);
 }
 
 function observeViewer(viewer: HTMLElement): void {
@@ -141,7 +161,7 @@ function applyMeasurement(measurement: CodeBlockMeasurement): void {
   }
 
   managedHosts.add(host);
-  host.classList.add(COLLAPSIBLE_CLASS);
+  host.setAttribute(COLLAPSIBLE_ATTR, '');
 
   let button = buttonsByHost.get(host);
   if (!button || !button.isConnected || button.parentElement !== actions) {
@@ -152,7 +172,7 @@ function applyMeasurement(measurement: CodeBlockMeasurement): void {
     button.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      host.classList.toggle(COLLAPSED_CLASS);
+      host.toggleAttribute(COLLAPSED_ATTR);
       updateToggle(host, button!);
     });
     actions.appendChild(button);

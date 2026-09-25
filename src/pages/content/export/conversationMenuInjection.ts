@@ -5,6 +5,7 @@ import {
   resolveChatGptMenuTrigger,
 } from '../chatgptDom';
 import {
+  cloneAppShellMenuItem,
   createMenuItemFromNativeTemplate,
   updateMenuItemTemplateLabel,
 } from '../shared/nativeMenuItemTemplate';
@@ -152,6 +153,18 @@ function createCurrentMenuItem(
   );
   if (!template) return null;
 
+  const icon = buildDownloadIcon();
+  icon.setAttribute('width', '16');
+  icon.setAttribute('height', '16');
+  const appShellItem = cloneAppShellMenuItem(menu, {
+    className,
+    label: options.label,
+    tooltip: options.tooltip,
+    icon,
+    excludedClassNames: [MENU_BUTTON_CLASS, 'gv-move-to-folder-btn'],
+  });
+  if (appShellItem) return wireCurrentMenuItem(appShellItem, menu, options);
+
   const item = template.cloneNode(false) as HTMLElement;
   item.classList.add(className);
   for (const attribute of [
@@ -179,7 +192,14 @@ function createCurrentMenuItem(
   labelElement.textContent = options.label;
   item.replaceChildren(iconWrapper, labelElement);
   updateCurrentMenuItem(item, options.label, options.tooltip);
+  return wireCurrentMenuItem(item, menu, options);
+}
 
+function wireCurrentMenuItem(
+  item: HTMLElement,
+  menu: HTMLElement,
+  options: ConversationMenuExportOptions,
+): HTMLElement {
   const activate = (event: Event) => {
     event.preventDefault();
     event.stopPropagation();

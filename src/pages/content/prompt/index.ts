@@ -88,7 +88,14 @@ function jumpToStarredInPage(turnId: string): void {
     // Keep the fast in-page jump when the target already has a scroll anchor.
     // Otherwise let ChatGPT load the message instead of retrying a missing DOM
     // node and eventually discarding the user's navigation request.
-    if (messageId && !document.querySelector(`[data-turn-id-container="${messageId}"]`)) {
+    // 2026-07 wrapper, 2026-09 thread-mirror anchor (every loaded exchange),
+    // or a mounted 2026-09 row — any of them means the timeline can jump there.
+    const loaded =
+      messageId &&
+      document.querySelector(
+        `[data-turn-id-container="${messageId}"], [data-gv-thread-anchor="${messageId}"], [data-turn-key="${messageId}"]`,
+      );
+    if (messageId && !loaded) {
       window.location.assign(targetUrl);
       return;
     }

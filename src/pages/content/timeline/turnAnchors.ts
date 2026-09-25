@@ -30,6 +30,7 @@
  * cache — keeps working unchanged, because the outer wrapper was already the
  * element the marker code was written against.
  */
+import { THREAD_ANCHOR_SELECTOR } from './threadAnchors';
 
 /** Attribute we stamp on a wrapper we have positively identified as a user turn. */
 const ANCHOR_ATTR = 'data-gv-user-turn';
@@ -138,9 +139,16 @@ export function syncUserTurnAnchors(
   return { tagged, unresolved: unresolvedIds.length, unresolvedIds };
 }
 
-/** Prepend the anchor selector to a user-turn selector, without duplicating it. */
+/**
+ * Prepend the anchor selectors to a user-turn selector, without duplicating
+ * them: the 2026-07 wrapper tag and the 2026-09 thread-mirror anchor. Either
+ * can appear after detection first matched something else (anchors are only
+ * written once conversation data arrives), so both are always unioned in.
+ */
 export function withUserTurnAnchors(selector: string): string {
-  if (!selector) return USER_TURN_ANCHOR_SELECTOR;
-  if (selector.includes(USER_TURN_ANCHOR_SELECTOR)) return selector;
-  return `${USER_TURN_ANCHOR_SELECTOR},${selector}`;
+  const parts = [THREAD_ANCHOR_SELECTOR, USER_TURN_ANCHOR_SELECTOR].filter(
+    (anchor) => !selector.includes(anchor),
+  );
+  if (!selector) return parts.join(',');
+  return parts.length ? `${parts.join(',')},${selector}` : selector;
 }

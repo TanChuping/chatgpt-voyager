@@ -17,6 +17,7 @@
  */
 import { installClipboardLatexFix } from './clipboardLatexFix';
 import { installFiberReader } from './fiberReader';
+import { installThreadMirror } from './threadMirror';
 
 // Match the bare conversation endpoint only — NOT sub-resources like
 // `/conversation/<uuid>/stream_status` or `/conversation/<uuid>/textdocs`,
@@ -25,16 +26,39 @@ import { installFiberReader } from './fiberReader';
 const CONV_RE =
   /\/backend-api\/conversation\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(?:$|[?#])/i;
 
-function extractConvId(url: string | URL | undefined | null): string | null {
+// ChatGPT 2026-09 pages conversations instead: the latest page from
+// `/backend-api/conversations/<uuid>?num_turns=N`, each older one from
+// `/backend-api/conversations/<uuid>/messages?before=<message id>`.
+const PAGE_RE =
+  /\/backend-api\/conversations\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})(\/messages)?(?:$|[?#])/i;
+
+interface CaptureTarget {
+  convId: string;
+  /** Absent for the classic whole-conversation endpoint. */
+  page?: { kind: 'latest' | 'before'; before?: string | null };
+}
+
+function extractTarget(url: string | URL | undefined | null): CaptureTarget | null {
   if (!url) return null;
   const s = typeof url === 'string' ? url : url.toString();
-  const m = CONV_RE.exec(s);
-  return m ? m[1] : null;
+  const full = CONV_RE.exec(s);
+  if (full) return { convId: full[1] };
+  const paged = PAGE_RE.exec(s);
+  if (!paged) return null;
+  if (!paged[2]) return { convId: paged[1], page: { kind: 'latest' } };
+  let before: string | null = null;
+  try {
+    before = new URL(s, window.location.origin).searchParams.get('before');
+  } catch {
+    /* keep null: the page is then prepended */
+  }
+  return { convId: paged[1], page: { kind: 'before', before } };
 }
 
 const SESSION_KEY_PREFIX = 'gv-cap-';
 
-function dispatchCaptured(convId: string, data: unknown, source: 'fetch' | 'xhr'): void {
+function dispatchCaptured(target: CaptureTarget, data: unknown, source: 'fetch' | 'xhr'): void {
+  const { convId, page } = target;
   // Two delivery channels:
   //
   // 1. `window.postMessage` — for the LIVE case where the content-script
@@ -49,14 +73,16 @@ function dispatchCaptured(convId: string, data: unknown, source: 'fetch' | 'xhr'
   //    prefix, the content-script can re-ingest it on init, then clear.
   //    sessionStorage is shared across worlds in the same tab and dies on
   //    tab close — no cross-session pollution.
-  const payload = { convId, data, source, capturedAt: Date.now() };
+  const payload = { convId, data, source, page, capturedAt: Date.now() };
   try {
     window.postMessage({ __gvType: 'gv-conv-captured', payload }, window.location.origin);
   } catch {
     /* swallow — never break ChatGPT */
   }
   try {
-    sessionStorage.setItem(SESSION_KEY_PREFIX + convId, JSON.stringify(payload));
+    // One slot per page, so a cold start replays every page it missed.
+    const slot = page?.kind === 'before' ? `${convId}@${page.before ?? ''}` : convId;
+    sessionStorage.setItem(SESSION_KEY_PREFIX + slot, JSON.stringify(payload));
   } catch {
     /* quota exceeded / private mode — postMessage is still our primary */
   }
@@ -74,13 +100,13 @@ function dispatchCaptured(convId: string, data: unknown, source: 'fetch' | 'xhr'
     const response = await originalFetch(input as RequestInfo, init);
     try {
       const url = typeof input === 'string' || input instanceof URL ? input : input.url;
-      const convId = extractConvId(url);
-      if (convId && response.ok) {
+      const target = extractTarget(url);
+      if (target && response.ok) {
         // Clone so we don't consume the body the app needs.
         response
           .clone()
           .json()
-          .then((data) => dispatchCaptured(convId, data, 'fetch'))
+          .then((data) => dispatchCaptured(target, data, 'fetch'))
           .catch(() => undefined);
       }
     } catch {
@@ -96,14 +122,14 @@ function dispatchCaptured(convId: string, data: unknown, source: 'fetch' | 'xhr'
 
   const originalOpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function gvHookedOpen(
-    this: XMLHttpRequest & { __gvConvId?: string | null },
+    this: XMLHttpRequest & { __gvTarget?: CaptureTarget | null },
     method: string,
     url: string | URL,
     ...rest: unknown[]
   ) {
     try {
-      this.__gvConvId = extractConvId(url);
-      if (this.__gvConvId) {
+      this.__gvTarget = extractTarget(url);
+      if (this.__gvTarget) {
         this.addEventListener('load', () => {
           try {
             if (this.status >= 200 && this.status < 300) {
@@ -111,7 +137,7 @@ function dispatchCaptured(convId: string, data: unknown, source: 'fetch' | 'xhr'
                 this.responseType === '' || this.responseType === 'text' ? this.responseText : null;
               if (text) {
                 const parsed = JSON.parse(text);
-                dispatchCaptured(this.__gvConvId as string, parsed, 'xhr');
+                dispatchCaptured(this.__gvTarget as CaptureTarget, parsed, 'xhr');
               }
             }
           } catch {
@@ -130,6 +156,10 @@ function dispatchCaptured(convId: string, data: unknown, source: 'fetch' | 'xhr'
 // content script for conversations opened from client cache (no network
 // capture). Pull-on-demand, fully guarded — see fiberReader.ts.
 installFiberReader();
+
+// Mirror ChatGPT's virtualised thread (2026-09 layout) into invisible,
+// positioned DOM anchors the timeline can select. See threadMirror.ts.
+installThreadMirror();
 
 // Repair math delimiters in ChatGPT's own "copy message" output (it strips the
 // backslash off \[ \] / \( \), breaking the LaTeX). Fully guarded — see

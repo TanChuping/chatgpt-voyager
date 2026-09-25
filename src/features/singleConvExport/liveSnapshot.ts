@@ -6,6 +6,12 @@ export interface LiveConversationMessage {
   host: HTMLElement;
   message: LinearMessage;
   order: number;
+  /**
+   * 2026-09 layout: the exchange's `data-turn-key` (its user message id).
+   * Mounted rows change as the virtual list scrolls, so callers that merge
+   * several collections re-order by the thread-mirror anchors at the end.
+   */
+  turnKey?: string;
 }
 
 export type TailReconciliationKind = 'fresh' | 'incremental' | 'rebuild';
@@ -83,6 +89,29 @@ function readCreateTime(host: HTMLElement): number | null {
   return Number.isFinite(parsed) ? parsed / 1000 : null;
 }
 
+const THREAD_ROW_SELECTOR = '[data-turn-key]';
+const THREAD_ANCHOR_SELECTOR = '[data-gv-thread-anchor]';
+
+/** Exchange index by turn key, from the thread-mirror anchors (every loaded exchange). */
+export function readThreadTurnOrder(root: ParentNode = document): Map<string, number> {
+  const order = new Map<string, number>();
+  root.querySelectorAll(THREAD_ANCHOR_SELECTOR).forEach((anchor, index) => {
+    const key = anchor.getAttribute('data-gv-thread-anchor');
+    if (key && !order.has(key)) order.set(key, index);
+  });
+  return order;
+}
+
+/** Position of a message within the whole thread, given the exchange order. */
+export function threadMessageOrder(
+  turnOrder: ReadonlyMap<string, number>,
+  turnKey: string | undefined,
+  role: LinearMessage['role'],
+): number | null {
+  const index = turnKey ? turnOrder.get(turnKey) : undefined;
+  return index === undefined ? null : index * 2 + (role === 'user' ? 0 : 1);
+}
+
 function readOrder(host: HTMLElement, fallback: number): number {
   const turn = host.closest<HTMLElement>('[data-testid^="conversation-turn-"]');
   const testId = turn?.getAttribute('data-testid') || '';
@@ -100,6 +129,7 @@ function readOrder(host: HTMLElement, fallback: number): number {
 function createLiveMessage(
   host: HTMLElement,
   fallbackOrder: number,
+  turnOrder: ReadonlyMap<string, number>,
 ): LiveConversationMessage | null {
   const id = host.getAttribute('data-message-id')?.trim();
   const role = normalizeRole(host.getAttribute('data-message-author-role'));
@@ -113,9 +143,11 @@ function createLiveMessage(
     .map((name) => name.trim())
     .filter(Boolean);
 
+  const turnKey = host.closest(THREAD_ROW_SELECTOR)?.getAttribute('data-turn-key') ?? undefined;
   return {
     host,
-    order: readOrder(host, fallbackOrder),
+    order: threadMessageOrder(turnOrder, turnKey, role) ?? readOrder(host, fallbackOrder),
+    turnKey,
     message: {
       turnId: id,
       messageId: id,
@@ -137,8 +169,9 @@ export function collectLiveConversationMessages(
   const hosts: HTMLElement[] = [];
   if (root instanceof HTMLElement && root.matches(LIVE_MESSAGE_SELECTOR)) hosts.push(root);
   hosts.push(...Array.from(root.querySelectorAll<HTMLElement>(LIVE_MESSAGE_SELECTOR)));
+  const turnOrder = readThreadTurnOrder();
   hosts.forEach((host, index) => {
-    const live = createLiveMessage(host, index);
+    const live = createLiveMessage(host, index, turnOrder);
     if (!live) return;
     byId.set(live.message.messageId, live);
   });

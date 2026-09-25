@@ -6,8 +6,9 @@
  * resolve to pure black (#000): the main chat/page surface, the sidebar, and
  * the elevated surface used for menus / dialogs (e.g. the Settings modal). We
  * override just those (plus the border tokens) with the user's palette. The
- * override is scoped to ChatGPT's own dark class (`html.dark`), so it is
- * automatically a no-op in light mode — no JS theme detection needed.
+ * override is scoped to ChatGPT's own dark marker (`html.dark` before the
+ * 2026-09 redesign, `[data-theme="dark"]` after it), so it is automatically a
+ * no-op in light mode — no JS theme detection needed.
  *
  * Palette:
  *   #1f1f1e — main / base background
@@ -93,6 +94,77 @@ const CSS = `
   html.dark .bg-token-sidebar-surface-primary,
   html.dark .bg-surface-primary {
     background-color: #1f1f1e !important;
+  }
+  /* ChatGPT 2026-09 (Codex app shell): dark mode is \`data-theme="dark"\` on
+     <html> and on portalled islands — no \`.dark\` class any more. ChatGPT now
+     ships its own background setting (Settings → Appearance → Background):
+     a generator derives ~85 \`--app-color-*\` / \`--codex-base-*\` tokens from
+     {surface, ink, accent, contrast} and writes them into
+     \`<style data-codex-app-themes>\` inside \`@layer theme\`; every surface
+     token (--color-surface, --chat-background-color, …) resolves from those.
+     The values below are that generator's exact output for the stock ChatGPT
+     dark theme with surface = #1f1f1e, i.e. what a user gets by typing our
+     color into that setting. Accent-derived tokens (send button, user bubble,
+     selection, links) are left out so a user's own accent choice survives,
+     and so are the primary-button colors: for a custom surface the
+     generator paints primary buttons with the same color as their label.
+     Unlayered, so it beats ChatGPT's \`@layer theme\` without !important. */
+  [data-theme="dark"] {
+    --codex-base-contrast: 60;
+    --codex-base-ink: #ededed;
+    --codex-base-surface: #1f1f1e;
+    --app-color-background-application-menu: #262625;
+    --app-color-background-button-secondary: rgba(237, 237, 237, 0.052);
+    --app-color-background-button-secondary-active: rgba(237, 237, 237, 0.12);
+    --app-color-background-button-secondary-hover: rgba(237, 237, 237, 0.078);
+    --app-color-background-button-secondary-inactive: rgba(237, 237, 237, 0.038);
+    --app-color-background-button-tertiary: rgba(237, 237, 237, 0.029);
+    --app-color-background-button-tertiary-active: rgba(237, 237, 237, 0.1);
+    --app-color-background-button-tertiary-hover: rgba(237, 237, 237, 0.068);
+    --color-background-callout-surface: rgba(57, 57, 56, 0.96);
+    --app-color-background-control: rgba(50, 50, 49, 0.96);
+    --color-background-control-opaque: rgb(50, 50, 49);
+    --color-background-composer-action-bar: rgba(237, 237, 237, 0.032);
+    --app-color-background-editor-opaque: rgb(45, 45, 44);
+    --app-color-background-elevated-primary: rgba(57, 57, 56, 0.96);
+    --app-color-background-elevated-primary-opaque: rgb(57, 57, 56);
+    --app-color-background-elevated-secondary: rgba(237, 237, 237, 0.032);
+    --app-color-background-elevated-secondary-opaque: #2d2d2c;
+    --color-background-mode-toggle-track: rgba(237, 237, 237, 0.068);
+    --color-background-mode-toggle-selected: rgb(50, 50, 49);
+    --color-background-panel: #292928;
+    --app-color-background-surface: #1f1f1e;
+    --app-color-background-surface-under: #1a1a19;
+    --app-color-border: rgba(237, 237, 237, 0.084);
+    --app-color-border-application-menu-separator: #5e5e5d;
+    --app-color-border-heavy: rgba(237, 237, 237, 0.156);
+    --app-color-border-light: rgba(237, 237, 237, 0.042);
+    --color-border-mode-toggle-selected: rgba(237, 237, 237, 0.084);
+    --app-color-icon-primary: rgba(237, 237, 237, 0.904);
+    --app-color-icon-secondary: rgba(237, 237, 237, 0.71);
+    --app-color-icon-tertiary: rgba(237, 237, 237, 0.51);
+    --app-color-simple-scrim: rgba(237, 237, 237, 0.104);
+    --app-color-text-button-tertiary: rgba(237, 237, 237, 0.51);
+    --app-color-foreground-application-menu: #d4d4d4;
+    --app-color-text-foreground: #ededed;
+    --app-color-text-foreground-secondary: rgba(237, 237, 237, 0.71);
+    --app-color-text-foreground-tertiary: rgba(237, 237, 237, 0.498);
+    --color-text-mode-toggle-inactive: color-mix(in oklab, #ededed 80%, transparent);
+    --shadow-mode-toggle-selected: var(--shadow-md);
+    --content-chromatic-channels: clamp(0, l + clamp(-0.015, 0.00643536 + clamp(0, (l - 0.16375795) / 0.82731095, 1) * -0.01183099, 0.015), 1) calc(a * 0.99014084) calc(b * 0.99014084);
+    --content-neutral-channels: clamp(0, l + clamp(-0.015, 0.00643536 + clamp(0, (l - 0.16375795) / 0.82731095, 1) * -0.01183099, 0.015), 1) calc(a * 0.99014084 + (-0.00006567 + clamp(0, (l - 0.16375795) / 0.82731095, 1) * 0.00006567) * min(1, 0.01 / max(hypot((-0.00006567 + clamp(0, (l - 0.16375795) / 0.82731095, 1) * 0.00006567), (0.00022086 + clamp(0, (l - 0.16375795) / 0.82731095, 1) * -0.00022086)), 0.00000001))) calc(b * 0.99014084 + (0.00022086 + clamp(0, (l - 0.16375795) / 0.82731095, 1) * -0.00022086) * min(1, 0.01 / max(hypot((-0.00006567 + clamp(0, (l - 0.16375795) / 0.82731095, 1) * 0.00006567), (0.00022086 + clamp(0, (l - 0.16375795) / 0.82731095, 1) * -0.00022086)), 0.00000001)));
+    --app-color-text-secondary: initial;
+    --app-color-text-primary-solid: initial;
+    --app-color-background-card: initial;
+    --app-color-ads-background-secondary: initial;
+    --app-color-ads-background-secondary-press: initial;
+    --app-color-ads-border-medium: initial;
+    --app-color-ads-text-primary: initial;
+    --color-border-button-outline: var(--color-border);
+    --color-background-button-outline-hover: var(--color-background-primary-ghost-hover);
+    --color-text-button-outline: var(--color-text);
+    --color-text-mode-toggle-primary: var(--color-text);
+    --color-text-mode-toggle-accent: var(--color-text-info);
   }
 `;
 

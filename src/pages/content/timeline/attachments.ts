@@ -11,6 +11,7 @@
  * This module pulls the attachments out as structured data so the preview UI
  * can render them as a colored chip and leave the body text clean.
  */
+import { isThreadAnchor, threadAnchorAttachmentNames } from './threadAnchors';
 
 export type AttachmentType =
   | 'pdf'
@@ -62,6 +63,13 @@ export function classifyByName(name: string): AttachmentType {
  */
 export function extractAttachments(element: HTMLElement | null): AttachmentInfo[] {
   if (!element) return [];
+  // 2026-09 thread-mirror anchor: names come from ChatGPT's list state.
+  if (isThreadAnchor(element)) {
+    return threadAnchorAttachmentNames(element).map((name) => ({
+      name,
+      type: classifyByName(name),
+    }));
+  }
   const out: AttachmentInfo[] = [];
   const seen = new Set<string>();
   const tiles = element.querySelectorAll<HTMLElement>(

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { THREAD_ANCHOR_SELECTOR } from '../threadAnchors';
 import {
   USER_TURN_ANCHOR_SELECTOR,
   listTurnContainers,
@@ -166,8 +167,10 @@ describe('syncUserTurnAnchors — unresolved count', () => {
 });
 
 describe('withUserTurnAnchors', () => {
-  it('prepends the anchor selector', () => {
-    expect(withUserTurnAnchors('.foo')).toBe(`${USER_TURN_ANCHOR_SELECTOR},.foo`);
+  it('prepends both anchor selectors (2026-09 mirror, 2026-07 wrapper tag)', () => {
+    expect(withUserTurnAnchors('.foo')).toBe(
+      `${THREAD_ANCHOR_SELECTOR},${USER_TURN_ANCHOR_SELECTOR},.foo`,
+    );
   });
 
   it('is idempotent', () => {
@@ -176,6 +179,6 @@ describe('withUserTurnAnchors', () => {
   });
 
   it('handles an empty selector', () => {
-    expect(withUserTurnAnchors('')).toBe(USER_TURN_ANCHOR_SELECTOR);
+    expect(withUserTurnAnchors('')).toBe(`${THREAD_ANCHOR_SELECTOR},${USER_TURN_ANCHOR_SELECTOR}`);
   });
 });

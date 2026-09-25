@@ -1,17 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TimelineManager } from '../manager';
+import { THREAD_ANCHOR_SELECTOR } from '../threadAnchors';
 import { USER_TURN_ANCHOR_SELECTOR } from '../turnAnchors';
 
 /**
- * `findCriticalElements` always unions the virtualised-turn anchor selector in
- * front of whichever selector won detection (see `withUserTurnAnchors`), so
- * these assertions check the *resolved* selector, not the raw string.
+ * `findCriticalElements` always unions the anchor selectors (2026-09 thread
+ * mirror, 2026-07 wrapper tag) in front of whichever selector won detection
+ * (see `withUserTurnAnchors`), so these assertions check the *resolved*
+ * selector, not the raw string.
  */
+const ANCHOR_PREFIX = `${THREAD_ANCHOR_SELECTOR},${USER_TURN_ANCHOR_SELECTOR},`;
 const resolved = (selector: string): string =>
-  selector.startsWith(`${USER_TURN_ANCHOR_SELECTOR},`)
-    ? selector.slice(USER_TURN_ANCHOR_SELECTOR.length + 1)
-    : selector;
+  selector.startsWith(ANCHOR_PREFIX) ? selector.slice(ANCHOR_PREFIX.length) : selector;
 
 describe('TimelineManager selector priority compatibility', () => {
   beforeEach(() => {

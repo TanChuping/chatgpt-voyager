@@ -30,6 +30,7 @@ import { getTranslationSync, getTranslationSyncUnsafe, initI18n } from '@/utils/
 
 import {
   extractChatGptConversationIdFromUrl,
+  findAppShellSidebarScroll,
   findChatGptHistoryContainer,
   findChatGptSidebar,
   getChatGptConversationElements,
@@ -1512,6 +1513,13 @@ export class FolderManager {
     const sidebar = this.sidebarContainer;
     if (!sidebar) return null;
 
+    // 2026-09 layout: the pinned header (title, search, 新聊天) is the element
+    // right before the scrolling history area — the same "pinned above the
+    // history" slot the sticky nav block used to be.
+    const appShellScroll = findAppShellSidebarScroll(sidebar);
+    const appShellHeader = appShellScroll?.previousElementSibling;
+    if (appShellHeader instanceof HTMLElement) return appShellHeader;
+
     // The expanded-sidebar "new chat" link is an anchor with href="/" wrapped
     // in <li>→<ul>→<div class="pt-(--sidebar-section-first-margin-top) … tall:sticky">.
     // We disambiguate from the collapsed tiny-bar's copy of the same link by
@@ -1547,6 +1555,18 @@ export class FolderManager {
   private findChatGptChatsSectionBlock(): HTMLElement | null {
     const sidebar = this.sidebarContainer;
     if (!sidebar) return null;
+
+    // 2026-09 layout: the Recents list lives in a project drop target; insert
+    // before the drop target so folders never become part of it.
+    const appShellChats = sidebar.querySelector<HTMLElement>(
+      '[data-app-action-sidebar-scroll] [data-sidebar-project-container-id="chats"]',
+    );
+    if (appShellChats) {
+      return (
+        appShellChats.closest<HTMLElement>('[data-chatgpt-project-conversation-drop-target]') ??
+        appShellChats
+      );
+    }
 
     const convLink = sidebar.querySelector<HTMLAnchorElement>('a[href*="/c/"]');
     if (!convLink) return null;

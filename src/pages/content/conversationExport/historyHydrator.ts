@@ -1,11 +1,19 @@
 import {
   type LiveConversationMessage,
   collectLiveConversationMessages,
+  readThreadTurnOrder,
+  threadMessageOrder,
 } from '@/features/singleConvExport/liveSnapshot';
 
 const DEFAULT_MAX_STEPS = 180;
 const DEFAULT_SETTLE_DELAY_MS = 140;
 const STABLE_TOP_PASSES = 2;
+/**
+ * ChatGPT 2026-09 fetches older history over the network once the top is
+ * reached (a spinner shows meanwhile), so "nothing new appeared" only means
+ * "reached the first message" after a network-sized wait.
+ */
+const DEFAULT_TOP_SETTLE_DELAY_MS = 900;
 
 export interface HistoryHydrationProgress {
   discovered: number;
@@ -24,6 +32,35 @@ export interface HistoryHydrationOptions {
   scrollContainer?: HTMLElement | null;
   collect?: () => LiveConversationMessage[];
   wait?: (delayMs: number) => Promise<void>;
+  /** Wait used while parked at the top for a history page (defaults to 900 ms). */
+  topSettleDelayMs?: number;
+  /**
+   * 2026-09 paginated capture: when given, the hydrator jumps straight to the
+   * top and waits for ChatGPT to page history in until this reports true,
+   * instead of walking the thread a screen at a time (a long conversation is
+   * far taller than the step budget, and the capture — not the mounted rows —
+   * is what the export reads).
+   */
+  isComplete?: () => boolean;
+  /** Upper bound on jump-to-top passes in that mode (defaults to 60). */
+  maxJumpPasses?: number;
+}
+
+const DEFAULT_MAX_JUMP_PASSES = 60;
+
+/**
+ * scrollTop range. The 2026-09 thread scroller is `flex-direction:
+ * column-reverse`: 0 is the BOTTOM and the top is -(scrollHeight - clientHeight).
+ */
+function scrollBounds(container: HTMLElement): { top: number; bottom: number } {
+  const range = Math.max(0, container.scrollHeight - container.clientHeight);
+  let reversed = false;
+  try {
+    reversed = getComputedStyle(container).flexDirection === 'column-reverse';
+  } catch {
+    /* test env */
+  }
+  return reversed ? { top: -range, bottom: 0 } : { top: 0, bottom: range };
 }
 
 function isScrollable(element: HTMLElement): boolean {
@@ -84,13 +121,41 @@ export async function hydrateConversationHistory(
   }
 
   const initialTop = container.scrollTop;
-  const initialDistanceFromBottom = container.scrollHeight - container.clientHeight - initialTop;
+  const initialDistanceFromBottom = Math.abs(scrollBounds(container).bottom - initialTop);
+  const isAtTop = () => container.scrollTop <= scrollBounds(container).top + 2;
   let stableTopPasses = 0;
   let previousCount = collected.size;
+  let previousHeight = container.scrollHeight;
   let reachedTop = false;
 
-  for (let step = 0; step < (options.maxSteps ?? DEFAULT_MAX_STEPS); step += 1) {
-    const atTop = container.scrollTop <= 2;
+  if (options.isComplete) {
+    for (let pass = 0; pass < (options.maxJumpPasses ?? DEFAULT_MAX_JUMP_PASSES); pass += 1) {
+      if (options.isComplete()) {
+        reachedTop = true;
+        break;
+      }
+      container.scrollTop = scrollBounds(container).top;
+      container.dispatchEvent(new Event('scroll', { bubbles: true }));
+      await wait(options.topSettleDelayMs ?? DEFAULT_TOP_SETTLE_DELAY_MS);
+      const count = mergeCollected(collected, collect());
+      options.onProgress?.({ discovered: count, step: pass + 1 });
+      const height = container.scrollHeight;
+      if (count === previousCount && height === previousHeight) stableTopPasses += 1;
+      else stableTopPasses = 0;
+      previousCount = count;
+      previousHeight = height;
+      // Nothing new for a while at the very top: ChatGPT has no more pages.
+      if (stableTopPasses >= STABLE_TOP_PASSES + 2) break;
+    }
+    if (options.isComplete()) reachedTop = true;
+  }
+
+  for (
+    let step = 0;
+    !options.isComplete && step < (options.maxSteps ?? DEFAULT_MAX_STEPS);
+    step += 1
+  ) {
+    const atTop = isAtTop();
     if (atTop && stableTopPasses >= STABLE_TOP_PASSES) {
       reachedTop = true;
       break;
@@ -98,34 +163,48 @@ export async function hydrateConversationHistory(
 
     if (!atTop) {
       const distance = Math.max(Math.floor(container.clientHeight * 0.82), 640);
-      container.scrollTop = Math.max(0, container.scrollTop - distance);
+      container.scrollTop = Math.max(scrollBounds(container).top, container.scrollTop - distance);
       container.dispatchEvent(new Event('scroll', { bubbles: true }));
     }
 
-    await wait(options.settleDelayMs ?? DEFAULT_SETTLE_DELAY_MS);
+    await wait(
+      isAtTop()
+        ? (options.topSettleDelayMs ?? DEFAULT_TOP_SETTLE_DELAY_MS)
+        : (options.settleDelayMs ?? DEFAULT_SETTLE_DELAY_MS),
+    );
     const count = mergeCollected(collected, collect());
     options.onProgress?.({ discovered: count, step: step + 1 });
 
-    if (container.scrollTop <= 2 && count === previousCount) stableTopPasses += 1;
+    // A history page landing above grows the scroller even before its rows
+    // are collected; that is not "stable at the top".
+    const height = container.scrollHeight;
+    if (isAtTop() && count === previousCount && height === previousHeight) stableTopPasses += 1;
     else stableTopPasses = 0;
     previousCount = count;
+    previousHeight = height;
   }
 
-  if (container.scrollTop <= 2 && stableTopPasses >= STABLE_TOP_PASSES) reachedTop = true;
+  if (!options.isComplete && isAtTop() && stableTopPasses >= STABLE_TOP_PASSES) reachedTop = true;
 
   // Keep the export from unexpectedly abandoning the user's reading position.
+  const bounds = scrollBounds(container);
   if (initialDistanceFromBottom <= Math.max(container.clientHeight, 1000)) {
-    container.scrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+    container.scrollTop = bounds.bottom;
+  } else if (bounds.bottom === 0 && bounds.top < 0) {
+    // column-reverse: scrollTop is measured from the bottom, so the old value
+    // still points at the same content after older pages were prepended.
+    container.scrollTop = Math.max(bounds.top, initialTop);
   } else {
-    container.scrollTop = Math.min(
-      initialTop,
-      Math.max(0, container.scrollHeight - container.clientHeight),
-    );
+    container.scrollTop = Math.min(initialTop, bounds.bottom);
   }
   container.dispatchEvent(new Event('scroll', { bubbles: true }));
 
-  return {
-    messages: Array.from(collected.values()).sort((a, b) => a.order - b.order),
-    reachedTop,
-  };
+  // Rows mount and unmount while we scroll, so per-pass orders are not
+  // comparable; re-rank by the final exchange order where it is known.
+  const turnOrder = readThreadTurnOrder();
+  const messages = Array.from(collected.values()).map((live) => {
+    const order = threadMessageOrder(turnOrder, live.turnKey, live.message.role);
+    return order === null ? live : { ...live, order };
+  });
+  return { messages: messages.sort((a, b) => a.order - b.order), reachedTop };
 }

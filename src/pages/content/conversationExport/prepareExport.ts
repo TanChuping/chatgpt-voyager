@@ -31,18 +31,27 @@ export async function prepareWholeConversationExport(
   let live = collectLiveConversationMessages();
   options.onStage?.('checking', live.length);
   const reconciliation = reconcileExportTail(cached, live);
+  // ChatGPT 2026-09 pages history in as the user scrolls up, so a matching
+  // tail no longer proves the capture holds the whole conversation.
+  const complete = capture.isComplete(convId);
 
-  if (reconciliation.kind === 'fresh' && cached) return cached;
+  if (complete && reconciliation.kind === 'fresh' && cached) return cached;
 
-  if (reconciliation.kind === 'incremental' && cached) {
+  if (complete && reconciliation.kind === 'incremental' && cached) {
     options.onStage?.('incremental', reconciliation.changed.length);
     const merged = mergeLiveConversationMessages(cached, live);
     return capture.updateLatest(convId, merged);
   }
 
   options.onStage?.('rebuilding', live.length);
+  // 2026-09 layout (thread-mirror anchors present): the paginated capture is
+  // the source of truth, so hydrate until it is complete rather than walking
+  // every row of a thread that can be hundreds of screens tall.
+  const paginated =
+    capture.getLatest(convId) !== null && !!document.querySelector('[data-gv-thread-anchor]');
   const hydration = await hydrateConversationHistory({
     onProgress: ({ discovered }) => options.onStage?.('rebuilding', discovered),
+    isComplete: paginated ? () => capture.isComplete(convId) : undefined,
   });
   if (!hydration.reachedTop) {
     throw new Error('Unable to reach the beginning of the conversation safely.');
@@ -56,8 +65,10 @@ export async function prepareWholeConversationExport(
 
   // A network capture may have arrived while ChatGPT hydrated history. Prefer
   // it when its latest-five tail is now consistent; otherwise rebuild the
-  // current user-facing branch from what was actually mounted.
-  if (cached) {
+  // current user-facing branch from what was actually mounted. Scrolling to
+  // the top pages the rest of a 2026-09 conversation in, so the capture is
+  // normally complete by now.
+  if (cached && capture.isComplete(convId)) {
     const afterHydration = reconcileExportTail(cached, live);
     if (afterHydration.kind === 'fresh') return cached;
     if (afterHydration.kind === 'incremental') {

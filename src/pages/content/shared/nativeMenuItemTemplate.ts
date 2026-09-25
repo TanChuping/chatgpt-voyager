@@ -132,3 +132,69 @@ export function updateMenuItemTemplateLabel(
   button.setAttribute('aria-label', description);
   updateMenuItemLabel(button, label);
 }
+
+export type AppShellMenuItemOptions = {
+  className: string;
+  label: string;
+  tooltip?: string;
+  icon: Element;
+  /** Classes of our own injected items, never used as the template. */
+  excludedClassNames?: string[];
+};
+
+const APP_SHELL_ICON_SLOT_SELECTOR = '[class*="leadingIcon"]';
+const APP_SHELL_LABEL_SELECTOR = 'span.truncate';
+
+/**
+ * ChatGPT 2026-09 (Codex app shell) Radix menu item:
+ *   [role=menuitem] > div(row) > span.flex-1 > span.flex > [span.leadingIcon-*, span.truncate]
+ * The row / icon / label layout lives on those inner nodes, so an injected
+ * item must deep-clone a plain native item and swap only the icon and label —
+ * a shallow clone stacks the icon above the text. Returns null on menus
+ * without that structure so callers keep their older strategies.
+ */
+export function cloneAppShellMenuItem(
+  menu: HTMLElement,
+  options: AppShellMenuItemOptions,
+): HTMLElement | null {
+  const excluded = [options.className, ...(options.excludedClassNames ?? [])];
+  const template = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+    (item) =>
+      item.closest('[role="menu"]') === menu &&
+      !item.hasAttribute('aria-haspopup') &&
+      item.getAttribute('data-testid') !== 'delete-chat-menu-item' &&
+      !excluded.some((className) => item.classList.contains(className)) &&
+      !!item.querySelector(APP_SHELL_ICON_SLOT_SELECTOR) &&
+      !!item.querySelector(APP_SHELL_LABEL_SELECTOR),
+  );
+  if (!template) return null;
+
+  const item = template.cloneNode(true) as HTMLElement;
+  for (const node of [item, ...Array.from(item.querySelectorAll<HTMLElement>('*'))]) {
+    for (const attribute of Array.from(node.attributes)) {
+      const name = attribute.name;
+      if (
+        name === 'id' ||
+        name === 'data-testid' ||
+        name === 'data-gv-compat-testid' ||
+        name === 'data-state' ||
+        name.startsWith('data-radix-') ||
+        (node === item && name.startsWith('aria-'))
+      ) {
+        node.removeAttribute(name);
+      }
+    }
+  }
+  item.classList.add(options.className);
+  item.setAttribute('role', 'menuitem');
+  item.setAttribute('tabindex', '0');
+  item.setAttribute('aria-label', options.tooltip || options.label);
+  item.title = options.tooltip || options.label;
+
+  item.querySelector(APP_SHELL_ICON_SLOT_SELECTOR)?.replaceChildren(options.icon);
+  const labels = item.querySelectorAll<HTMLElement>(APP_SHELL_LABEL_SELECTOR);
+  const label = labels[labels.length - 1];
+  label.textContent = options.label;
+  label.setAttribute('data-gv-menu-label', '1');
+  return item;
+}

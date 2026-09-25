@@ -50,9 +50,33 @@ function isUsablePageHeader(header: HTMLElement): boolean {
   return true;
 }
 
+/**
+ * Conversation header roots: `header#page-header` before the 2026-09 redesign,
+ * the Codex app-shell title bar (`header[data-app-shell-titlebar]`) after it.
+ */
+const PAGE_HEADER_SELECTOR = 'header#page-header, header[data-app-shell-titlebar]';
+/**
+ * The right-hand action group: `#conversation-header-actions` (2026-07) or the
+ * app-shell title bar's right slot (2026-09), which holds Share and "…".
+ */
+const HEADER_ACTIONS_SELECTOR = '#conversation-header-actions, [data-app-shell-header-obstacle]';
+
+/**
+ * The element whose subtree holds the header's right-hand actions, for
+ * MutationObserver filters: `#conversation-header-actions` (2026-07) or the
+ * whole app-shell title bar (2026-09 — its right slot is re-rendered, not
+ * patched, when the conversation changes).
+ */
+export function findHeaderActionsRoot(): HTMLElement | null {
+  return (
+    document.getElementById('conversation-header-actions') ??
+    document.querySelector<HTMLElement>('header[data-app-shell-titlebar]')
+  );
+}
+
 export function findActivePageHeader(): HTMLElement | null {
   const candidates = Array.from(
-    document.querySelectorAll<HTMLElement>('header#page-header'),
+    document.querySelectorAll<HTMLElement>(PAGE_HEADER_SELECTOR),
   ).filter(isUsablePageHeader);
   return (
     candidates
@@ -81,10 +105,10 @@ export function findActivePageHeader(): HTMLElement | null {
  */
 export function findOptionsButtonRow(): HeaderActionSlot | null {
   const pageHeader = findActivePageHeader();
-  const header = pageHeader?.querySelector<HTMLElement>('#conversation-header-actions');
   const options = pageHeader?.querySelector<HTMLElement>(
     '[data-testid="conversation-options-button"]',
   );
+  const header = options?.closest<HTMLElement>(HEADER_ACTIONS_SELECTOR) ?? null;
   if (!pageHeader || !header || !options) return null;
 
   const horizontal = findHorizontalRowAncestor(options, 7);
@@ -177,7 +201,7 @@ export function findHeaderLeftSlot(): HeaderActionSlot | null {
   if (!header) return null;
 
   const rightActions = header.querySelector<HTMLElement>(
-    '[data-testid="thread-header-right-actions-container"], #conversation-header-actions',
+    `[data-testid="thread-header-right-actions-container"], ${HEADER_ACTIONS_SELECTOR}`,
   );
 
   const leftGroup = Array.from(header.children).find((child): child is HTMLElement => {

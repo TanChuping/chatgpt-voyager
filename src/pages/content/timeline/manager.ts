@@ -52,6 +52,13 @@ import {
 import { findMatchingStarredMessages } from './starredLookup';
 import type { StarredMessage, StarredMessagesData } from './starredTypes';
 import {
+  THREAD_ANCHOR_SELECTOR,
+  findThreadRow,
+  isThreadAnchor,
+  threadAnchorText,
+  threadAssistantParts,
+} from './threadAnchors';
+import {
   TIMELINE_STARS_PREFIX,
   TIMELINE_TEXT_PINS_PREFIX,
   applyTimelinePrivateStorageChange,
@@ -677,6 +684,26 @@ export class TimelineManager {
     return tops;
   }
 
+  /**
+   * Valid scrollTop range of the thread scroller. ChatGPT's 2026-09 scroller is
+   * `flex-direction: column-reverse`, whose scrollTop runs from
+   * -(scrollHeight - clientHeight) at the top to 0 at the bottom. Element tops
+   * from {@link computeElementTopInScrollContainer} live in that same frame, so
+   * only clamping needs to know about it.
+   */
+  private getScrollBounds(): { min: number; max: number } {
+    const el = this.scrollContainer;
+    if (!el) return { min: 0, max: 0 };
+    const range = Math.max(0, el.scrollHeight - el.clientHeight);
+    let reversed = false;
+    try {
+      reversed = getComputedStyle(el).flexDirection === 'column-reverse';
+    } catch {
+      /* detached / test env — assume a normal scroller */
+    }
+    return reversed ? { min: -range, max: 0 } : { min: 0, max: range };
+  }
+
   private computeElementTopInScrollContainer(element: HTMLElement): number {
     if (!this.scrollContainer) return element.offsetTop || 0;
     const containerRect = this.scrollContainer.getBoundingClientRect();
@@ -1047,7 +1074,12 @@ export class TimelineManager {
       autoDetected = localStorage.getItem('gptTimelineUserTurnSelectorAuto') || '';
     } catch {}
     const defaultCandidates = [
-      // FIRST PRIORITY: the turn wrapper we tagged ourselves via
+      // FIRST PRIORITY (2026-09 layout): the invisible anchors the page-world
+      // thread mirror writes for every loaded exchange. ChatGPT's virtual list
+      // leaves no DOM at all for an unmounted exchange, so these are the only
+      // elements that exist for every turn. See `threadAnchors.ts`.
+      THREAD_ANCHOR_SELECTOR,
+      // 2026-07 layout: the turn wrapper we tagged ourselves via
       // `syncUserTurnAnchors`. Since ChatGPT's 2026-07 rewrite an off-screen
       // turn is unmounted *whole* — no section, no role, no text — leaving
       // only `div[data-turn-id-container]`. That wrapper is the only element
@@ -1106,7 +1138,7 @@ export class TimelineManager {
       // - Otherwise, scope to the immediate parent for performance
       const looksAngularUserQuery = /user-query/i.test(matchedSelector || '');
       const looksChatGptUserMessage =
-        /data-message-author-role|data-author|data-turn|data-gv-user-turn/i.test(
+        /data-message-author-role|data-author|data-turn|data-gv-user-turn|data-gv-thread-anchor/i.test(
           matchedSelector || '',
         );
       if (
@@ -1353,7 +1385,7 @@ export class TimelineManager {
     if (!this.intersectionObserver || !this.conversationContainer || !this.userTurnSelector) return;
     this.intersectionObserver.disconnect();
     this.visibleUserTurns.clear();
-    const nodeList = this.conversationContainer.querySelectorAll(this.userTurnSelector);
+    const nodeList = this.queryUserTurns(this.conversationContainer);
     const topLevel = this.filterTopLevel(Array.from(nodeList));
     topLevel.forEach((el) => this.intersectionObserver!.observe(el));
   }
@@ -1380,8 +1412,24 @@ export class TimelineManager {
     return false;
   }
 
+  /**
+   * User-turn elements under `root`. On the 2026-09 layout the thread-mirror
+   * anchors are authoritative: the DOM-compat shim also stamps
+   * `data-message-author-role="user"` on mounted messages, and letting both
+   * through would give every mounted turn a second, offset marker.
+   */
+  private queryUserTurns(root: ParentNode = this.conversationContainer ?? document): Element[] {
+    if (!this.userTurnSelector) return [];
+    const anchors = root.querySelectorAll(THREAD_ANCHOR_SELECTOR);
+    if (anchors.length > 0) return Array.from(anchors);
+    return Array.from(root.querySelectorAll(this.userTurnSelector));
+  }
+
   private extractTurnText(element: HTMLElement | null): string {
     if (!element) return '';
+    // Thread-mirror anchors (2026-09 layout) are empty; the page-world mirror
+    // copies the user message from ChatGPT's list state onto the anchor.
+    if (isThreadAnchor(element)) return this.normalizeText(threadAnchorText(element));
     try {
       const clone = element.cloneNode(true) as HTMLElement;
       if (this.hasVisuallyHiddenClass(clone)) return '';
@@ -1650,7 +1698,14 @@ export class TimelineManager {
    * the inner user div finds nothing — we have to climb to the section first,
    * then walk to the next sibling section (which is the assistant's reply).
    */
-  private detectGeneratedImageAfterTurn(turnElement: HTMLElement): boolean {
+  private detectGeneratedImageAfterTurn(turnElement: HTMLElement): boolean | null {
+    if (isThreadAnchor(turnElement)) {
+      // One row holds the whole exchange. Unmounted → unknown, so the caller
+      // keeps the cached answer instead of flipping the photo icon off.
+      const row = findThreadRow(turnElement);
+      if (!row) return null;
+      return threadAssistantParts(row).some((part) => this.elementHasGeneratedImage(part));
+    }
     try {
       // Climb to the outer conversation-turn section. ChatGPT uses
       // `data-testid="conversation-turn-<n>"`, so a prefix match is required;
@@ -2061,7 +2116,7 @@ export class TimelineManager {
     // turn ChatGPT has virtualised away still contributes a marker. No-op until
     // the API capture / fiber read has populated the cache.
     const anchorSync = this.syncUserTurnAnchorsFromCache();
-    let userTurnNodeList = this.conversationContainer.querySelectorAll(this.userTurnSelector);
+    let userTurnNodeList = this.queryUserTurns(this.conversationContainer);
     this.visibleRange = { start: 0, end: -1 };
     // During a very fast new-chat send, ChatGPT first renders the turn under a
     // temporary WEB: route and then replaces <main> while assigning the final
@@ -2073,7 +2128,7 @@ export class TimelineManager {
       this.refreshCriticalElementsFromDocument() &&
       this.conversationContainer
     ) {
-      userTurnNodeList = this.conversationContainer.querySelectorAll(this.userTurnSelector);
+      userTurnNodeList = this.queryUserTurns(this.conversationContainer);
     }
     if (userTurnNodeList.length === 0) {
       this.updateTimestampTracking([]);
@@ -2163,7 +2218,9 @@ export class TimelineManager {
         this.extractTurnText(element),
         liveAttachments,
       );
-      const liveHasImage = this.detectGeneratedImageAfterTurn(element);
+      const cachedForImage = this.turnTextCache.get(nextIds[idx]);
+      const liveHasImage =
+        this.detectGeneratedImageAfterTurn(element) ?? cachedForImage?.hasGeneratedImage ?? false;
 
       // Outer wrapper survives ChatGPT's virtualisation with a stable
       // offsetTop, but its inner content collapses to "" when virtualised.
@@ -3092,13 +3149,13 @@ export class TimelineManager {
     //
     // Bail out for short jumps (overshoot wouldn't help) and for jumps near
     // the conversation edges (no room to overshoot without clamping).
-    const maxScroll = Math.max(
-      0,
-      this.scrollContainer.scrollHeight - this.scrollContainer.clientHeight,
-    );
+    const bounds = this.getScrollBounds();
     const direction = Math.sign(distance) || 1;
     const overshootPx = 600;
-    const overshootPos = Math.max(0, Math.min(maxScroll, targetPosition + direction * overshootPx));
+    const overshootPos = Math.max(
+      bounds.min,
+      Math.min(bounds.max, targetPosition + direction * overshootPx),
+    );
     const overshootDelta = Math.abs(overshootPos - targetPosition);
     const overshootWorthwhile = overshootDelta > 200 && Math.abs(distance) > 400;
 
@@ -3977,11 +4034,8 @@ export class TimelineManager {
     forceSmooth = false,
   ): void {
     if (!this.scrollContainer) return;
-    const maxScroll = Math.max(
-      0,
-      this.scrollContainer.scrollHeight - this.scrollContainer.clientHeight,
-    );
-    const target = Math.max(0, Math.min(maxScroll, targetPosition));
+    const bounds = this.getScrollBounds();
+    const target = Math.max(bounds.min, Math.min(bounds.max, targetPosition));
     const startPosition = this.scrollContainer.scrollTop;
     const distance = target - startPosition;
 
@@ -5976,7 +6030,7 @@ export class TimelineManager {
   private shouldAttemptRefreshForNavigation(): boolean {
     if (!this.userTurnSelector) return false;
 
-    const documentCount = document.querySelectorAll(this.userTurnSelector).length;
+    const documentCount = this.queryUserTurns(document).length;
     const containersDisconnected =
       (this.conversationContainer ? !this.conversationContainer.isConnected : true) ||
       (this.scrollContainer ? !this.scrollContainer.isConnected : true);
@@ -6205,7 +6259,7 @@ export class TimelineManager {
       this.isScrollableElement(target)
     ) {
       const firstTurn = this.userTurnSelector
-        ? (document.querySelector(this.userTurnSelector) as HTMLElement | null)
+        ? ((this.queryUserTurns(document)[0] as HTMLElement | undefined) ?? null)
         : null;
       if (firstTurn && (target.contains(firstTurn) || firstTurn.contains(target))) {
         return true;
@@ -6312,7 +6366,7 @@ export class TimelineManager {
   private adoptScrollContainerFromScrollEvent(target: EventTarget | null): boolean {
     if (!this.userTurnSelector) return false;
 
-    const firstTurn = document.querySelector(this.userTurnSelector) as HTMLElement | null;
+    const firstTurn = (this.queryUserTurns(document)[0] as HTMLElement | undefined) ?? null;
     if (!firstTurn) return false;
 
     let nextScrollContainer: HTMLElement | null = null;
@@ -6345,7 +6399,7 @@ export class TimelineManager {
   private refreshCriticalElementsFromDocument(): boolean {
     if (!this.userTurnSelector) return false;
 
-    const firstTurn = document.querySelector(this.userTurnSelector) as HTMLElement | null;
+    const firstTurn = (this.queryUserTurns(document)[0] as HTMLElement | undefined) ?? null;
     if (!firstTurn) return false;
 
     const nextConversationContainer =

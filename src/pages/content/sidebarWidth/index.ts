@@ -45,6 +45,19 @@ function buildStyle(width: number): string {
     #stage-slideover-sidebar [class*='w-(--sidebar-width)'] {
       --sidebar-width: ${width}px !important;
     }
+    /* 2026-09 app shell: the left panel is \`width: var(--app-shell-left-panel-width)\`
+       and the main surface is laid out beside it from the same variable. */
+    :root,
+    [data-app-shell-frame] {
+      --app-shell-left-panel-width: ${width}px !important;
+    }
+    /* The panel's inner wrapper gets an inline \`width\`/\`min-width\` from the
+       native preferred width (340px), so a narrower panel would clip its
+       header buttons; make it follow the panel instead. */
+    aside.app-shell-left-panel > div {
+      width: var(--app-shell-left-panel-width) !important;
+      min-width: 0 !important;
+    }
   `;
 }
 

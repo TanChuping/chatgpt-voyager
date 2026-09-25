@@ -21,7 +21,7 @@ import { getTranslationSync } from '@/utils/i18n';
 
 import { extractChatGptConversationIdFromUrl } from '../chatgptDom';
 import { buildClonedButtonClassName } from '../shared/clonedButtonClass';
-import { findOptionsButtonRow } from '../shared/headerActionSlot';
+import { findHeaderActionsRoot, findOptionsButtonRow } from '../shared/headerActionSlot';
 import { isChatGptResponseGenerating } from './generationState';
 import { prepareWholeConversationExport } from './prepareExport';
 import { enterSelectionMode, exitSelectionMode } from './selectionMode';
@@ -386,17 +386,19 @@ async function resolveExportFormat(): Promise<SingleConvExportFormat> {
 
 let observer: MutationObserver | null = null;
 let injectTimer: number | null = null;
+/** 2026-09 app-shell title bar (see `findHeaderActionsRoot`). */
+const HEADER_ROOT_SELECTOR = 'header[data-app-shell-titlebar]';
 let locationChangeHandler: (() => void) | null = null;
 
 function nodeTouchesHeader(node: Node, header: HTMLElement | null): boolean {
   if (!(node instanceof Element)) return false;
   if (header && (node === header || header.contains(node) || node.contains(header))) return true;
-  if (node.id === 'conversation-header-actions') return true;
-  return node.querySelector('#conversation-header-actions') !== null;
+  if (node.id === 'conversation-header-actions' || node.matches(HEADER_ROOT_SELECTOR)) return true;
+  return node.querySelector(`#conversation-header-actions, ${HEADER_ROOT_SELECTOR}`) !== null;
 }
 
 function mutationsMayAffectHeader(records: MutationRecord[]): boolean {
-  const header = document.getElementById('conversation-header-actions');
+  const header = findHeaderActionsRoot();
   if (injectedButton && !injectedButton.isConnected) return true;
 
   return records.some((record) => {

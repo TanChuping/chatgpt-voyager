@@ -7,6 +7,7 @@ import type {
   ApiAttachment,
   ApiContent,
   ApiConversation,
+  ApiConversationPage,
   ConversationNode,
   ConversationNodeMessage,
   LinearAttachment,
@@ -153,7 +154,30 @@ function pickAttachments(message: ConversationNodeMessage): LinearAttachment[] {
  * Walk the API mapping and produce the linear conversation we export from.
  */
 export function walkMapping(api: ApiConversation): LinearConversation {
-  const chain = walkChain(api);
+  return {
+    id: String(api.conversation_id || api.id || ''),
+    title: typeof api.title === 'string' && api.title ? api.title : 'Untitled',
+    createTime: api.create_time ?? null,
+    updateTime: api.update_time ?? null,
+    messages: linearizeMessages(walkChain(api)),
+  };
+}
+
+/** One page of the 2026-09 paginated endpoints; `messages` is already a chain. */
+export function walkMessagesPage(page: ApiConversationPage): LinearConversation {
+  const chain = page.messages.filter(
+    (m): m is ConversationNodeMessage => !!m && typeof m === 'object' && typeof m.id === 'string',
+  );
+  return {
+    id: String(page.conversation_id || ''),
+    title: typeof page.title === 'string' && page.title ? page.title : 'Untitled',
+    createTime: page.create_time ?? null,
+    updateTime: page.update_time ?? null,
+    messages: linearizeMessages(chain),
+  };
+}
+
+function linearizeMessages(chain: ConversationNodeMessage[]): LinearMessage[] {
   const messages: LinearMessage[] = [];
 
   for (const msg of chain) {
@@ -180,11 +204,5 @@ export function walkMapping(api: ApiConversation): LinearConversation {
     });
   }
 
-  return {
-    id: String(api.conversation_id || api.id || ''),
-    title: typeof api.title === 'string' && api.title ? api.title : 'Untitled',
-    createTime: api.create_time ?? null,
-    updateTime: api.update_time ?? null,
-    messages,
-  };
+  return messages;
 }

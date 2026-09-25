@@ -99,12 +99,14 @@ export function installCachePrimerForManager(
   captureService: ConversationCaptureService,
   onPrimed?: () => void,
 ): CachePrimerHandle {
-  const prime = (convId: string, messages: LinearMessage[]) => {
+  // A paginated capture that doesn't reach the first page yet must not prune:
+  // every cached turn from the unseen pages would look deleted.
+  const prime = (convId: string, messages: LinearMessage[], complete = true) => {
     const boundId = normaliseConvIdForCompare(turnTextCache.getConversationId());
     const captureId = normaliseConvIdForCompare(convId);
     if (!boundId || !captureId || boundId !== captureId) return;
     try {
-      const primed = primeCacheFromLinear(turnTextCache, messages);
+      const primed = primeCacheFromLinear(turnTextCache, messages, { prune: complete });
       // A fresh capture may reveal turns ChatGPT has virtualised out of the
       // DOM entirely; the timeline can only anchor onto them once it knows
       // their ids, so nudge it to reconcile instead of waiting for the next
@@ -115,13 +117,13 @@ export function installCachePrimerForManager(
     }
   };
   const off = captureService.on('captured', (convId, entry) =>
-    prime(convId, entry.linear.messages),
+    prime(convId, entry.linear.messages, entry.complete),
   );
   // The native message-targeted fetch can finish before manager hydration.
   // Reuse that capture instead of waiting for another fetch or user scroll.
   const boundId = normaliseConvIdForCompare(turnTextCache.getConversationId());
   const latest = boundId ? captureService.getLatest(boundId) : null;
-  if (boundId && latest) prime(boundId, latest.messages);
+  if (boundId && latest) prime(boundId, latest.messages, captureService.isComplete(boundId));
   return { dispose: off };
 }
 

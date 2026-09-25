@@ -79,6 +79,36 @@ export interface ApiConversation {
 }
 
 /**
+ * ChatGPT 2026-09 paginated conversation payload. The client no longer fetches
+ * the whole mapping: `GET /backend-api/conversations/<id>?num_turns=N` returns
+ * the latest page and `GET /backend-api/conversations/<id>/messages?before=<id>`
+ * each older one, as the user scrolls up. `messages` is the current branch in
+ * chronological order, same node shape as a mapping entry's `message`.
+ */
+export interface ApiConversationPage {
+  conversation_id?: string;
+  title?: string | null;
+  create_time?: number | null;
+  update_time?: number | null;
+  current_node?: string;
+  messages: ConversationNodeMessage[];
+  page_info?: {
+    start_cursor?: string | null;
+    end_cursor?: string | null;
+    has_previous_page?: boolean;
+    has_next_page?: boolean;
+  } | null;
+  [k: string]: unknown;
+}
+
+/** Which paginated endpoint a capture came from (absent for full captures). */
+export interface CapturePageInfo {
+  kind: 'latest' | 'before';
+  /** The `before` cursor (a message id) of an older-page request. */
+  before?: string | null;
+}
+
+/**
  * Normalized linear form. `turnId` matches the timeline manager's id scheme:
  * bare UUIDs get a `u-` prefix (see `ensureTurnId` in
  * `src/pages/content/timeline/manager.ts`).

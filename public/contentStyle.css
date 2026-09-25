@@ -129,13 +129,17 @@ html {
   -webkit-backdrop-filter: blur(4px);
 }
 
+/* Always-on timeline chrome (bar, slider, preview toggle, pin controls and
+ * badges) sits above ChatGPT's page chrome (header z-30) but BELOW its Radix
+ * menus and dialogs (z-50): the conversation "…" menu opens right over the
+ * bar. Transient UI (tooltips, preview panel) keeps the top-most layer. */
 .gpt-timeline-bar {
   position: fixed;
   top: 60px;
   right: 15px;
   width: 24px;
   height: calc(100vh - 100px);
-  z-index: 2147483646;
+  z-index: var(--gv-timeline-chrome-z, 45);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -722,7 +726,7 @@ html.dark .timeline-dot:not(.active):not(.starred)::after,
   height: 160px;
   opacity: 0;
   transition: opacity 180ms ease;
-  z-index: 2147483646;
+  z-index: var(--gv-timeline-chrome-z, 45);
   pointer-events: none;
 }
 
@@ -801,7 +805,7 @@ html.dark .timeline-left-slider::before {
     color 0.15s ease,
     background-color 0.15s ease,
     opacity 0.15s ease;
-  z-index: 2147483646;
+  z-index: var(--gv-timeline-chrome-z, 45);
   opacity: 0;
 }
 
@@ -823,7 +827,7 @@ html.dark .timeline-left-slider::before {
 
 .timeline-pin-controls {
   position: fixed;
-  z-index: 2147483646;
+  z-index: var(--gv-timeline-chrome-z, 45);
   width: 48px;
   min-height: 34px;
   display: flex;
@@ -913,7 +917,7 @@ body.timeline-pin-picking .timeline-left-slider {
 .timeline-pin-badge-layer {
   position: fixed;
   inset: 0;
-  z-index: 2147483645;
+  z-index: var(--gv-timeline-chrome-z, 45);
   pointer-events: none;
 }
 
@@ -4901,23 +4905,29 @@ body.dark-theme .gv-folder-header .title,
 
 /* Long ChatGPT code blocks: loaded behavior is setting-gated; these inert
  * selectors add no observers or runtime work while the feature is disabled. */
-.gv-code-block-collapsible #code-block-viewer {
+[data-gv-code-collapsible] #code-block-viewer,
+[data-gv-code-collapsible][data-markdown-copy='code-block'] > div:not([data-markdown-copy]) {
   position: relative;
 }
 
-.gv-code-block-collapsed #code-block-viewer {
+[data-gv-code-collapsed] #code-block-viewer,
+[data-gv-code-collapsed][data-markdown-copy='code-block'] > div:not([data-markdown-copy]) {
   max-height: clamp(240px, 38vh, 340px) !important;
   overflow: hidden !important;
 }
 
-.gv-code-block-collapsed #code-block-viewer::after {
+[data-gv-code-collapsed] #code-block-viewer::after,
+[data-gv-code-collapsed][data-markdown-copy='code-block'] > div:not([data-markdown-copy])::after {
   content: '';
   position: absolute;
   right: 0;
   bottom: 0;
   left: 0;
   height: 72px;
-  background: linear-gradient(transparent, var(--code-block-surface));
+  background: linear-gradient(
+    transparent,
+    var(--code-block-surface, var(--codeblock-background-color, var(--color-surface)))
+  );
   pointer-events: none;
 }
 
