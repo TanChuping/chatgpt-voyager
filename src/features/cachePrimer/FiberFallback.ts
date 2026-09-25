@@ -9,8 +9,10 @@
  *
  * This side:
  *   1. Asks the reader for fiber turns — only when the timeline actually has an
- *      unmounted cache miss, at most once per conversation until satisfied,
+ *      unmounted cache miss, a few times per conversation until satisfied,
  *      throttled so a not-yet-ready store just gets retried on the next pass.
+ *      Wrappers it has never asked about re-arm one more read: ChatGPT pages
+ *      older history in as the user scrolls up, long after the first reads.
  *   2. On a reply, validates it belongs to the bound conversation, then primes
  *      the TurnTextCache in *fill-only* mode: never prune, never overwrite the
  *      authoritative API-derived snapshot — fiber only fills genuine gaps.
@@ -42,12 +44,24 @@ const FIRST_REQUEST_GRACE_MS = 1000;
  * throttled retries while misses remain, then stop (no infinite churn).
  */
 const MAX_REQUESTS_PER_CONV = 3;
+/**
+ * Slack added to a recheck timer so it lands after the grace / throttle window
+ * it waited out, not a clock tick before it (which would just defer again).
+ */
+const RECHECK_SLACK_MS = 20;
 
 export interface FiberFallbackOptions {
   /** Bound conversation id (raw uuid or `gpt:conv:<uuid>` — both tolerated). */
   getConversationId: () => string | null;
   /** Invoked after ≥1 turn was filled, so the timeline can re-render. */
   onPrimed: () => void;
+  /**
+   * Invoked once a request deferred by the grace / throttle window may fire,
+   * so the timeline reconciles and calls {@link FiberFallbackHandle.requestIfNeeded}
+   * with current state. Without it a deferred request waits for an unrelated
+   * DOM mutation, and a settled thread may never produce one.
+   */
+  onRecheckDue?: () => void;
 }
 
 export interface FiberFallbackHandle {
@@ -55,8 +69,12 @@ export interface FiberFallbackHandle {
    * Ask the page-world reader for fiber turns. No-op unless `hasUnmountedMiss`
    * is true and we haven't already satisfied (or very recently asked for) the
    * current conversation. Safe to call on every render pass.
+   *
+   * `unresolvedTurnIds` are the virtualised wrappers the timeline couldn't
+   * classify on this pass. One we haven't asked about yet earns another read
+   * even after the per-conversation budget is spent.
    */
-  requestIfNeeded(hasUnmountedMiss: boolean): void;
+  requestIfNeeded(hasUnmountedMiss: boolean, unresolvedTurnIds?: readonly string[]): void;
   dispose(): void;
 }
 
@@ -80,7 +98,32 @@ export function installFiberFallbackForManager(
   let firstMissAt = 0;
   let fireCount = 0;
   let lastFireAt = 0;
+  // Unresolved wrapper ids already present when a request fired. Assistant
+  // wrappers never resolve (fiber only returns user turns), so without this a
+  // long thread would look "newly missing" on every pass.
+  let askedIds = new Set<string>();
+  let recheckTimer: ReturnType<typeof setTimeout> | null = null;
   let disposed = false;
+
+  const clearRecheck = (): void => {
+    if (recheckTimer === null) return;
+    clearTimeout(recheckTimer);
+    recheckTimer = null;
+  };
+
+  const scheduleRecheck = (delayMs: number): void => {
+    if (!options.onRecheckDue) return;
+    clearRecheck();
+    recheckTimer = setTimeout(() => {
+      recheckTimer = null;
+      if (disposed) return;
+      try {
+        options.onRecheckDue?.();
+      } catch {
+        /* the timeline's own reconcile path handles its errors */
+      }
+    }, delayMs + RECHECK_SLACK_MS);
+  };
 
   const onMessage = (ev: MessageEvent): void => {
     try {
@@ -127,7 +170,7 @@ export function installFiberFallbackForManager(
   window.addEventListener('message', onMessage);
 
   return {
-    requestIfNeeded(hasUnmountedMiss: boolean): void {
+    requestIfNeeded(hasUnmountedMiss: boolean, unresolvedTurnIds: readonly string[] = []): void {
       try {
         if (disposed) return;
         const conv = normaliseConvIdForCompare(options.getConversationId());
@@ -138,19 +181,37 @@ export function installFiberFallbackForManager(
           firstMissAt = 0;
           fireCount = 0;
           lastFireAt = 0;
+          askedIds = new Set();
+          clearRecheck();
         }
         if (!hasUnmountedMiss) return;
         const now = Date.now();
+        // ChatGPT loads long threads a page at a time as the user scrolls up,
+        // and an older page's turns are virtualised again before the deferred
+        // reconcile sees them mounted. Those wrappers didn't exist when the
+        // early reads ran, so a spent budget must not leave them unresolved
+        // for good: grant one more read. Each id can do this only once.
+        const hasNewMiss = unresolvedTurnIds.some((id) => !askedIds.has(id));
+        if (hasNewMiss && fireCount >= MAX_REQUESTS_PER_CONV) {
+          fireCount = MAX_REQUESTS_PER_CONV - 1;
+        }
         // Start the grace clock on the first observed miss; don't fire yet.
-        if (firstMissAt === 0) {
-          firstMissAt = now;
+        if (firstMissAt === 0) firstMissAt = now;
+        if (fireCount >= MAX_REQUESTS_PER_CONV) return;
+        const wait = Math.max(
+          firstMissAt + FIRST_REQUEST_GRACE_MS - now,
+          lastFireAt ? lastFireAt + MIN_REQUEST_INTERVAL_MS - now : 0,
+        );
+        if (wait > 0) {
+          // Make sure a read someone is waiting on actually happens. Plain
+          // retries stay opportunistic (next reconcile pass), as before.
+          if (fireCount === 0 || hasNewMiss) scheduleRecheck(wait);
           return;
         }
-        if (now - firstMissAt < FIRST_REQUEST_GRACE_MS) return;
-        if (fireCount >= MAX_REQUESTS_PER_CONV) return;
-        if (now - lastFireAt < MIN_REQUEST_INTERVAL_MS) return;
+        clearRecheck();
         fireCount += 1;
         lastFireAt = now;
+        for (const id of unresolvedTurnIds) askedIds.add(id);
         window.postMessage({ __gvType: REQUEST_TYPE, convId: conv }, window.location.origin);
       } catch {
         /* transport unavailable — timeline keeps the "消息未加载" placeholder */
@@ -158,6 +219,7 @@ export function installFiberFallbackForManager(
     },
     dispose(): void {
       disposed = true;
+      clearRecheck();
       window.removeEventListener('message', onMessage);
     },
   };

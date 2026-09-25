@@ -441,6 +441,7 @@ export class TimelineManager {
         this.fiberFallback = installFiberFallbackForManager(this.turnTextCache, {
           getConversationId: () => this.turnTextCache.getConversationId(),
           onPrimed: () => this.recalculateAndRenderMarkers(),
+          onRecheckDue: () => this.recalculateAndRenderMarkers(),
         });
       } catch (err) {
         console.warn('[GPT-Voyager] fiber fallback install failed', err);
@@ -2270,7 +2271,7 @@ export class TimelineManager {
     // predicate above. Count those placeholders too, otherwise the fallback
     // never fires on the very conversations that need it most.
     const hasUnmountedMiss = hasEmptyMarker || anchorSync.unresolved > 0;
-    this.fiberFallback?.requestIfNeeded(hasUnmountedMiss);
+    this.fiberFallback?.requestIfNeeded(hasUnmountedMiss, anchorSync.unresolvedIds);
   };
 
   /**
@@ -2287,7 +2288,7 @@ export class TimelineManager {
       return syncUserTurnAnchors(this.turnTextCache.turnIds());
     } catch {
       /* tagging is an enhancement — the mounted-section selector still works */
-      return { tagged: 0, unresolved: 0 };
+      return { tagged: 0, unresolved: 0, unresolvedIds: [] };
     }
   }
 

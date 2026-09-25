@@ -88,6 +88,13 @@ export interface AnchorSyncResult {
    * became a marker at all is invisible to it.
    */
   unresolved: number;
+  /**
+   * The `data-turn-id-container` ids behind {@link unresolved}. The fiber
+   * fallback compares them across passes: an id it has never asked about means
+   * ChatGPT paged in older history (or virtualised a turn no reconcile saw
+   * mounted), so an earlier fiber read cannot have covered it.
+   */
+  unresolvedIds: string[];
 }
 
 /**
@@ -111,7 +118,7 @@ export function syncUserTurnAnchors(
   }
 
   let tagged = 0;
-  let unresolved = 0;
+  const unresolvedIds: string[] = [];
   for (const container of listTurnContainers(root)) {
     const id = (container.getAttribute('data-turn-id-container') ?? '').toLowerCase();
     if (id && wanted.has(id)) {
@@ -126,9 +133,9 @@ export function syncUserTurnAnchors(
       continue;
     }
     if (container.hasAttribute(ANCHOR_ATTR)) container.removeAttribute(ANCHOR_ATTR);
-    if (isVirtualised(container)) unresolved++;
+    if (isVirtualised(container)) unresolvedIds.push(id);
   }
-  return { tagged, unresolved };
+  return { tagged, unresolved: unresolvedIds.length, unresolvedIds };
 }
 
 /** Prepend the anchor selector to a user-turn selector, without duplicating it. */

@@ -158,6 +158,11 @@ describe('syncUserTurnAnchors — unresolved count', () => {
   it('reports zero unresolved once every wrapper is classified', () => {
     expect(syncUserTurnAnchors([`u-${USER_A}`, `u-${ASSISTANT_A}`]).unresolved).toBe(0);
   });
+
+  it('names the unresolved wrappers so newly paged-in history can be told apart', () => {
+    expect(syncUserTurnAnchors([]).unresolvedIds).toEqual([USER_A, ASSISTANT_A]);
+    expect(syncUserTurnAnchors([`u-${USER_A}`]).unresolvedIds).toEqual([ASSISTANT_A]);
+  });
 });
 
 describe('withUserTurnAnchors', () => {
