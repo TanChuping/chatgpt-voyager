@@ -27,9 +27,15 @@
 | 注入的原生菜单项（移动到文件夹等）不出现 | `src/pages/content/folder/nativeConversationBridge.ts` | Radix 是 `pointerdown` 开菜单，click 时菜单已存在，见 2026-08-08 条目 |
 | 往对话顶栏**左侧**注入按钮 | `src/pages/content/shared/headerActionSlot.ts` (`findHeaderLeftSlot`) | 右侧用 `findOptionsButtonRow`；2026-09 左侧是插在 `[data-app-shell-main-titlebar]` 开头的自有 `pointer-events: auto` 包裹层（整条顶栏是 `pointer-events: none`） |
 | 图标栏收起按钮（侧边栏头部 ◀） | `src/pages/content/railToggle/index.ts` | 默认开；只在面板展开时收起图标栏；状态存 `chrome.storage.local.gvRailCollapsed` |
+| 侧边栏对话拖不进文件夹 | `src/pages/content/folder/appShellRowDrag.ts` + `folder/manager.ts`（`makeConversationDraggable`） | 2026-09 行是 dnd-kit 拖拽项，原生 `dragstart` 被取消；跟着 ChatGPT 的指针拖动在文件夹面板上重放 HTML5 事件 |
+| 对话宽度 / 输入框宽度没反应 | `src/pages/content/chatWidth/`, `editInputWidth/`, `chatgptDom.ts`（`THREAD_WIDTH_HOST_SELECTOR`） | 在两个宽度宿主上设 `--thread-content-responsive-max-width`（`cqi`）；popup「输入框宽度」= 底部输入框 |
+| 字号 / 代码字号 / 行高 / 段距 | `src/pages/content/chatFontSize/`, `chatSpacing/` | 消息文字字号来自 `--codex-chat-font-size`；新代码块无 `<pre>`；新正文容器 `[data-markdown-text-style]` |
+| 侧边栏自动隐藏 / 完全隐藏 | `src/pages/content/sidebarAutoHide/index.ts` | 认 `aside.app-shell-left-panel`，走 ChatGPT 自己的收起 / 展开按钮；完全隐藏要连顶栏 start 插槽和页面卡片一起归零 |
+| 页面卡顿、动画掉帧 | 见「本地实测速查」的卡顿排查 | 整页约 2.7 万元素，一次整页样式重算约 200ms；别在 `<html>` 上挂状态、别改 ChatGPT 用 ResizeObserver 监视的尺寸 |
+| 发公告 | `announcements.json`（本地，gitignore）+ `scripts/announcement-manager.mjs` | `node scripts/announcement-manager.mjs publish < /dev/null`；格式和冷却规则见本地 `CLAUDE.md`；**别 `require()` 这个脚本**（会启动交互式 CLI 挂住） |
 | 新功能要「默认关但开了才加载」 | `src/pages/content/bootstrap/features.ts` | 照 `folder-header-button` / `folder-project` 写 lazy feature，`isEnabled` 为假就不会 `import()` |
 | 文件夹面板 | `src/pages/content/folder/manager.ts` | 8300+ 行 |
-| 深色模式 / 布局滑块 | `src/pages/content/gentleDarkMode/`, `chatWidth/`, `chatFontSize/` | 2026-09 温和深色 = 官方主题生成函数以 #1f1f1e 算出的 token（见 2026-09-25 条目） |
+| 深色模式 | `src/pages/content/gentleDarkMode/` | 2026-09 温和深色 = 官方主题生成函数以 #1f1f1e 算出的 token（见 2026-09-25 条目） |
 | 侧边栏宽度 | `src/pages/content/sidebarWidth/index.ts` | 2026-09：**不用 CSS 改宽度**，对 ChatGPT 自带拖动手柄重放拖动；用户拖动写回设置 |
 | 页面世界（MAIN world）钩子 | `src/pages/pageWorld/conversationHook.ts` | fetch/XHR 抓包（含 2026-09 分页接口）+ threadMirror + fiberReader + 剪贴板补丁的总入口；**不能 import 共享模块** |
 
@@ -51,6 +57,18 @@
   附件（文件名在 `label`）；一个 `useRef` 里是 `{turnKeys, topOffsetsPx, heightsPx}`，与已渲染行逐像素一致。
 - 几乎没有 `data-testid`；按钮只有随界面语言变化的 `aria-label`。
 - 深色：`<html data-theme="dark">`；主题 token 在 `<style data-codex-app-themes>` 的 `@layer theme` 里。
+- 顶栏 `header[data-app-shell-titlebar]` **整条 `pointer-events: none`**，注入的按钮必须放进 `pointer-events: auto` 的容器，否则看得见点不着。
+- 侧边栏：`aside.app-shell-left-panel`（宽度 `var(--app-shell-left-panel-width)`，由根节点 `--app-shell-animated-left-panel-width` 驱动）
+  → 内容包裹层（内联 `width` = ChatGPT 当前宽度）→ `#app-shell-sidebar` → 图标栏 `nav[data-app-navigation-rail]`（52px）+ 面板；
+  拖动手柄 `aside > div > [role=separator]` 只在展开时渲染；ChatGPT 自己限制约 290–520px；收起时只剩图标栏，
+  图标栏顶部的「显示侧边栏」按钮和面板头部的「隐藏侧边栏」按钮都带 `aria-controls="app-shell-sidebar"`，用 `aria-expanded` 区分。
+- ChatGPT 用 ResizeObserver 把图标栏宽度写进根节点的 `--app-shell-navigation-rail-width`；页面卡片
+  `[data-app-shell-workspace-row] > [class*="PageSurface-"]`（空的装饰层）和顶栏 start 插槽都从这些变量取位置。
+- 侧边栏对话行是 dnd-kit 拖拽项（拖进项目），按下后 window 上有 `dragstart → preventDefault`。
+- 对话栏宽度：转写区和输入框两个宿主 `[class*="[--thread-content-max-width:var(--thread-content-responsive-max-width"]`，默认 48rem；
+  消息文字字号 `.text-size-chat { font-size: var(--codex-chat-font-size) }`；代码块 `[data-markdown-copy="code-block"] > div > code`（无 `<pre>`）；
+  编辑已发消息时是用户消息块里的 `<form>`（ProseMirror）。
+- 一个中等长度的对话页约 2.7 万个元素，整页样式重算一次约 200ms。
 
 ### ChatGPT DOM 关键事实（2026-07 布局，已被 2026-09 取代；2026-07-29 实测，数学部分 2026-08-08 更新）
 
@@ -540,3 +558,23 @@ browser-harness -c "$(cat probe.py)"
 - 测导出不落盘：`Browser.setDownloadBehavior(deny)`，在扩展的 isolated context（`Runtime.executionContextCreated`
   里 `auxData.type=isolated` 且 origin 是扩展）hook `URL.createObjectURL` 读 Blob 文本，测完恢复 `default`。
 - 在 Windows 上用 Python 改源码要 `open(..., newline="\n")`，否则写出 CRLF。
+- 稍复杂的页面脚本写进文件再 `js(open(path, encoding="utf-8").read())`，别塞在 `-c '...'` 里（引号 / 反斜杠层层转义，经常语法错）；
+  单次 `js()` 超过约 5 秒会 IPC 超时（页面里的脚本还会接着跑完），长流程拆成几次调用。
+- `chrome.runtime.reload()` 之后至少等 4 秒再刷新页面；太快会出现「样式注入了但功能没启动」的半启动状态，别当成 bug 追。
+- **验证注入的 UI 用命中测试**：`document.elementFromPoint(中心点)` 是否命中按钮本身，或用 CDP 真实鼠标
+  （`Input.dispatchMouseEvent`，窗口要在前台）。DOM `.click()` 绕过命中测试，1.8.14 的顶栏按钮、侧边栏手柄就是这样漏测的。
+- 拖动：dnd-kit / 普通指针拖动可以用 CDP 真实鼠标逐步 `mouseMoved`；ChatGPT 的侧边栏拖动手柄可用合成 `PointerEvent`
+  驱动（按下 → `setTimeout 0` → 移动 / 松开，同步连发不生效）。
+- **卡顿排查**（1.8.15 图标栏动画卡成幻灯片就是这样查的）：
+  1. 页内 rAF 记帧间隔 + `PerformanceObserver('longtask')`；
+  2. CDP `Profiler` 按 URL 汇总 self time，看 JS（扩展 / ChatGPT）占比——几乎全是 `(program)` 说明是渲染管线；
+  3. `Tracing`（`devtools.timeline`）看 `UpdateLayoutTree` 的 `elementCount` 和耗时，上万个元素 = 整页重算；
+  4. 加 `disabled-by-default-devtools.timeline.invalidationTracking` 看是谁让整页失效（`allDescendantsMightBeInvalid`）；
+  5. MutationObserver 记根节点 `style` 的变化，看 ChatGPT 有没有被触发去改继承变量。
+- 测设置类功能：在扩展 options 页 target 里读 `chrome.storage.sync` 存快照 → 逐项写测试值 → 量计算样式 → 按快照还原，
+  **快照里没有的键要 `remove`**（不能写回默认值）。popup 能否渲染：把 popup 页开成后台 target 读 DOM。
+- 发公告：`node scripts/announcement-manager.mjs publish < /dev/null`，发完用
+  `gh api repos/TanChuping/chatgpt-voyager-support/contents/announcements.json` 取回比对；**同一个 id 改内容不会重新弹**，
+  适合补链接 / 改错字。别 `require()` 这个脚本（会启动交互式 CLI 挂住）。
+- 出版本：`bun run build:chrome` + `node scripts/pack-chrome.cjs`（→ `store_packages/`），`bun run build:firefox` +
+  `node scripts/pack-firefox.cjs`（→ `firefox_release/`）；GitHub Release 两个包都挂上（`gh release create vX.Y.Z ... <zip> <xpi>`）。

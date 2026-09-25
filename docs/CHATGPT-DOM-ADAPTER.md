@@ -75,6 +75,9 @@ ChatGPT 页面（会变）
    - `npx vitest run src/pages/content/shared src/pages/pageWorld src/features/conversationApi src/pages/content/timeline`
    - 真机 browser-harness 回归：时间线（滚到顶后节点数 = 提问数、点节点落点）、文件夹面板位置和菜单项、顶栏按钮、整段导出、代码块折叠，
      以及**原生交互没被挡住**：侧边栏能点（`elementFromPoint` 命中对话行）、能切换对话、能拖宽、能收起、能把对话拖进文件夹。
+   - 布局设置逐项设测试值、量计算样式后还原：对话宽度、输入框宽度、字号、代码字号、行高、段距、字体、侧边栏自动隐藏。
+   - 有动画 / 会频繁切换的功能录一次 trace，确认没有整页样式重算（`UpdateLayoutTree` 的 `elementCount` 不该上万）。
+   方法见 `docs/DEV-LOG.md`「本地实测速查」。
 4. 在本文件对照表里更新「真实结构」列，在 `docs/DEV-LOG.md` 变更历史加一条。
 
 ---
