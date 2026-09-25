@@ -329,6 +329,7 @@ export default function Popup() {
   const [editInputWidth, setEditInputWidth] = useState(EDIT_PERCENT.defaultValue);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_PX.defaultValue);
   const [sidebarAutoHide, setSidebarAutoHide] = useState(false);
+  const [railToggleEnabled, setRailToggleEnabled] = useState(true);
   const [sidebarFullHide, setSidebarFullHide] = useState(false);
 
   const [ctrlEnterSend, setCtrlEnterSend] = useState(false);
@@ -485,6 +486,7 @@ export default function Popup() {
         [StorageKeys.SIDEBAR_WIDTH]: SIDEBAR_PX.defaultValue,
         [StorageKeys.GV_SIDEBAR_AUTO_HIDE]: false,
         [StorageKeys.GV_SIDEBAR_FULL_HIDE]: false,
+        [StorageKeys.GV_RAIL_TOGGLE_ENABLED]: true,
         [StorageKeys.CTRL_ENTER_SEND]: false,
         [StorageKeys.SAFARI_ENTER_FIX]: false,
         [StorageKeys.INPUT_COLLAPSE_ENABLED]: false,
@@ -606,6 +608,7 @@ export default function Popup() {
           ),
         );
         setSidebarAutoHide(result[StorageKeys.GV_SIDEBAR_AUTO_HIDE] === true);
+        setRailToggleEnabled(result[StorageKeys.GV_RAIL_TOGGLE_ENABLED] !== false);
         setSidebarFullHide(result[StorageKeys.GV_SIDEBAR_FULL_HIDE] === true);
         setCtrlEnterSend(result[StorageKeys.CTRL_ENTER_SEND] === true);
         setSafariEnterFix(result[StorageKeys.SAFARI_ENTER_FIX] === true);
@@ -1111,6 +1114,15 @@ export default function Popup() {
             onChange={setSidebarWidth}
             onChangeComplete={(value) =>
               void setSyncStorage({ [StorageKeys.SIDEBAR_WIDTH]: value })
+            }
+          />
+          <ToggleRow
+            id="rail-toggle"
+            title={t('railToggle_enable')}
+            description={t('railToggle_description')}
+            checked={railToggleEnabled}
+            onChange={(value) =>
+              updateToggle(setRailToggleEnabled, StorageKeys.GV_RAIL_TOGGLE_ENABLED, value)
             }
           />
           <ToggleRow

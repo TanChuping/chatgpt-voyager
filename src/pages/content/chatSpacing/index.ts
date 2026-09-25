@@ -73,17 +73,18 @@ function renderParagraphSpacing(): void {
     return;
   }
 
-  const value = normalize(
-    paragraphValue,
-    PARAGRAPH_DEFAULT,
-    PARAGRAPH_MIN,
-    PARAGRAPH_MAX,
-  );
+  const value = normalize(paragraphValue, PARAGRAPH_DEFAULT, PARAGRAPH_MIN, PARAGRAPH_MAX);
   ensureStyle(PARAGRAPH_STYLE_ID).textContent = `
-    [data-message-author-role] :is(.markdown, .prose, .whitespace-pre-wrap)
+    [data-message-author-role] :is(.markdown, .prose, .whitespace-pre-wrap, [data-markdown-text-style])
       > :is(p, ul, ol, blockquote, pre, table)
       + :is(p, ul, ol, blockquote, pre, table) {
       margin-top: ${value}px !important;
+    }
+    /* 2026-09 markdown gives blocks a small bottom margin; it would collapse
+       with the gap above and floor the spacing. */
+    [data-message-author-role] [data-markdown-text-style]
+      > :is(p, ul, ol, blockquote, pre, table):has(+ :is(p, ul, ol, blockquote, pre, table)) {
+      margin-bottom: 0 !important;
     }
   `;
 }

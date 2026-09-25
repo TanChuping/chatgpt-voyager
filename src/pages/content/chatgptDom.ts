@@ -235,6 +235,51 @@ export function findAppShellSidebarScroll(root: ParentNode = document): HTMLElem
   );
 }
 
+/**
+ * The resizable left panel (rail + sidebar). ChatGPT owns its width: a drag
+ * handle (rendered only while expanded), collapse to the rail, the open/close
+ * animation. Never override that width with CSS — it pins the panel, and a rule
+ * that also matches the handle stretches it over the sidebar and eats clicks.
+ */
+export const APP_SHELL_LEFT_PANEL_SELECTOR = 'aside.app-shell-left-panel';
+export const APP_SHELL_PANEL_RESIZER_SELECTOR = `${APP_SHELL_LEFT_PANEL_SELECTOR} > div > [role='separator']`;
+/** The icon rail (home, history, library, …, help, avatar) left of the sidebar panel. */
+export const APP_SHELL_NAVIGATION_RAIL_SELECTOR = 'nav[data-app-navigation-rail]';
+/**
+ * The rounded card behind the sidebar panel and the thread (an empty,
+ * aria-hidden layer). It starts right of the rail, at the rail's width.
+ */
+export const APP_SHELL_PAGE_SURFACE_SELECTOR =
+  '[data-app-shell-workspace-row] > [aria-hidden="true"][class*="PageSurface-"]';
+/**
+ * ChatGPT's own "hide sidebar" button in the expanded panel's header — a
+ * language-neutral anchor for the header's button row (search, activity, this
+ * button). Collapsed, the rail's top "show sidebar" button carries the same
+ * `aria-controls` with `aria-expanded="false"`; that one is not a header.
+ */
+export const APP_SHELL_SIDEBAR_TOGGLE_SELECTOR =
+  '#app-shell-sidebar button[aria-controls="app-shell-sidebar"][aria-expanded="true"]';
+
+/**
+ * The two hosts that define the thread column width for everything below
+ * them — the transcript and the composer — as
+ * `--thread-content-max-width: var(--thread-content-responsive-max-width, inherit)`.
+ */
+export const THREAD_WIDTH_HOST_SELECTOR =
+  '[class*="[--thread-content-max-width:var(--thread-content-responsive-max-width"]';
+export const TRANSCRIPT_WIDTH_HOST_SELECTOR = `${THREAD_WIDTH_HOST_SELECTOR}[class*="transcriptContent-"]`;
+export const COMPOSER_WIDTH_HOST_SELECTOR = `${THREAD_WIDTH_HOST_SELECTOR}:not([class*="transcriptContent-"])`;
+
+/**
+ * Width of the thread scroller's gutters (`scrollbar-gutter: stable
+ * both-edges`): the transcript's query container sits inside them, the
+ * composer's does not. Null until a thread is open.
+ */
+export function measureThreadGutter(): number | null {
+  const scroller = document.querySelector<HTMLElement>('.thread-scroll-container');
+  return scroller ? scroller.offsetWidth - scroller.clientWidth : null;
+}
+
 function findAppShellSidebarPanel(): HTMLElement | null {
   const scroll = findAppShellSidebarScroll();
   const panel = scroll?.closest<HTMLElement>('nav') ?? scroll?.parentElement ?? null;

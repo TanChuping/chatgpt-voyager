@@ -39,7 +39,9 @@ import {
   getChatGptConversationUrl,
   normalizeChatGptConversationId,
 } from '../chatgptDom';
+import { CONVERSATION_ROW_SELECTOR } from '../shared/domCompat';
 import { findActivePageHeader } from '../shared/headerActionSlot';
+import { trackAppShellRowDrag } from './appShellRowDrag';
 import { type ConversationSortMode, sortConversationsByPriority } from './conversationSort';
 import {
   type FloatingFabPos,
@@ -262,6 +264,9 @@ export class FolderManager {
   private longPressTimeout: number | null = null; // For long-press detection
   private folderNameClickTimeout: number | null = null; // Distinguish single-click toggle from double-click rename
   private longPressThreshold: number = 500; // Long-press duration in ms
+  // In-flight app-shell row drag (see appShellRowDrag.ts); not tied to the row,
+  // which ChatGPT may remount mid-drag.
+  private cancelAppShellRowDrag: (() => void) | null = null;
   private folderEnabled: boolean = true; // Whether folder feature is enabled
   private folderProjectEnabled: boolean = false; // Whether Folder-as-Project feature is enabled
   private folderBelowProjects: boolean = false; // Mount folder panel below Projects / above Recent (non-sticky) instead of pinned at top
@@ -502,6 +507,8 @@ export class FolderManager {
       clearTimeout(this.longPressTimeout);
       this.longPressTimeout = null;
     }
+    this.cancelAppShellRowDrag?.();
+    this.cancelAppShellRowDrag = null;
 
     if (this.folderNameClickTimeout !== null) {
       clearTimeout(this.folderNameClickTimeout);
@@ -2719,8 +2726,13 @@ export class FolderManager {
     if (element.dataset.gvConvDragAttached === 'true') return;
     element.dataset.gvConvDragAttached = 'true';
 
-    element.draggable = true;
-    element.style.cursor = 'grab';
+    // 2026-09 app-shell rows are ChatGPT's own dnd-kit draggables, which cancel
+    // native dragstart; they reach the folders through the pointer bridge below.
+    const isAppShellRow = element.matches(CONVERSATION_ROW_SELECTOR);
+    if (!isAppShellRow) {
+      element.draggable = true;
+      element.style.cursor = 'grab';
+    }
 
     // Long-press detection for entering multi-select mode
     let longPressTriggered = false;
@@ -2806,7 +2818,6 @@ export class FolderManager {
     element.addEventListener('click', handleClick, true); // Capture before navigation.
 
     const handleDragStart = (e: DragEvent) => {
-      this.setReorderDropZonesExpanded(true);
       // Resolve the conversation from the ACTUAL drag target, not the closed-over
       // `element`. This listener can also be attached to a *container* (the
       // sidebar MutationObserver makes wrapper nodes draggable, and the event
@@ -2816,30 +2827,8 @@ export class FolderManager {
       const dragEl = this.resolveDragSourceElement(e) ?? element;
       lastDragSourceEl = dragEl;
 
-      const title = this.extractConversationTitleForDrag(dragEl);
-      const conversationId = this.extractConversationId(dragEl);
-
-      // Extract URL and conversation metadata together
-      const conversationData = this.extractConversationData(dragEl);
-
       // Restrict to move-only to prevent Chrome from triggering split-screen/tab tiling
       if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
-
-      // If this conversation is not selected, decide how to fold it in:
-      //   - Multi-select mode active → EXTEND the existing selection. ChatGPT
-      //     recycles sidebar DOM nodes during scroll, so the user may be
-      //     grabbing a row that wasn't part of the original multi-select.
-      //     Clearing here would silently throw away every other selection.
-      //   - Not in multi-select mode → exclusive single-select.
-      if (!this.selectedConversations.has(conversationId)) {
-        const snapshot = this.captureNativeConversationSnapshot(dragEl);
-        if (!this.isMultiSelectMode) {
-          this.clearSelection();
-        }
-        this.selectConversation(conversationId, snapshot ?? undefined);
-        dragEl.classList.add('gv-conversation-selected');
-        this.updateConversationSelectionUI();
-      }
 
       // Cancel long press if drag starts
       if (longPressTimeoutId) {
@@ -2847,92 +2836,40 @@ export class FolderManager {
         longPressTimeoutId = null;
       }
 
-      // Check if we have multiple selections
-      if (this.selectedConversations.size > 1) {
-        // Multi-select drag — build the payload from snapshots captured
-        // at selection time. We do NOT re-query the sidebar DOM here:
-        // ChatGPT virtualises off-screen entries, so any selected
-        // conversation the user has since scrolled out of view would
-        // return null from `findConversationElement` and silently fall
-        // out of the drag. The snapshot Map is populated whenever a
-        // conversation enters the selection (long-press, click toggle,
-        // dragstart self-select).
-        const selectedConvs: ConversationReference[] = [];
-        this.selectedConversations.forEach((id) => {
-          const cached = this.selectedConversationData.get(id);
-          if (cached) {
-            selectedConvs.push({ ...cached, addedAt: Date.now() });
-            return;
-          }
-          // No cached snapshot (legacy selection from before this fix, or
-          // a selection that pre-dated the cache wiring). Fall back to a
-          // DOM lookup — works only for currently-mounted rows.
-          const convEl = this.findConversationElement(id);
-          if (convEl) {
-            const fallbackSnapshot = this.captureNativeConversationSnapshot(convEl);
-            if (fallbackSnapshot) {
-              selectedConvs.push(fallbackSnapshot);
-              this.selectedConversationData.set(id, fallbackSnapshot);
-            }
-          }
-        });
-
-        const dragData: DragData = {
-          type: 'conversation',
-          title: `${selectedConvs.length} conversations`,
-          conversations: selectedConvs,
-        };
-
-        e.dataTransfer?.setData('application/json', JSON.stringify(dragData));
-
-        // Apply opacity to whatever selected rows ARE currently mounted —
-        // virtualised ones can't be visibly dimmed; that's fine.
-        this.selectedConversations.forEach((id) => {
-          const el = this.findConversationElement(id);
-          if (el) el.style.opacity = '0.5';
-        });
-      } else {
-        // Single conversation drag (legacy behavior)
-        this.debug('Drag start:', {
-          title,
-          url: conversationData.url,
-        });
-
-        const dragData: DragData = {
-          type: 'conversation',
-          conversationId,
-          title,
-          url: conversationData.url,
-        };
-
-        e.dataTransfer?.setData('application/json', JSON.stringify(dragData));
-        dragEl.style.opacity = '0.5';
-      }
+      const dragData = this.beginConversationRowDrag(dragEl);
+      e.dataTransfer?.setData('application/json', JSON.stringify(dragData));
     };
-    element.addEventListener('dragstart', handleDragStart);
+    if (!isAppShellRow) element.addEventListener('dragstart', handleDragStart);
 
     const handleDragEnd = () => {
-      this.setReorderDropZonesExpanded(false);
-      // Restore opacity for all selected conversations
-      if (this.selectedConversations.size > 1) {
-        this.selectedConversations.forEach((id) => {
-          const el = this.findConversationElement(id);
-          if (el) el.style.opacity = '1';
-        });
-      } else {
-        // Restore the row we actually dimmed (may differ from `element` when the
-        // listener fired on a container — see dragstart's resolveDragSourceElement).
-        (lastDragSourceEl ?? element).style.opacity = '1';
-      }
+      // Restore the row we actually dimmed (may differ from `element` when the
+      // listener fired on a container - see dragstart's resolveDragSourceElement).
+      this.endConversationRowDrag(lastDragSourceEl ?? element);
       lastDragSourceEl = null;
-
-      // If we are not in multi-select mode, clear the temporary selection
-      if (!this.isMultiSelectMode) {
-        this.clearSelection();
-        this.cleanupSelectionArtifacts();
-      }
     };
-    element.addEventListener('dragend', handleDragEnd);
+    if (!isAppShellRow) element.addEventListener('dragend', handleDragEnd);
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (!e.isPrimary || e.button !== 0 || e.pointerType === 'touch') return;
+      // The row's own "..." menu button is not a drag handle.
+      if (e.target instanceof Element && e.target.closest('button, [aria-haspopup]')) return;
+      this.cancelAppShellRowDrag?.();
+      this.cancelAppShellRowDrag = trackAppShellRowDrag(e, {
+        getDropRoot: () => this.containerElement,
+        begin: () => {
+          if (longPressTimeoutId) {
+            clearTimeout(longPressTimeoutId);
+            longPressTimeoutId = null;
+          }
+          return JSON.stringify(this.beginConversationRowDrag(element));
+        },
+        end: () => {
+          this.cancelAppShellRowDrag = null;
+          this.endConversationRowDrag(element);
+        },
+      });
+    };
+    if (isAppShellRow) element.addEventListener('pointerdown', handlePointerDown);
 
     (element as NativeConversationDragElement)._gvConversationDragCleanup = () => {
       if (longPressTimeoutId !== null) window.clearTimeout(longPressTimeoutId);
@@ -2942,6 +2879,7 @@ export class FolderManager {
       element.removeEventListener('click', handleClick, true);
       element.removeEventListener('dragstart', handleDragStart);
       element.removeEventListener('dragend', handleDragEnd);
+      element.removeEventListener('pointerdown', handlePointerDown);
       delete element.dataset.gvConvDragAttached;
       delete (element as NativeConversationDragElement)._gvConversationDragCleanup;
       element.draggable = false;
@@ -2949,6 +2887,117 @@ export class FolderManager {
       element.style.opacity = '';
       element.classList.remove('gv-conversation-selected', 'gv-conversation-archived');
     };
+  }
+
+  /**
+   * Starts dragging a native sidebar row: folds it into the selection, dims the
+   * dragged rows and returns the drop payload. Shared by the HTML5 drag and the
+   * app-shell pointer bridge (appShellRowDrag.ts).
+   */
+  private beginConversationRowDrag(dragEl: HTMLElement): DragData {
+    this.setReorderDropZonesExpanded(true);
+    const title = this.extractConversationTitleForDrag(dragEl);
+    const conversationId = this.extractConversationId(dragEl);
+
+    // Extract URL and conversation metadata together
+    const conversationData = this.extractConversationData(dragEl);
+
+    // If this conversation is not selected, decide how to fold it in:
+    //   - Multi-select mode active → EXTEND the existing selection. ChatGPT
+    //     recycles sidebar DOM nodes during scroll, so the user may be
+    //     grabbing a row that wasn't part of the original multi-select.
+    //     Clearing here would silently throw away every other selection.
+    //   - Not in multi-select mode → exclusive single-select.
+    if (!this.selectedConversations.has(conversationId)) {
+      const snapshot = this.captureNativeConversationSnapshot(dragEl);
+      if (!this.isMultiSelectMode) {
+        this.clearSelection();
+      }
+      this.selectConversation(conversationId, snapshot ?? undefined);
+      dragEl.classList.add('gv-conversation-selected');
+      this.updateConversationSelectionUI();
+    }
+
+    // Check if we have multiple selections
+    if (this.selectedConversations.size > 1) {
+      // Multi-select drag — build the payload from snapshots captured
+      // at selection time. We do NOT re-query the sidebar DOM here:
+      // ChatGPT virtualises off-screen entries, so any selected
+      // conversation the user has since scrolled out of view would
+      // return null from `findConversationElement` and silently fall
+      // out of the drag. The snapshot Map is populated whenever a
+      // conversation enters the selection (long-press, click toggle,
+      // dragstart self-select).
+      const selectedConvs: ConversationReference[] = [];
+      this.selectedConversations.forEach((id) => {
+        const cached = this.selectedConversationData.get(id);
+        if (cached) {
+          selectedConvs.push({ ...cached, addedAt: Date.now() });
+          return;
+        }
+        // No cached snapshot (legacy selection from before this fix, or
+        // a selection that pre-dated the cache wiring). Fall back to a
+        // DOM lookup — works only for currently-mounted rows.
+        const convEl = this.findConversationElement(id);
+        if (convEl) {
+          const fallbackSnapshot = this.captureNativeConversationSnapshot(convEl);
+          if (fallbackSnapshot) {
+            selectedConvs.push(fallbackSnapshot);
+            this.selectedConversationData.set(id, fallbackSnapshot);
+          }
+        }
+      });
+
+      const dragData: DragData = {
+        type: 'conversation',
+        title: `${selectedConvs.length} conversations`,
+        conversations: selectedConvs,
+      };
+
+      // Apply opacity to whatever selected rows ARE currently mounted —
+      // virtualised ones can't be visibly dimmed; that's fine.
+      this.selectedConversations.forEach((id) => {
+        const el = this.findConversationElement(id);
+        if (el) el.style.opacity = '0.5';
+      });
+      return dragData;
+    } else {
+      // Single conversation drag (legacy behavior)
+      this.debug('Drag start:', {
+        title,
+        url: conversationData.url,
+      });
+
+      const dragData: DragData = {
+        type: 'conversation',
+        conversationId,
+        title,
+        url: conversationData.url,
+      };
+
+      dragEl.style.opacity = '0.5';
+      return dragData;
+    }
+  }
+
+  /** Undoes beginConversationRowDrag after the drop or a cancelled drag. */
+  private endConversationRowDrag(sourceEl: HTMLElement): void {
+    this.setReorderDropZonesExpanded(false);
+    // Restore opacity for all selected conversations
+    if (this.selectedConversations.size > 1) {
+      this.selectedConversations.forEach((id) => {
+        const el = this.findConversationElement(id);
+        if (el) el.style.opacity = '1';
+      });
+    } else {
+      sourceEl.style.opacity = '1';
+    }
+
+    // If we are not in multi-select mode, clear the temporary selection
+    if (!this.isMultiSelectMode) {
+      this.clearSelection();
+      this.cleanupSelectionArtifacts();
+    }
   }
 
   /**

@@ -371,12 +371,6 @@
   "conversation_rename": {
     "message": "Rename chat"
   },
-  "conversation_rename_current": {
-    "message": "Rename current conversation"
-  },
-  "conversation_rename_unavailable": {
-    "message": "ChatGPT's rename action is temporarily unavailable"
-  },
   "conversation_move_to_folder_title": {
     "message": "Move to folder"
   },
@@ -618,10 +612,10 @@
     "message": "Composer width"
   },
   "editInputWidthNarrow": {
-    "message": "Edit Input Width Narrow"
+    "message": "Narrow"
   },
   "editInputWidthWide": {
-    "message": "Edit Input Width Wide"
+    "message": "Wide"
   },
   "timelineOptions": {
     "message": "Timeline"
@@ -1216,6 +1210,18 @@
   },
   "defaultModelCleared": {
     "message": "Default model cleared"
+  },
+  "railToggle_enable": {
+    "message": "Icon rail toggle"
+  },
+  "railToggle_description": {
+    "message": "Adds a ◀ button next to the ChatGPT title in the sidebar that folds away the new left icon rail (home, history, avatar…). Click again to bring it back."
+  },
+  "railToggle_hide": {
+    "message": "Hide the icon rail"
+  },
+  "railToggle_show": {
+    "message": "Show the icon rail"
   },
   "sidebarAutoHide": {
     "message": "Auto-hide sidebar"

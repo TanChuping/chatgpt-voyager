@@ -20,6 +20,7 @@ export const BOOTSTRAP_SETTING_KEYS = [
   StorageKeys.SIDEBAR_WIDTH,
   StorageKeys.GV_SIDEBAR_AUTO_HIDE,
   StorageKeys.GV_SIDEBAR_FULL_HIDE,
+  StorageKeys.GV_RAIL_TOGGLE_ENABLED,
   StorageKeys.GV_FOLDER_SPACING,
   StorageKeys.GV_FOLDER_ITEM_FONT_SIZE,
   StorageKeys.CTRL_ENTER_SEND,
@@ -236,6 +237,15 @@ export function createLazyFeatureDefinitions(
           stop: () => module.stopSidebarAutoHide(false),
           persistentSettingBridge: true,
         };
+      },
+    },
+    {
+      id: 'rail-toggle',
+      initial: 'immediate',
+      isEnabled: (settings) => isDefaultTrue(settings, StorageKeys.GV_RAIL_TOGGLE_ENABLED),
+      load: async () => {
+        const module = await import('../railToggle/index');
+        return { start: module.startRailToggle, stop: module.stopRailToggle };
       },
     },
     {

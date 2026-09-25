@@ -25,11 +25,12 @@
 | 复制的公式粘不进 Desmos / 计算器 | `src/features/formulaCopy/desmosLatex.ts` | MathQuill 粘贴是全有或全无，`\displaystyle` `\,` 之类会整条丢弃，见 2026-08-08 条目 |
 | 文件夹弹窗/菜单里出现字面量 `folder`、`push_pin` 等英文单词 | `src/pages/content/folder/folderIcon.ts` | Gemini 时代的 Material 连字图标在 ChatGPT 上退化成文字，见 2026-08-08 条目 |
 | 注入的原生菜单项（移动到文件夹等）不出现 | `src/pages/content/folder/nativeConversationBridge.ts` | Radix 是 `pointerdown` 开菜单，click 时菜单已存在，见 2026-08-08 条目 |
-| 往对话顶栏**左侧**注入按钮 | `src/pages/content/shared/headerActionSlot.ts` (`findHeaderLeftSlot`) | 右侧用 `findOptionsButtonRow`；左侧组要按 `position!=='absolute'` 跳过居中切换器 |
+| 往对话顶栏**左侧**注入按钮 | `src/pages/content/shared/headerActionSlot.ts` (`findHeaderLeftSlot`) | 右侧用 `findOptionsButtonRow`；2026-09 左侧是插在 `[data-app-shell-main-titlebar]` 开头的自有 `pointer-events: auto` 包裹层（整条顶栏是 `pointer-events: none`） |
+| 图标栏收起按钮（侧边栏头部 ◀） | `src/pages/content/railToggle/index.ts` | 默认开；只在面板展开时收起图标栏；状态存 `chrome.storage.local.gvRailCollapsed` |
 | 新功能要「默认关但开了才加载」 | `src/pages/content/bootstrap/features.ts` | 照 `folder-header-button` / `folder-project` 写 lazy feature，`isEnabled` 为假就不会 `import()` |
 | 文件夹面板 | `src/pages/content/folder/manager.ts` | 8300+ 行 |
 | 深色模式 / 布局滑块 | `src/pages/content/gentleDarkMode/`, `chatWidth/`, `chatFontSize/` | 2026-09 温和深色 = 官方主题生成函数以 #1f1f1e 算出的 token（见 2026-09-25 条目） |
-| 侧边栏宽度 | `src/pages/content/sidebarWidth/index.ts` | 2026-09：`--app-shell-left-panel-width` + 内层内联宽度 |
+| 侧边栏宽度 | `src/pages/content/sidebarWidth/index.ts` | 2026-09：**不用 CSS 改宽度**，对 ChatGPT 自带拖动手柄重放拖动；用户拖动写回设置 |
 | 页面世界（MAIN world）钩子 | `src/pages/pageWorld/conversationHook.ts` | fetch/XHR 抓包（含 2026-09 分页接口）+ threadMirror + fiberReader + 剪贴板补丁的总入口；**不能 import 共享模块** |
 
 ### ChatGPT DOM 关键事实（2026-09 Codex 外壳，2026-09-25 实测）
@@ -80,6 +81,86 @@ div[data-turn-id-container="<uuid>"]      ← 每一轮对话一个，**虚拟�
 
 ## 变更历史
 
+### 2026-09-25 — 布局设置逐项排查：对话宽度 / 字号 / 段距 / 代码字号 / 编辑框宽度 / 侧边栏自动隐藏（1.8.15）
+
+真机逐项设测试值、量计算样式后还原：行高、字体本来就好；以下几项在新布局失效，已修。
+
+- **对话宽度**：新布局由转写区和输入框两个宿主各自定义
+  `--thread-content-max-width: var(--thread-content-responsive-max-width, inherit)`，改为在这两个宿主上设
+  `--thread-content-responsive-max-width`，值用 `cqi`（相对对话区容器，窗口缩放 / 侧边栏收起自动跟随、不需要 JS、不触发重算）。
+  转写区的容器在滚动条槽内（`scrollbar-gutter: stable both-edges`），输入框的不在，输入框减去实测槽宽保持对齐。
+  删掉了 Gemini 时代和旧版的像素上限规则——`[data-message-author-role]` 现在也标在新消息块上（domCompat），那些规则会把新布局挤窄。
+  **性能**：原来监听整个 `main` 的 DOM 变化、200ms 后无条件重写整张样式表（流式输出时反复全页重匹配），改为内容不变不重写，观察器量到槽宽就断开。
+- **对话字号（用户消息）**：新布局消息文字用 `.text-size-chat { font-size: var(--codex-chat-font-size) }`，继承的字号到不了，
+  改为对用户消息里的 `.text-size-chat` 按比例放大该变量。
+- **代码字号**：新代码块没有 `<pre>`（`[data-markdown-copy="code-block"] > div > code`），加入新结构；助手正文规则排除新代码块，避免二次放大。
+- **段落间距**：新正文容器是 `[data-markdown-text-style]`，加入选择器；原生段落有 4px 下边距会和设置值折叠，给相邻块清掉下边距，0 也能生效。
+- **输入框宽度**（popup「输入框宽度 / Composer width」，存储键仍是 `gptEditInputWidth`）：代码原来只管「编辑已发消息」时的内联编辑框，和标签对不上，底部输入框从来不受它控制。改为控制底部输入框：在输入框宽度宿主上设 `--thread-content-responsive-max-width`（选择器比「对话宽度」的更具体，开着时输入框跟这个滑块，关着时跟对话宽度），同样用 `cqi` 减滚动条槽宽，百分比相同时与消息对齐；内联编辑框（用户消息块里的 `<form>`，没有 textarea）同宽、以对话栏居中。两个功能共用的宿主选择器和槽宽测量放到 `chatgptDom.ts`。
+- **侧边栏自动隐藏 / 完全隐藏**：原来只认 `#stage-slideover-sidebar`。改为认 `aside.app-shell-left-panel`（展开 / 收起都在 DOM 里），
+  收起 / 展开走 ChatGPT 自己的按钮（`aria-controls="app-shell-sidebar"` + `aria-expanded`）；完全隐藏时 aside、顶栏 start 插槽、
+  页面卡片三处一起归零。状态从 `<html>` 的 class 改为这几个元素上的属性（避免每次切换整页重算）；观察器只响应侧边栏内部和
+  根节点 `data-app-shell-sidebar-open` 的变化，不再被流式输出的每个 token 触发。
+- **折叠输入框**：原本就能用（靠 domCompat 补的 `#prompt-textarea` / `form[data-type="unified-composer"]`）。
+
+### 2026-09-25 — 顶栏文件夹/重命名/标题跑到右边、点不了；新增图标栏收起按钮（1.8.15）
+
+**症状**：1.8.14 起对话顶栏的「移动到文件夹」「重命名」和对话标题出现在右侧（`…` 后面），而且点不了。
+
+**根因**：新顶栏 `header[data-app-shell-titlebar]` 整条是 `pointer-events: none`，只有 ChatGPT 自己的 `pointer-events-auto` 包裹层能点。
+`findHeaderLeftSlot` 找「右侧操作区」时用的 `[data-app-shell-header-obstacle]` 先匹配到侧边栏上方的 start 插槽，
+于是把主标题栏当成左侧组、把按钮追加到它末尾——落在 `ms-auto` 右侧组后面，还继承了 `pointer-events: none`。
+1.8.14 验收时用的是 DOM `.click()`，绕过了命中测试，所以没发现。
+
+**修法**：新布局下左侧插槽是插在 `[data-app-shell-main-titlebar]` 开头的自有 `div[data-gv-header-left-slot]`（`pointer-events: auto`），
+所有用左侧插槽的功能一起恢复。验证改用 `elementFromPoint` 命中测试。
+「重命名」按钮删除：它整条流程（展开侧边栏、找菜单、找编辑框、监视提交）都建立在旧布局上，ChatGPT 自己的 `…` 菜单就有重命名（`folderHeaderButton` 1303 → 367 行）。
+
+**新功能**：侧边栏头部「ChatGPT」和搜索之间加 ◀ 按钮（`railToggle`，默认开，popup「图标栏收起按钮」可关），
+收起左侧新增的图标栏 `nav[data-app-navigation-rail]`，只剩侧边栏面板；再点展开。位移 / 透明度带回弹曲线，展开时图标依次弹回；收起后侧边栏保持面板原宽度、整体左移，省出的 52px 给对话区（ChatGPT 自身最小 290px，只能对 aside / 内容包裹层 / 顶栏 start 插槽做宽度覆盖，值由 ChatGPT 自己的宽度减图标栏宽度算出，拖动手柄和收起都照常；<768px 的浮层模式不收）；
+这就是改版前的体验：展开时只有面板，收起后才出现那条窄条，顶部按钮用来重新打开。
+安全条件：只有「用户点了收起 + 面板展开（有拖动手柄）+ 我们的 ▶ 按钮确实在面板里」三者同时成立才收起，否则图标栏原样显示——ChatGPT 改版导致按钮放不进去时，不会出现什么都点不开的情况。锚点必须带 `[aria-expanded="true"]`：面板收起后，图标栏顶部的「显示侧边栏」按钮也带 `aria-controls="app-shell-sidebar"`，第一版没区分，▷ 被插进了图标栏、和主页按钮挤在一起。
+按钮用紧凑尺寸：ChatGPT 的面板宽度会被这一行的内容撑大（36px 按钮让侧边栏从 290 变 309）。
+**性能坑（第一版卡成幻灯片）**：第一版把状态挂在 `<html>` 属性上、CSS 用 `:has()`、按宽度做动画——每次切换 Chrome 都把整页 27k 个元素标成失效（trace 里 `allDescendantsMightBeInvalid`），而图标栏宽度一变，ChatGPT 的 ResizeObserver 就把它写进根节点的 `--app-shell-navigation-rail-width`，又是整页重算；每次约 200ms，一次动画只画出 4–5 帧。改法：状态挂在图标栏 / 页面卡片 / 按钮自己身上，条件在 JS 判断；图标栏保持 52px 宽、收起时脱离文档流，面板和背后的页面卡片一起用 transform 滑动（FLIP）。实测每帧 6.2ms（刷新率），无长任务，ChatGPT 不再写那个变量。排查方法：CDP `Profiler` 看 JS 占比（几乎为 0，全是 `(program)`）→ `Tracing` 看 `UpdateLayoutTree` 的 elementCount → `invalidationTracking` 看是谁让整页失效 → MutationObserver 记根节点 style 的变化。
+顺带：侧边栏宽度的「拖动写回」改成宽度真的变了才写——之前单击一下手柄就会把 ChatGPT 当时显示的宽度（309）写进设置。
+
+### 2026-09-25 — 侧边栏对话拖不进文件夹（1.8.15）
+
+**症状**：从 ChatGPT 侧边栏拖对话到插件文件夹没反应，被拖的行还会变半透明、留下选中状态。
+
+**根因**：新外壳的侧边栏行是 ChatGPT 自己的 dnd-kit 拖拽项（把对话拖进项目）。按下鼠标后 dnd-kit 在 window 上挂
+`dragstart → preventDefault`（冒泡阶段，松开后摘掉），插件的 HTML5 拖动一开始就被取消；插件的 `dragstart` 已经把行调暗，
+而取消的拖动不会有 `dragend`，所以行一直是半透明。
+
+**修法**：不和 dnd-kit 抢。新布局的行不再设 `draggable`，改由 `folder/appShellRowDrag.ts` 跟着 ChatGPT 自己的指针拖动走
+（它本来就画了跟随鼠标的幽灵行）：移动超过 5px 时开始，鼠标在文件夹面板上时，把拖动重放成 HTML5 的 `dragover` /
+`dragleave` / `drop` 事件，派发到指针下的面板元素上，带同样的 `application/json` 负载。已有的文件夹、根目录、
+文件夹内排序落点都原样处理，ChatGPT 自己的「拖进项目」也照常可用。开始 / 结束的选中、变暗、复原逻辑抽成
+`beginConversationRowDrag` / `endConversationRowDrag`，HTML5 路径和桥共用。
+
+**验证**：browser-harness 真实鼠标——拖到文件夹里的对话列表会按位置插入，拖到「测试2」标题上会加进该文件夹，
+悬停时文件夹高亮，松开后变暗和选中都复原；用户本人也实际拖动确认。
+
+### 2026-09-25 — 1.8.14 的侧边栏宽度把整个侧边栏盖住、点不了（1.8.15）
+
+**症状**：侧边栏哪里都点不了（切换对话也不行），鼠标移上去中间出现一条拖动线但拖不动；「隐藏侧边栏」也收不起来。
+
+**根因**：1.8.14 用 `aside.app-shell-left-panel > div { width: var(--app-shell-left-panel-width) !important }`
+让内层跟随宽度，但 ChatGPT 的拖动手柄 `div.group/panel-resizer`（`absolute z-20 w-4`，内含 `[role=separator]`）
+也是 aside 的直接子 div，被一起撑成整条侧边栏宽，盖在所有内容上。另外 `--app-shell-left-panel-width: … !important`
+把宽度钉死：ChatGPT 自己的拖动、收起到图标栏（52px）、开合动画全部失效。
+
+**修法**：新布局下不再用 CSS 改宽度。这个面板归 ChatGPT 自己管（拖动手柄、收起、动画、持久化），插件改成：
+设置的宽度通过对原生手柄**重放一次拖动**交给 ChatGPT 自己调整——它的拖动相对自己记录的尺寸，而且按下后重渲染
+才开始监听移动，所以按下和移动之间要隔一个任务；用户自己拖手柄 / 双击复位后，把新宽度写回设置。
+ChatGPT 自身限制约 290–520px（1460px 宽窗口），超出范围时停在边界、不反复重试。
+选择器放在 `chatgptDom.ts`（`APP_SHELL_LEFT_PANEL_SELECTOR` / `APP_SHELL_PANEL_RESIZER_SELECTOR`）。
+
+**教训**：给 ChatGPT 自己管的布局写覆盖，必须同时验证原生交互（点击穿透、拖动、收起）；
+`> div` 这种宽泛子选择器会命中同级的原生控件。
+
+**验证**：browser-harness 真机——侧边栏点击命中对话行，真实鼠标点另一个对话能切过去再切回；
+收起 / 展开 290→52→290；真实拖动手柄 290→350，设置写回 350；设置改回 279 后面板停在 ChatGPT 下限 290。
+
 ### 2026-09-25 — ChatGPT 换成 Codex 外壳，二十多个功能同时失效（1.8.14）
 
 **症状**：时间轴一个豆都没有、温和深色不生效、文件夹面板挂错位置、顶栏导出按钮和「移动到文件夹」菜单项消失、
@@ -100,7 +181,7 @@ div[data-turn-id-container="<uuid>"]      ← 每一轮对话一个，**虚拟�
   整段导出在缓存不完整时跳到顶部等分页加载（长对话不再因步数上限失败），`CachePrimer` 只在完整时剪枝。
 - 温和深色：调用官方主题生成函数（`736644.*.js` 模块 `jbn` 导出的 `f`）以 ChatGPT 主题 + surface=#1f1f1e
   算出整套 token，去掉强调色和主按钮配色后写进样式（未分层样式压过 `@layer theme`）。
-- 文件夹挂到面板置顶头部；菜单项用 `cloneAppShellMenuItem` 深克隆；侧边栏宽度改 `--app-shell-left-panel-width`；
+- 文件夹挂到面板置顶头部；菜单项用 `cloneAppShellMenuItem` 深克隆；侧边栏宽度改 `--app-shell-left-panel-width`（1.8.15 撤回，见上一条）；
   代码块折叠 / Mermaid / 按需加载探测认 `[data-markdown-copy="code-block"]`；顶栏各功能认 `header[data-app-shell-titlebar]`；
   时间轴常驻元素 z-index 降到 45（低于 ChatGPT 菜单）。
 - `shared/domHealth.ts`（新）：`__gvDomHealth()` 体检。
@@ -110,6 +191,7 @@ div[data-turn-id-container="<uuid>"]      ← 每一轮对话一个，**虚拟�
 全量 vitest 失败集合与改动前逐条一致（95），新增 30 个测试。
 
 **没测到**：需要真的发消息的路径（流式输出中的时间轴追加、发送行为、回复完成通知、草稿、临时聊天退出）、fork、canvas 导出。
+侧边栏拖进文件夹当时是坏的，1.8.15 修复（见上）。
 
 ### 2026-08-08 — ChatGPT 改了 KaTeX 渲染，三条公式复制路径全断
 

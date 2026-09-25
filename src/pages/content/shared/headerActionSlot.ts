@@ -200,6 +200,9 @@ export function findHeaderLeftSlot(): HeaderActionSlot | null {
   const header = findActivePageHeader();
   if (!header) return null;
 
+  const appShellTitlebar = header.querySelector<HTMLElement>(APP_SHELL_MAIN_TITLEBAR_SELECTOR);
+  if (appShellTitlebar) return findAppShellHeaderLeftSlot(appShellTitlebar);
+
   const rightActions = header.querySelector<HTMLElement>(
     `[data-testid="thread-header-right-actions-container"], ${HEADER_ACTIONS_SELECTOR}`,
   );
@@ -218,6 +221,41 @@ export function findHeaderLeftSlot(): HeaderActionSlot | null {
   const cluster = leftGroup.querySelector<HTMLElement>('.translucent-surface');
   if (cluster) return { parent: cluster, before: null, styleSource };
   return { parent: leftGroup, before: null, styleSource };
+}
+
+/**
+ * 2026-09 app shell: `header[data-app-shell-titlebar]` is `pointer-events: none`
+ * — only ChatGPT's own `pointer-events-auto` wrappers take clicks — and the
+ * main title bar (`[data-app-shell-main-titlebar]`, the part above the thread)
+ * keeps its buttons in an `ms-auto` group on the right. Its first
+ * `[data-app-shell-header-obstacle]` is the start slot above the sidebar, so the
+ * generic lookup mistook that for the right-hand actions and appended our
+ * cluster after the `ms-auto` group: on the right, and unclickable.
+ *
+ * Our left cluster lives in a wrapper of our own at the start of the main title
+ * bar, which re-enables pointer events for whatever we put in it.
+ */
+const APP_SHELL_MAIN_TITLEBAR_SELECTOR = '[data-app-shell-main-titlebar]';
+const LEFT_SLOT_ATTR = 'data-gv-header-left-slot';
+
+function findAppShellHeaderLeftSlot(titlebar: HTMLElement): HeaderActionSlot {
+  let wrapper = titlebar.querySelector<HTMLElement>(`:scope > [${LEFT_SLOT_ATTR}]`);
+  if (!wrapper) {
+    wrapper = document.createElement('div');
+    wrapper.setAttribute(LEFT_SLOT_ATTR, '');
+    Object.assign(wrapper.style, {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      minWidth: '0',
+      flex: '0 1 auto',
+      pointerEvents: 'auto',
+    });
+    titlebar.insertBefore(wrapper, titlebar.firstChild);
+  }
+  const styleSource =
+    findOptionsButtonRow()?.styleSource ?? titlebar.querySelector<HTMLElement>('button') ?? wrapper;
+  return { parent: wrapper, before: null, styleSource };
 }
 
 /**

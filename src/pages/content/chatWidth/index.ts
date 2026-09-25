@@ -1,56 +1,35 @@
 /**
- * Adjusts the chat area width (ChatGPT: percentage of the available pane).
+ * Adjusts the chat area width: a percentage of the pane the thread sits in.
+ *
+ * 2026-09 app shell: two hosts define the column width for everything below
+ * them — the transcript and the composer — as
+ * `--thread-content-max-width: var(--thread-content-responsive-max-width, inherit)`.
+ * Setting that responsive variable there moves the messages, their action
+ * bars and the composer together. The value is container-relative (`cqi`), so
+ * it follows the pane through window resizes and sidebar folds without JS and
+ * without a style recalc. The transcript's query container sits inside the
+ * scroller's gutter (`scrollbar-gutter: stable both-edges`), the composer's
+ * does not, so the composer subtracts the measured gutter to stay aligned.
+ * The "composer width" setting (editInputWidth) overrides the composer host
+ * with a more specific selector while it is on.
+ *
+ * The 2026-07 layout rule is kept; the pixel caps written for Gemini-era and
+ * older ChatGPT markup are gone — `[data-message-author-role]` now also marks
+ * the new message blocks (domCompat), where those caps squeezed the column.
  */
 import { addPageExitListener } from '@/core/utils/pageLifecycle';
+
+import {
+  THREAD_WIDTH_HOST_SELECTOR,
+  TRANSCRIPT_WIDTH_HOST_SELECTOR,
+  measureThreadGutter,
+} from '../chatgptDom';
 
 const STYLE_ID = 'gpt-voyager-chat-width';
 const DEFAULT_PERCENT = 70;
 const MIN_PERCENT = 30;
 const MAX_PERCENT = 100;
 const LEGACY_BASELINE_PX = 1200;
-
-// Selectors based on the export functionality that already works
-function getUserSelectors(): string[] {
-  return [
-    '[data-message-author-role="user"]',
-    'article[data-testid^="conversation-turn-"]:has([data-message-author-role="user"])',
-    '.user-query-bubble-container',
-    '.user-query-container',
-    'user-query-content',
-    'user-query',
-    'div[aria-label="User message"]',
-    'article[data-author="user"]',
-  ];
-}
-
-function getAssistantSelectors(): string[] {
-  return [
-    '[data-message-author-role="assistant"]',
-    'article[data-testid^="conversation-turn-"]:has([data-message-author-role="assistant"])',
-    '.markdown',
-    'model-response',
-    '.model-response',
-    'response-container',
-    '.response-container',
-    '.presented-response-container',
-    '[data-message-author-role="model"]',
-    'article[data-author="assistant"]',
-  ];
-}
-
-function getTableSelectors(): string[] {
-  return [
-    'table-block',
-    '.table-block',
-    'table-block .table-block',
-    'table-block .table-content',
-    '.table-block.new-table-style',
-    '.table-block.has-scrollbar',
-    '.table-block .table-content',
-    '.table-block-component',
-    '.horizontal-scroll-wrapper',
-  ];
-}
 
 const clampPercent = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, Math.round(value)));
@@ -64,174 +43,41 @@ const normalizePercent = (value: number, fallback: number) => {
   return clampPercent(value, MIN_PERCENT, MAX_PERCENT);
 };
 
+let threadGutterPx: number | null = null;
+
+function buildStyle(percent: number): string {
+  const fraction = percent / 100;
+  const gutter = threadGutterPx ?? 0;
+  return `
+    /* 2026-09 app shell */
+    ${THREAD_WIDTH_HOST_SELECTOR} {
+      --thread-content-responsive-max-width: calc((100cqi - ${gutter}px) * ${fraction});
+    }
+    ${TRANSCRIPT_WIDTH_HOST_SELECTOR} {
+      --thread-content-responsive-max-width: calc(100cqi * ${fraction});
+    }
+
+    /* 2026-07 layout */
+    [class*="group/turn-messages"],
+    #thread-bottom [class*="--thread-content-max-width"]:has(form[data-type="unified-composer"]) {
+      --thread-content-max-width: ${percent}% !important;
+    }
+  `;
+}
+
 function applyWidth(widthPercent: number) {
   const normalizedPercent = normalizePercent(widthPercent, DEFAULT_PERCENT);
-  // Retain the legacy pixel caps for non-ChatGPT selectors. On current
-  // ChatGPT these inner elements fill the native percentage-width host below.
-  const screenWidth = screen.availWidth || screen.width || 1920;
-  const widthValue = `${Math.round((normalizedPercent / 100) * screenWidth)}px`;
+  threadGutterPx = measureThreadGutter() ?? threadGutterPx;
+  const css = buildStyle(normalizedPercent);
 
-  let style = document.getElementById(STYLE_ID) as HTMLStyleElement;
+  let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
   if (!style) {
     style = document.createElement('style');
     style.id = STYLE_ID;
     document.head.appendChild(style);
   }
-
-  const userSelectors = getUserSelectors();
-  const assistantSelectors = getAssistantSelectors();
-  const tableSelectors = getTableSelectors();
-
-  // Build comprehensive CSS rules
-  const userRules = userSelectors.map((sel) => `${sel}`).join(',\n    ');
-  const assistantRules = assistantSelectors.map((sel) => `${sel}`).join(',\n    ');
-  const tableRules = tableSelectors.map((sel) => `${sel}`).join(',\n    ');
-
-  // A small gap to account for scrollbars
-  const GAP_PX = 10;
-
-  style.textContent = `
-    /* ChatGPT's native max-width resolves percentages against the available
-       main pane (after sidebar and gutters), not the physical screen. A
-       screen-sized pixel cap saturates early in narrow/zoomed windows, making
-       much of the slider appear unresponsive. Keep native centering intact. */
-    [class*="group/turn-messages"],
-    #thread-bottom [class*="--thread-content-max-width"]:has(form[data-type="unified-composer"]) {
-      --thread-content-max-width: ${normalizedPercent}% !important;
-    }
-
-    /* Remove width constraints from outer containers that contain conversations */
-    .content-wrapper:has(chat-window),
-    .main-content:has(chat-window),
-    .content-container:has(chat-window),
-    .content-container:has(.conversation-container) {
-      max-width: none !important;
-    }
-
-    /* Remove width constraints from main and conversation containers, but not buttons */
-    [role="main"]:has(chat-window),
-    [role="main"]:has(.conversation-container) {
-      max-width: none !important;
-    }
-
-    /* Target chat window and related containers; A small gap to account for scrollbars */
-    chat-window,
-    .chat-container,
-    chat-window-content,
-    .chat-history-scroll-container,
-    .chat-history,
-    .conversation-container {
-      max-width: none !important;
-      padding-right: ${GAP_PX}px !important;
-      box-sizing: border-box !important;
-    }
-
-    main > div:has(user-query),
-    main > div:has(model-response),
-    main > div:has(.conversation-container) {
-      max-width: none !important;
-      width: 100% !important;
-    }
-
-    /* Fallback for browsers without :has() support */
-    @supports not selector(:has(*)) {
-      .content-wrapper,
-      .main-content,
-      .content-container {
-        max-width: none !important;
-      }
-
-      main > div:not(:has(button)):not(.main-menu-button) {
-        max-width: none !important;
-        width: 100% !important;
-      }
-    }
-
-    /* User query containers */
-    ${userRules} {
-      max-width: ${widthValue} !important;
-      width: min(100%, ${widthValue}) !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
-    }
-
-    /* Model response containers */
-    ${assistantRules} {
-      max-width: ${widthValue} !important;
-      width: min(100%, ${widthValue}) !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
-    }
-
-    /* Table containers */
-    ${tableRules} {
-      max-width: ${widthValue} !important;
-      width: min(100%, ${widthValue}) !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
-      box-sizing: border-box !important;
-    }
-
-    table-block .table-block,
-    .table-block.has-scrollbar,
-    .table-block.new-table-style {
-      overflow-x: hidden !important;
-    }
-
-    table-block .table-content,
-    .table-block .table-content {
-      width: 100% !important;
-      overflow-x: auto !important;
-    }
-
-    model-response:has(> .deferred-response-indicator),
-    .response-container:has(img[src*="sparkle"]), 
-    main > div:has(img[src*="sparkle"]) {
-      max-width: ${widthValue} !important;
-      width: min(100%, ${widthValue}) !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
-    }
-
-    /* Additional deep targeting for nested elements */
-    user-query,
-    user-query > *,
-    user-query > * > *,
-    model-response,
-    model-response > *,
-    model-response > * > *,
-    response-container,
-    response-container > *,
-    response-container > * > * {
-      max-width: ${widthValue} !important;
-    }
-
-    /* Target specific internal containers that might have fixed widths */
-    .presented-response-container,
-    [data-message-author-role] {
-      max-width: ${widthValue} !important;
-    }
-
-    /* Extend input-container gradient to match chat width */
-    input-container {
-      max-width: none !important;
-      width: 100% !important;
-    }
-
-    input-container .input-area-container,
-    input-container input-area-v2 {
-      max-width: ${widthValue} !important;
-      width: min(100%, ${widthValue}) !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
-    }
-
-    /* Specific fix for user bubble background to fit content but respect max-width */
-    .user-query-bubble-with-background {
-      max-width: ${widthValue} !important;
-      width: fit-content !important;
-    }
-  `;
+  // Rewriting a stylesheet re-matches every rule on the page; skip no-ops.
+  if (style.textContent !== css) style.textContent = css;
 }
 
 function removeStyles() {
@@ -367,30 +213,24 @@ export function startChatWidthAdjuster(): () => void {
     storageChangeHandler = null;
   }
 
-  // Re-apply styles when DOM changes (for dynamic content)
-  // Use debouncing and cache the width to avoid storage reads
+  // CSS covers new content by itself; the only thing to learn from the DOM is
+  // the thread scroller's gutter, once a thread is open. Stop watching then.
   widthObserver = new MutationObserver(() => {
-    if (!isActiveGeneration(generation)) return;
-    if (debounceTimer !== null) {
-      window.clearTimeout(debounceTimer);
-    }
+    if (!isActiveGeneration(generation) || debounceTimer !== null) return;
     debounceTimer = window.setTimeout(() => {
       debounceTimer = null;
       if (!isActiveGeneration(generation)) return;
-      if (enabled) {
-        applyWidth(currentWidthPercent);
+      const gutter = measureThreadGutter();
+      if (gutter === null) return;
+      widthObserver?.disconnect();
+      widthObserver = null;
+      if (gutter !== threadGutterPx) {
+        threadGutterPx = gutter;
+        if (enabled) applyWidth(currentWidthPercent);
       }
-    }, 200);
+    }, 300);
   });
-
-  // Observe the main conversation area for changes
-  const main = document.querySelector('main');
-  if (main) {
-    widthObserver.observe(main, {
-      childList: true,
-      subtree: true,
-    });
-  }
+  widthObserver.observe(document.body, { childList: true, subtree: true });
 
   removePageExitListener = addPageExitListener(stopChatWidthAdjuster);
   return stopChatWidthAdjuster;

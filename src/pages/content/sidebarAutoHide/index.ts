@@ -1,19 +1,43 @@
 import { addPageExitListener } from '@/core/utils/pageLifecycle';
 
-import { findChatGptSidebar } from '../chatgptDom';
+import {
+  APP_SHELL_LEFT_PANEL_SELECTOR,
+  APP_SHELL_PAGE_SURFACE_SELECTOR,
+  APP_SHELL_SIDEBAR_TOGGLE_SELECTOR,
+  findChatGptSidebar,
+} from '../chatgptDom';
 
 const STYLE_ID = 'gv-sidebar-auto-hide-style';
 const EDGE_TRIGGER_ID = 'gv-sidebar-edge-trigger';
 const AUTO_HIDE_KEY = 'gvSidebarAutoHide';
 const FULL_HIDE_KEY = 'gvSidebarFullHide';
-const FULL_HIDE_CLASS = 'gv-sidebar-full-hide-collapsed';
+/**
+ * On the elements that make up the collapsed sidebar, never on <html>: a root
+ * attribute makes Chrome restyle the whole page (~27k elements) on every
+ * auto-hide toggle.
+ */
+const FULL_HIDE_ATTR = 'data-gv-sidebar-full-hide';
 
 const SIDEBAR_SELECTOR = '#stage-slideover-sidebar';
-const CLOSE_BUTTON_SELECTOR = `${SIDEBAR_SELECTOR} [data-testid="close-sidebar-button"]`;
+/**
+ * 2026-09 app shell: the aside holds the icon rail (collapsed) or rail + panel
+ * (expanded) and stays mounted either way. The title bar's start slot and the
+ * page card are laid out from the rail's width, so full-hide moves them too.
+ */
+const APP_SHELL_SIDEBAR = APP_SHELL_LEFT_PANEL_SELECTOR;
+const APP_SHELL_HEADER_START_SLOT =
+  'header[data-app-shell-titlebar] > [data-app-shell-header-slot="start"]';
+const APP_SHELL_FRAME = '[data-app-shell-frame]';
+const CLOSE_BUTTON_SELECTOR = [
+  `${SIDEBAR_SELECTOR} [data-testid="close-sidebar-button"]`,
+  APP_SHELL_SIDEBAR_TOGGLE_SELECTOR,
+].join(',');
 const OPEN_BUTTON_SELECTOR = [
   `${SIDEBAR_SELECTOR} button[aria-label*="Open sidebar" i]`,
   `${SIDEBAR_SELECTOR} button[aria-label*="打开边栏"]`,
   `${SIDEBAR_SELECTOR} button[class*="group/open-sidebar"]`,
+  // The rail's top button, only while the panel is collapsed.
+  `${APP_SHELL_SIDEBAR} button[aria-controls="app-shell-sidebar"][aria-expanded="false"]`,
 ].join(',');
 
 const COLLAPSED_WIDTH_THRESHOLD = 80;
@@ -67,13 +91,21 @@ function ensureStyle(): void {
       transition: width 180ms ease, min-width 180ms ease, opacity 180ms ease !important;
     }
 
-    html.${FULL_HIDE_CLASS} ${SIDEBAR_SELECTOR} {
+    ${SIDEBAR_SELECTOR}[${FULL_HIDE_ATTR}],
+    ${APP_SHELL_SIDEBAR}[${FULL_HIDE_ATTR}] {
       width: 0 !important;
       min-width: 0 !important;
       border-width: 0 !important;
       overflow: hidden !important;
       opacity: 0 !important;
       pointer-events: none !important;
+    }
+    ${APP_SHELL_HEADER_START_SLOT}[${FULL_HIDE_ATTR}] {
+      width: 0 !important;
+      min-width: 0 !important;
+    }
+    ${APP_SHELL_PAGE_SURFACE_SELECTOR}[${FULL_HIDE_ATTR}] {
+      left: 0 !important;
     }
   `;
   document.documentElement.appendChild(style);
@@ -84,7 +116,19 @@ function removeStyle(): void {
 }
 
 function getSidebar(): HTMLElement | null {
-  return document.querySelector<HTMLElement>(SIDEBAR_SELECTOR) || findChatGptSidebar();
+  return (
+    document.querySelector<HTMLElement>(SIDEBAR_SELECTOR) ||
+    document.querySelector<HTMLElement>(APP_SHELL_SIDEBAR) ||
+    findChatGptSidebar()
+  );
+}
+
+function fullHideTargets(): HTMLElement[] {
+  return [
+    getSidebar(),
+    document.querySelector<HTMLElement>(APP_SHELL_HEADER_START_SLOT),
+    document.querySelector<HTMLElement>(APP_SHELL_PAGE_SURFACE_SELECTOR),
+  ].filter((el): el is HTMLElement => !!el);
 }
 
 function isSidebarCollapsed(): boolean {
@@ -94,7 +138,13 @@ function isSidebarCollapsed(): boolean {
 }
 
 function setFullHideCollapsed(collapsed: boolean): void {
-  document.documentElement.classList.toggle(FULL_HIDE_CLASS, collapsed);
+  for (const el of fullHideTargets()) el.toggleAttribute(FULL_HIDE_ATTR, collapsed);
+  if (!collapsed) {
+    // A re-rendered sidebar may have left a stale copy behind.
+    document
+      .querySelectorAll(`[${FULL_HIDE_ATTR}]`)
+      .forEach((el) => el.removeAttribute(FULL_HIDE_ATTR));
+  }
 }
 
 function syncVisualState(): void {
@@ -306,9 +356,27 @@ function handleDocumentClick(event: Event): void {
   scheduleStateSync();
 }
 
+/**
+ * Only sidebar changes matter. Mutations in the thread (every streamed token)
+ * used to reschedule three layout-reading syncs each.
+ */
+function isSidebarMutation(mutation: MutationRecord): boolean {
+  const target = mutation.target;
+  if (target instanceof Element && target.matches(APP_SHELL_FRAME)) return true;
+  if (sidebarElement?.contains(target) || target.contains(sidebarElement)) return true;
+  const added = Array.from(mutation.addedNodes);
+  return added.some(
+    (node) =>
+      node instanceof Element &&
+      (node.matches(`${SIDEBAR_SELECTOR}, ${APP_SHELL_SIDEBAR}`) ||
+        !!node.querySelector(`${SIDEBAR_SELECTOR}, ${APP_SHELL_SIDEBAR}`)),
+  );
+}
+
 function ensureObserver(): void {
   if (observer) return;
-  observer = new MutationObserver(() => {
+  observer = new MutationObserver((mutations) => {
+    if (!mutations.some(isSidebarMutation)) return;
     attachSidebar();
     scheduleStateSync();
   });
@@ -316,7 +384,7 @@ function ensureObserver(): void {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ['class'],
+    attributeFilter: ['class', 'data-app-shell-sidebar-open'],
   });
 }
 

@@ -1,11 +1,19 @@
 /**
- * Adjusts only the inline user-message editor width.
+ * "Composer width" (popup: 输入框宽度): the bottom composer, and the inline
+ * editor used to edit a sent message, as a share of the thread pane.
  *
- * Current ChatGPT renders that editor as a textarea inside a conversation
- * turn. The bottom unified composer is intentionally outside this feature.
- * Named `.edit-mode` rules remain as lightweight Gemini-era compatibility.
+ * 2026-09 app shell: the composer's width host defines its column through
+ * `--thread-content-responsive-max-width` (see chatgptDom); this rule is more
+ * specific than the chat-width setting's, so while it is on the composer
+ * follows this slider and otherwise follows the chat width. Like chat width it
+ * is container-relative (`cqi`) and subtracts the thread scroller's gutter, so
+ * equal percentages line up with the messages. The inline editor is a <form>
+ * inside the user message block, centred on the column at the same width.
+ * The 2026-07 textarea rules and the Gemini-era `.edit-mode` rules remain.
  */
 import { addPageExitListener } from '@/core/utils/pageLifecycle';
+
+import { COMPOSER_WIDTH_HOST_SELECTOR, measureThreadGutter } from '../chatgptDom';
 
 const STYLE_ID = 'gpt-voyager-edit-input-width';
 const VALUE_KEY = 'gptEditInputWidth';
@@ -29,18 +37,31 @@ const normalizePercent = (value: number, fallback: number) => {
   return clampPercent(value, MIN_PERCENT, MAX_PERCENT);
 };
 
-function applyWidth(widthPercent: number): void {
-  const widthValue = `${normalizePercent(widthPercent, DEFAULT_PERCENT)}vw`;
+let threadGutterPx: number | null = null;
+let gutterObserver: MutationObserver | null = null;
+let gutterTimer: number | null = null;
 
-  let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
-  if (!style) {
-    style = document.createElement('style');
-    style.id = STYLE_ID;
-    document.head.appendChild(style);
-  }
+function buildStyle(percent: number): string {
+  const fraction = percent / 100;
+  const widthValue = `${percent}vw`;
+  const gutter = threadGutterPx ?? 0;
+  return `
+    /* 2026-09 bottom composer. */
+    ${COMPOSER_WIDTH_HOST_SELECTOR} {
+      --thread-content-responsive-max-width: calc((100cqi - ${gutter}px) * ${fraction});
+    }
 
-  style.textContent = `
-    /* Current ChatGPT inline user-message editor. */
+    /* 2026-09 inline user-message editor. */
+    [data-message-author-role="user"] form {
+      --gv-edit-input-width: min(calc(100cqi * ${fraction}), calc(100cqi - 32px));
+      box-sizing: border-box !important;
+      width: var(--gv-edit-input-width) !important;
+      max-width: none !important;
+      margin-left: calc((100% - var(--gv-edit-input-width)) / 2) !important;
+      margin-right: calc((100% - var(--gv-edit-input-width)) / 2) !important;
+    }
+
+    /* 2026-07 inline user-message editor. */
     ${CURRENT_EDIT_TURN_SELECTOR} [data-conversation-screenshot-content],
     ${CURRENT_EDIT_TURN_SELECTOR} [class*="group/turn-messages"] {
       max-width: ${widthValue} !important;
@@ -81,7 +102,46 @@ function applyWidth(widthPercent: number): void {
   `;
 }
 
+function applyWidth(widthPercent: number): void {
+  threadGutterPx = measureThreadGutter() ?? threadGutterPx;
+  const css = buildStyle(normalizePercent(widthPercent, DEFAULT_PERCENT));
+  let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement('style');
+    style.id = STYLE_ID;
+    document.head.appendChild(style);
+  }
+  // Rewriting a stylesheet re-matches every rule on the page; skip no-ops.
+  if (style.textContent !== css) style.textContent = css;
+  if (threadGutterPx === null) watchForThreadGutter();
+}
+
+function stopWatchingThreadGutter(): void {
+  gutterObserver?.disconnect();
+  gutterObserver = null;
+  if (gutterTimer !== null) window.clearTimeout(gutterTimer);
+  gutterTimer = null;
+}
+
+/** Only until a thread is open: its scroller's gutter is all we need from the DOM. */
+function watchForThreadGutter(): void {
+  if (gutterObserver) return;
+  gutterObserver = new MutationObserver(() => {
+    if (gutterTimer !== null) return;
+    gutterTimer = window.setTimeout(() => {
+      gutterTimer = null;
+      const gutter = measureThreadGutter();
+      if (gutter === null) return;
+      stopWatchingThreadGutter();
+      threadGutterPx = gutter;
+      if (enabled) applyWidth(currentWidthPercent);
+    }, 300);
+  });
+  gutterObserver.observe(document.body, { childList: true, subtree: true });
+}
+
 function removeStyles(): void {
+  stopWatchingThreadGutter();
   document.getElementById(STYLE_ID)?.remove();
 }
 
@@ -163,8 +223,8 @@ export function stopEditInputWidthAdjuster(): void {
 }
 
 /**
- * Starts the setting bridge. CSS handles future edit composers by itself, so
- * this feature never needs a MutationObserver or a DOM rescan.
+ * Starts the setting bridge. CSS handles future composers and editors by
+ * itself; the only DOM watch is the one-off gutter measurement above.
  */
 export function startEditInputWidthAdjuster(): () => void {
   if (started) return stopEditInputWidthAdjuster;

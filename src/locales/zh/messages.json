@@ -371,12 +371,6 @@
   "conversation_rename": {
     "message": "重命名对话"
   },
-  "conversation_rename_current": {
-    "message": "重命名当前对话"
-  },
-  "conversation_rename_unavailable": {
-    "message": "ChatGPT 的重命名功能暂时不可用"
-  },
   "conversation_move_to_folder_title": {
     "message": "移动到文件夹"
   },
@@ -618,10 +612,10 @@
     "message": "输入框宽度"
   },
   "editInputWidthNarrow": {
-    "message": "Edit Input Width Narrow"
+    "message": "窄"
   },
   "editInputWidthWide": {
-    "message": "Edit Input Width Wide"
+    "message": "宽"
   },
   "timelineOptions": {
     "message": "时间线"
@@ -1216,6 +1210,18 @@
   },
   "defaultModelCleared": {
     "message": "Default model cleared"
+  },
+  "railToggle_enable": {
+    "message": "图标栏收起按钮"
+  },
+  "railToggle_description": {
+    "message": "在侧边栏「ChatGPT」标题旁加一个 ◀ 按钮，一键收起左侧新增的图标栏（主页、历史、头像等），再点一下展开。"
+  },
+  "railToggle_hide": {
+    "message": "隐藏烦人的新增侧边栏"
+  },
+  "railToggle_show": {
+    "message": "显示左侧图标栏"
   },
   "sidebarAutoHide": {
     "message": "侧边栏自动隐藏"

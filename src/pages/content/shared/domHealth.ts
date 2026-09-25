@@ -17,7 +17,12 @@
  */
 import { getConversationCaptureService } from '@/features/conversationApi/ConversationCaptureService';
 
-import { extractChatGptConversationIdFromUrl, findChatGptSidebar } from '../chatgptDom';
+import {
+  APP_SHELL_LEFT_PANEL_SELECTOR,
+  APP_SHELL_PANEL_RESIZER_SELECTOR,
+  extractChatGptConversationIdFromUrl,
+  findChatGptSidebar,
+} from '../chatgptDom';
 
 export interface DomHealthCheck {
   primitive: string;
@@ -64,11 +69,16 @@ export function runDomHealthCheck(): DomHealthCheck[] {
     `${rows} app-shell rows, ${links} /c/ links (shim: a[data-gv-conv-link] = ${count('a[data-gv-conv-link]')})`,
     'folders, move-to-folder, sidebar export, batch delete',
   );
+  const leftPanel = document.querySelector(APP_SHELL_LEFT_PANEL_SELECTOR);
+  const resizer = document.querySelector(APP_SHELL_PANEL_RESIZER_SELECTOR);
   add(
-    'sidebar width variable',
-    !!rootStyle.getPropertyValue('--app-shell-left-panel-width').trim() ||
-      !!document.getElementById('stage-slideover-sidebar'),
-    `--app-shell-left-panel-width = ${rootStyle.getPropertyValue('--app-shell-left-panel-width').trim() || 'unset'}`,
+    'sidebar resize handle',
+    !!resizer || !!document.getElementById('stage-slideover-sidebar'),
+    leftPanel
+      ? resizer
+        ? `native handle found, panel ${Math.round(leftPanel.getBoundingClientRect().width)}px`
+        : 'no handle (panel collapsed?)'
+      : 'aside.app-shell-left-panel not found',
     'sidebar width',
   );
 

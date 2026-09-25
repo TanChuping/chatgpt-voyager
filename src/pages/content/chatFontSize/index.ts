@@ -14,6 +14,9 @@ const VALUE_KEY = 'gvChatFontSize';
 const CODE_ENABLED_KEY = 'gvCodeFontSizeEnabled';
 const CODE_VALUE_KEY = 'gvCodeFontSize';
 
+/** 2026-09 code blocks: no <pre>; the code sits in `div > code` under this host. */
+const APP_SHELL_CODE_BLOCK = '[data-markdown-copy="code-block"]';
+
 const clampPercent = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, Math.round(value)));
 
@@ -25,6 +28,7 @@ const normalizePercent = (value: number, fallback: number) => {
 function applyFontSize(percent: number) {
   const normalized = normalizePercent(percent, DEFAULT_PERCENT);
   const sizeValue = `${normalized}%`;
+  const factor = normalized / 100;
 
   let style = document.getElementById(STYLE_ID) as HTMLStyleElement;
   if (!style) {
@@ -40,10 +44,20 @@ function applyFontSize(percent: number) {
      * code blocks live inside those containers and have an independent scale.
      * No percentage-sized text root may therefore contain a code-size root.
     */
-    [data-message-author-role="user"]:not(:has(pre, .cm-content)),
-    [data-message-author-role="assistant"] :is(p, li, td, th, blockquote, .whitespace-pre-wrap):not(pre *, .cm-content *):not(:has(p, li, td, th, blockquote, .whitespace-pre-wrap, pre, .cm-content)),
-    [data-message-author-role="assistant"] :is(.markdown, .prose):not(:is(.markdown, .prose) :is(.markdown, .prose)):not(:has(p, li, td, th, blockquote, .whitespace-pre-wrap, pre, .cm-content)) {
+    [data-message-author-role="user"]:not(:has(pre, .cm-content, ${APP_SHELL_CODE_BLOCK})),
+    [data-message-author-role="assistant"] :is(p, li, td, th, blockquote, .whitespace-pre-wrap):not(pre *, .cm-content *, ${APP_SHELL_CODE_BLOCK} *):not(:has(p, li, td, th, blockquote, .whitespace-pre-wrap, pre, .cm-content, ${APP_SHELL_CODE_BLOCK})),
+    [data-message-author-role="assistant"] :is(.markdown, .prose):not(:is(.markdown, .prose) :is(.markdown, .prose)):not(:has(p, li, td, th, blockquote, .whitespace-pre-wrap, pre, .cm-content, ${APP_SHELL_CODE_BLOCK})) {
       font-size: ${sizeValue} !important;
+    }
+
+    /* 2026-09: message text sizes itself from ChatGPT's chat font variable
+       (.text-size-chat uses var(--codex-chat-font-size)), so an inherited
+       size never reaches it. */
+    [data-message-author-role="user"] .text-size-chat {
+      font-size: calc(var(--codex-chat-font-size) * ${factor}) !important;
+    }
+    [data-message-author-role="user"] .text-size-chat-sm {
+      font-size: calc((var(--codex-chat-font-size) - 1px) * ${factor}) !important;
     }
   `;
 }
@@ -66,7 +80,8 @@ function applyCodeFontSize(percent: number) {
     code-block pre,
     .code-container pre,
     .formatted-code-block-internal-container pre,
-    [data-message-author-role] pre {
+    [data-message-author-role] pre,
+    ${APP_SHELL_CODE_BLOCK} code {
       font-size: ${sizeValue} !important;
     }
 
@@ -81,7 +96,8 @@ function applyCodeFontSize(percent: number) {
     .formatted-code-block-internal-container pre code,
     .formatted-code-block-internal-container pre span,
     [data-message-author-role] pre code,
-    [data-message-author-role] pre span {
+    [data-message-author-role] pre span,
+    ${APP_SHELL_CODE_BLOCK} code * {
       font-size: inherit !important;
     }
   `;
