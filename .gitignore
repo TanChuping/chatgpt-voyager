@@ -73,8 +73,10 @@ announcements.json
 .worktrees/
 
 # Local agent outputs
-# Development docs (dev log, adapter notes, handoffs, release notes) stay local only
-docs/
+# Development docs (dev log, adapter notes, handoffs, release notes) stay local only;
+# docs/media holds the README demo GIFs and stays tracked.
+docs/*
+!docs/media/
 .agent/
 LOCAL_DEVELOPMENT.md
 公式交接.md
