@@ -40,6 +40,8 @@ type TestableManager = {
   teardownEmbeddedFolderUI: () => void;
   isMultiSelectMode: boolean;
   folderSearchQuery: string;
+  sidebarContainer: HTMLElement | null;
+  setupMutationObserver: () => void;
 };
 
 const folder: Folder = {
@@ -60,6 +62,44 @@ afterEach(() => {
 });
 
 describe('folder expansion state', () => {
+  it('follows a native title change while collapsed or hidden, preserving folder aliases', async () => {
+    const manager = new FolderManager();
+    const typed = manager as unknown as TestableManager;
+    typed.data = {
+      folders: [{ ...folder }],
+      folderContents: {
+        'folder-1': [
+          {
+            conversationId: 'conversation-1',
+            title: 'Old title',
+            url: 'https://chatgpt.com/c/conversation-1',
+            addedAt: 1,
+          },
+          {
+            conversationId: 'conversation-1',
+            title: 'My alias',
+            url: 'https://chatgpt.com/c/conversation-1',
+            addedAt: 1,
+            customTitle: true,
+          },
+        ],
+      },
+    };
+    const save = vi.spyOn(typed, 'saveData').mockResolvedValue(true);
+    document.body.innerHTML =
+      '<aside id="sidebar"><li><a href="/c/conversation-1" aria-label="Old title">Old title</a></li></aside>';
+    typed.sidebarContainer = document.querySelector('aside');
+    typed.setupMutationObserver();
+    document.querySelector('a')!.setAttribute('aria-label', 'New native title');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(typed.data.folderContents['folder-1'][0].title).toBe('New native title');
+    expect(typed.data.folderContents['folder-1'][1].title).toBe('My alias');
+    expect(save).toHaveBeenCalledTimes(1);
+    document.querySelector('a')!.setAttribute('title', 'Unrelated tooltip');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(save).toHaveBeenCalledTimes(1);
+    manager.destroy();
+  });
   it('keeps a real chevron mounted and updates aria state without rebuilding the row', () => {
     window.history.pushState({}, '', '/c/conversation-1');
     const manager = new FolderManager();

@@ -48,6 +48,7 @@ const TOOLTIP_ID = 'gv-rail-toggle-tooltip';
 const BUTTON_ATTR = 'data-gv-rail-toggle';
 /** On the rail (folded away), the page card behind the panel, and our button (shows ▶). */
 const FOLDED_ATTR = 'data-gv-rail-folded';
+const CONTENT_WIDTH_ATTR = 'data-gv-rail-content-width';
 const TOOLTIP_DELAY_MS = 200;
 const FOLD_MS = 340;
 const UNFOLD_MS = 560;
@@ -87,16 +88,28 @@ function buildStyle(): string {
       ${SURFACE}[${FOLDED_ATTR}] {
         left: 0;
       }
+      /* The new full-height page card leaves its darker underlay at the old
+         rail edge. Paint the folded sidebar with ChatGPT's theme surface so
+         the vacated strip blends into the panel, including custom themes. */
+      ${ASIDE}[${FOLDED_ATTR}] {
+        background-color: var(--color-surface, var(--app-color-background-surface));
+      }
       /* Keep the panel's width and give the rail's space to the thread. */
       ${ASIDE}[${FOLDED_ATTR}],
       ${ASIDE} > [${FOLDED_ATTR}],
+      [${CONTENT_WIDTH_ATTR}][${FOLDED_ATTR}],
       ${HEADER_START_SLOT}[${FOLDED_ATTR}] {
         width: ${FOLDED_WIDTH} !important;
       }
       ${ASIDE} > [${FOLDED_ATTR}],
+      [${CONTENT_WIDTH_ATTR}][${FOLDED_ATTR}],
       ${HEADER_START_SLOT}[${FOLDED_ATTR}] {
         min-width: 0 !important;
       }
+    }
+
+    [${BUTTON_ATTR}][hidden] {
+      display: none !important;
     }
 
     [${BUTTON_ATTR}] .gv-rail-toggle-icon {
@@ -203,9 +216,13 @@ function createButton(template: HTMLElement): HTMLButtonElement {
   button.setAttribute('data-size', 'xs');
   button.removeAttribute('data-icon-size');
   const icon = createIcon();
-  const nativeIcon = button.querySelector('svg');
-  if (nativeIcon) nativeIcon.replaceWith(icon);
-  else button.replaceChildren(icon);
+  // New native buttons contain separate compact and leading icon sources.
+  // Replacing the first SVG can leave our arrow in the hidden source while
+  // the visible source still shows ChatGPT's sidebar icon.
+  const inner = document.createElement('span');
+  inner.className = template.firstElementChild?.className ?? '';
+  inner.appendChild(icon);
+  button.replaceChildren(inner);
 
   button.addEventListener('click', (event) => {
     event.preventDefault();
@@ -262,6 +279,9 @@ function ensureButton(): void {
 
 function canFold(): boolean {
   return (
+    document
+      .querySelector('[data-app-shell-sidebar-open]')
+      ?.getAttribute('data-app-shell-sidebar-open') !== 'false' &&
     !!document.querySelector(APP_SHELL_PANEL_RESIZER_SELECTOR) &&
     !!document.querySelector(`${ASIDE} [${BUTTON_ATTR}]`) &&
     (wideQuery?.matches ?? true)
@@ -276,10 +296,18 @@ function foldTargets(rail: HTMLElement): HTMLElement[] {
         (child): child is HTMLElement => child instanceof HTMLElement && child.contains(rail),
       )
     : undefined;
+  // 2026-09-30 adds a fixed/min-width wrapper below the outer clipping layer.
+  // Shrink that exact content wrapper too, otherwise the panel grows into the
+  // rail's space and its native controls are clipped by the outer layer.
+  const content = rail.closest('#app-shell-sidebar')?.parentElement;
+  if (content instanceof HTMLElement && content.style.width && content.style.minWidth) {
+    content.setAttribute(CONTENT_WIDTH_ATTR, '');
+  }
   return [
     rail,
     aside,
     wrapper,
+    content?.hasAttribute(CONTENT_WIDTH_ATTR) ? content : null,
     document.querySelector<HTMLElement>(SURFACE),
     document.querySelector<HTMLElement>(HEADER_START_SLOT),
   ].filter((el): el is HTMLElement => !!el);
@@ -337,15 +365,20 @@ function playFold(rail: HTMLElement, folded: boolean, shift: number): void {
 
 /** Brings the rail, the button and the user's choice in line. Cheap when nothing changed. */
 function syncFold(animate: boolean): void {
+  const available = canFold();
   const button = document.querySelector<HTMLElement>(`[${BUTTON_ATTR}]`);
   if (button) {
+    // New ChatGPT keeps the header mounted for hover previews while collapsed.
+    // The arrow has no action there, so remove it from layout and tab order.
+    button.hidden = !available;
+    if (!available) hideTooltip();
     button.toggleAttribute(FOLDED_ATTR, wantFolded);
     const text = label();
     if (button.getAttribute('aria-label') !== text) button.setAttribute('aria-label', text);
   }
   const rail = document.querySelector<HTMLElement>(RAIL);
   if (!rail) return;
-  const folded = wantFolded && canFold();
+  const folded = wantFolded && available;
   const changed = rail.hasAttribute(FOLDED_ATTR) !== folded;
   if (!changed && !folded) return;
   const shift = changed ? rail.getBoundingClientRect().width : 0;
@@ -389,9 +422,15 @@ export function startRailToggle(): () => void {
     ensureButton();
     syncFold(false);
   });
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['data-app-shell-sidebar-open'],
+  });
   wideQuery = window.matchMedia?.(WIDE_QUERY) ?? null;
   wideQuery?.addEventListener('change', onWideChange);
+  syncFold(false);
 
   chrome.storage?.local?.get(StorageKeys.GV_RAIL_COLLAPSED, (result) => {
     if (!started || result?.[StorageKeys.GV_RAIL_COLLAPSED] !== true) return;
@@ -431,6 +470,9 @@ export function stopRailToggle(): void {
   }
   document.querySelectorAll(`[${BUTTON_ATTR}]`).forEach((button) => button.remove());
   document.querySelectorAll(`[${FOLDED_ATTR}]`).forEach((el) => el.removeAttribute(FOLDED_ATTR));
+  document
+    .querySelectorAll(`[${CONTENT_WIDTH_ATTR}]`)
+    .forEach((el) => el.removeAttribute(CONTENT_WIDTH_ATTR));
   document.getElementById(TOOLTIP_ID)?.remove();
   document.getElementById(STYLE_ID)?.remove();
 }

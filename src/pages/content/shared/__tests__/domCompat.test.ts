@@ -84,6 +84,24 @@ describe('ChatGPT 2026-09 DOM compatibility shim', () => {
     expect(links[0].title).toBe('Renamed');
   });
 
+  it('uses restored native links and removes an old shim instead of retaining two titles', () => {
+    syncChatGptDomCompat();
+    const row = document.querySelector('[role="listitem"]')!;
+    row.querySelector('[role="button"]')!.remove();
+    const link = document.createElement('a');
+    link.href = `/c/${CONV}`;
+    link.setAttribute('aria-label', 'Current native title');
+    link.innerHTML =
+      '<span data-thread-title><span data-marquee-content>Current native title</span><span aria-hidden="true">Current native title</span></span>';
+    row.prepend(link);
+    syncChatGptDomCompat();
+    expect(row.querySelector('[data-gv-conv-link]')).toBeNull();
+    expect(row.querySelectorAll('a')).toHaveLength(1);
+    expect(conversationTitleFromRow(row)).toBe('Current native title');
+    link.removeAttribute('aria-label');
+    expect(conversationTitleFromRow(row)).toBe('Current native title');
+  });
+
   it('stamps legacy message roles, ids and text roots', () => {
     syncChatGptDomCompat();
     const user = document.querySelector('[data-message-author-role="user"]');

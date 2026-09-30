@@ -1,4 +1,4 @@
-import { CONVERSATION_ROW_SELECTOR } from './shared/domCompat';
+import { CONVERSATION_ROW_SELECTOR, conversationTitleFromRow } from './shared/domCompat';
 
 const CONVERSATION_LINK_SELECTOR = 'a[href*="/c/"]';
 
@@ -90,6 +90,11 @@ export function getChatGptConversationElement(element: HTMLElement): HTMLElement
 }
 
 export function getChatGptConversationTitle(element: HTMLElement): string | null {
+  const row = element.closest(CONVERSATION_ROW_SELECTOR);
+  if (row) {
+    const title = conversationTitleFromRow(row);
+    if (title) return title;
+  }
   const link = getChatGptConversationLink(element);
   const raw =
     link?.getAttribute('aria-label') ||

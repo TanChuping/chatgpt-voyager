@@ -99,6 +99,42 @@ describe('icon rail toggle', () => {
     expect(stored.gvRailCollapsed).toBe(false);
   });
 
+  it('replaces both native icon variants with a single visible arrow', () => {
+    document.querySelector('.inner')!.innerHTML = `
+      <span style="display:none"><svg class="compact"></svg></span>
+      <span><svg class="leading"></svg></span>`;
+    startRailToggle();
+    const button = document.querySelector(BUTTON)!;
+    expect(button.querySelectorAll('svg')).toHaveLength(1);
+    expect(button.querySelector('.inner')?.firstElementChild?.matches('.gv-rail-toggle-icon')).toBe(
+      true,
+    );
+    expect(button.querySelector('.compact, .leading')).toBeNull();
+  });
+
+  it('folds the new fixed content wrapper without touching the resize handle', () => {
+    const sidebar = document.getElementById('app-shell-sidebar')!;
+    const content = document.createElement('div');
+    content.style.width = '520px';
+    content.style.minWidth = '520px';
+    sidebar.before(content);
+    content.appendChild(sidebar);
+    startRailToggle();
+    document.querySelector<HTMLButtonElement>(BUTTON)!.click();
+    expect(content.hasAttribute('data-gv-rail-content-width')).toBe(true);
+    expect(content.hasAttribute('data-gv-rail-folded')).toBe(true);
+    expect(
+      document
+        .querySelector('[role="separator"]')!
+        .parentElement!.hasAttribute('data-gv-rail-folded'),
+    ).toBe(false);
+    document.querySelector<HTMLButtonElement>(BUTTON)!.click();
+    expect(content.hasAttribute('data-gv-rail-folded')).toBe(false);
+    expect(content.style.minWidth).toBe('520px');
+    stopRailToggle();
+    expect(document.querySelector('[data-gv-rail-content-width]')).toBeNull();
+  });
+
   it('keeps its state off <html>, so toggling never restyles the whole page', () => {
     startRailToggle();
     document.querySelector<HTMLButtonElement>(BUTTON)!.click();
@@ -151,6 +187,24 @@ describe('icon rail toggle', () => {
     document.querySelector('[role="separator"]')!.parentElement!.remove();
     await vi.advanceTimersByTimeAsync(0);
     expect(rail.hasAttribute('data-gv-rail-folded')).toBe(false);
+    expect(document.querySelector<HTMLButtonElement>(BUTTON)!.hidden).toBe(true);
+  });
+
+  it('hides the inactive arrow in a retained collapsed header and restores it on expand', async () => {
+    const frame = document.querySelector('[data-app-shell-frame]')!;
+    frame.setAttribute('data-app-shell-sidebar-open', 'true');
+    stored = { gvRailCollapsed: true };
+    startRailToggle();
+    const button = document.querySelector<HTMLButtonElement>(BUTTON)!;
+    expect(button.hidden).toBe(false);
+    frame.setAttribute('data-app-shell-sidebar-open', 'false');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(button.hidden).toBe(true);
+    expect(document.querySelector('nav')!.hasAttribute('data-gv-rail-folded')).toBe(false);
+    frame.setAttribute('data-app-shell-sidebar-open', 'true');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(button.hidden).toBe(false);
+    expect(document.querySelector('nav')!.hasAttribute('data-gv-rail-folded')).toBe(true);
   });
 
   it('never folds while our button is missing from the panel', async () => {

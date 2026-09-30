@@ -45,14 +45,28 @@ export function conversationIdFromRow(row: Element): string | null {
 }
 
 export function conversationTitleFromRow(row: Element): string {
+  const nativeLink = row.querySelector<HTMLAnchorElement>(
+    `a[href*="/c/"]:not([${SHIM_LINK_ATTR}])`,
+  );
+  const nativeLabel = nativeLink?.getAttribute('aria-label');
+  if (nativeLabel?.trim()) return nativeLabel.trim();
   const labelled = row.querySelector('[role="button"][aria-label]')?.getAttribute('aria-label');
   if (labelled?.trim()) return labelled.trim();
+  // Marquee titles can contain duplicate text tracks; read one content source.
+  const marquee = row.querySelector('[data-thread-title] [data-marquee-content]')?.textContent;
+  if (marquee?.trim()) return marquee.trim();
   return (row.querySelector('[data-thread-title]')?.textContent ?? '').trim();
 }
 
 function syncSidebarRow(row: Element): void {
   const id = conversationIdFromRow(row);
   let link = row.querySelector<HTMLAnchorElement>(`:scope > a[${SHIM_LINK_ATTR}]`);
+  // ChatGPT restored real links. A second, hidden link can retain a stale
+  // title and gives features two competing sources for the same row.
+  if (row.querySelector(`a[href*="/c/"]:not([${SHIM_LINK_ATTR}])`)) {
+    link?.remove();
+    return;
+  }
   if (!id) {
     link?.remove();
     return;
@@ -228,6 +242,10 @@ export function startChatGptDomCompat(): () => void {
         dirty = true;
         continue;
       }
+      if (m.type === 'characterData') {
+        if (m.target.parentElement?.closest(CONVERSATION_ROW_SELECTOR)) dirty = true;
+        continue;
+      }
       for (const node of Array.from(m.addedNodes)) {
         if (!(node instanceof Element) || node.hasAttribute(SHIM_LINK_ATTR)) continue;
         dirty = true;
@@ -257,6 +275,7 @@ export function startChatGptDomCompat(): () => void {
   observer.observe(document.documentElement, {
     childList: true,
     subtree: true,
+    characterData: true,
     attributes: true,
     attributeFilter: [
       'aria-label',

@@ -17,9 +17,6 @@ export const BOOTSTRAP_SETTING_KEYS = [
   StorageKeys.CHAT_FONT_FAMILY_ENABLED,
   StorageKeys.EDIT_INPUT_WIDTH,
   StorageKeys.EDIT_INPUT_WIDTH_ENABLED,
-  StorageKeys.SIDEBAR_WIDTH,
-  StorageKeys.GV_SIDEBAR_AUTO_HIDE,
-  StorageKeys.GV_SIDEBAR_FULL_HIDE,
   StorageKeys.GV_RAIL_TOGGLE_ENABLED,
   StorageKeys.GV_FOLDER_SPACING,
   StorageKeys.GV_FOLDER_ITEM_FONT_SIZE,
@@ -101,18 +98,6 @@ function isExplicitNonDefaultFolderItemFontSize(settings: BootstrapSettings): bo
   const stored = settings[StorageKeys.GV_FOLDER_ITEM_FONT_SIZE];
   if (typeof stored !== 'number' || !Number.isFinite(stored)) return false;
   return Math.min(18, Math.max(12, Math.round(stored))) !== 13;
-}
-
-function isExplicitNonDefaultSidebarWidth(settings: BootstrapSettings): boolean {
-  const stored = settings[StorageKeys.SIDEBAR_WIDTH];
-  if (stored === undefined || stored === null || stored === '') return false;
-  const numeric = Number(stored);
-  if (!Number.isFinite(numeric)) return false;
-  const pixels =
-    numeric <= 45
-      ? Math.min(600, Math.max(240, Math.round((numeric / 100) * 1200)))
-      : Math.min(600, Math.max(240, Math.round(numeric)));
-  return pixels !== 280;
 }
 
 /** Literal import paths are intentional: Vite emits one or more lazy chunks. */
@@ -218,24 +203,6 @@ export function createLazyFeatureDefinitions(
         return {
           start: module.startEditInputWidthAdjuster,
           stop: module.stopEditInputWidthAdjuster,
-        };
-      },
-    },
-    {
-      id: 'sidebar-auto-hide',
-      initial: 'immediate',
-      isEnabled: (settings) =>
-        isTrue(settings, StorageKeys.GV_SIDEBAR_AUTO_HIDE) ||
-        isTrue(settings, StorageKeys.GV_SIDEBAR_FULL_HIDE),
-      load: async () => {
-        const module = await import('../sidebarAutoHide/index');
-        return {
-          start: () => {
-            module.startSidebarAutoHide();
-            return () => module.stopSidebarAutoHide(false);
-          },
-          stop: () => module.stopSidebarAutoHide(false),
-          persistentSettingBridge: true,
         };
       },
     },
@@ -409,18 +376,6 @@ export function createLazyFeatureDefinitions(
         return {
           start: module.startFolderItemFontSizeAdjuster,
           stop: module.stopFolderItemFontSizeAdjuster,
-        };
-      },
-    },
-    {
-      id: 'sidebar-width',
-      initial: 'immediate',
-      isEnabled: isExplicitNonDefaultSidebarWidth,
-      load: async () => {
-        const module = await import('../sidebarWidth/index');
-        return {
-          start: module.startSidebarWidthAdjuster,
-          stop: module.stopSidebarWidthAdjuster,
         };
       },
     },

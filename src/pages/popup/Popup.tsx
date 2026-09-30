@@ -57,7 +57,6 @@ const CODE_FONT_SIZE = { min: 80, max: 150, defaultValue: 100 };
 const CHAT_LINE_HEIGHT = { min: 120, max: 220, defaultValue: 160 };
 const CHAT_PARAGRAPH_SPACING = { min: 0, max: 32, defaultValue: 12 };
 const EDIT_PERCENT = { min: 30, max: 100, defaultValue: 60 };
-const SIDEBAR_PX = { min: 240, max: 600, defaultValue: 280 };
 const FOLDER_SPACING = { min: 0, max: 16, defaultValue: 2 };
 const FOLDER_TREE_INDENT = { min: -8, max: 32, defaultValue: -8 };
 
@@ -327,10 +326,7 @@ export default function Popup() {
   const customFontInputRef = useRef<HTMLInputElement | null>(null);
   const [editInputWidthEnabled, setEditInputWidthEnabled] = useState(false);
   const [editInputWidth, setEditInputWidth] = useState(EDIT_PERCENT.defaultValue);
-  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_PX.defaultValue);
-  const [sidebarAutoHide, setSidebarAutoHide] = useState(false);
   const [railToggleEnabled, setRailToggleEnabled] = useState(true);
-  const [sidebarFullHide, setSidebarFullHide] = useState(false);
 
   const [ctrlEnterSend, setCtrlEnterSend] = useState(false);
   const [safariEnterFix, setSafariEnterFix] = useState(false);
@@ -483,9 +479,6 @@ export default function Popup() {
         [StorageKeys.CHAT_CUSTOM_FONT_NAME]: '',
         [StorageKeys.EDIT_INPUT_WIDTH_ENABLED]: false,
         [StorageKeys.EDIT_INPUT_WIDTH]: EDIT_PERCENT.defaultValue,
-        [StorageKeys.SIDEBAR_WIDTH]: SIDEBAR_PX.defaultValue,
-        [StorageKeys.GV_SIDEBAR_AUTO_HIDE]: false,
-        [StorageKeys.GV_SIDEBAR_FULL_HIDE]: false,
         [StorageKeys.GV_RAIL_TOGGLE_ENABLED]: true,
         [StorageKeys.CTRL_ENTER_SEND]: false,
         [StorageKeys.SAFARI_ENTER_FIX]: false,
@@ -599,17 +592,7 @@ export default function Popup() {
             EDIT_PERCENT.max,
           ),
         );
-        setSidebarWidth(
-          normalizeNumber(
-            result[StorageKeys.SIDEBAR_WIDTH],
-            SIDEBAR_PX.defaultValue,
-            SIDEBAR_PX.min,
-            SIDEBAR_PX.max,
-          ),
-        );
-        setSidebarAutoHide(result[StorageKeys.GV_SIDEBAR_AUTO_HIDE] === true);
         setRailToggleEnabled(result[StorageKeys.GV_RAIL_TOGGLE_ENABLED] !== false);
-        setSidebarFullHide(result[StorageKeys.GV_SIDEBAR_FULL_HIDE] === true);
         setCtrlEnterSend(result[StorageKeys.CTRL_ENTER_SEND] === true);
         setSafariEnterFix(result[StorageKeys.SAFARI_ENTER_FIX] === true);
         setInputCollapse(result[StorageKeys.INPUT_COLLAPSE_ENABLED] === true);
@@ -1102,20 +1085,6 @@ export default function Popup() {
               updateToggle(setEditInputWidthEnabled, StorageKeys.EDIT_INPUT_WIDTH_ENABLED, value)
             }
           />
-          <WidthSlider
-            label={t('sidebarWidth')}
-            value={sidebarWidth}
-            min={SIDEBAR_PX.min}
-            max={SIDEBAR_PX.max}
-            step={1}
-            valueFormatter={(value) => `${value}px`}
-            narrowLabel={t('sidebarWidthNarrow')}
-            wideLabel={t('sidebarWidthWide')}
-            onChange={setSidebarWidth}
-            onChangeComplete={(value) =>
-              void setSyncStorage({ [StorageKeys.SIDEBAR_WIDTH]: value })
-            }
-          />
           <ToggleRow
             id="rail-toggle"
             title={t('railToggle_enable')}
@@ -1123,24 +1092,6 @@ export default function Popup() {
             checked={railToggleEnabled}
             onChange={(value) =>
               updateToggle(setRailToggleEnabled, StorageKeys.GV_RAIL_TOGGLE_ENABLED, value)
-            }
-          />
-          <ToggleRow
-            id="sidebar-auto-hide"
-            title={t('sidebarAutoHide')}
-            description={t('sidebarAutoHideHint')}
-            checked={sidebarAutoHide}
-            onChange={(value) =>
-              updateToggle(setSidebarAutoHide, StorageKeys.GV_SIDEBAR_AUTO_HIDE, value)
-            }
-          />
-          <ToggleRow
-            id="sidebar-full-hide"
-            title={t('sidebarFullHide')}
-            description={t('sidebarFullHideHint')}
-            checked={sidebarFullHide}
-            onChange={(value) =>
-              updateToggle(setSidebarFullHide, StorageKeys.GV_SIDEBAR_FULL_HIDE, value)
             }
           />
         </Section>

@@ -2191,7 +2191,7 @@ export class FolderManager {
     // Try to sync title from native conversation
     // Decide what title to display, respecting manual renames and hidden native list
     let displayTitle = conv.title;
-    if (!conv.customTitle && !this.hideArchivedConversations) {
+    if (!conv.customTitle) {
       const syncedTitle = this.syncConversationTitleFromNative(conv.conversationId);
       if (syncedTitle && syncedTitle !== conv.title) {
         conv.title = syncedTitle;
@@ -3132,6 +3132,52 @@ export class FolderManager {
     }
 
     this.conversationObserver = new MutationObserver((mutations) => {
+      // Native auto-titles/renames can change text or aria-label without adding
+      // a row. Synchronize stored followers even while folders are collapsed;
+      // rebuilding a folder later must not be the only way its name catches up.
+      const titleIds = new Set<string>();
+      for (const mutation of mutations) {
+        const target =
+          mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
+        const row = target?.closest<HTMLElement>(
+          '[data-sidebar-chatgpt-conversation-key], li, [role="listitem"]',
+        );
+        if (row && !row.closest('.gv-folder-container')) {
+          const id = this.extractNativeConversationId(row);
+          if (id) titleIds.add(id);
+        }
+        for (const node of mutation.addedNodes) {
+          if (!(node instanceof HTMLElement) || node.closest('.gv-folder-container')) continue;
+          for (const conversation of getChatGptConversationElements(node)) {
+            const id = this.extractNativeConversationId(conversation);
+            if (id) titleIds.add(id);
+          }
+        }
+      }
+      let titlesChanged = false;
+      for (const id of titleIds) {
+        const title = this.syncConversationTitleFromNative(id);
+        if (!title) continue;
+        for (const conversations of Object.values(this.data.folderContents)) {
+          for (const conversation of conversations) {
+            if (
+              this.normalizeConversationId(conversation.conversationId) !==
+                this.normalizeConversationId(id) ||
+              conversation.customTitle ||
+              conversation.title === title
+            )
+              continue;
+            conversation.title = title;
+            this.pendingTitleUpdates.set(id, title);
+            titlesChanged = true;
+          }
+        }
+      }
+      if (titlesChanged) {
+        this.renderAllFolders();
+        this.floatingPanelHandle?.update(this.data);
+        this.flushPendingTitleUpdates();
+      }
       // 1. Handle added conversations (always safe)
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((node) => {
@@ -3182,6 +3228,9 @@ export class FolderManager {
     this.conversationObserver.observe(this.sidebarContainer, {
       childList: true,
       subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['aria-label', 'title'],
     });
   }
 
