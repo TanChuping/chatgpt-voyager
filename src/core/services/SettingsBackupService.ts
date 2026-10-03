@@ -74,6 +74,7 @@ export const BACKUPABLE_SYNC_SETTINGS_DEFAULTS: Record<string, unknown> = {
   [StorageKeys.GV_SIDEBAR_AUTO_HIDE]: false,
   [StorageKeys.GV_SIDEBAR_FULL_HIDE]: false,
   [StorageKeys.GV_RAIL_TOGGLE_ENABLED]: true,
+  [StorageKeys.GV_QUOTA_RING_ENABLED]: true,
   [StorageKeys.GV_FOLDER_SPACING]: 2,
   [StorageKeys.GV_FOLDER_TREE_INDENT]: -8,
   [StorageKeys.FORK_ENABLED]: false,

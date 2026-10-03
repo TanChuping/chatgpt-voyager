@@ -1214,6 +1214,23 @@
   "railToggle_enable": {
     "message": "Icon rail toggle"
   },
+  "quotaRing_enable": { "message": "Show quota ring" },
+  "quotaRing_description": { "message": "Show Codex / Work quota in the composer and sidebar." },
+  "quotaRing_title": { "message": "Codex / Work quota remaining" },
+  "quotaRing_chatNote": { "message": "(Chat conversations do not consume this quota)" },
+  "quotaRing_waiting": { "message": "Waiting for usage update" },
+  "quotaRing_remaining": { "message": "{percent}% remaining" },
+  "quotaRing_weekly": { "message": "Weekly limit" },
+  "quotaRing_fiveHour": { "message": "5-hour limit" },
+  "quotaRing_window": { "message": "{hours}-hour limit" },
+  "quotaRing_review": { "message": "Code review" },
+  "quotaRing_additional": { "message": "Additional quota" },
+  "quotaRing_reset": { "message": "Resets {time}" },
+  "quotaRing_updated": { "message": "Updated {time}" },
+  "quotaRing_stale": { "message": "Last known usage · awaiting update" },
+  "quotaRing_credits": { "message": "Credits: {balance}" },
+  "quotaRing_unlimited": { "message": "Unlimited" },
+  "quotaRing_noPercentage": { "message": "No percentage limit reported" },
   "railToggle_description": {
     "message": "Adds a ◀ button next to the ChatGPT title in the sidebar that folds away the new left icon rail (home, history, avatar…). Click again to bring it back."
   },

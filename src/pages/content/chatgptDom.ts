@@ -250,6 +250,18 @@ export const APP_SHELL_LEFT_PANEL_SELECTOR = 'aside.app-shell-left-panel';
 export const APP_SHELL_PANEL_RESIZER_SELECTOR = `${APP_SHELL_LEFT_PANEL_SELECTOR} > div > [role='separator']`;
 /** The icon rail (home, history, library, …, help, avatar) left of the sidebar panel. */
 export const APP_SHELL_NAVIGATION_RAIL_SELECTOR = 'nav[data-app-navigation-rail]';
+
+/** Quota UI: reason/model control in the main composer, and rail avatar footer. */
+export const QUOTA_COMPOSER_ANCHOR_SELECTOR =
+  '[data-chatgpt-composer] [data-composer-navigation-target="reasoning"], form[data-type="unified-composer"] [data-composer-navigation-target="reasoning"]';
+export const QUOTA_RAIL_AVATAR_SELECTOR = `${APP_SHELL_NAVIGATION_RAIL_SELECTOR} button[aria-haspopup="menu"]`;
+
+export function isChatQuotaComposer(form: HTMLElement): boolean {
+  // Work composers expose project/plugin controls; Chat composers do not.
+  return !form.querySelector(
+    '[data-composer-navigation-target="workspace-project"], [data-composer-navigation-target="plugins"]',
+  );
+}
 /**
  * The rounded card behind the sidebar panel and the thread (an empty,
  * aria-hidden layer). It starts right of the rail, at the rail's width.

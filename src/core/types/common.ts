@@ -132,6 +132,7 @@ export const StorageKeys = {
   GV_SIDEBAR_FULL_HIDE: 'gvSidebarFullHide',
   // 2026-09 app shell: button that folds away the left icon rail (default on)
   GV_RAIL_TOGGLE_ENABLED: 'gvRailToggleEnabled',
+  GV_QUOTA_RING_ENABLED: 'gvQuotaRingEnabled',
   // Whether the icon rail is folded away (chrome.storage.local, per device)
   GV_RAIL_COLLAPSED: 'gvRailCollapsed',
 

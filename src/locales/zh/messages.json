@@ -1214,6 +1214,23 @@
   "railToggle_enable": {
     "message": "图标栏收起按钮"
   },
+  "quotaRing_enable": { "message": "显示额度圆环" },
+  "quotaRing_description": { "message": "在输入框和侧边栏显示 Codex / Work 额度。" },
+  "quotaRing_title": { "message": "Codex / Work 剩余额度" },
+  "quotaRing_chatNote": { "message": "（Chat 对话不消耗此额度）" },
+  "quotaRing_waiting": { "message": "等待额度更新" },
+  "quotaRing_remaining": { "message": "剩余 {percent}%" },
+  "quotaRing_weekly": { "message": "每周额度" },
+  "quotaRing_fiveHour": { "message": "5 小时额度" },
+  "quotaRing_window": { "message": "{hours} 小时额度" },
+  "quotaRing_review": { "message": "代码审查" },
+  "quotaRing_additional": { "message": "额外额度" },
+  "quotaRing_reset": { "message": "{time} 重置" },
+  "quotaRing_updated": { "message": "更新于 {time}" },
+  "quotaRing_stale": { "message": "上次额度 · 等待更新" },
+  "quotaRing_credits": { "message": "点数余额：{balance}" },
+  "quotaRing_unlimited": { "message": "不限额" },
+  "quotaRing_noPercentage": { "message": "未提供百分比额度" },
   "railToggle_description": {
     "message": "在侧边栏「ChatGPT」标题旁加一个 ◀ 按钮，一键收起左侧新增的图标栏（主页、历史、头像等），再点一下展开。"
   },

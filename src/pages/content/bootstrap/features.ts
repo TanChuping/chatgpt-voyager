@@ -18,6 +18,7 @@ export const BOOTSTRAP_SETTING_KEYS = [
   StorageKeys.EDIT_INPUT_WIDTH,
   StorageKeys.EDIT_INPUT_WIDTH_ENABLED,
   StorageKeys.GV_RAIL_TOGGLE_ENABLED,
+  StorageKeys.GV_QUOTA_RING_ENABLED,
   StorageKeys.GV_FOLDER_SPACING,
   StorageKeys.GV_FOLDER_ITEM_FONT_SIZE,
   StorageKeys.CTRL_ENTER_SEND,
@@ -213,6 +214,15 @@ export function createLazyFeatureDefinitions(
       load: async () => {
         const module = await import('../railToggle/index');
         return { start: module.startRailToggle, stop: module.stopRailToggle };
+      },
+    },
+    {
+      id: 'quota-ring',
+      initial: 'immediate',
+      isEnabled: (settings) => isDefaultTrue(settings, StorageKeys.GV_QUOTA_RING_ENABLED),
+      load: async () => {
+        const module = await import('../quotaRing/index');
+        return { start: module.startQuotaRing, stop: module.stopQuotaRing };
       },
     },
     {

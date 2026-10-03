@@ -17,6 +17,7 @@
  */
 import { installClipboardLatexFix } from './clipboardLatexFix';
 import { installFiberReader } from './fiberReader';
+import { createQuotaMirror } from './quotaMirror';
 import { installThreadMirror } from './threadMirror';
 
 // Match the bare conversation endpoint only — NOT sub-resources like
@@ -93,11 +94,20 @@ function dispatchCaptured(target: CaptureTarget, data: unknown, source: 'fetch' 
   (window as unknown as { __gvFetchHooked?: boolean }).__gvFetchHooked = true;
 
   const originalFetch = window.fetch.bind(window);
+  const quotaMirror = createQuotaMirror();
   window.fetch = async function gvHookedFetch(
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> {
-    const response = await originalFetch(input as RequestInfo, init);
+    const quotaTicket = quotaMirror.beforeFetch(input, init);
+    let response: Response;
+    try {
+      response = await originalFetch(input as RequestInfo, init);
+    } catch (error) {
+      quotaMirror.fetchFailed(quotaTicket);
+      throw error;
+    }
+    quotaMirror.afterFetch(quotaTicket, response);
     try {
       const url = typeof input === 'string' || input instanceof URL ? input : input.url;
       const target = extractTarget(url);

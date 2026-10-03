@@ -1,3 +1,4 @@
+import { StorageKeys } from '@/core/types/common';
 import {
   hasValidExtensionContext,
   isExtensionContextInvalidatedError,
@@ -182,6 +183,13 @@ function bootstrapContentScript(): void {
     storageRouter = createBootstrapStorageRouter({
       keys: BOOTSTRAP_SETTING_KEYS,
       onSnapshot: (settings) => {
+        window.postMessage(
+          {
+            __gvType: 'gv-quota-feature',
+            enabled: settings[StorageKeys.GV_QUOTA_RING_ENABLED] !== false,
+          },
+          location.origin,
+        );
         latestSettings = settings;
         releaseLazyWork();
       },

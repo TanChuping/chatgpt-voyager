@@ -327,6 +327,7 @@ export default function Popup() {
   const [editInputWidthEnabled, setEditInputWidthEnabled] = useState(false);
   const [editInputWidth, setEditInputWidth] = useState(EDIT_PERCENT.defaultValue);
   const [railToggleEnabled, setRailToggleEnabled] = useState(true);
+  const [quotaRingEnabled, setQuotaRingEnabled] = useState(true);
 
   const [ctrlEnterSend, setCtrlEnterSend] = useState(false);
   const [safariEnterFix, setSafariEnterFix] = useState(false);
@@ -480,6 +481,7 @@ export default function Popup() {
         [StorageKeys.EDIT_INPUT_WIDTH_ENABLED]: false,
         [StorageKeys.EDIT_INPUT_WIDTH]: EDIT_PERCENT.defaultValue,
         [StorageKeys.GV_RAIL_TOGGLE_ENABLED]: true,
+        [StorageKeys.GV_QUOTA_RING_ENABLED]: true,
         [StorageKeys.CTRL_ENTER_SEND]: false,
         [StorageKeys.SAFARI_ENTER_FIX]: false,
         [StorageKeys.INPUT_COLLAPSE_ENABLED]: false,
@@ -593,6 +595,7 @@ export default function Popup() {
           ),
         );
         setRailToggleEnabled(result[StorageKeys.GV_RAIL_TOGGLE_ENABLED] !== false);
+        setQuotaRingEnabled(result[StorageKeys.GV_QUOTA_RING_ENABLED] !== false);
         setCtrlEnterSend(result[StorageKeys.CTRL_ENTER_SEND] === true);
         setSafariEnterFix(result[StorageKeys.SAFARI_ENTER_FIX] === true);
         setInputCollapse(result[StorageKeys.INPUT_COLLAPSE_ENABLED] === true);
@@ -1092,6 +1095,15 @@ export default function Popup() {
             checked={railToggleEnabled}
             onChange={(value) =>
               updateToggle(setRailToggleEnabled, StorageKeys.GV_RAIL_TOGGLE_ENABLED, value)
+            }
+          />
+          <ToggleRow
+            id="quota-ring"
+            title={t('quotaRing_enable')}
+            description={t('quotaRing_description')}
+            checked={quotaRingEnabled}
+            onChange={(value) =>
+              updateToggle(setQuotaRingEnabled, StorageKeys.GV_QUOTA_RING_ENABLED, value)
             }
           />
         </Section>
