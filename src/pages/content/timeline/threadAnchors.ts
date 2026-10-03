@@ -15,6 +15,7 @@
  * The page-world mirror keeps its own copy of the attribute name (it must not
  * import anything — see the note in threadMirror.ts); keep the two in sync.
  */
+import { findActiveConversationRoot } from '../chatgptDom';
 
 export const THREAD_ANCHOR_ATTR = 'data-gv-thread-anchor';
 export const THREAD_ANCHOR_SELECTOR = `div[${THREAD_ANCHOR_ATTR}]`;
@@ -51,8 +52,12 @@ export function findThreadRow(anchor: Element): HTMLElement | null {
   const key = threadAnchorKey(anchor);
   if (!key) return null;
   try {
-    return document.querySelector<HTMLElement>(
-      `${THREAD_ROW_SELECTOR}[data-turn-key="${CSS.escape(key)}"]`,
+    const root =
+      anchor.closest('[data-app-shell-active-page="true"]') ?? findActiveConversationRoot();
+    return (
+      root?.querySelector<HTMLElement>(
+        `${THREAD_ROW_SELECTOR}[data-turn-key="${CSS.escape(key)}"]`,
+      ) ?? null
     );
   } catch {
     return null;

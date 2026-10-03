@@ -41,7 +41,7 @@ describe('Timeline bootstrap', () => {
     expect(initSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('reinitializes a blank bar after a live user turn appears', async () => {
+  it('refreshes the current manager when a live turn appears instead of restarting it', async () => {
     const managerModule = await import('../manager');
     vi.spyOn(managerModule.TimelineManager.prototype, 'destroy').mockImplementation(() => {});
     const initSpy = vi
@@ -53,11 +53,15 @@ describe('Timeline bootstrap', () => {
           document.body.appendChild(bar);
         }
       });
+    const refreshSpy = vi
+      .spyOn(managerModule.TimelineManager.prototype, 'refreshForThreadChange')
+      .mockImplementation(() => {});
     const { startTimeline } = await import('../index');
 
     startTimeline();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(initSpy).toHaveBeenCalledTimes(1);
+    refreshSpy.mockClear();
 
     const userTurn = document.createElement('section');
     userTurn.dataset.testid = 'conversation-turn-0';
@@ -65,7 +69,8 @@ describe('Timeline bootstrap', () => {
     document.querySelector('main')!.appendChild(userTurn);
 
     await new Promise((resolve) => setTimeout(resolve, 900));
-    expect(initSpy).toHaveBeenCalledTimes(2);
+    expect(initSpy).toHaveBeenCalledTimes(1);
+    expect(refreshSpy).toHaveBeenCalled();
   });
 
   it('stays mounted when beforeunload fires without a confirmed page exit', async () => {
@@ -86,5 +91,37 @@ describe('Timeline bootstrap', () => {
 
     expect(document.querySelector('.gpt-timeline-bar')).not.toBeNull();
     expect(destroySpy).not.toHaveBeenCalled();
+  });
+
+  it('retires A immediately and waits for B ownership before initializing its timeline', async () => {
+    const module = await import('../manager');
+    const init = vi.spyOn(module.TimelineManager.prototype, 'init').mockResolvedValue(undefined);
+    const destroy = vi
+      .spyOn(module.TimelineManager.prototype, 'destroy')
+      .mockImplementation(() => {});
+    vi.spyOn(module.TimelineManager.prototype, 'refreshForThreadChange').mockImplementation(
+      () => {},
+    );
+    history.replaceState({}, '', '/c/A');
+    document.body.innerHTML =
+      '<div data-app-shell-active-page="true"><main data-gv-thread-status="ready" data-gv-thread-conversation="A"></main></div>';
+    const { startTimeline } = await import('../index');
+    startTimeline();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(init).toHaveBeenCalledTimes(1);
+    history.replaceState({}, '', '/c/B');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(destroy).toHaveBeenCalledTimes(1);
+    expect(init).toHaveBeenCalledTimes(1);
+    const root = document.querySelector('main')!;
+    root.setAttribute('data-gv-thread-conversation', 'B');
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: location.origin,
+        data: { __gvType: 'gv-thread-updated', conversationId: 'B', ready: true },
+      }),
+    );
+    expect(init).toHaveBeenCalledTimes(2);
   });
 });

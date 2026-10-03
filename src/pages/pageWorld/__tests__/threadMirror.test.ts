@@ -58,6 +58,56 @@ const anchors = () => Array.from(document.querySelectorAll<HTMLElement>('[data-g
 describe('thread mirror (2026-09 virtualised thread)', () => {
   afterEach(() => {
     document.body.innerHTML = '';
+    document.body.removeAttribute('data-gv-thread-conversation');
+    document.body.removeAttribute('data-gv-thread-status');
+    history.replaceState({}, '', '/');
+  });
+
+  function ownedPage(id: string, key: string, active: boolean): HTMLElement {
+    const page = document.createElement('div');
+    page.setAttribute('data-app-shell-active-page', String(active));
+    const main = document.createElement('main');
+    page.appendChild(main);
+    document.body.appendChild(page);
+    const container = renderVirtualList([key], [0], [280], [entry(key, id)]);
+    main.appendChild(container);
+    const row = container.querySelector('[data-turn-key]')! as unknown as Fiber;
+    const rowFiber = row['__reactFiber$test'] as Fiber;
+    const list = (rowFiber.return as Fiber).return as Fiber;
+    list.return = { memoizedProps: { conversationId: id }, return: null };
+    return page;
+  }
+
+  it('ignores cached hidden conversations and follows reactivation without a page reload', () => {
+    history.replaceState({}, '', '/c/A');
+    const a = ownedPage('A', K1, true);
+    expect(syncThreadMirror()).toBe(1);
+    const b = ownedPage('B', K2, false);
+    a.setAttribute('data-app-shell-active-page', 'false');
+    b.setAttribute('data-app-shell-active-page', 'true');
+    history.replaceState({}, '', '/c/B');
+    expect(syncThreadMirror()).toBe(1);
+    expect(b.querySelector('[data-gv-thread-anchor]')!.getAttribute('data-gv-thread-anchor')).toBe(
+      K2,
+    );
+    expect(b.querySelector('main')!.getAttribute('data-gv-thread-conversation')).toBe('B');
+    b.setAttribute('data-app-shell-active-page', 'false');
+    a.setAttribute('data-app-shell-active-page', 'true');
+    history.replaceState({}, '', '/c/A');
+    expect(syncThreadMirror()).toBe(1);
+    expect(a.querySelector('[data-gv-thread-anchor]')!.getAttribute('data-gv-thread-anchor')).toBe(
+      K1,
+    );
+  });
+
+  it('clears stale anchors when the URL changes before React commits the new conversation', () => {
+    history.replaceState({}, '', '/c/A');
+    const a = ownedPage('A', K1, true);
+    syncThreadMirror();
+    history.replaceState({}, '', '/c/B');
+    expect(syncThreadMirror()).toBe(0);
+    expect(a.querySelector('[data-gv-thread-anchor]')).toBeNull();
+    expect(a.querySelector('main')!.getAttribute('data-gv-thread-status')).toBe('pending');
   });
 
   it('writes one positioned anchor per loaded exchange, mounted or not', () => {

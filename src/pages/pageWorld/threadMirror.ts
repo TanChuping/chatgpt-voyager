@@ -47,8 +47,8 @@ const THREAD_ANCHOR_ATTR = 'data-gv-thread-anchor';
 
 const LAYER_ATTR = 'data-gv-thread-anchor-layer';
 const TURN_KEY_SELECTOR = '[data-turn-key]';
-/** The list component sits ~5 fibers above a row; leave headroom for wrappers. */
-const MAX_CLIMB = 16;
+/** List ~5, owning conversation/loading state ~20 above a mounted row. */
+const MAX_CLIMB = 32;
 const MAX_HOOKS = 120;
 /** Enough for a dot tooltip / preview row; the full text lives in ChatGPT. */
 const MAX_TEXT = 4000;
@@ -67,6 +67,7 @@ interface ThreadList {
   entries: unknown[];
   layout: ThreadLayout;
   container: HTMLElement;
+  conversationId: string | null;
 }
 
 interface MirrorTurn {
@@ -120,22 +121,83 @@ function hostNodeOf(fiber: Dict): HTMLElement | null {
   return null;
 }
 
+/** Keep in sync with chatgptDom.findActiveConversationRoot; MAIN cannot import it. */
+function activeRoot(): HTMLElement | null {
+  const active = document.querySelector<HTMLElement>('[data-app-shell-active-page="true"]');
+  if (active) return active.querySelector<HTMLElement>('main') ?? active;
+  if (document.querySelector('[data-app-shell-active-page]')) return null;
+  for (const main of document.querySelectorAll<HTMLElement>('main')) {
+    let visible = true;
+    for (let node: HTMLElement | null = main; node; node = node.parentElement) {
+      if (
+        node.hidden ||
+        node.hasAttribute('inert') ||
+        node.getAttribute('aria-hidden') === 'true' ||
+        getComputedStyle(node).display === 'none'
+      ) {
+        visible = false;
+        break;
+      }
+    }
+    if (visible) return main;
+  }
+  return document.querySelector('main') ? null : document.body;
+}
+
+function routeConversationId(): string | null {
+  return location.pathname.match(/(?:^|\/)c\/([^/?#]+)/)?.[1] ?? null;
+}
+
+/** A DOM fiber may point into the previous React tree after a commit. */
+function committedFiberOf(row: Element): Dict | null {
+  const fiber = fiberOf(row);
+  let root = fiber;
+  for (let i = 0; root && i < 100; i++) {
+    const parent = asDict(root.return);
+    if (!parent) break;
+    root = parent;
+  }
+  const current = asDict(asDict(root?.stateNode)?.current);
+  return current && current !== root ? (asDict(fiber?.alternate) ?? fiber) : fiber;
+}
+
 function findThreadList(): ThreadList | null {
-  const row = document.querySelector(TURN_KEY_SELECTOR);
+  const root = activeRoot();
+  const row = root?.querySelector(TURN_KEY_SELECTOR);
   if (!row) return null;
-  let fiber = fiberOf(row);
+  let fiber = committedFiberOf(row);
+  let found: ThreadList | null = null;
+  let conversationId: string | null = null;
+  const expected = routeConversationId();
   for (let i = 0; fiber && i < MAX_CLIMB; i++) {
     const props = asDict(fiber.memoizedProps);
-    if (props && Array.isArray(props.entries)) {
+    if (
+      props?.isConversationLoading === true ||
+      (expected &&
+        typeof props?.scrollStateConversationId === 'string' &&
+        props.scrollStateConversationId !== expected)
+    )
+      return null;
+    if (typeof props?.conversationId === 'string') conversationId ??= props.conversationId;
+    if (!found && props && Array.isArray(props.entries)) {
       const layout = readLayout(fiber);
       const container = layout ? hostNodeOf(fiber) : null;
-      if (layout && container?.contains(row)) {
-        return { entries: props.entries, layout, container };
+      if (
+        layout &&
+        container?.contains(row) &&
+        layout.turnKeys.includes(row.getAttribute('data-turn-key') ?? '')
+      ) {
+        found = { entries: props.entries, layout, container, conversationId: null };
       }
     }
     fiber = asDict(fiber.return);
   }
-  return null;
+  if (!found) return null;
+  if (conversationId && expected && conversationId !== expected) return null;
+  // In the app shell a retained tree must prove which conversation it belongs to.
+  if (root?.closest('[data-app-shell-active-page]') && expected && !conversationId) return null;
+  found.conversationId = conversationId ?? expected;
+  return found;
 }
 
 function attachmentNames(item: Dict): string[] {
@@ -251,18 +313,72 @@ function writeAnchors(container: HTMLElement, turns: MirrorTurn[]): void {
 // unchanged identities mean there is nothing to rewrite — this keeps a sync
 // triggered by unrelated mutations (streaming text, hover styles) near-free.
 let lastInputs: unknown[] = [];
+let lastPublishedRoot: HTMLElement | null = null;
+let lastPublishedConversation: string | null = null;
+let lastPublishedReady = false;
+
+function publishThread(
+  root: HTMLElement | null,
+  conversationId: string | null,
+  ready: boolean,
+  changed = false,
+): void {
+  if (root) {
+    setAttr(root, 'data-gv-thread-conversation', conversationId);
+    setAttr(root, 'data-gv-thread-status', ready ? 'ready' : 'pending');
+  }
+  if (
+    !changed &&
+    root === lastPublishedRoot &&
+    conversationId === lastPublishedConversation &&
+    ready === lastPublishedReady
+  )
+    return;
+  lastPublishedRoot = root;
+  lastPublishedConversation = conversationId;
+  lastPublishedReady = ready;
+  window.postMessage({ __gvType: 'gv-thread-updated', conversationId, ready }, location.origin);
+}
 
 /** One mirror pass; returns the number of exchanges mirrored. Exported for tests. */
 export function syncThreadMirror(): number {
+  const root = activeRoot();
+  const expected = routeConversationId();
   const list = findThreadList();
-  if (!list) return 0;
+  if (!list) {
+    // Retain known anchors during virtualization of the SAME thread, but never
+    // label the previous conversation's cached layer with the new route.
+    if (
+      !root?.querySelector(TURN_KEY_SELECTOR) &&
+      root?.getAttribute('data-gv-thread-conversation') === expected &&
+      root.getAttribute('data-gv-thread-status') === 'ready'
+    )
+      return root.querySelectorAll(`[${THREAD_ANCHOR_ATTR}]`).length;
+    root?.querySelectorAll(`[${LAYER_ATTR}]`).forEach((layer) => layer.remove());
+    lastInputs = [];
+    publishThread(root, expected, false);
+    return 0;
+  }
   const { layout, entries, container } = list;
-  const inputs = [container, entries, layout.turnKeys, layout.topOffsetsPx, layout.heightsPx];
+  const inputs = [
+    root,
+    list.conversationId,
+    container,
+    entries,
+    layout.turnKeys,
+    layout.topOffsetsPx,
+    layout.heightsPx,
+  ];
   const layerPresent = !!container.querySelector(`:scope > [${LAYER_ATTR}]`);
-  if (layerPresent && inputs.every((v, i) => v === lastInputs[i])) return layout.turnKeys.length;
+  if (layerPresent && inputs.every((v, i) => v === lastInputs[i])) {
+    publishThread(root, list.conversationId, true);
+    return layout.turnKeys.length;
+  }
   const turns = readTurns(list);
   writeAnchors(container, turns);
+  setAttr(ensureLayer(container), 'data-gv-thread-conversation', list.conversationId);
   lastInputs = inputs;
+  publishThread(root, list.conversationId, true, true);
   return turns.length;
 }
 
@@ -304,7 +420,7 @@ export function installThreadMirror(): void {
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ['style', 'data-turn-key'],
+        attributeFilter: ['style', 'data-turn-key', 'data-app-shell-active-page'],
       });
     } catch {
       /* ignore */

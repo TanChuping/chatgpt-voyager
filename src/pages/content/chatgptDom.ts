@@ -2,6 +2,30 @@ import { CONVERSATION_ROW_SELECTOR, conversationTitleFromRow } from './shared/do
 
 const CONVERSATION_LINK_SELECTOR = 'a[href*="/c/"]';
 
+/** ChatGPT keeps cached pages mounted. Only the active page owns live turns. */
+export function findActiveConversationRoot(): HTMLElement | null {
+  const active = document.querySelector<HTMLElement>('[data-app-shell-active-page="true"]');
+  if (active) return active.querySelector<HTMLElement>('main') ?? active;
+  if (document.querySelector('[data-app-shell-active-page]')) return null;
+  // Pre-app-shell layouts: hidden/inert mains are never candidates.
+  for (const main of document.querySelectorAll<HTMLElement>('main')) {
+    let visible = true;
+    for (let node: HTMLElement | null = main; node; node = node.parentElement) {
+      if (
+        node.hidden ||
+        node.hasAttribute('inert') ||
+        node.getAttribute('aria-hidden') === 'true' ||
+        getComputedStyle(node).display === 'none'
+      ) {
+        visible = false;
+        break;
+      }
+    }
+    if (visible) return main;
+  }
+  return document.querySelector('main') ? null : document.body;
+}
+
 /** Current ChatGPT primitives. Legacy Angular selectors live only in the
  * compatibility branches of the features that still need to parse them. */
 export const CHATGPT_MENU_SELECTOR =

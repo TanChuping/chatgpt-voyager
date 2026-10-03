@@ -23,6 +23,7 @@ import { getConversationCaptureService } from '@/features/conversationApi/Conver
 
 import { getTranslationSync, initI18n } from '../../../utils/i18n';
 import {
+  findActiveConversationRoot,
   getChatGptConversationElements,
   getChatGptConversationId,
   getChatGptConversationTitle,
@@ -133,6 +134,7 @@ type ExtGlobal = typeof globalThis & {
 
 interface TimelineManagerOptions {
   previousUrl?: string | null;
+  conversationUrl?: string;
 }
 
 interface TimelineTextPin {
@@ -315,7 +317,6 @@ export class TimelineManager {
   private resizeIdleDelay = 140;
   private resizeIdleRICId: number | null = null;
   private onVisualViewportResize: (() => void) | null = null;
-  private zeroTurnsTimer: number | null = null;
   private onChromeStorageChanged:
     | ((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void)
     | null = null;
@@ -411,21 +412,37 @@ export class TimelineManager {
     );
   }
 
+  private isCurrentContext(): boolean {
+    return (
+      !this.destroyed &&
+      (!this.options.conversationUrl ||
+        buildConversationIdFromUrl(this.options.conversationUrl) ===
+          buildConversationIdFromUrl(location.href))
+    );
+  }
+
+  /** Native thread commits/re-measurements, without destroying a healthy manager. */
+  refreshForThreadChange(): void {
+    if (!this.isCurrentContext()) return;
+    this.refreshCriticalElementsFromDocument();
+    this.recalculateAndRenderMarkers();
+  }
+
   async init(): Promise<void> {
     await initI18n();
-    if (this.destroyed) return;
+    if (!this.isCurrentContext()) return;
     this.purgeLegacyLocalStorageKeys();
     const ok = await this.findCriticalElements();
     // A fast conversation switch may have destroyed us during the (up to 4s)
     // findCriticalElements await — bail before injecting orphaned DOM.
-    if (!ok || this.destroyed) return;
+    if (!ok || !this.isCurrentContext()) return;
     this.injectTimelineUI();
     this.setupEventListeners();
     this.setupObservers();
     this.conversationId = this.computeConversationId();
     this.turnTextCache.setConversation(this.conversationId);
     await this.turnTextCache.hydrate();
-    if (this.destroyed) return;
+    if (!this.isCurrentContext()) return;
     // Subscribe the turn-text cache to live API captures (page-world hook).
     // Idempotent: install once per manager instance.
     if (!this.cachePrimerInstalled) {
@@ -441,9 +458,12 @@ export class TimelineManager {
         console.warn('[GPT-Voyager] cache primer install failed', err);
       }
     }
-    // Fallback for conversations opened from client cache (no network capture):
-    // ask the page-world fiber reader to fill any unmounted-turn cache misses.
-    if (!this.fiberFallback) {
+    // Legacy layouts need a broad fiber fallback. The app shell has a scoped
+    // thread mirror; walking the entire React root would mix cached pages.
+    if (
+      !this.fiberFallback &&
+      !this.conversationContainer?.closest('[data-app-shell-active-page]')
+    ) {
       try {
         this.fiberFallback = installFiberFallbackForManager(this.turnTextCache, {
           getConversationId: () => this.turnTextCache.getConversationId(),
@@ -455,16 +475,21 @@ export class TimelineManager {
       }
     }
     await this.loadTextPins();
-    if (this.destroyed) return;
+    if (!this.isCurrentContext()) return;
     await this.loadStars();
-    if (this.destroyed) return;
+    if (!this.isCurrentContext()) return;
     await this.syncStarredFromService();
+    if (!this.isCurrentContext()) return;
     await this.loadTimelineHierarchyStorageContext();
+    if (!this.isCurrentContext()) return;
     await this.loadTimelineHierarchyFromExtensionStorage();
+    if (!this.isCurrentContext()) return;
     // Initialize timestamp service
     this.timestampService = new TimestampService();
     await this.timestampService.initialize();
+    if (!this.isCurrentContext()) return;
     await this.loadMessageTimestampsEnabledSetting();
+    if (!this.isCurrentContext()) return;
     // Ensure initial render even when ChatGPT's DOM is already stable.
     this.recalculateAndRenderMarkers();
     this.startScrollPositionPoller();
@@ -481,6 +506,7 @@ export class TimelineManager {
     window.addEventListener('hashchange', this.onGvTurnHashChange);
     // Initialize keyboard shortcuts
     await this.initKeyboardShortcuts();
+    if (!this.isCurrentContext()) return;
     try {
       const g = globalThis as ExtGlobal;
       const defaults = {
@@ -530,6 +556,7 @@ export class TimelineManager {
         }
       }
 
+      if (!this.isCurrentContext()) return;
       const m = res?.[StorageKeys.TIMELINE_SCROLL_MODE];
       if (m === 'flow' || m === 'jump') this.scrollMode = m;
       this.hideContainer = !!res?.[StorageKeys.TIMELINE_HIDE_CONTAINER];
@@ -781,15 +808,15 @@ export class TimelineManager {
   }
 
   private computeConversationId(): string {
-    return buildConversationIdFromUrl(window.location.href);
+    return buildConversationIdFromUrl(this.options.conversationUrl ?? window.location.href);
   }
 
   private computeLegacyConversationId(): string {
-    return buildLegacyConversationIdFromUrl(window.location.href);
+    return buildLegacyConversationIdFromUrl(this.options.conversationUrl ?? window.location.href);
   }
 
   private computeRouteConversationId(): string {
-    return buildRouteConversationIdFromUrl(window.location.href);
+    return buildRouteConversationIdFromUrl(this.options.conversationUrl ?? window.location.href);
   }
 
   /**
@@ -1033,13 +1060,13 @@ export class TimelineManager {
   ): Promise<{ element: Element; selector: string } | null> {
     return new Promise((resolve) => {
       for (const selector of selectors) {
-        const found = document.querySelector(selector);
+        const found = findActiveConversationRoot()?.querySelector(selector);
         if (found) return resolve({ element: found, selector });
       }
 
       const obs = new MutationObserver(() => {
         for (const selector of selectors) {
-          const el = document.querySelector(selector);
+          const el = findActiveConversationRoot()?.querySelector(selector);
           if (el) {
             try {
               obs.disconnect();
@@ -1115,7 +1142,15 @@ export class TimelineManager {
     }
     let firstTurn: Element | null = null;
     let matchedSelector = '';
-    const found = await this.waitForAnyElement(candidates, 4000);
+    const active = findActiveConversationRoot();
+    const appShell = active?.closest('[data-app-shell-active-page]');
+    // The app shell already exposes its current root; bind immediately and let
+    // native thread commits populate it, rather than waiting a fixed timeout.
+    const found = appShell
+      ? (candidates
+          .map((selector) => ({ selector, element: active!.querySelector(selector) }))
+          .find((candidate) => candidate.element) ?? null)
+      : await this.waitForAnyElement(candidates, 4000);
     if (found) {
       firstTurn = found.element;
       matchedSelector = found.selector;
@@ -1127,8 +1162,7 @@ export class TimelineManager {
       this.userTurnSelector = withUserTurnAnchors(matchedSelector);
     }
     if (!firstTurn) {
-      this.conversationContainer =
-        (document.querySelector('main') as HTMLElement) || (document.body as HTMLElement);
+      this.conversationContainer = findActiveConversationRoot();
       this.userTurnSelector = defaultCandidates.join(',');
     } else {
       // Scope selection/observers:
@@ -1146,8 +1180,7 @@ export class TimelineManager {
         looksAngularUserQuery ||
         looksChatGptUserMessage
       ) {
-        this.conversationContainer =
-          (document.querySelector('main') as HTMLElement) || (document.body as HTMLElement);
+        this.conversationContainer = findActiveConversationRoot();
       } else {
         const parent = firstTurn.parentElement as HTMLElement | null;
         if (!parent) return false;
@@ -1166,6 +1199,7 @@ export class TimelineManager {
         } catch {}
       }
     }
+    if (!this.conversationContainer) return false;
     let p: HTMLElement | null = (firstTurn as HTMLElement) || this.conversationContainer;
     while (p && p !== document.body) {
       const st = getComputedStyle(p);
@@ -1420,6 +1454,24 @@ export class TimelineManager {
    */
   private queryUserTurns(root: ParentNode = this.conversationContainer ?? document): Element[] {
     if (!this.userTurnSelector) return [];
+    const active = findActiveConversationRoot();
+    if (
+      active &&
+      (root === document ||
+        root === document.body ||
+        (root instanceof Element && root.contains(active)))
+    )
+      root = active;
+    if (root instanceof Element && root.closest('[data-app-shell-active-page="false"]')) return [];
+    if (active?.closest('[data-app-shell-active-page]')) {
+      const expected = extractConversationIdFromUrl(location.href);
+      const owner = active.getAttribute('data-gv-thread-conversation');
+      if (
+        active.getAttribute('data-gv-thread-status') === 'pending' ||
+        (owner && owner !== expected)
+      )
+        return [];
+    }
     const anchors = root.querySelectorAll(THREAD_ANCHOR_SELECTOR);
     if (anchors.length > 0) return Array.from(anchors);
     return Array.from(root.querySelectorAll(this.userTurnSelector));
@@ -2100,6 +2152,7 @@ export class TimelineManager {
   }
 
   private recalculateAndRenderMarkers = (): void => {
+    if (!this.isCurrentContext()) return;
     if (this.shouldDeferMarkerRecalculation()) {
       this.scheduleDeferredMarkerRecalculation();
       return;
@@ -2132,18 +2185,7 @@ export class TimelineManager {
     }
     if (userTurnNodeList.length === 0) {
       this.updateTimestampTracking([]);
-      if (!this.zeroTurnsTimer) {
-        // Optimized retry interval: reduced from 350ms to 200ms
-        this.zeroTurnsTimer = window.setTimeout(() => {
-          this.zeroTurnsTimer = null;
-          this.recalculateAndRenderMarkers();
-        }, 200);
-      }
       return;
-    }
-    if (this.zeroTurnsTimer) {
-      clearTimeout(this.zeroTurnsTimer);
-      this.zeroTurnsTimer = null;
     }
 
     // Build map of existing dots by turn ID for reuse (prevents hover/click disruption)
@@ -6402,8 +6444,8 @@ export class TimelineManager {
     const firstTurn = (this.queryUserTurns(document)[0] as HTMLElement | undefined) ?? null;
     if (!firstTurn) return false;
 
-    const nextConversationContainer =
-      (document.querySelector('main') as HTMLElement | null) || (document.body as HTMLElement);
+    const nextConversationContainer = findActiveConversationRoot();
+    if (!nextConversationContainer) return false;
     this.conversationContainer = nextConversationContainer;
 
     const nextScrollContainer = this.getScrollContainerForElement(firstTurn);
@@ -6737,12 +6779,6 @@ export class TimelineManager {
         window.clearTimeout(this.deferredMarkerRecalcTimerId);
       } catch {}
       this.deferredMarkerRecalcTimerId = null;
-    }
-    if (this.zeroTurnsTimer !== null) {
-      try {
-        window.clearTimeout(this.zeroTurnsTimer);
-      } catch {}
-      this.zeroTurnsTimer = null;
     }
     if (this.pendingMarkerOrderTimerId !== null) {
       try {
