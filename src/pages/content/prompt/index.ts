@@ -56,6 +56,7 @@ import { extractPlainTitle } from './compactTitle';
 import { parsePromptImportPayload } from './importPayload';
 import { keepPromptManagerMounted } from './mountGuard';
 import { activatePromptText } from './promptClickAction';
+import { type PromptItem, savePrompt } from './savePrompt';
 import { getScrollHintState } from './scrollHint';
 
 /**
@@ -132,20 +133,6 @@ async function jumpToStarredCrossConversation(message: StarredMessage): Promise<
     });
   }
 }
-
-type PromptItem = {
-  id: string;
-  text: string;
-  tags: string[];
-  createdAt: number;
-  updatedAt?: number;
-  /**
-   * Optional user-authored label used as the headline in compact list view.
-   * Falls back to `extractPlainTitle(text)` when absent so existing prompts
-   * render without any migration. Introduced for issue #586 feedback item 4c.
-   */
-  name?: string;
-};
 
 type PanelPosition = { top: number; left: number };
 type TriggerPosition = { bottom: number; right: number };
@@ -2136,37 +2123,23 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       const tagsRaw = (addForm.querySelector('.gv-pm-input-tags') as HTMLInputElement).value;
       const tags = dedupeTags((tagsRaw || '').split(',').map((s) => s.trim()));
       if (!text.trim()) return;
-      if (editingId) {
-        const dup = items.some(
-          (x) => x.id !== editingId && x.text.trim().toLowerCase() === text.trim().toLowerCase(),
+      const target = editingId ? items.find((item) => item.id === editingId) : undefined;
+      const candidate: PromptItem = target
+        ? { ...target, text, tags, updatedAt: Date.now() }
+        : { id: uid(), text, tags, createdAt: Date.now() };
+      if (name) candidate.name = name;
+      else delete candidate.name;
+      const result = await savePrompt(items, candidate, editingId);
+      if (result.status !== 'saved') {
+        setInlineHint(
+          i18n.t(result.status === 'duplicate' ? 'pm_duplicate' : 'pm_save_failed'),
+          'err',
         );
-        if (dup) {
-          setInlineHint(i18n.t('pm_duplicate') || 'Duplicate prompt', 'err');
-          return;
-        }
-        const target = items.find((x) => x.id === editingId);
-        if (target) {
-          target.text = text;
-          target.tags = tags;
-          if (name) target.name = name;
-          else delete target.name;
-          target.updatedAt = Date.now();
-          await writeStorage(STORAGE_KEYS.items, items);
-          setNotice(i18n.t('pm_saved') || 'Saved', 'ok');
-        }
-        editingId = null;
-      } else {
-        // prevent duplicates (case-insensitive, same text)
-        const exists = items.some((x) => x.text.trim().toLowerCase() === text.trim().toLowerCase());
-        if (exists) {
-          setInlineHint(i18n.t('pm_duplicate') || 'Duplicate prompt', 'err');
-          return;
-        }
-        const it: PromptItem = { id: uid(), text, tags, createdAt: Date.now() };
-        if (name) it.name = name;
-        items = [it, ...items];
-        await writeStorage(STORAGE_KEYS.items, items);
+        return;
       }
+      items = result.items;
+      editingId = null;
+      setNotice(i18n.t('pm_saved') || 'Saved', 'ok');
       (addForm.querySelector('.gv-pm-input-name') as HTMLInputElement).value = '';
       (addForm.querySelector('.gv-pm-input-text') as HTMLTextAreaElement).value = '';
       (addForm.querySelector('.gv-pm-input-tags') as HTMLInputElement).value = '';

@@ -5,6 +5,8 @@ import {
   threadMessageOrder,
 } from '@/features/singleConvExport/liveSnapshot';
 
+import { findActiveConversationScrollContainer } from '../chatgptDom';
+
 const DEFAULT_MAX_STEPS = 180;
 const DEFAULT_SETTLE_DELAY_MS = 140;
 const STABLE_TOP_PASSES = 2;
@@ -63,28 +65,8 @@ function scrollBounds(container: HTMLElement): { top: number; bottom: number } {
   return reversed ? { top: -range, bottom: 0 } : { top: 0, bottom: range };
 }
 
-function isScrollable(element: HTMLElement): boolean {
-  if (element.scrollHeight <= element.clientHeight + 80) return false;
-  const overflowY = getComputedStyle(element).overflowY;
-  return overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
-}
-
 export function findConversationScrollContainer(): HTMLElement | null {
-  const message = document.querySelector<HTMLElement>(
-    '[data-message-id][data-message-author-role]',
-  );
-  let parent = message?.parentElement ?? null;
-  while (parent && parent !== document.body) {
-    if (isScrollable(parent)) return parent;
-    parent = parent.parentElement;
-  }
-
-  const candidates = Array.from(
-    document.querySelectorAll<HTMLElement>(
-      'main, [data-testid="conversation-turns"], [class*="scroll"], [class*="overflow-y-auto"]',
-    ),
-  );
-  return candidates.find(isScrollable) ?? (document.scrollingElement as HTMLElement | null);
+  return findActiveConversationScrollContainer();
 }
 
 function mergeCollected(
@@ -116,7 +98,7 @@ export async function hydrateConversationHistory(
   if (!container) {
     return {
       messages: Array.from(collected.values()).sort((a, b) => a.order - b.order),
-      reachedTop: true,
+      reachedTop: collected.size > 0 && !options.isComplete,
     };
   }
 
@@ -139,13 +121,9 @@ export async function hydrateConversationHistory(
       await wait(options.topSettleDelayMs ?? DEFAULT_TOP_SETTLE_DELAY_MS);
       const count = mergeCollected(collected, collect());
       options.onProgress?.({ discovered: count, step: pass + 1 });
-      const height = container.scrollHeight;
-      if (count === previousCount && height === previousHeight) stableTopPasses += 1;
-      else stableTopPasses = 0;
-      previousCount = count;
-      previousHeight = height;
-      // Nothing new for a while at the very top: ChatGPT has no more pages.
-      if (stableTopPasses >= STABLE_TOP_PASSES + 2) break;
+      // A stable viewport can still have an older page in flight. Only the
+      // captured has_previous_page=false proves paginated history is complete;
+      // keep following the growing top until that signal or the pass budget.
     }
     if (options.isComplete()) reachedTop = true;
   }

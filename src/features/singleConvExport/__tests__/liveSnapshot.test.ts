@@ -4,8 +4,33 @@ import type { LinearConversation, LinearMessage } from '../../conversationApi/ty
 import {
   collectLiveConversationMessages,
   mergeLiveConversationMessages,
+  readThreadTurnOrder,
   reconcileExportTail,
 } from '../liveSnapshot';
+
+it('collects messages and their order only from the active app-shell page', () => {
+  document.body.innerHTML = `
+    <div data-app-shell-active-page="false" style="display:none"><main>
+      <div data-gv-thread-anchor="old"></div>
+      <div data-message-id="old" data-message-author-role="user">Old chat</div>
+    </main></div>
+    <div data-app-shell-active-page="true"><main>
+      <div data-gv-thread-anchor="current"></div>
+      <div data-message-id="current" data-message-author-role="user">Current chat</div>
+    </main></div>`;
+  expect(collectLiveConversationMessages().map((live) => live.message.messageId)).toEqual([
+    'current',
+  ]);
+  expect([...readThreadTurnOrder().keys()]).toEqual(['current']);
+  document.body.innerHTML = '';
+});
+
+it('does not collect a cached chat while no app-shell page is active', () => {
+  document.body.innerHTML =
+    '<div data-app-shell-active-page="false"><main><div data-message-id="old" data-message-author-role="user">Old chat</div></main></div>';
+  expect(collectLiveConversationMessages()).toEqual([]);
+  document.body.innerHTML = '';
+});
 
 function message(id: string, role: 'user' | 'assistant', text: string): LinearMessage {
   return {

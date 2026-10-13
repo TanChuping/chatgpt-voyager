@@ -3,7 +3,11 @@
  * Mapping-walk strategy adapted from pionxzh/chatgpt-exporter (MIT).
  * https://github.com/pionxzh/chatgpt-exporter
  */
-import { walkMapping, walkMessagesPage } from './conversationParser';
+import {
+  hasCompleteConversationMapping,
+  walkMapping,
+  walkMessagesPage,
+} from './conversationParser';
 import type {
   ApiConversation,
   ApiConversationPage,
@@ -161,7 +165,7 @@ export class ConversationCaptureService {
       return null;
     }
     this.paged.delete(convId);
-    return this.commit(convId, api, linear, true);
+    return this.commit(convId, api, linear, hasCompleteConversationMapping(api));
   }
 
   private ingestPage(

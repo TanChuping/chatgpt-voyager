@@ -207,7 +207,10 @@
     "message": "Imported {count} prompts"
   },
   "pm_duplicate": {
-    "message": "Duplicate prompt"
+    "message": "该提示词正文已存在，请编辑已有条目。"
+  },
+  "pm_save_failed": {
+    "message": "保存失败，内容已保留。请检查扩展存储空间后重试。"
   },
   "pm_deleted": {
     "message": "Deleted"
@@ -222,7 +225,7 @@
     "message": "Collapse"
   },
   "pm_saved": {
-    "message": "Saved"
+    "message": "已保存"
   },
   "pm_settings": {
     "message": "设置"

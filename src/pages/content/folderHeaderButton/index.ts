@@ -3,8 +3,8 @@
  *
  * The folder shortcut is the Issue #8 compatibility entry point; beside it
  * sits a read-only title of the current conversation, kept in sync with
- * ChatGPT's native title sources. The Issue #9 rename shortcut was removed in
- * 1.8.15 because ChatGPT's own "…" conversation menu already covers rename.
+ * ChatGPT's native title sources. Rename delegates to the native conversation
+ * menu, so ChatGPT owns the dialog, title update and persistence.
  */
 import { getTranslationSync } from '@/utils/i18n';
 
@@ -17,17 +17,28 @@ import {
 } from '../chatgptDom';
 import { createFolderSvgIcon } from '../folder/folderIcon';
 import type { FolderManager } from '../folder/manager';
+import {
+  findRenameConversationMenuItem,
+  isNativeConversationMenuBoundToTrigger,
+} from '../folder/nativeConversationBridge';
 import { buildClonedButtonClassName } from '../shared/clonedButtonClass';
-import { findActivePageHeader, findHeaderLeftSlot } from '../shared/headerActionSlot';
+import {
+  PAGE_HEADER_SELECTOR,
+  findActivePageHeader,
+  findHeaderLeftSlot,
+} from '../shared/headerActionSlot';
 
 const FOLDER_TAG = 'data-gv-folder-header-btn';
 const TITLE_TAG = 'data-gv-conversation-title-header';
+const RENAME_TAG = 'data-gv-conversation-rename-header-btn';
 const INJECT_DEBOUNCE_MS = 50;
 
 let lifecycleGeneration = 0;
 let activeGeneration: number | null = null;
 let injectedFolderButton: HTMLButtonElement | null = null;
 let injectedTitle: HTMLSpanElement | null = null;
+let injectedRenameButton: HTMLButtonElement | null = null;
+let stopPendingRename: (() => void) | null = null;
 let folderManager: FolderManager | null = null;
 let observer: MutationObserver | null = null;
 let titleObserver: MutationObserver | null = null;
@@ -51,10 +62,85 @@ function isConversationPage(): boolean {
 }
 
 function removeTrackedButtons(): void {
+  stopPendingRename?.();
   injectedFolderButton?.remove();
   injectedTitle?.remove();
+  injectedRenameButton?.remove();
   injectedFolderButton = null;
   injectedTitle = null;
+  injectedRenameButton = null;
+}
+
+function openNativeRename(generation: number): void {
+  stopPendingRename?.();
+  const conversationId = getCurrentConversationId();
+  const trigger = findActivePageHeader()?.querySelector<HTMLElement>(
+    '[data-testid="conversation-options-button"]',
+  );
+  if (!trigger || !conversationId) return;
+  const menuObserver = new MutationObserver(activate);
+  const timeout = window.setTimeout(cleanup, 2000);
+  function cleanup(): void {
+    menuObserver.disconnect();
+    window.clearTimeout(timeout);
+    stopPendingRename = null;
+  }
+  function activate(): boolean {
+    if (
+      !isActiveGeneration(generation) ||
+      getCurrentConversationId() !== conversationId ||
+      !trigger?.isConnected
+    ) {
+      cleanup();
+      return false;
+    }
+    const menu = Array.from(document.querySelectorAll<HTMLElement>('[role="menu"]')).find(
+      (candidate) => isNativeConversationMenuBoundToTrigger(candidate, trigger),
+    );
+    const rename = menu && findRenameConversationMenuItem(menu);
+    if (!rename) return false;
+    cleanup();
+    rename.click();
+    return true;
+  }
+  stopPendingRename = cleanup;
+  if (activate()) return;
+  menuObserver.observe(document.body, { childList: true, subtree: true });
+  // Radix opens on pointerdown. Preserve its own rename dialog and save flow.
+  const Pointer = window.PointerEvent ?? MouseEvent;
+  trigger.dispatchEvent(
+    new Pointer('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      buttons: 1,
+      pointerType: 'mouse',
+    }),
+  );
+  trigger.dispatchEvent(
+    new Pointer('pointerup', { bubbles: true, button: 0, pointerType: 'mouse' }),
+  );
+  activate();
+}
+
+function createRenameIcon(): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  for (const [key, value] of Object.entries({
+    width: '20',
+    height: '20',
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '1.8',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'aria-hidden': 'true',
+  }))
+    svg.setAttribute(key, value);
+  const path = document.createElementNS(svg.namespaceURI, 'path');
+  path.setAttribute('d', 'm16 3 5 5-13 13-5 1 1-5L16 3z M14 5l5 5');
+  svg.appendChild(path);
+  return svg;
 }
 
 function normalizeTitle(value: string | null | undefined): string | null {
@@ -153,13 +239,15 @@ function injectIfNeeded(generation: number): void {
 
   if (injectedFolderButton && !injectedFolderButton.isConnected) injectedFolderButton = null;
   if (injectedTitle && !injectedTitle.isConnected) injectedTitle = null;
+  if (injectedRenameButton && !injectedRenameButton.isConnected) injectedRenameButton = null;
 
   const slot = findHeaderLeftSlot();
   if (!slot) return;
   const { parent: host, before, styleSource } = slot;
   if (
     (injectedFolderButton && injectedFolderButton.parentElement !== host) ||
-    (injectedTitle && injectedTitle.parentElement !== host)
+    (injectedTitle && injectedTitle.parentElement !== host) ||
+    (injectedRenameButton && injectedRenameButton.parentElement !== host)
   ) {
     removeTrackedButtons();
   }
@@ -188,6 +276,23 @@ function injectIfNeeded(generation: number): void {
   if (!injectedTitle) {
     injectedTitle = createHeaderTitle();
     host.insertBefore(injectedTitle, before);
+  }
+  injectedRenameButton =
+    host.querySelector<HTMLButtonElement>(`[${RENAME_TAG}]`) || injectedRenameButton;
+  if (!injectedRenameButton) {
+    injectedRenameButton = createHeaderButton(
+      styleSource,
+      'gv-conversation-rename-header-btn',
+      RENAME_TAG,
+      getTranslationSync('conversation_rename'),
+      createRenameIcon(),
+    );
+    injectedRenameButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (isActiveGeneration(generation)) openNativeRename(generation);
+    });
+    host.insertBefore(injectedRenameButton, injectedTitle);
   }
   refreshInjectedTitle();
   bindNativeTitleObserver(generation);
@@ -234,19 +339,20 @@ function nodeTouchesHeader(
     return true;
   }
   return (
-    element.matches('header#page-header') ||
-    element.closest('header#page-header') !== null ||
-    (includeDescendants && element.querySelector('header#page-header') !== null)
+    element.matches(PAGE_HEADER_SELECTOR) ||
+    element.closest(PAGE_HEADER_SELECTOR) !== null ||
+    (includeDescendants && element.querySelector(PAGE_HEADER_SELECTOR) !== null)
   );
 }
 
 function mutationsMayAffectHeader(records: MutationRecord[]): boolean {
   const trackedButtonInvalid =
     (injectedFolderButton && !injectedFolderButton.isConnected) ||
-    (injectedTitle && !injectedTitle.isConnected);
+    (injectedTitle && !injectedTitle.isConnected) ||
+    (injectedRenameButton && !injectedRenameButton.isConnected);
   const knownHeader =
-    injectedFolderButton?.closest<HTMLElement>('header#page-header') ||
-    injectedTitle?.closest<HTMLElement>('header#page-header') ||
+    injectedFolderButton?.closest<HTMLElement>(PAGE_HEADER_SELECTOR) ||
+    injectedTitle?.closest<HTMLElement>(PAGE_HEADER_SELECTOR) ||
     null;
   const recordsTouchHeader = records.some(
     (record) =>
@@ -264,14 +370,14 @@ function mutationsMayAffectHeader(records: MutationRecord[]): boolean {
   if (
     !header ||
     trackedButtonInvalid ||
-    (injectedFolderButton && injectedFolderButton.closest('header#page-header') !== header) ||
-    (injectedTitle && injectedTitle.closest('header#page-header') !== header)
+    (injectedFolderButton && injectedFolderButton.closest(PAGE_HEADER_SELECTOR) !== header) ||
+    (injectedTitle && injectedTitle.closest(PAGE_HEADER_SELECTOR) !== header)
   ) {
     return true;
   }
 
   return records.some((record) => {
-    if (record.target instanceof Element && record.target.matches('header#page-header'))
+    if (record.target instanceof Element && record.target.matches(PAGE_HEADER_SELECTOR))
       return true;
     if (header.contains(record.target)) return true;
     return [...record.addedNodes, ...record.removedNodes].some((node) =>
@@ -362,6 +468,6 @@ export function stopFolderHeaderButton(): void {
   }
   removeTrackedButtons();
   document
-    .querySelectorAll<HTMLElement>(`[${FOLDER_TAG}], [${TITLE_TAG}]`)
+    .querySelectorAll<HTMLElement>(`[${FOLDER_TAG}], [${TITLE_TAG}], [${RENAME_TAG}]`)
     .forEach((button) => button.remove());
 }

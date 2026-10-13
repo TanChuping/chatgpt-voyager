@@ -26,6 +26,47 @@ export function findActiveConversationRoot(): HTMLElement | null {
   return document.querySelector('main') ? null : document.body;
 }
 
+/** Scroll only the current conversation; cached app-shell pages remain mounted. */
+export function findActiveConversationScrollContainer(): HTMLElement | null {
+  const root = findActiveConversationRoot();
+  if (!root) return null;
+  // The native thread can briefly have no overflow while history is mounting.
+  const thread = root.matches('.thread-scroll-container')
+    ? root
+    : root.querySelector<HTMLElement>('.thread-scroll-container');
+  if (thread) return thread;
+
+  const isScrollable = (element: HTMLElement) =>
+    element.scrollHeight > element.clientHeight &&
+    /^(auto|scroll|overlay)$/.test(getComputedStyle(element).overflowY);
+  const message = root.querySelector<HTMLElement>('[data-message-id][data-message-author-role]');
+  for (
+    let parent = message?.parentElement;
+    parent && root.contains(parent);
+    parent = parent.parentElement
+  ) {
+    if (isScrollable(parent)) return parent;
+  }
+  if (isScrollable(root)) return root;
+  const candidate = Array.from(
+    root.querySelectorAll<HTMLElement>(
+      '[data-testid="conversation-turns"], [class*="scroll"], [class*="overflow-y-auto"]',
+    ),
+  ).find(isScrollable);
+  if (candidate) return candidate;
+  // In the old layout the thread may scroll in an ancestor of main/the document.
+  // An app-shell page without a thread is still loading, never a sidebar fallback.
+  if (document.querySelector('[data-app-shell-active-page]')) return null;
+  for (
+    let parent = root.parentElement;
+    parent && parent !== document.body;
+    parent = parent.parentElement
+  ) {
+    if (isScrollable(parent)) return parent;
+  }
+  return document.scrollingElement as HTMLElement | null;
+}
+
 /** Current ChatGPT primitives. Legacy Angular selectors live only in the
  * compatibility branches of the features that still need to parse them. */
 export const CHATGPT_MENU_SELECTOR =

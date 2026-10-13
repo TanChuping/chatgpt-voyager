@@ -1,3 +1,5 @@
+import { findActiveConversationRoot } from '@/pages/content/chatgptDom';
+
 import type { LinearConversation, LinearMessage } from '../conversationApi/types';
 
 export const EXPORT_TAIL_COMPARE_SIZE = 5;
@@ -93,8 +95,11 @@ const THREAD_ROW_SELECTOR = '[data-turn-key]';
 const THREAD_ANCHOR_SELECTOR = '[data-gv-thread-anchor]';
 
 /** Exchange index by turn key, from the thread-mirror anchors (every loaded exchange). */
-export function readThreadTurnOrder(root: ParentNode = document): Map<string, number> {
+export function readThreadTurnOrder(
+  root: ParentNode | null = findActiveConversationRoot(),
+): Map<string, number> {
   const order = new Map<string, number>();
+  if (!root) return order;
   root.querySelectorAll(THREAD_ANCHOR_SELECTOR).forEach((anchor, index) => {
     const key = anchor.getAttribute('data-gv-thread-anchor');
     if (key && !order.has(key)) order.set(key, index);
@@ -163,13 +168,14 @@ function createLiveMessage(
 }
 
 export function collectLiveConversationMessages(
-  root: ParentNode = document,
+  root: ParentNode | null = findActiveConversationRoot(),
 ): LiveConversationMessage[] {
+  if (!root) return [];
   const byId = new Map<string, LiveConversationMessage>();
   const hosts: HTMLElement[] = [];
   if (root instanceof HTMLElement && root.matches(LIVE_MESSAGE_SELECTOR)) hosts.push(root);
   hosts.push(...Array.from(root.querySelectorAll<HTMLElement>(LIVE_MESSAGE_SELECTOR)));
-  const turnOrder = readThreadTurnOrder();
+  const turnOrder = readThreadTurnOrder(root);
   hosts.forEach((host, index) => {
     const live = createLiveMessage(host, index, turnOrder);
     if (!live) return;

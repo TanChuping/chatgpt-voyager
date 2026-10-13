@@ -17,6 +17,7 @@
  */
 import { installClipboardLatexFix } from './clipboardLatexFix';
 import { installFiberReader } from './fiberReader';
+import { installFullConversationRequest } from './fullConversationRequest';
 import { createQuotaMirror } from './quotaMirror';
 import { installThreadMirror } from './threadMirror';
 
@@ -94,6 +95,9 @@ function dispatchCaptured(target: CaptureTarget, data: unknown, source: 'fetch' 
   (window as unknown as { __gvFetchHooked?: boolean }).__gvFetchHooked = true;
 
   const originalFetch = window.fetch.bind(window);
+  installFullConversationRequest(originalFetch, (convId, data) =>
+    dispatchCaptured({ convId }, data, 'fetch'),
+  );
   const quotaMirror = createQuotaMirror();
   window.fetch = async function gvHookedFetch(
     input: RequestInfo | URL,

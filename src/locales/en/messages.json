@@ -207,7 +207,10 @@
     "message": "Imported {count} prompts"
   },
   "pm_duplicate": {
-    "message": "Duplicate prompt"
+    "message": "This prompt text already exists. Edit the existing prompt."
+  },
+  "pm_save_failed": {
+    "message": "Save failed. Your draft was kept. Check extension storage and try again."
   },
   "pm_deleted": {
     "message": "Deleted"

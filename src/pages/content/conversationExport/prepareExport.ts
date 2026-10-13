@@ -7,7 +7,10 @@ import {
   reconcileExportTail,
 } from '@/features/singleConvExport/liveSnapshot';
 
+import { findActiveConversationRoot } from '../chatgptDom';
+import { findActivePageHeader } from '../shared/headerActionSlot';
 import { hydrateConversationHistory } from './historyHydrator';
+import { requestFullConversationCapture } from './requestFullCapture';
 
 export type WholeExportPreparationStage = 'checking' | 'incremental' | 'rebuilding';
 
@@ -17,7 +20,7 @@ export interface PrepareWholeExportOptions {
 
 function currentTitle(): string {
   const title =
-    document.querySelector<HTMLElement>('header#page-header h1, header h1')?.textContent ||
+    findActivePageHeader()?.querySelector<HTMLElement>('h1')?.textContent ||
     document.title.replace(/\s*[-|]\s*ChatGPT\s*$/i, '');
   return title.trim() || 'Untitled conversation';
 }
@@ -30,10 +33,18 @@ export async function prepareWholeConversationExport(
   let cached = capture.getLatest(convId);
   let live = collectLiveConversationMessages();
   options.onStage?.('checking', live.length);
-  const reconciliation = reconcileExportTail(cached, live);
+  const paginated = !!findActiveConversationRoot()?.querySelector('[data-gv-thread-anchor]');
   // ChatGPT 2026-09 pages history in as the user scrolls up, so a matching
   // tail no longer proves the capture holds the whole conversation.
-  const complete = capture.isComplete(convId);
+  let complete = capture.isComplete(convId);
+  if (!complete) {
+    options.onStage?.('rebuilding', live.length);
+    await requestFullConversationCapture(convId);
+    cached = capture.getLatest(convId);
+    live = collectLiveConversationMessages();
+    complete = capture.isComplete(convId);
+  }
+  const reconciliation = reconcileExportTail(cached, live);
 
   if (complete && reconciliation.kind === 'fresh' && cached) return cached;
 
@@ -47,8 +58,6 @@ export async function prepareWholeConversationExport(
   // 2026-09 layout (thread-mirror anchors present): the paginated capture is
   // the source of truth, so hydrate until it is complete rather than walking
   // every row of a thread that can be hundreds of screens tall.
-  const paginated =
-    capture.getLatest(convId) !== null && !!document.querySelector('[data-gv-thread-anchor]');
   const hydration = await hydrateConversationHistory({
     onProgress: ({ discovered }) => options.onStage?.('rebuilding', discovered),
     isComplete: paginated ? () => capture.isComplete(convId) : undefined,

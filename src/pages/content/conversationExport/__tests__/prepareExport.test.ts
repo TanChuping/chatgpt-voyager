@@ -9,6 +9,11 @@ import { collectLiveConversationMessages } from '@/features/singleConvExport/liv
 
 import { hydrateConversationHistory } from '../historyHydrator';
 import { prepareWholeConversationExport } from '../prepareExport';
+import { requestFullConversationCapture } from '../requestFullCapture';
+
+vi.mock('../requestFullCapture', () => ({
+  requestFullConversationCapture: vi.fn().mockResolvedValue(false),
+}));
 
 vi.mock('../historyHydrator', async (importOriginal) => {
   const original = await importOriginal<typeof import('../historyHydrator')>();
@@ -65,6 +70,63 @@ describe('whole export preparation', () => {
     document.body.innerHTML = '';
     __resetConversationCaptureServiceForTests();
     hydrateMock.mockReset();
+    vi.mocked(requestFullConversationCapture).mockReset().mockResolvedValue(false);
+  });
+
+  it('uses a complete API capture before attempting to scroll a paginated conversation', async () => {
+    const capture = getConversationCaptureService();
+    const whole = api(6);
+    const tail = Object.values(whole.mapping)
+      .slice(-2)
+      .map((node) => node.message!);
+    capture.ingest(
+      CONV_ID,
+      {
+        conversation_id: CONV_ID,
+        title: whole.title,
+        messages: tail,
+        page_info: { has_previous_page: true },
+      },
+      { kind: 'latest' },
+    );
+    mount(
+      tail.map((message) => ({
+        messageId: message.id,
+        role: message.author.role as 'user' | 'assistant',
+        text: String(message.content.parts?.[0]),
+      })),
+    );
+    document.body.insertAdjacentHTML('beforeend', '<div data-gv-thread-anchor="current"></div>');
+    vi.mocked(requestFullConversationCapture).mockImplementation(async () => {
+      capture.ingest(CONV_ID, whole);
+      return true;
+    });
+    const result = await prepareWholeConversationExport(CONV_ID);
+    expect(result.messages).toHaveLength(6);
+    expect(requestFullConversationCapture).toHaveBeenCalledWith(CONV_ID);
+    expect(hydrateMock).not.toHaveBeenCalled();
+  });
+
+  it('requests full history even when the initial API capture or thread anchors are not ready', async () => {
+    const capture = getConversationCaptureService();
+    const whole = api(6);
+    const tail = Object.values(whole.mapping)
+      .slice(-2)
+      .map((node) => node.message!);
+    mount(
+      tail.map((message) => ({
+        messageId: message.id,
+        role: message.author.role as 'user' | 'assistant',
+        text: String(message.content.parts?.[0]),
+      })),
+    );
+    vi.mocked(requestFullConversationCapture).mockImplementation(async () => {
+      capture.ingest(CONV_ID, whole);
+      return true;
+    });
+    expect((await prepareWholeConversationExport(CONV_ID)).messages).toHaveLength(6);
+    expect(requestFullConversationCapture).toHaveBeenCalledWith(CONV_ID);
+    expect(hydrateMock).not.toHaveBeenCalled();
   });
 
   it('patches a short tail delta without loading to the top', async () => {

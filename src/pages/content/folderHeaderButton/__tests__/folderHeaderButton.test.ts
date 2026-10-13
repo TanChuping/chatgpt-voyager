@@ -97,8 +97,7 @@ describe('folder header button', () => {
     expect(button).not.toBeNull();
     expect(button!.closest('.translucent-surface')).not.toBeNull();
     expect(button!.closest('[data-testid="thread-header-right-actions-container"]')).toBeNull();
-    // The Issue #9 rename shortcut was removed in 1.8.15.
-    expect(document.querySelector('[data-gv-conversation-rename-header-btn]')).toBeNull();
+    expect(document.querySelector('[data-gv-conversation-rename-header-btn]')).not.toBeNull();
   });
 
   it('draws a real SVG, never a Material ligature', () => {
@@ -111,6 +110,37 @@ describe('folder header button', () => {
     expect(button.querySelector('svg')).not.toBeNull();
     expect(button.querySelector('mat-icon')).toBeNull();
     expect(button.textContent).toBe('');
+  });
+
+  it('opens rename only in the native menu belonging to the current header', async () => {
+    const { manager } = fakeManager();
+    const trigger = document.querySelector<HTMLElement>(
+      '[data-testid="conversation-options-button"]',
+    )!;
+    trigger.id = 'current-options';
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      '<div role="menu" aria-labelledby="other-options"><button role="menuitem" data-testid="rename-chat-menu-item">Rename</button><button data-testid="delete-chat-menu-item">Delete</button></div>',
+    );
+    const unrelated = vi.fn();
+    document
+      .querySelector('[aria-labelledby="other-options"] button')!
+      .addEventListener('click', unrelated);
+    const rename = vi.fn();
+    trigger.addEventListener('pointerdown', () => {
+      trigger.setAttribute('aria-expanded', 'true');
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<div role="menu" aria-labelledby="current-options"><button role="menuitem" data-testid="rename-chat-menu-item">Rename</button><button data-testid="delete-chat-menu-item">Delete</button></div>',
+      );
+      document
+        .querySelector('[aria-labelledby="current-options"] button')!
+        .addEventListener('click', rename);
+    });
+    startFolderHeaderButton(manager);
+    document.querySelector<HTMLElement>('[data-gv-conversation-rename-header-btn]')!.click();
+    await vi.waitFor(() => expect(rename).toHaveBeenCalledTimes(1));
+    expect(unrelated).not.toHaveBeenCalled();
   });
 
   it('drops ChatGPT’s transient disabled classes when cloning header styling', () => {
@@ -188,5 +218,29 @@ describe('folder header button', () => {
 
     button.click();
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it('remounts both shortcuts when ChatGPT replaces an app-shell title bar', async () => {
+    const { manager } = fakeManager();
+    startFolderHeaderButton(manager);
+    const oldHeader = document.querySelector<HTMLElement>('header')!;
+    oldHeader.style.display = 'none';
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      `<header data-app-shell-titlebar>
+      <div data-app-shell-main-titlebar style="display:flex">
+        <div style="display:flex"><button data-testid="conversation-options-button">…</button></div>
+      </div></header>`,
+    );
+    const header = document.querySelector<HTMLElement>('header[data-app-shell-titlebar]')!;
+    await vi.waitFor(() => {
+      expect(header.querySelector(BUTTON)).not.toBeNull();
+      expect(header.querySelector('[data-gv-conversation-rename-header-btn]')).not.toBeNull();
+      expect(oldHeader.querySelector(BUTTON)).toBeNull();
+      expect(oldHeader.querySelector('[data-gv-conversation-rename-header-btn]')).toBeNull();
+    });
+    expect(
+      header.querySelector<HTMLElement>('[data-gv-header-left-slot]')!.style.pointerEvents,
+    ).toBe('auto');
   });
 });

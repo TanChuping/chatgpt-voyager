@@ -16,6 +16,22 @@ import type {
 } from './types';
 import { withTurnIdPrefix } from './types';
 
+/** A mapping-shaped paginated slice is not a complete conversation. */
+export function hasCompleteConversationMapping(api: ApiConversation): boolean {
+  const visited = new Set<string>();
+  let cursor = api.current_node;
+  while (cursor && !visited.has(cursor)) {
+    if (cursor.startsWith('paginated-root:')) return false;
+    visited.add(cursor);
+    const node = api.mapping?.[cursor];
+    if (!node) return false;
+    if (node.parent === null) return true;
+    if (typeof node.parent !== 'string') return false;
+    cursor = node.parent;
+  }
+  return false;
+}
+
 /** Walk the mapping from current_node back to root via parent pointers, then reverse. */
 function walkChain(api: ApiConversation): ConversationNodeMessage[] {
   const result: ConversationNodeMessage[] = [];

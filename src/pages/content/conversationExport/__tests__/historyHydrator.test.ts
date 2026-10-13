@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { LiveConversationMessage } from '@/features/singleConvExport/liveSnapshot';
 
-import { hydrateConversationHistory } from '../historyHydrator';
+import { findConversationScrollContainer, hydrateConversationHistory } from '../historyHydrator';
 
 function live(id: string, order: number): LiveConversationMessage {
   return {
@@ -23,6 +23,46 @@ function live(id: string, order: number): LiveConversationMessage {
 }
 
 describe('whole export history hydrator', () => {
+  it('selects the active thread instead of a cached page or sidebar', () => {
+    document.body.innerHTML = `
+      <aside style="overflow-y: auto"></aside>
+      <div data-app-shell-active-page="false" style="display:none"><main>
+        <div class="thread-scroll-container" style="overflow-y:auto">
+          <div data-message-id="old" data-message-author-role="user"></div>
+        </div>
+      </main></div>
+      <div data-app-shell-active-page="true"><main>
+        <div class="thread-scroll-container" style="overflow-y:auto">
+          <div data-message-id="current" data-message-author-role="user"></div>
+        </div>
+      </main></div>`;
+    const scrollers = document.querySelectorAll<HTMLElement>('aside, .thread-scroll-container');
+    scrollers.forEach((container) =>
+      Object.defineProperties(container, {
+        clientHeight: { value: 600, configurable: true },
+        scrollHeight: { value: 5000, configurable: true },
+      }),
+    );
+    expect(findConversationScrollContainer()).toBe(scrollers[2]);
+    document.body.innerHTML = '';
+  });
+
+  it('does not fall back to the sidebar when the active thread is still mounting', async () => {
+    document.body.innerHTML =
+      '<aside class="overflow-y-auto" style="overflow-y:auto"></aside><div data-app-shell-active-page="true"><main></main></div>';
+    const sidebar = document.querySelector('aside')!;
+    Object.defineProperties(sidebar, {
+      clientHeight: { value: 600, configurable: true },
+      scrollHeight: { value: 5000, configurable: true },
+    });
+    expect(findConversationScrollContainer()).toBeNull();
+    const result = await hydrateConversationHistory({
+      collect: () => [],
+      wait: async () => undefined,
+    });
+    expect(result.reachedTop).toBe(false);
+    document.body.innerHTML = '';
+  });
   it('collects virtualised batches while moving upward and restores the bottom', async () => {
     const container = document.createElement('div');
     Object.defineProperties(container, {
@@ -113,5 +153,27 @@ describe('whole export history hydrator', () => {
       isComplete: () => false,
     });
     expect(result.reachedTop).toBe(false);
+  });
+
+  it('waits for a slow history page even when the mounted messages and height stay unchanged', async () => {
+    const container = document.createElement('div');
+    container.style.flexDirection = 'column-reverse';
+    Object.defineProperties(container, {
+      clientHeight: { value: 1000, configurable: true },
+      scrollHeight: { value: 5000, configurable: true },
+      scrollTop: { value: 0, writable: true, configurable: true },
+    });
+    let waits = 0;
+    const result = await hydrateConversationHistory({
+      scrollContainer: container,
+      collect: () => [live('same', 1)],
+      wait: async () => {
+        waits += 1;
+      },
+      isComplete: () => waits >= 6,
+      maxJumpPasses: 8,
+    });
+    expect(result.reachedTop).toBe(true);
+    expect(waits).toBe(6);
   });
 });

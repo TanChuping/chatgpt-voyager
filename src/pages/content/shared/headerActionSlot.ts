@@ -54,7 +54,7 @@ function isUsablePageHeader(header: HTMLElement): boolean {
  * Conversation header roots: `header#page-header` before the 2026-09 redesign,
  * the Codex app-shell title bar (`header[data-app-shell-titlebar]`) after it.
  */
-const PAGE_HEADER_SELECTOR = 'header#page-header, header[data-app-shell-titlebar]';
+export const PAGE_HEADER_SELECTOR = 'header#page-header, header[data-app-shell-titlebar]';
 /**
  * The right-hand action group: `#conversation-header-actions` (2026-07) or the
  * app-shell title bar's right slot (2026-09), which holds Share and "…".

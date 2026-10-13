@@ -73,6 +73,23 @@ describe('ConversationCaptureService', () => {
     expect(linear?.messages[0].text).toBe('hello');
   });
 
+  it('keeps incomplete mappings incomplete when a parent is missing or is a paginated root', () => {
+    const svc = new ConversationCaptureService();
+    const api = makeApi('conv-1');
+    api.mapping[api.current_node].parent = 'missing';
+    svc.ingest('conv-1', api);
+    expect(svc.isComplete('conv-1')).toBe(false);
+    api.mapping[api.current_node].parent = 'paginated-root:conv-1';
+    api.mapping['paginated-root:conv-1'] = {
+      id: 'paginated-root:conv-1',
+      parent: null,
+      children: [api.current_node],
+      message: null,
+    };
+    svc.ingest('conv-1', api);
+    expect(svc.isComplete('conv-1')).toBe(false);
+  });
+
   it('fires captured event once per ingest', () => {
     const svc = new ConversationCaptureService();
     const cb = vi.fn();
