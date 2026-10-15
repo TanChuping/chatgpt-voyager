@@ -6,7 +6,7 @@ import { startQuotaRing, stopQuotaRing } from '../index';
 function mount(): void {
   document.body.innerHTML = `
     <nav data-app-navigation-rail><div class="icons"></div><div class="footer"><button aria-haspopup="menu">avatar</button></div></nav>
-    <form data-chatgpt-composer><div class="row"><span style="display:contents"><button data-composer-navigation-target="reasoning">model</button></span></div></form>`;
+    <form data-chatgpt-composer><div class="row" style="display:flex;align-items:center"><span style="display:contents"><button data-composer-navigation-target="reasoning">model</button></span></div></form>`;
 }
 const message = () =>
   new MessageEvent('message', {
@@ -46,6 +46,35 @@ afterEach(() => {
 });
 
 describe('quota ring UI', () => {
+  it('mounts outside the model animation block in the October composer', () => {
+    const span = document.querySelector<HTMLElement>('.row > span')!;
+    const animation = document.createElement('div');
+    animation.style.transform = 'none';
+    span.before(animation);
+    animation.appendChild(span);
+    startQuotaRing();
+    const ring = document.querySelector('form .gv-quota-ring')!;
+    expect(ring.parentElement).toBe(document.querySelector('.row'));
+    expect(ring.nextElementSibling).toBe(animation);
+    expect(animation.children.length).toBe(1);
+  });
+
+  it('moves the existing ring when the model moves to another toolbar row', async () => {
+    startQuotaRing();
+    const ring = document.querySelector('form .gv-quota-ring')!;
+    const span = document.querySelector<HTMLElement>('.row > span')!;
+    const animation = document.createElement('div');
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    document.querySelector('form')!.appendChild(row);
+    row.appendChild(animation);
+    animation.appendChild(span);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(ring.parentElement).toBe(row);
+    expect(ring.nextElementSibling).toBe(animation);
+    expect(document.querySelectorAll('form .gv-quota-ring')).toHaveLength(1);
+  });
+
   it('mounts beside the model and above the avatar, with a Chat-only parenthetical note', async () => {
     startQuotaRing();
     window.dispatchEvent(message());

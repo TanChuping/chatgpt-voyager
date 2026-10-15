@@ -321,6 +321,21 @@ export const QUOTA_COMPOSER_ANCHOR_SELECTOR =
   '[data-chatgpt-composer] [data-composer-navigation-target="reasoning"], form[data-type="unified-composer"] [data-composer-navigation-target="reasoning"]';
 export const QUOTA_RAIL_AVATAR_SELECTOR = `${APP_SHELL_NAVIGATION_RAIL_SELECTOR} button[aria-haspopup="menu"]`;
 
+/** Keep injected controls in the toolbar row, outside the model's animation box. */
+export function findQuotaComposerInsertionAnchor(anchor: HTMLElement): HTMLElement {
+  const form = anchor.closest('form');
+  let insertion = anchor;
+  while (insertion.parentElement && insertion.parentElement !== form) {
+    const parent = insertion.parentElement;
+    const display = getComputedStyle(parent).display;
+    // October's composer adds a single-child block animation wrapper around
+    // the contents span. Inserting inside it stacks the ring above the model.
+    if (display !== 'contents' && !(display === 'block' && parent.children.length === 1)) break;
+    insertion = parent;
+  }
+  return insertion;
+}
+
 export function isChatQuotaComposer(form: HTMLElement): boolean {
   // Work composers expose project/plugin controls; Chat composers do not.
   return !form.querySelector(

@@ -7,6 +7,7 @@ import {
   APP_SHELL_NAVIGATION_RAIL_SELECTOR,
   QUOTA_COMPOSER_ANCHOR_SELECTOR,
   QUOTA_RAIL_AVATAR_SELECTOR,
+  findQuotaComposerInsertionAnchor,
   isChatQuotaComposer,
 } from '../chatgptDom';
 import { type QuotaState, readQuotaState, ringRemaining } from './data';
@@ -315,16 +316,12 @@ export function startQuotaRing(): () => void {
       widgets.delete(widget);
     }
     for (const anchor of document.querySelectorAll<HTMLElement>(QUOTA_COMPOSER_ANCHOR_SELECTOR)) {
-      if ([...widgets].some((w) => w.anchor === anchor)) continue;
       const form = anchor.closest<HTMLElement>('form');
       if (!form) continue;
-      let insertion: HTMLElement = anchor;
-      while (
-        insertion.parentElement &&
-        getComputedStyle(insertion.parentElement).display === 'contents'
-      )
-        insertion = insertion.parentElement;
-      insertion.before(createWidget(anchor, form, null).button);
+      const insertion = findQuotaComposerInsertionAnchor(anchor);
+      const widget =
+        [...widgets].find((w) => w.anchor === anchor) ?? createWidget(anchor, form, null);
+      if (insertion.previousElementSibling !== widget.button) insertion.before(widget.button);
     }
     const avatars = document.querySelectorAll<HTMLElement>(QUOTA_RAIL_AVATAR_SELECTOR);
     const avatar = avatars.item(avatars.length - 1);
