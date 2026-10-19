@@ -34,7 +34,8 @@ type TimelineManagerInternal = {
   userTurnSelector: string | null;
   ui: { timelineBar: HTMLElement | null; trackContent: HTMLElement | null };
   activeTurnId: string | null;
-  markers: Array<{ id: string; element: HTMLElement }>;
+  markers: Array<{ id: string; element: HTMLElement; baseN: number }>;
+  markerTops: number[];
   recalculateAndRenderMarkers: () => void;
   updateTimelineGeometry: () => void;
   updateIntersectionObserverTargetsFromMarkers: () => void;
@@ -101,6 +102,31 @@ describe('TimelineManager turn ids', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
     vi.restoreAllMocks();
+  });
+
+  it('keeps dot spacing stable after remeasurement while refreshing navigation coordinates', () => {
+    const { container, internal } = createHarness();
+    const turns = [createUserTurn('a', 0), createUserTurn('b', 100), createUserTurn('c', 1000)];
+    container.append(...turns);
+    internal.recalculateAndRenderMarkers();
+    const spacing = internal.markers.map((marker) => marker.baseN);
+    setElementTop(turns[1], 900);
+    setElementTop(turns[2], 1200);
+    internal.recalculateAndRenderMarkers();
+    expect(internal.markers.map((marker) => marker.baseN)).toEqual(spacing);
+    expect(internal.markerTops).toEqual([0, 900, 1200]);
+  });
+
+  it('keeps marker IDs and their coordinates together while a removal awaits confirmation', () => {
+    const { container, internal } = createHarness();
+    const turns = [createUserTurn('a', 0), createUserTurn('b', 100), createUserTurn('c', 1000)];
+    container.append(...turns);
+    internal.recalculateAndRenderMarkers();
+    const ids = internal.markers.map((marker) => marker.id);
+    turns[0].remove();
+    internal.recalculateAndRenderMarkers();
+    expect(internal.markers.map((marker) => marker.id)).toEqual(ids);
+    expect(internal.markerTops).toEqual([0, 100, 1000]);
   });
 
   it('keeps existing turn ids unique when older turns are prepended', () => {

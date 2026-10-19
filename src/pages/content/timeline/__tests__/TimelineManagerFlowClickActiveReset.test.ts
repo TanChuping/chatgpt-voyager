@@ -116,6 +116,12 @@ describe('TimelineManager flow click highlight behavior', () => {
     expect(startRunnerSpy).toHaveBeenCalledWith(0, 1, 520);
     expect(smoothScrollSpy).toHaveBeenCalledWith(secondTarget, 520, 'm1');
 
+    // A rendered dot can retain its old index while a new page is committed.
+    // Its stable ID must keep pointing to the same message.
+    secondDot.dataset.markerIndex = '0';
+    secondDot.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(smoothScrollSpy).toHaveBeenLastCalledWith(secondTarget, 520, 'm1');
+
     manager.destroy();
   });
 

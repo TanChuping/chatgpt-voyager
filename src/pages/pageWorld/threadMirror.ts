@@ -168,7 +168,16 @@ function findThreadList(): ThreadList | null {
   let fiber = committedFiberOf(row);
   let found: ThreadList | null = null;
   let conversationId: string | null = null;
-  const expected = routeConversationId();
+  let resolvedScrollOwner: string | null = null;
+  const routeId = routeConversationId();
+  // Route segments encode the colon in local-chatgpt:<uuid>. Keep publishing
+  // the original route key (storage compatibility), decode only for matching.
+  let expected = routeId;
+  try {
+    if (expected) expected = decodeURIComponent(expected);
+  } catch {
+    /* malformed route segments simply fail ownership checks */
+  }
   for (let i = 0; fiber && i < MAX_CLIMB; i++) {
     const props = asDict(fiber.memoizedProps);
     if (
@@ -179,6 +188,11 @@ function findThreadList(): ThreadList | null {
     )
       return null;
     if (typeof props?.conversationId === 'string') conversationId ??= props.conversationId;
+    if (
+      typeof props?.scrollStateConversationId === 'string' &&
+      props.conversationId === conversationId
+    )
+      resolvedScrollOwner = props.scrollStateConversationId;
     if (!found && props && Array.isArray(props.entries)) {
       const layout = readLayout(fiber);
       const container = layout ? hostNodeOf(fiber) : null;
@@ -193,10 +207,16 @@ function findThreadList(): ThreadList | null {
     fiber = asDict(fiber.return);
   }
   if (!found) return null;
-  if (conversationId && expected && conversationId !== expected) return null;
+  if (conversationId && expected && conversationId !== expected) {
+    // A freshly sent chat keeps its local React identity even after the URL
+    // becomes the server UUID. Native scroll ownership on THAT same component
+    // proves the mapping. Do not relax checks for retained persisted threads.
+    if (!conversationId.startsWith('local-chatgpt:') || resolvedScrollOwner !== expected)
+      return null;
+  }
   // In the app shell a retained tree must prove which conversation it belongs to.
   if (root?.closest('[data-app-shell-active-page]') && expected && !conversationId) return null;
-  found.conversationId = conversationId ?? expected;
+  found.conversationId = routeId ?? conversationId;
   return found;
 }
 

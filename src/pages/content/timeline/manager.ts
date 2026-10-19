@@ -255,6 +255,10 @@ export class TimelineManager {
   private pendingReverseActiveAt = 0;
   private pendingReverseActiveTimer: number | null = null;
   private scrollAnimationLockUntil = 0;
+  private navigationGeneration = 0;
+  private navigationTimers = new Set<number>();
+  private navigationAnchor: { element: HTMLElement; id?: string | null } | null = null;
+  private onNavigationInterrupt: ((event: Event) => void) | null = null;
   private lastScrollContainerRefreshAt = 0;
   private readonly scrollContainerRefreshInterval = 500;
   private lastMarkerTopsSanityCheckAt = 0;
@@ -426,6 +430,27 @@ export class TimelineManager {
     if (!this.isCurrentContext()) return;
     this.refreshCriticalElementsFromDocument();
     this.recalculateAndRenderMarkers();
+    // Native paging/measurement can commit after the bounded settling timer.
+    // Follow that commit until user input rather than guessing a longer delay.
+    if (
+      !this.isScrolling &&
+      this.navigationTimers.size === 0 &&
+      this.navigationAnchor &&
+      this.scrollContainer
+    ) {
+      const { element, id } = this.navigationAnchor;
+      const target = this.navigationTarget(element, id);
+      if (!target) return;
+      const bounds = this.getScrollBounds();
+      const want = Math.max(
+        bounds.min,
+        Math.min(bounds.max, this.computeScrollTopForElement(target)),
+      );
+      if (Math.abs(want - this.scrollContainer.scrollTop) > 2) {
+        this.isScrolling = true;
+        this.correctScrollToElement(element, id);
+      }
+    }
   }
 
   async init(): Promise<void> {
@@ -2207,7 +2232,6 @@ export class TimelineManager {
     const deduped = this.dedupeByTextAndTop(allEls, allTops);
     allEls = deduped.elements;
     allTops = deduped.tops;
-    this.markerTops = allTops;
     const usedTurnIds = new Set<string>();
     const existingTurnIdOwners = this.collectExistingTurnIdOwners(allEls);
     const previousMarkerElementsById = this.collectPreviousMarkerElementsById();
@@ -2225,6 +2249,13 @@ export class TimelineManager {
       return;
     }
     this.pendingMarkerOrderSignature = null;
+    // Commit positions together with their IDs. A pending reorder must never
+    // leave old markers paired with the candidate order's coordinates.
+    this.markerTops = allTops;
+    const sameOrder =
+      nextIds.length === this.markers.length &&
+      nextIds.every((id, index) => id === this.markers[index].id);
+    const previousBaseNs = sameOrder ? this.markers.map((marker) => marker.baseN) : null;
 
     let contentSpan: number;
     const firstTurnTop = allTops[0] ?? this.computeElementTopInScrollContainer(allEls[0]);
@@ -2302,7 +2333,10 @@ export class TimelineManager {
         element,
         summary,
         n,
-        baseN: n,
+        // Virtualised turns replace estimated heights as they mount. Keep the
+        // visual map stable for the same ordered turns; navigation still uses
+        // fresh live geometry. Paging/branch changes establish a new map.
+        baseN: previousBaseNs?.[idx] ?? n,
         dotElement: oldDots.get(id) ?? null,
         starred: this.starred.has(id),
         attachments,
@@ -2634,6 +2668,20 @@ export class TimelineManager {
   }
 
   private setupEventListeners(): void {
+    this.onNavigationInterrupt = (event: Event) => {
+      if ((!this.isScrolling && !this.navigationAnchor) || !(event.target instanceof Node)) return;
+      if (
+        !this.conversationContainer?.contains(event.target) &&
+        !this.scrollContainer?.contains(event.target) &&
+        !this.ui.timelineBar?.contains(event.target)
+      )
+        return;
+      this.cancelNavigation();
+      this.activeLockUntil = 0;
+      this.scheduleScrollSync();
+    };
+    for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown'])
+      document.addEventListener(type, this.onNavigationInterrupt, { capture: true, passive: true });
     this.onTimelineBarClick = (e: Event) => {
       this.recordUserScrollActivity();
       const dot = (e.target as HTMLElement).closest('.timeline-dot') as DotElement | null;
@@ -2646,40 +2694,14 @@ export class TimelineManager {
       }
 
       const resolveTargetFromDot = (): { targetElement: HTMLElement | null; toIdx: number } => {
-        // Use index lookup if available for robust handling of duplicate content
-        const indexStr = dot.dataset.markerIndex;
-        let targetElement: HTMLElement | null = null;
-        let toIdx = -1;
-
-        if (indexStr) {
-          toIdx = parseInt(indexStr, 10);
-          const marker = this.markers[toIdx];
-          if (marker) {
-            targetElement = marker.element;
-          }
-        }
-
-        // Fallback to ID-based lookup if index fails
-        if (!targetElement) {
-          const targetId = dot.dataset.targetTurnId || '';
-          if (!targetId) return { targetElement: null, toIdx: -1 };
-
-          // ChatGPT's outer section advertises the bare UUID on
-          // `data-turn-id`, while our marker ids use the `u-<uuid>` form.
-          // Try both shapes so the fallback works whether the user clicked
-          // on a freshly-rendered outer wrapper (bare) or one we already
-          // normalised (prefixed).
-          const bareTarget = targetId.startsWith('u-') ? targetId.slice(2) : targetId;
-          targetElement =
-            (this.conversationContainer?.querySelector(
-              `[data-turn-id="${targetId}"], [data-turn-id="${bareTarget}"]`,
-            ) as HTMLElement | null) ||
-            this.markers.find((m) => m.id === targetId)?.element ||
-            null;
-          toIdx = this.markers.findIndex((m) => m.id === targetId);
-        }
-
-        return { targetElement, toIdx };
+        // IDs survive pagination/reordering; a rendered index may be stale.
+        // Index lookup is only for old/custom dots that have no stable ID.
+        const id = dot.dataset.targetTurnId;
+        const index = id
+          ? this.markers.findIndex((marker) => marker.id === id)
+          : Number.parseInt(dot.dataset.markerIndex ?? '', 10);
+        const marker = this.markers[index];
+        return { targetElement: marker?.element ?? null, toIdx: marker ? index : -1 };
       };
 
       let { targetElement, toIdx } = resolveTargetFromDot();
@@ -3108,50 +3130,81 @@ export class TimelineManager {
     this.updateActiveDotUI();
   }
 
-  private correctScrollToElement(targetElement: HTMLElement, targetId?: string | null): void {
-    // Converge instead of correcting once. When jumping far in a long
-    // conversation, ChatGPT mounts the inner bodies of the turns we scroll past;
-    // those bodies grow after mounting, which keeps pushing the target off the
-    // spot we aimed for. A single correction lands while the layout is still
-    // settling, leaving the target 1–2 turns short (off-by-one highlight).
-    // Re-measure each frame and nudge toward the target until its position holds
-    // steady for a few consecutive frames, or we exhaust the frame budget.
-    const TOLERANCE_PX = 2;
-    const STABLE_FRAMES_NEEDED = 3;
-    const MAX_FRAMES = 32; // ~0.5s ceiling so we never fight the user for long
-    let frames = 0;
-    let stable = 0;
+  private cancelNavigation(): void {
+    this.navigationGeneration++;
+    this.navigationAnchor = null;
+    for (const timer of this.navigationTimers) window.clearTimeout(timer);
+    this.navigationTimers.clear();
+    this.isScrolling = false;
+    this.scrollAnimationLockUntil = 0;
+  }
 
+  private navigationTimer(callback: () => void, delay: number): void {
+    const generation = this.navigationGeneration;
+    const timer = window.setTimeout(() => {
+      this.navigationTimers.delete(timer);
+      if (generation === this.navigationGeneration && this.isCurrentContext()) callback();
+    }, delay);
+    this.navigationTimers.add(timer);
+  }
+
+  private navigationTarget(element: HTMLElement, id?: string | null): HTMLElement | null {
+    // A mirror layer can be replaced during paging. Follow the stable ID, not
+    // a detached node. Once mounted, the real row beats an estimated anchor.
+    let anchor = element.isConnected ? element : id ? this.markerMap.get(id)?.element : null;
+    if (!anchor?.isConnected && id) {
+      anchor = this.conversationContainer?.querySelector<HTMLElement>(
+        `[data-turn-id="${CSS.escape(id)}"], [data-turn-id="${CSS.escape(id.replace(/^u-/, ''))}"]`,
+      );
+    }
+    if (!anchor?.isConnected) return null;
+    return isThreadAnchor(anchor) ? (findThreadRow(anchor) ?? anchor) : anchor;
+  }
+
+  private correctScrollToElement(targetElement: HTMLElement, targetId?: string | null): void {
+    // Three rAFs can finish before the virtualiser's measurement even commits
+    // (especially on fast displays). Observe a quiet time window instead, with
+    // a bounded deadline and immediate cancellation on a new navigation/input.
+    const startedAt = performance.now();
+    let stableSince = startedAt;
+    let lastWant = Number.NaN;
+    this.setProgrammaticScrollLock(1500);
     const finish = () => {
       this.setActiveTurnFromNavigation(targetId);
       this.isScrolling = false;
       this.scrollAnimationLockUntil = 0;
       this.scheduleScrollSync();
+      this.recalculateAndRenderMarkers();
     };
-
     const step = () => {
-      if (!this.scrollContainer || !targetElement.isConnected) {
-        finish();
+      const target = this.navigationTarget(targetElement, targetId);
+      if (!this.scrollContainer || !target) {
+        this.cancelNavigation();
+        this.scheduleScrollSync();
         return;
       }
-      const want = this.computeScrollTopForElement(targetElement);
+      const now = performance.now();
+      const bounds = this.getScrollBounds();
+      const want = Math.max(
+        bounds.min,
+        Math.min(bounds.max, this.computeScrollTopForElement(target)),
+      );
       const diff = want - this.scrollContainer.scrollTop;
-      if (Math.abs(diff) > TOLERANCE_PX) {
-        this.scrollContainer.scrollTop = want;
-        stable = 0;
-      } else {
-        stable += 1;
-      }
-      frames += 1;
-      if (stable >= STABLE_FRAMES_NEEDED || frames >= MAX_FRAMES) {
+      if (!Number.isFinite(lastWant) || Math.abs(want - lastWant) > 2 || Math.abs(diff) > 2)
+        stableSince = now;
+      lastWant = want;
+      if (Math.abs(diff) > 2) this.scrollContainer.scrollTop = want;
+      const mounted = !isThreadAnchor(target);
+      if (
+        now - startedAt >= 1500 ||
+        (mounted && now - startedAt >= 300 && now - stableSince >= 150)
+      ) {
         finish();
         return;
       }
-      requestAnimationFrame(step);
+      this.navigationTimer(step, 50);
     };
-
-    // Give layout one frame to start settling, then begin converging.
-    requestAnimationFrame(() => requestAnimationFrame(step));
+    this.navigationTimer(step, 0);
   }
 
   private smoothScrollTo(
@@ -3160,6 +3213,8 @@ export class TimelineManager {
     targetId?: string | null,
   ): void {
     if (!this.scrollContainer) return;
+    this.cancelNavigation();
+    this.navigationAnchor = { element: targetElement, id: targetId };
     const targetPosition = this.computeScrollTopForElement(targetElement);
     const startPosition = this.scrollContainer.scrollTop;
     const distance = targetPosition - startPosition;
@@ -3213,15 +3268,18 @@ export class TimelineManager {
       } catch {
         this.scrollContainer.scrollTop = overshootPos;
       }
-      window.setTimeout(() => {
+      this.navigationTimer(() => {
         if (!this.scrollContainer) return;
+        const target = this.navigationTarget(targetElement, targetId);
+        if (!target) return;
+        const position = this.computeScrollTopForElement(target);
         try {
-          this.scrollContainer.scrollTo({ top: targetPosition, behavior: 'smooth' });
+          this.scrollContainer.scrollTo({ top: position, behavior: 'smooth' });
         } catch {
-          this.scrollContainer.scrollTop = targetPosition;
+          this.scrollContainer.scrollTop = position;
         }
       }, phase1Duration);
-      window.setTimeout(() => {
+      this.navigationTimer(() => {
         this.correctScrollToElement(targetElement, targetId);
         // ChatGPT has finished mounting the turns we passed through —
         // refresh the timeline so freshly-rendered content lands in cache
@@ -3249,7 +3307,7 @@ export class TimelineManager {
     // it will land using our requested duration (plus a small buffer) and run
     // the same correction routine the manual animation used to.
     const settleMs = Math.max(250, duration + 80);
-    window.setTimeout(() => {
+    this.navigationTimer(() => {
       this.correctScrollToElement(targetElement, targetId);
       // Even for short jumps without overshoot, surrounding turns may have
       // come into ChatGPT's mount range during the scroll — pick that up.
@@ -4076,6 +4134,7 @@ export class TimelineManager {
     forceSmooth = false,
   ): void {
     if (!this.scrollContainer) return;
+    this.cancelNavigation();
     const bounds = this.getScrollBounds();
     const target = Math.max(bounds.min, Math.min(bounds.max, targetPosition));
     const startPosition = this.scrollContainer.scrollTop;
@@ -4119,7 +4178,7 @@ export class TimelineManager {
     // Native smooth scroll exposes no completion callback; settle on an
     // estimated timer, then release the lock and position the badges once.
     const settleMs = Math.max(250, duration + 80);
-    window.setTimeout(() => {
+    this.navigationTimer(() => {
       if (!this.scrollContainer) return;
       this.isScrolling = false;
       this.scrollAnimationLockUntil = 0;
@@ -6156,8 +6215,9 @@ export class TimelineManager {
    */
   private async performNodeNavigation(targetIndex: number, currentIndex: number): Promise<void> {
     const markerBeforeRefresh = this.markers[targetIndex];
+    if (!markerBeforeRefresh) return;
     this.maybeRefreshMarkersForInteraction(markerBeforeRefresh?.element || null);
-
+    targetIndex = this.markers.findIndex((marker) => marker.id === markerBeforeRefresh.id);
     if (targetIndex < 0 || targetIndex >= this.markers.length) return;
 
     // Clear any pending scroll updates to prevent interference
@@ -6170,17 +6230,20 @@ export class TimelineManager {
     const targetMarker = this.markers[targetIndex];
     if (!targetMarker?.element) return;
 
+    let navigation: number;
     if (this.scrollMode === 'flow' && currentIndex >= 0) {
       // Flow mode: animate with queue support
       const duration = this.computeFlowDuration(currentIndex, targetIndex);
       this.startRunner(currentIndex, targetIndex, duration);
       this.smoothScrollTo(targetMarker.element, duration, targetMarker.id);
+      navigation = this.navigationGeneration;
       await new Promise<void>((resolve) => setTimeout(resolve, duration));
     } else {
       // Jump mode: instant, no wait
       this.smoothScrollTo(targetMarker.element, 0, targetMarker.id);
+      navigation = this.navigationGeneration;
     }
-
+    if (!this.isCurrentContext() || navigation !== this.navigationGeneration) return;
     this.activeTurnId = targetMarker.id;
     this.updateActiveDotUI();
   }
@@ -6446,11 +6509,13 @@ export class TimelineManager {
 
     const nextConversationContainer = findActiveConversationRoot();
     if (!nextConversationContainer) return false;
+    const containerChanged = this.conversationContainer !== nextConversationContainer;
     this.conversationContainer = nextConversationContainer;
 
     const nextScrollContainer = this.getScrollContainerForElement(firstTurn);
 
     const scrollContainerChanged = this.scrollContainer !== nextScrollContainer;
+    if (!containerChanged && !scrollContainerChanged) return false;
     if (scrollContainerChanged) {
       if (this.scrollContainer && this.onScroll) {
         try {
@@ -6561,6 +6626,12 @@ export class TimelineManager {
 
   destroy(): void {
     this.destroyed = true;
+    this.cancelNavigation();
+    if (this.onNavigationInterrupt) {
+      for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown'])
+        document.removeEventListener(type, this.onNavigationInterrupt, true);
+      this.onNavigationInterrupt = null;
+    }
     // Stop hiding ChatGPT's native prompt-TOC once our timeline goes away.
     try {
       document.body.classList.remove('gv-timeline-active');

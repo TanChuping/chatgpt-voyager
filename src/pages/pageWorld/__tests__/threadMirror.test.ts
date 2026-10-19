@@ -110,6 +110,60 @@ describe('thread mirror (2026-09 virtualised thread)', () => {
     expect(a.querySelector('main')!.getAttribute('data-gv-thread-status')).toBe('pending');
   });
 
+  function setOwnerState(page: HTMLElement, values: Record<string, unknown>): void {
+    const row = page.querySelector('[data-turn-key]')! as unknown as Fiber;
+    const fiber = row['__reactFiber$test'] as Fiber;
+    const list = (fiber.return as Fiber).return as Fiber;
+    (list.return as Fiber).memoizedProps = values;
+  }
+
+  it('follows a new local conversation to its server route using native scroll ownership', () => {
+    const local = 'local-chatgpt:new-chat';
+    history.replaceState({}, '', `/c/${encodeURIComponent(local)}`);
+    const page = ownedPage(local, K1, true);
+    setOwnerState(page, { conversationId: local, scrollStateConversationId: local });
+    expect(syncThreadMirror()).toBe(1);
+    expect(page.querySelector('main')!.getAttribute('data-gv-thread-conversation')).toBe(
+      encodeURIComponent(local),
+    );
+    history.replaceState({}, '', '/c/server-id');
+    setOwnerState(page, { conversationId: local, scrollStateConversationId: 'server-id' });
+    expect(syncThreadMirror()).toBe(1);
+    expect(page.querySelector('main')!.getAttribute('data-gv-thread-status')).toBe('ready');
+    expect(page.querySelector('main')!.getAttribute('data-gv-thread-conversation')).toBe(
+      'server-id',
+    );
+  });
+
+  it('does not accept a local conversation without matching scroll ownership', () => {
+    history.replaceState({}, '', '/c/server-id');
+    const page = ownedPage('local-chatgpt:other-chat', K1, true);
+    expect(syncThreadMirror()).toBe(0);
+    setOwnerState(page, {
+      conversationId: 'local-chatgpt:other-chat',
+      scrollStateConversationId: 'another-server-id',
+    });
+    expect(syncThreadMirror()).toBe(0);
+  });
+
+  it('rejects unrelated persisted IDs even if scroll state already matches the new URL', () => {
+    history.replaceState({}, '', '/c/B');
+    const page = ownedPage('A', K1, true);
+    setOwnerState(page, { conversationId: 'A', scrollStateConversationId: 'B' });
+    expect(syncThreadMirror()).toBe(0);
+  });
+
+  it('waits for loading to finish even when local and server ownership agree', () => {
+    history.replaceState({}, '', '/c/server-id');
+    const page = ownedPage('local-chatgpt:new-chat', K1, true);
+    setOwnerState(page, {
+      conversationId: 'local-chatgpt:new-chat',
+      scrollStateConversationId: 'server-id',
+      isConversationLoading: true,
+    });
+    expect(syncThreadMirror()).toBe(0);
+  });
+
   it('writes one positioned anchor per loaded exchange, mounted or not', () => {
     renderVirtualList(
       [K1, K2, K3],
