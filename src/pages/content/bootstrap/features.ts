@@ -28,6 +28,7 @@ export const BOOTSTRAP_SETTING_KEYS = [
   StorageKeys.PLAIN_TEXT_INPUT_ENABLED,
   StorageKeys.DRAFT_AUTO_SAVE,
   StorageKeys.PREVENT_AUTO_SCROLL_ENABLED,
+  StorageKeys.DRIVE_AUTO_ALLOW_ENABLED,
   StorageKeys.QUOTE_REPLY_ENABLED,
   StorageKeys.MERMAID_ENABLED,
   StorageKeys.FORK_ENABLED,
@@ -106,6 +107,15 @@ export function createLazyFeatureDefinitions(
   dependencies: LazyFeatureDependencies,
 ): LazyFeatureDefinition[] {
   return [
+    {
+      id: 'drive-auto-allow',
+      initial: 'immediate',
+      isEnabled: (settings) => isTrue(settings, StorageKeys.DRIVE_AUTO_ALLOW_ENABLED),
+      load: async () => {
+        const module = await import('../driveAutoAllow/index');
+        return { start: module.startDriveAutoAllow, stop: module.stopDriveAutoAllow };
+      },
+    },
     {
       id: 'chat-width',
       initial: 'immediate',

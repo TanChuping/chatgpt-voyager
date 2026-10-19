@@ -126,6 +126,7 @@ export const StorageKeys = {
   PLAIN_TEXT_INPUT_ENABLED: 'gvPlainTextInputEnabled',
   DRAFT_AUTO_SAVE: 'gvDraftAutoSave',
   PREVENT_AUTO_SCROLL_ENABLED: 'gvPreventAutoScrollEnabled',
+  DRIVE_AUTO_ALLOW_ENABLED: 'gvDriveAutoAllowEnabled',
 
   // Sidebar behavior
   GV_SIDEBAR_AUTO_HIDE: 'gvSidebarAutoHide',

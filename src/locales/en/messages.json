@@ -1217,6 +1217,8 @@
   "railToggle_enable": {
     "message": "Icon rail toggle"
   },
+  "driveAutoAllow": { "message": "Auto-allow Google Drive" },
+  "driveAutoAllowHint": { "message": "Automatically click Always allow on ChatGPT's Google Drive tool approval cards, including file uploads. Off by default. Background tabs work while the page is running." },
   "quotaRing_enable": { "message": "Show quota ring" },
   "quotaRing_description": { "message": "Show Codex / Work quota in the composer and sidebar." },
   "quotaRing_title": { "message": "Codex / Work quota remaining" },

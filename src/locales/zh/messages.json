@@ -1217,6 +1217,8 @@
   "railToggle_enable": {
     "message": "图标栏收起按钮"
   },
+  "driveAutoAllow": { "message": "自动允许 Google Drive" },
+  "driveAutoAllowHint": { "message": "自动点击 ChatGPT 的 Google Drive 工具授权卡中的“始终允许”，包括上传文件等操作。默认关闭；后台标签页仍在运行时也可处理。" },
   "quotaRing_enable": { "message": "显示额度圆环" },
   "quotaRing_description": { "message": "在输入框和侧边栏显示 Codex / Work 额度。" },
   "quotaRing_title": { "message": "Codex / Work 剩余额度" },

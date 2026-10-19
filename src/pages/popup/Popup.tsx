@@ -328,6 +328,7 @@ export default function Popup() {
   const [editInputWidth, setEditInputWidth] = useState(EDIT_PERCENT.defaultValue);
   const [railToggleEnabled, setRailToggleEnabled] = useState(true);
   const [quotaRingEnabled, setQuotaRingEnabled] = useState(true);
+  const [driveAutoAllowEnabled, setDriveAutoAllowEnabled] = useState(false);
 
   const [ctrlEnterSend, setCtrlEnterSend] = useState(false);
   const [safariEnterFix, setSafariEnterFix] = useState(false);
@@ -482,6 +483,7 @@ export default function Popup() {
         [StorageKeys.EDIT_INPUT_WIDTH]: EDIT_PERCENT.defaultValue,
         [StorageKeys.GV_RAIL_TOGGLE_ENABLED]: true,
         [StorageKeys.GV_QUOTA_RING_ENABLED]: true,
+        [StorageKeys.DRIVE_AUTO_ALLOW_ENABLED]: false,
         [StorageKeys.CTRL_ENTER_SEND]: false,
         [StorageKeys.SAFARI_ENTER_FIX]: false,
         [StorageKeys.INPUT_COLLAPSE_ENABLED]: false,
@@ -596,6 +598,7 @@ export default function Popup() {
         );
         setRailToggleEnabled(result[StorageKeys.GV_RAIL_TOGGLE_ENABLED] !== false);
         setQuotaRingEnabled(result[StorageKeys.GV_QUOTA_RING_ENABLED] !== false);
+        setDriveAutoAllowEnabled(result[StorageKeys.DRIVE_AUTO_ALLOW_ENABLED] === true);
         setCtrlEnterSend(result[StorageKeys.CTRL_ENTER_SEND] === true);
         setSafariEnterFix(result[StorageKeys.SAFARI_ENTER_FIX] === true);
         setInputCollapse(result[StorageKeys.INPUT_COLLAPSE_ENABLED] === true);
@@ -1199,6 +1202,15 @@ export default function Popup() {
                 StorageKeys.RESPONSE_COMPLETE_NOTIFICATION_ENABLED,
                 value,
               )
+            }
+          />
+          <ToggleRow
+            id="drive-auto-allow"
+            title={t('driveAutoAllow')}
+            description={t('driveAutoAllowHint')}
+            checked={driveAutoAllowEnabled}
+            onChange={(value) =>
+              updateToggle(setDriveAutoAllowEnabled, StorageKeys.DRIVE_AUTO_ALLOW_ENABLED, value)
             }
           />
         </Section>

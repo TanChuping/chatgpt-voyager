@@ -71,6 +71,7 @@ export const BACKUPABLE_SYNC_SETTINGS_DEFAULTS: Record<string, unknown> = {
   [StorageKeys.PLAIN_TEXT_INPUT_ENABLED]: false,
   [StorageKeys.DRAFT_AUTO_SAVE]: false,
   [StorageKeys.PREVENT_AUTO_SCROLL_ENABLED]: false,
+  [StorageKeys.DRIVE_AUTO_ALLOW_ENABLED]: false,
   [StorageKeys.GV_SIDEBAR_AUTO_HIDE]: false,
   [StorageKeys.GV_SIDEBAR_FULL_HIDE]: false,
   [StorageKeys.GV_RAIL_TOGGLE_ENABLED]: true,
