@@ -7,6 +7,7 @@ import type { ForkNode, ForkNodesData } from '@/pages/content/fork/forkTypes';
 import type { StarredMessage, StarredMessagesData } from '@/pages/content/timeline/starredTypes';
 import { getTranslation } from '@/utils/i18n';
 
+import { appendDriveApprovalRecord } from './driveApprovalLog';
 import { createSettingsSurfaceOpener } from './openSettingsSurface';
 
 const CUSTOM_CONTENT_SCRIPT_ID = 'gv-custom-content-script';
@@ -586,6 +587,12 @@ const openSettingsSurface = createSettingsSurfaceOpener({
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     try {
+      if (message?.type === 'gv.driveApproval.record') {
+        if (!normalizeChatGptUrl(sender.url)) throw new Error('invalid_drive_approval_sender');
+        await appendDriveApprovalRecord(message.payload);
+        sendResponse({ ok: true });
+        return;
+      }
       if (message?.type === 'gv.responseComplete.notify') {
         sendResponse(await showResponseCompleteNotification(message.payload, sender));
         return;

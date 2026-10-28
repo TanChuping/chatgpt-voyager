@@ -127,6 +127,7 @@ export const StorageKeys = {
   DRAFT_AUTO_SAVE: 'gvDraftAutoSave',
   PREVENT_AUTO_SCROLL_ENABLED: 'gvPreventAutoScrollEnabled',
   DRIVE_AUTO_ALLOW_ENABLED: 'gvDriveAutoAllowEnabled',
+  DRIVE_AUTO_ALLOW_LOG: 'gvDriveAutoAllowLog',
 
   // Sidebar behavior
   GV_SIDEBAR_AUTO_HIDE: 'gvSidebarAutoHide',
