@@ -314,7 +314,7 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function createSupportPanel(i18n: ReturnType<typeof createI18n>): HTMLElement {
+export function createSupportPanel(i18n: ReturnType<typeof createI18n>): HTMLElement {
   const wrap = createEl('div', 'gv-pm-support-wrap');
   const button = createEl('button', 'gv-pm-support-btn');
   button.type = 'button';
@@ -446,6 +446,7 @@ function createSupportPanel(i18n: ReturnType<typeof createI18n>): HTMLElement {
   });
 
   wrap.addEventListener('gv-pm-language-change', (event) => {
+    popover.setAttribute('aria-label', i18n.t('supportMysteryButton'));
     const next = (event as CustomEvent<AppLanguage>).detail;
     if (!isAppLanguage(next)) return;
     supportLanguage = next;
@@ -545,7 +546,16 @@ function createSupportPanel(i18n: ReturnType<typeof createI18n>): HTMLElement {
     button.setAttribute('aria-expanded', String(pinned));
   });
 
-  wrap.append(button, popover);
+  // Keep the fixed popover outside the animated/paint-contained panel.
+  // Reparenting it into wrap changes its containing block and clips it.
+  wrap.append(button);
+  wrap.addEventListener('gv-pm-close', () => {
+    pinned = false;
+    hoveringButton = false;
+    hoveringPopover = false;
+    button.setAttribute('aria-expanded', 'false');
+    close(true);
+  });
   return wrap;
 }
 
@@ -1754,6 +1764,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
 
     function closePanel(): void {
       open = false;
+      supportPanel.dispatchEvent(new Event('gv-pm-close'));
       trigger.setAttribute('aria-expanded', 'false');
       panel.classList.add('gv-pm-closing');
       if (panelHideTimer !== null) window.clearTimeout(panelHideTimer);
@@ -1829,8 +1840,6 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
           detail: normalizeLanguage(langSel.value),
         }),
       );
-      const supportPopover = supportPanel.querySelector('.gv-pm-support-popover');
-      if (supportPopover) supportPopover.setAttribute('aria-label', i18n.t('supportMysteryButton'));
       (addForm.querySelector('.gv-pm-input-name') as HTMLInputElement).placeholder =
         i18n.t('pm_name_placeholder');
       (addForm.querySelector('.gv-pm-input-text') as HTMLTextAreaElement).placeholder =
