@@ -59,6 +59,35 @@ describe('quota ring UI', () => {
     expect(animation.children.length).toBe(1);
   });
 
+  it('escapes inline tooltip wrappers and repositions after in-place layout changes', async () => {
+    const span = document.querySelector<HTMLElement>('.row > span')!;
+    span.style.display = 'inline';
+    const wrapper = document.createElement('div');
+    span.before(wrapper);
+    wrapper.appendChild(span);
+    startQuotaRing();
+    const ring = document.querySelector('form .gv-quota-ring')!;
+    expect(ring.parentElement).toBe(document.querySelector('.row'));
+    expect(ring.nextElementSibling).toBe(wrapper);
+    wrapper.style.display = 'flex';
+    await vi.advanceTimersByTimeAsync(100);
+    expect(ring.parentElement).toBe(wrapper);
+    wrapper.style.flexDirection = 'column';
+    await vi.advanceTimersByTimeAsync(100);
+    expect(ring.parentElement).toBe(document.querySelector('.row'));
+    expect(document.querySelectorAll('form .gv-quota-ring')).toHaveLength(1);
+  });
+
+  it('does not add a line to an unknown layout, and recovers when a row returns', async () => {
+    const row = document.querySelector<HTMLElement>('.row')!;
+    row.style.display = 'block';
+    startQuotaRing();
+    expect(document.querySelector('form .gv-quota-ring')).toBeNull();
+    row.style.display = 'flex';
+    await vi.advanceTimersByTimeAsync(100);
+    expect(document.querySelector('form .gv-quota-ring')?.parentElement).toBe(row);
+  });
+
   it('moves the existing ring when the model moves to another toolbar row', async () => {
     startQuotaRing();
     const ring = document.querySelector('form .gv-quota-ring')!;

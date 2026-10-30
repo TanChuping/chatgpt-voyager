@@ -322,18 +322,26 @@ export const QUOTA_COMPOSER_ANCHOR_SELECTOR =
 export const QUOTA_RAIL_AVATAR_SELECTOR = `${APP_SHELL_NAVIGATION_RAIL_SELECTOR} button[aria-haspopup="menu"]`;
 
 /** Keep injected controls in the toolbar row, outside the model's animation box. */
-export function findQuotaComposerInsertionAnchor(anchor: HTMLElement): HTMLElement {
+export function findQuotaComposerInsertionAnchor(anchor: HTMLElement): HTMLElement | null {
   const form = anchor.closest('form');
   let insertion = anchor;
   while (insertion.parentElement && insertion.parentElement !== form) {
     const parent = insertion.parentElement;
-    const display = getComputedStyle(parent).display;
-    // October's composer adds a single-child block animation wrapper around
-    // the contents span. Inserting inside it stacks the ring above the model.
-    if (display !== 'contents' && !(display === 'block' && parent.children.length === 1)) break;
+    const style = getComputedStyle(parent);
+    // Mount only in a proven horizontal row. Model/tooltip/animation wrappers
+    // can be inline, block, contents, or column flex and can change at runtime.
+    if (
+      (style.display === 'flex' || style.display === 'inline-flex') &&
+      (!style.flexDirection ||
+        style.flexDirection === 'row' ||
+        style.flexDirection === 'row-reverse') &&
+      (!style.flexWrap || style.flexWrap === 'nowrap')
+    )
+      return insertion;
     insertion = parent;
   }
-  return insertion;
+  // An unknown layout must not gain an extra line from our control.
+  return null;
 }
 
 export function isChatQuotaComposer(form: HTMLElement): boolean {

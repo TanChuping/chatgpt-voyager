@@ -28,7 +28,7 @@ type Widget = {
 let stopCurrent: (() => void) | null = null;
 
 const CSS = `
-.gv-quota-ring{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:28px;height:28px;margin-inline-end:3px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--color-text-tertiary,#8b8b8b);cursor:pointer;pointer-events:auto;transition:transform 180ms cubic-bezier(.22,1.35,.36,1),color 120ms ease}
+.gv-quota-ring{display:inline-flex;align-items:center;justify-content:center;align-self:center;flex:0 0 auto;width:28px;height:28px;margin-inline-end:3px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--color-text-tertiary,#8b8b8b);cursor:pointer;pointer-events:auto;transition:transform 180ms cubic-bezier(.22,1.35,.36,1),color 120ms ease}
 .gv-quota-ring>svg{display:block;width:20px;height:20px;overflow:visible;pointer-events:none}
 .gv-quota-ring:hover,.gv-quota-ring:focus-visible{color:var(--color-text-primary,#aaa);transform:scale(1.09);background:var(--app-color-background-button-tertiary-hover,rgba(128,128,128,.1))}
 .gv-quota-ring:focus-visible{outline:2px solid var(--color-border-heavy,#a78bfa);outline-offset:2px}
@@ -319,6 +319,15 @@ export function startQuotaRing(): () => void {
       const form = anchor.closest<HTMLElement>('form');
       if (!form) continue;
       const insertion = findQuotaComposerInsertionAnchor(anchor);
+      if (!insertion) {
+        const existing = [...widgets].find((w) => w.anchor === anchor);
+        if (existing) {
+          if (active === existing) hide();
+          existing.button.remove();
+          widgets.delete(existing);
+        }
+        continue;
+      }
       const widget =
         [...widgets].find((w) => w.anchor === anchor) ?? createWidget(anchor, form, null);
       if (insertion.previousElementSibling !== widget.button) insertion.before(widget.button);
@@ -342,7 +351,20 @@ export function startQuotaRing(): () => void {
       scheduleMount();
       return;
     }
-    for (const mutation of mutations)
+    for (const mutation of mutations) {
+      if (mutation.type === 'attributes') {
+        const target = mutation.target;
+        if (
+          target instanceof HTMLElement &&
+          target.closest('form') &&
+          (target.matches(QUOTA_COMPOSER_ANCHOR_SELECTOR) ||
+            target.querySelector(QUOTA_COMPOSER_ANCHOR_SELECTOR))
+        ) {
+          scheduleMount();
+          return;
+        }
+        continue;
+      }
       for (const node of mutation.addedNodes) {
         if (
           !(node instanceof Element) ||
@@ -355,6 +377,7 @@ export function startQuotaRing(): () => void {
           return;
         }
       }
+    }
   });
   const message = (event: MessageEvent) => {
     if (event.origin !== location.origin) return;
@@ -402,10 +425,16 @@ export function startQuotaRing(): () => void {
   window.addEventListener('message', message);
   window.addEventListener('keydown', key);
   window.addEventListener('resize', position);
+  window.addEventListener('resize', scheduleMount);
   window.addEventListener('scroll', scroll, true);
   document.addEventListener('visibilitychange', visibility);
   chrome.storage?.onChanged?.addListener(language);
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class', 'style'],
+  });
   mount();
   window.postMessage({ __gvType: 'gv-quota-subscribe' }, location.origin);
   stopCurrent = () => {
@@ -416,6 +445,7 @@ export function startQuotaRing(): () => void {
     window.removeEventListener('message', message);
     window.removeEventListener('keydown', key);
     window.removeEventListener('resize', position);
+    window.removeEventListener('resize', scheduleMount);
     window.removeEventListener('scroll', scroll, true);
     document.removeEventListener('visibilitychange', visibility);
     chrome.storage?.onChanged?.removeListener(language);
