@@ -349,6 +349,7 @@ export class TimelineManager {
   private timelineHierarchyStorageKey: string = StorageKeys.TIMELINE_HIERARCHY;
   private markerLevelEnabled = false;
   private contextMenu: HTMLElement | null = null;
+  private onContextMenuKeydown: ((ev: KeyboardEvent) => void) | null = null;
   private onContextMenu: ((ev: MouseEvent) => void) | null = null;
   private onDocumentClick: ((ev: MouseEvent) => void) | null = null;
   private onPointerDown: ((ev: PointerEvent) => void) | null = null;
@@ -4271,19 +4272,16 @@ export class TimelineManager {
     if (!this.runnerRing) {
       const ring = document.createElement('div');
       ring.className = 'timeline-runner-ring';
+      // Look lives in contentStyle.css; the ring moves by transform only.
       Object.assign(ring.style, {
         position: 'absolute',
         left: '50%',
-        width: '20px',
-        height: '20px',
+        top: '0',
         transform: 'translate(-50%, -50%)',
-        borderRadius: '9999px',
-        boxShadow: '0 0 0 2px var(--timeline-dot-active-color), 0 0 12px rgba(59,130,246,.45)',
-        background: 'transparent',
         pointerEvents: 'none',
         zIndex: '4',
         opacity: '0',
-        transition: 'opacity 120ms ease',
+        transition: 'opacity 140ms ease',
       } as CSSStyleDeclaration);
       this.ui.trackContent.appendChild(ring);
       this.runnerRing = ring;
@@ -4298,25 +4296,26 @@ export class TimelineManager {
     const t0 =
       typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     this.runnerRing.style.opacity = '1';
+    // Use the same spring shaping as easeInOutQuad override (read once, not per frame)
+    const spring = (() => {
+      try {
+        return localStorage.getItem('gptTimelineSpring') || 'ios';
+      } catch {
+        return 'ios';
+      }
+    })();
     const animate = () => {
       const now =
         typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
       const t = Math.min(1, (now - t0) / Math.max(1, duration));
-      // Use the same spring shaping as easeInOutQuad override
-      const spring = (() => {
-        try {
-          return localStorage.getItem('gptTimelineSpring') || 'ios';
-        } catch {
-          return 'ios';
-        }
-      })();
       let eased: number;
       if (spring === 'snappy') eased = Math.min(1, t + 0.08 * Math.sin(t * 8));
       else if (spring === 'gentle') eased = t * t * (3 - 2 * t);
       else eased = t * t * (3 - 2 * t) * 0.85 + t * 0.15;
-      const y = Math.round(y1 + (y2 - y1) * eased);
+      const y = y1 + (y2 - y1) * eased;
       if (this.runnerRing) {
-        this.runnerRing.style.top = `${y}px`;
+        // Composited move (no per-frame layout); sub-pixel for a smooth glide.
+        this.runnerRing.style.transform = `translate(-50%, -50%) translate3d(0, ${y.toFixed(1)}px, 0)`;
       }
       if (t < 1) {
         this.flowAnimating = true;
@@ -5935,6 +5934,8 @@ export class TimelineManager {
 
   private showContextMenu(dot: DotElement, x: number, y: number): void {
     this.hideContextMenu();
+    // The hover tooltip would otherwise sit on top of the menu.
+    this.hideTooltip(true);
 
     const turnId = dot.dataset.targetTurnId;
     if (!turnId) return;
@@ -6045,9 +6046,17 @@ export class TimelineManager {
 
     document.body.appendChild(menu);
     this.contextMenu = menu;
+    this.onContextMenuKeydown = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') this.hideContextMenu();
+    };
+    document.addEventListener('keydown', this.onContextMenuKeydown, true);
   }
 
   private hideContextMenu(): void {
+    if (this.onContextMenuKeydown) {
+      document.removeEventListener('keydown', this.onContextMenuKeydown, true);
+      this.onContextMenuKeydown = null;
+    }
     if (this.contextMenu) {
       this.contextMenu.remove();
       this.contextMenu = null;

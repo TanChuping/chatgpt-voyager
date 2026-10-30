@@ -171,7 +171,11 @@ function getThemeIconSvg(theme: PMTheme): string {
 }
 
 function detectPageTheme(): PMTheme {
+  // ChatGPT's app shell marks the theme on <html data-theme>; check it before
+  // falling back to the OS preference.
+  const htmlTheme = document.documentElement.getAttribute('data-theme');
   if (
+    htmlTheme === 'dark' ||
     document.querySelector('.theme-host.dark-theme') ||
     document.body.classList.contains('dark-theme') ||
     document.documentElement.classList.contains('dark') ||
@@ -180,6 +184,7 @@ function detectPageTheme(): PMTheme {
     return 'dark';
   }
   if (
+    htmlTheme === 'light' ||
     document.querySelector('.theme-host.light-theme') ||
     document.body.classList.contains('light-theme') ||
     document.documentElement.classList.contains('light') ||
@@ -591,9 +596,12 @@ function computeAnchoredPosition(
   const rect = trigger.getBoundingClientRect();
   const vw = window.innerWidth;
   const pad = 8;
-  const panelW = Math.min(380, Math.max(300, panel.getBoundingClientRect().width || 320));
+  // Layout size, not the transformed rect: the panel is mid-way through its
+  // scale-in animation when this runs.
+  const panelW = panel.offsetWidth || 320;
+  const panelH = panel.offsetHeight || 360;
   const tentativeLeft = Math.min(vw - panelW - pad, Math.max(pad, rect.left + rect.width - panelW));
-  const top = Math.max(pad, rect.top - (panel.getBoundingClientRect().height || 360) - 10);
+  const top = Math.max(pad, rect.top - panelH - 10);
   return { top, left: Math.round(tentativeLeft) };
 }
 
@@ -707,6 +715,8 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     const trigger = createEl('button', 'gv-pm-trigger');
     trigger.id = ID.trigger;
     trigger.setAttribute('aria-label', 'Prompt Manager');
+    trigger.setAttribute('aria-controls', ID.panel);
+    trigger.setAttribute('aria-expanded', 'false');
     const img = document.createElement('img');
     img.width = 52;
     img.height = 52;
@@ -761,8 +771,10 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
         const minPad = 6;
 
         // Parse current position
-        const currentRight = parseFloat(trigger.style.right || '18') || 18;
-        const currentBottom = parseFloat(trigger.style.bottom || '18') || 18;
+        // No saved position → the stylesheet default (clear of the timeline).
+        const computed = getComputedStyle(trigger);
+        const currentRight = parseFloat(trigger.style.right || computed.right) || 18;
+        const currentBottom = parseFloat(trigger.style.bottom || computed.bottom) || 18;
 
         // Calculate constraints (ensure at least minPad from edges)
         const maxRight = vw - tw - minPad;
@@ -901,6 +913,9 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     const controls = createEl('div', 'gv-pm-controls');
 
     const langSel = createEl('select', 'gv-pm-lang');
+    // Shown as a globe icon, so the closed select needs an explicit name.
+    langSel.title = 'Language / 语言';
+    langSel.setAttribute('aria-label', 'Language / 语言');
     for (const lang of APP_LANGUAGES) {
       const opt = createEl('option');
       opt.value = lang;
@@ -1698,9 +1713,21 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       // KaTeX rendered during Markdown step, no post-typeset needed
     }
 
+    // Close fades on the compositor first, then the panel goes display:none.
+    // (A display transition on the panel itself would pull every transition
+    // on it back onto the main thread.)
+    const PANEL_EXIT_MS = 180;
+    let panelHideTimer: number | null = null;
+
     function openPanel(): void {
       open = true;
+      if (panelHideTimer !== null) {
+        window.clearTimeout(panelHideTimer);
+        panelHideTimer = null;
+      }
+      panel.classList.remove('gv-pm-closing');
       panel.classList.remove('gv-hidden');
+      trigger.setAttribute('aria-expanded', 'true');
       // Refresh the favorites listing every time the panel comes back up
       // so stars added while it was closed show immediately.
       void favoritesSidebar.refresh();
@@ -1710,9 +1737,8 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
         // narrows the window 鈥?and since dragging/the unlock button are gated
         // on `!locked`, the user gets stuck. See #635.
         const pad = 8;
-        const rect = panel.getBoundingClientRect();
-        const panelW = rect.width || 320;
-        const panelH = rect.height || 360;
+        const panelW = panel.offsetWidth || 320;
+        const panelH = panel.offsetHeight || 360;
         const left = Math.max(pad, Math.min(savedPos.left, window.innerWidth - panelW - pad));
         const top = Math.max(pad, Math.min(savedPos.top, window.innerHeight - panelH - pad));
         panel.style.left = `${Math.round(left)}px`;
@@ -1728,7 +1754,15 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
 
     function closePanel(): void {
       open = false;
-      panel.classList.add('gv-hidden');
+      trigger.setAttribute('aria-expanded', 'false');
+      panel.classList.add('gv-pm-closing');
+      if (panelHideTimer !== null) window.clearTimeout(panelHideTimer);
+      panelHideTimer = window.setTimeout(() => {
+        panelHideTimer = null;
+        if (open) return;
+        panel.classList.add('gv-hidden');
+        panel.classList.remove('gv-pm-closing');
+      }, PANEL_EXIT_MS);
       // Favorites popover is anchored to a button inside the panel — when
       // the panel hides, the anchor's bounding rect collapses, so the
       // popover would float in stale coordinates. Close it together.
@@ -2410,6 +2444,8 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     return {
       destroy: () => {
         try {
+          if (panelHideTimer !== null) window.clearTimeout(panelHideTimer);
+          panelHideTimer = null;
           stopPromptMountGuard?.();
           stopPromptMountGuard = null;
           window.removeEventListener('resize', onWindowResize);

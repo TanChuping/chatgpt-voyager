@@ -26,6 +26,8 @@ export class TimelinePreviewPanel {
   private onNavigate: ((turnId: string, index: number) => void) | null = null;
   private onSearchChange: ((query: string) => void) | null = null;
   private onToggleStar: ((turnId: string) => void) | null = null;
+  /** Star the user just clicked: only that one plays the pop on the next render. */
+  private justToggledStarId: string | null = null;
   private onDocumentPointerDown: ((e: PointerEvent) => void) | null = null;
   private onKeyDown: ((e: KeyboardEvent) => void) | null = null;
   private onWindowResize: (() => void) | null = null;
@@ -356,6 +358,8 @@ export class TimelinePreviewPanel {
       fragment.appendChild(this.createItem(marker));
     }
     this.listEl.appendChild(fragment);
+    // Re-renders (search, marker refresh) must not replay the pop.
+    this.justToggledStarId = null;
   }
 
   private createItem(marker: PreviewMarkerData): HTMLElement {
@@ -377,6 +381,7 @@ export class TimelinePreviewPanel {
       starBtn.type = 'button';
       starBtn.className = 'timeline-preview-star';
       starBtn.classList.toggle('on', !!marker.starred);
+      if (this.justToggledStarId === marker.id) starBtn.classList.add('timeline-preview-star--pop');
       starBtn.setAttribute('aria-pressed', marker.starred ? 'true' : 'false');
       starBtn.setAttribute('aria-label', marker.starred ? 'Unstar message' : 'Star message');
       starBtn.innerHTML =
@@ -384,6 +389,7 @@ export class TimelinePreviewPanel {
       starBtn.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
+        this.justToggledStarId = marker.id;
         this.onToggleStar?.(marker.id);
       });
       item.appendChild(starBtn);
