@@ -7,8 +7,20 @@ export interface SliderProps extends Omit<React.InputHTMLAttributes<HTMLInputEle
   onValueCommit?: (value: number) => void;
 }
 
+/** Share of the track left of the thumb, for the accent fill (presentation only). */
+function fillPercent(value: unknown, min: unknown, max: unknown): string {
+  const lo = min === undefined || min === '' ? 0 : Number(min);
+  const hi = max === undefined || max === '' ? 100 : Number(max);
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) return '0%';
+  // An input without a value sits at the midpoint, like the native control.
+  const v = value === undefined || value === null || value === '' ? (lo + hi) / 2 : Number(value);
+  if (!Number.isFinite(v)) return '0%';
+  const pct = ((Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * 100;
+  return `${pct}%`;
+}
+
 const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
-  ({ className, onValueChange, onValueCommit, ...props }, ref) => {
+  ({ className, style, onValueChange, onValueCommit, ...props }, ref) => {
     const handleInput = (
       e: React.ChangeEvent<HTMLInputElement> | React.FormEvent<HTMLInputElement>,
     ) => {
@@ -23,16 +35,17 @@ const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
       onValueCommit?.(value);
     };
 
+    const fillStyle = {
+      '--gv-fill': fillPercent(props.value ?? props.defaultValue, props.min, props.max),
+      ...style,
+    } as React.CSSProperties;
+
     return (
       <input
         ref={ref}
         type="range"
-        className={cn(
-          'bg-secondary h-2 w-full cursor-pointer appearance-none rounded-full',
-          '[&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:h-4.5 [&::-webkit-slider-thumb]:w-4.5 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:duration-200 hover:[&::-webkit-slider-thumb]:scale-110',
-          '[&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:h-4.5 [&::-moz-range-thumb]:w-4.5 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-md',
-          className,
-        )}
+        className={cn('gv-slider', className)}
+        style={fillStyle}
         onInput={handleInput}
         onChange={handleInput}
         onMouseUp={handleCommit}

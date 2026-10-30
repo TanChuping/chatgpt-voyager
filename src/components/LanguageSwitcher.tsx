@@ -20,9 +20,9 @@ export const LanguageSwitcher: React.FC = () => {
       size="icon"
       onClick={toggleLanguage}
       title={`Switch to ${APP_LANGUAGE_LABELS[nextLanguage]}`}
-      className="h-9 w-9"
+      className="text-fg-3 hover:text-fg h-[30px] w-[30px]"
     >
-      <Globe className="h-4 w-4" />
+      <Globe className="h-4 w-4" strokeWidth={1.8} />
       <span className="sr-only">Toggle language</span>
     </Button>
   );

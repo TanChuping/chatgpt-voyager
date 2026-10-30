@@ -1,6 +1,5 @@
-import React from 'react';
+import React, { useId } from 'react';
 
-import { Card, CardContent, CardTitle } from '../../../components/ui/card';
 import { Slider } from '../../../components/ui/slider';
 import { Switch } from '../../../components/ui/switch';
 
@@ -22,8 +21,9 @@ interface WidthSliderProps {
 }
 
 /**
- * Reusable width adjustment slider component
- * Used for chat width, edit input width, and sidebar width settings
+ * Slider setting rendered as a single row of a grouped list:
+ * title · value · (switch) on one line, the slider revealed underneath
+ * while the setting is on. Used for chat width, font sizes, spacing, etc.
  */
 export default function WidthSlider({
   label,
@@ -42,38 +42,30 @@ export default function WidthSlider({
   const formatValue = valueFormatter ?? ((v: number) => `${v}%`);
   const hasToggle = enabled !== undefined && onToggle !== undefined;
   const isExpanded = !hasToggle || enabled;
+  const switchId = useId();
+  const sliderId = useId();
 
   return (
-    <Card className="p-4 transition-all hover:shadow-md">
-      <div className="mb-0 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {hasToggle && (
-            <Switch
-              checked={enabled}
-              onChange={(e) => onToggle(e.target.checked)}
-              className="scale-75"
-            />
-          )}
-          <CardTitle>{label}</CardTitle>
-        </div>
-        <span
-          className="text-primary bg-primary/10 rounded-md px-2.5 py-1 text-sm font-bold shadow-sm transition-opacity duration-200"
-          style={{ opacity: isExpanded ? 1 : 0 }}
+    <div className="gv-row gv-row--stack">
+      <div className="gv-row__line">
+        <label
+          htmlFor={hasToggle ? switchId : sliderId}
+          className="gv-row__title min-w-0 flex-1 cursor-pointer"
         >
+          {label}
+        </label>
+        <span className="gv-value" data-visible={isExpanded} aria-hidden={!isExpanded}>
           {formatValue(value)}
         </span>
+        {hasToggle && (
+          <Switch id={switchId} checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
+        )}
       </div>
-      <div
-        className="overflow-hidden transition-all duration-200 ease-in-out"
-        style={{
-          maxHeight: isExpanded ? '120px' : '0px',
-          opacity: isExpanded ? 1 : 0,
-          marginTop: isExpanded ? '12px' : '0px',
-        }}
-      >
-        <CardContent className="p-0">
-          <div className="px-1">
+      <div className="gv-reveal" data-open={isExpanded}>
+        <div className="gv-reveal__body">
+          <div className="pt-2">
             <Slider
+              id={sliderId}
               min={min}
               max={max}
               step={step}
@@ -81,13 +73,13 @@ export default function WidthSlider({
               onValueChange={onChange}
               onValueCommit={onChangeComplete}
             />
-            <div className="text-muted-foreground mt-3 flex items-center justify-between text-xs font-medium">
+            <div className="gv-scale" aria-hidden="true">
               <span>{narrowLabel}</span>
               <span>{wideLabel}</span>
             </div>
           </div>
-        </CardContent>
+        </div>
       </div>
-    </Card>
+    </div>
   );
 }

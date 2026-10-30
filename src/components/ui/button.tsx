@@ -4,28 +4,31 @@ import { type VariantProps, cva } from 'class-variance-authority';
 
 import { cn } from '../../lib/utils';
 
+/*
+ * Quiet, Apple-like buttons: one filled accent for the primary action, a
+ * neutral fill for secondary actions, and ghost for toolbar/icon buttons.
+ * Press feedback (scale + spring release) comes from `.gv-btn` in
+ * tailwind.css — no ripples, no heavy shadows.
+ */
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 relative overflow-hidden',
+  'gv-btn inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] text-[13px] leading-none font-medium select-none disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0',
   {
     variants: {
       variant: {
         default:
-          'bg-primary text-primary-foreground shadow hover:bg-primary/90 before:absolute before:inset-1/2 before:h-0 before:w-0 before:-translate-x-1/2 before:-translate-y-1/2 before:rounded-full before:bg-white/30 before:transition-all before:duration-500 active:before:h-full active:before:w-full active:before:duration-0',
+          'bg-primary text-primary-foreground hover:bg-primary-hover shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_1px_2px_rgba(0,0,0,0.12)]',
         destructive:
-          'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 before:absolute before:inset-1/2 before:h-0 before:w-0 before:-translate-x-1/2 before:-translate-y-1/2 before:rounded-full before:bg-white/30 before:transition-all before:duration-500 active:before:h-full active:before:w-full active:before:duration-0',
-        outline:
-          'border border-input bg-card hover:bg-accent hover:text-accent-foreground shadow-sm before:absolute before:inset-1/2 before:h-0 before:w-0 before:-translate-x-1/2 before:-translate-y-1/2 before:rounded-full before:bg-primary/10 before:transition-all before:duration-500 active:before:h-full active:before:w-full active:before:duration-0',
-        secondary:
-          'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 before:absolute before:inset-1/2 before:h-0 before:w-0 before:-translate-x-1/2 before:-translate-y-1/2 before:rounded-full before:bg-primary/20 before:transition-all before:duration-500 active:before:h-full active:before:w-full active:before:duration-0',
-        ghost:
-          'hover:bg-accent hover:text-accent-foreground before:absolute before:inset-1/2 before:h-0 before:w-0 before:-translate-x-1/2 before:-translate-y-1/2 before:rounded-full before:bg-primary/10 before:transition-all before:duration-500 active:before:h-full active:before:w-full active:before:duration-0',
-        link: 'text-primary underline-offset-4 hover:underline',
+          'bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-[0_1px_2px_rgba(0,0,0,0.12)]',
+        outline: 'bg-well text-fg hover:bg-well-2 active:bg-well-2',
+        secondary: 'bg-well text-fg hover:bg-well-2 active:bg-well-2',
+        ghost: 'text-fg-2 hover:bg-hover hover:text-fg active:bg-press',
+        link: 'text-primary-ink underline-offset-4 hover:underline',
       },
       size: {
-        default: 'h-10 px-4 py-2',
-        sm: 'h-9 rounded-md px-3',
-        lg: 'h-11 rounded-md px-8',
-        icon: 'h-10 w-10',
+        default: 'h-8 px-3.5',
+        sm: 'h-7 rounded-lg px-2.5 text-[12.5px]',
+        lg: 'h-9 px-5',
+        icon: 'gv-btn--icon h-8 w-8 rounded-lg',
       },
     },
     defaultVariants: {
@@ -44,7 +47,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, children, ...props }, ref) => {
     return (
       <button className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props}>
-        <span className="relative z-10">{children}</span>
+        {children}
       </button>
     );
   },

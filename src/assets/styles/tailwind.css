@@ -1,49 +1,150 @@
 @import 'tailwindcss';
 
+/* ==========================================================================
+   Extension pages (settings popup) — 2026-10 refresh
+   --------------------------------------------------------------------------
+   Same token set as the in-page prompt panel (see contentStyle.css,
+   `.gv-pm-panel`): neutral surfaces, one violet accent, hairlines instead of
+   boxes, springs on transform/opacity only. The shadcn-style aliases below
+   (--background, --primary, …) keep the existing Tailwind colour utilities
+   working; new code should prefer the `gv` tokens they point at.
+   ========================================================================== */
+
 @layer base {
   :root {
-    --background: oklch(0.98 0.002 250);
-    --foreground: oklch(0.14 0.004 285);
-    --card: oklch(0.995 0.001 250);
-    --card-foreground: oklch(0.14 0.004 285);
-    --popover: oklch(0.995 0.001 250);
-    --popover-foreground: oklch(0.14 0.004 285);
-    --primary: #6d28d9;
-    --primary-foreground: oklch(0.99 0 0);
-    --secondary: oklch(0.95 0.004 250);
-    --secondary-foreground: oklch(0.38 0.006 250);
-    --muted: oklch(0.96 0.003 250);
-    --muted-foreground: oklch(0.5 0.01 250);
-    --accent: #f5f3ff;
-    --accent-foreground: oklch(0.14 0.004 285);
-    --destructive: oklch(0.6 0.22 25);
-    --destructive-foreground: oklch(0.99 0 0);
-    --border: oklch(0.92 0.004 250);
-    --input: oklch(0.92 0.004 250);
-    --ring: #7c3aed;
+    color-scheme: light;
+
+    /* Accent (unchanged violet) */
+    --gv-accent: #6d28d9;
+    --gv-accent-hover: #5b21b6;
+    --gv-accent-fg: #ffffff;
+    --gv-accent-ink: #6d28d9;
+    --gv-accent-soft: rgba(109, 40, 217, 0.09);
+    --gv-accent-soft-2: rgba(109, 40, 217, 0.15);
+    --gv-ring: rgba(109, 40, 217, 0.35);
+
+    /* Neutrals. `canvas` is the page behind the grouped lists; `bg` is the
+       surface the groups, popovers and selected segments are made of. */
+    --gv-canvas: #f4f4f5;
+    --gv-bg: #ffffff;
+    --gv-bg-2: #f4f4f5;
+    --gv-bg-3: #e9e9ec;
+    --gv-hover: rgba(24, 24, 27, 0.045);
+    --gv-press: rgba(24, 24, 27, 0.08);
+    --gv-line: rgba(24, 24, 27, 0.08);
+    --gv-line-2: rgba(24, 24, 27, 0.14);
+    --gv-fg: #18181b;
+    --gv-fg-2: #52525b;
+    --gv-fg-3: #8b8b94;
+    --gv-danger: #dc2626;
+    --gv-danger-soft: rgba(220, 38, 38, 0.09);
+    --gv-ok: #15803d;
+    --gv-star: #d97706;
+    --gv-scroll: rgba(24, 24, 27, 0.2);
+
+    --gv-switch-off: #e4e4e7;
+    --gv-seg-track: #f0f0f2;
+    --gv-seg-thumb: #ffffff;
+    --gv-seg-thumb-shadow:
+      0 0 0 0.5px rgba(24, 24, 27, 0.06), 0 1px 2px rgba(0, 0, 0, 0.08),
+      0 2px 6px -2px rgba(0, 0, 0, 0.08);
+    --gv-knob-shadow:
+      0 0 0 0.5px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.18),
+      0 2px 6px -1px rgba(0, 0, 0, 0.12);
+    --gv-group-shadow: 0 0 0 1px var(--gv-line);
+    --gv-shadow:
+      0 0 0 1px rgba(24, 24, 27, 0.06), 0 2px 4px -1px rgba(0, 0, 0, 0.05),
+      0 12px 32px -8px rgba(0, 0, 0, 0.18);
+
+    /* Motion */
+    --gv-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --gv-ease-in: cubic-bezier(0.4, 0, 1, 1);
+    --gv-spring: cubic-bezier(0.2, 0.9, 0.25, 1.02);
+    --gv-spring-snap: cubic-bezier(0.25, 1.15, 0.4, 1);
+
+    /* shadcn-compatible aliases used by Tailwind colour utilities */
+    --background: var(--gv-canvas);
+    --foreground: var(--gv-fg);
+    --card: var(--gv-bg);
+    --card-foreground: var(--gv-fg);
+    --popover: var(--gv-bg);
+    --popover-foreground: var(--gv-fg);
+    --primary: var(--gv-accent);
+    --primary-foreground: var(--gv-accent-fg);
+    --secondary: var(--gv-bg-2);
+    --secondary-foreground: var(--gv-fg);
+    --muted: var(--gv-bg-2);
+    --muted-foreground: var(--gv-fg-3);
+    --accent: var(--gv-hover);
+    --accent-foreground: var(--gv-fg);
+    --destructive: var(--gv-danger);
+    --destructive-foreground: #ffffff;
+    --border: var(--gv-line);
+    --input: var(--gv-line-2);
+    --ring: var(--gv-ring);
     --radius: 0.625rem;
   }
 
   .dark {
-    --background: oklch(0.16 0.006 285);
-    --foreground: oklch(0.92 0.004 250);
-    --card: oklch(0.2 0.008 285);
-    --card-foreground: oklch(0.92 0.004 250);
-    --popover: oklch(0.2 0.008 285);
-    --popover-foreground: oklch(0.92 0.004 250);
-    --primary: #7c3aed;
+    color-scheme: dark;
+
+    --gv-accent: #7c3aed;
+    --gv-accent-hover: #8b5cf6;
+    --gv-accent-ink: #a78bfa;
+    --gv-accent-soft: rgba(167, 139, 250, 0.14);
+    --gv-accent-soft-2: rgba(167, 139, 250, 0.22);
+    --gv-ring: rgba(167, 139, 250, 0.45);
+
+    --gv-canvas: #1c1c1c;
+    --gv-bg: #262626;
+    --gv-bg-2: #303030;
+    --gv-bg-3: #3a3a3a;
+    --gv-hover: rgba(255, 255, 255, 0.06);
+    --gv-press: rgba(255, 255, 255, 0.1);
+    --gv-line: rgba(255, 255, 255, 0.08);
+    --gv-line-2: rgba(255, 255, 255, 0.14);
+    --gv-fg: #ececec;
+    --gv-fg-2: #b4b4b4;
+    --gv-fg-3: #8a8a8a;
+    --gv-danger: #f87171;
+    --gv-danger-soft: rgba(248, 113, 113, 0.12);
+    --gv-ok: #4ade80;
+    --gv-star: #fbbf24;
+    --gv-scroll: rgba(255, 255, 255, 0.18);
+
+    --gv-switch-off: #3d3d3d;
+    --gv-seg-track: #303030;
+    --gv-seg-thumb: #4a4a4a;
+    --gv-seg-thumb-shadow:
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.35),
+      0 2px 6px -2px rgba(0, 0, 0, 0.35);
+    --gv-knob-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 2px 6px -1px rgba(0, 0, 0, 0.3);
+    --gv-group-shadow: 0 0 0 1px var(--gv-line);
+    --gv-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.35), 0 2px 6px -1px rgba(0, 0, 0, 0.35),
+      0 16px 40px -8px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
     --primary-foreground: #ffffff;
-    --secondary: oklch(0.24 0.008 285);
-    --secondary-foreground: oklch(0.72 0.006 250);
-    --muted: oklch(0.2 0.006 285);
-    --muted-foreground: oklch(0.56 0.008 250);
-    --accent: rgba(124, 58, 237, 0.14);
-    --accent-foreground: oklch(0.72 0.006 250);
-    --destructive: oklch(0.6 0.22 25);
-    --destructive-foreground: oklch(0.12 0.01 285);
-    --border: oklch(0.3 0.008 285);
-    --input: oklch(0.3 0.008 285);
-    --ring: #a78bfa;
+  }
+
+  @supports (transition-timing-function: linear(0, 1)) {
+    :root {
+      /* Damped springs (ζ≈0.82 and ζ≈0.72), sampled — same curves as the panel */
+      /* prettier-ignore */
+      --gv-spring: linear(
+        0, 0.0215, 0.0762, 0.1517, 0.2388, 0.3303, 0.4213, 0.5081, 0.5886, 0.6613, 0.7257,
+        0.7818, 0.8297, 0.8699, 0.9033, 0.9304, 0.9522, 0.9693, 0.9824, 0.9923, 0.9995, 1.0045,
+        1.0079, 1.0099, 1.0108, 1.0111, 1.0108, 1.0102, 1.0093, 1.0084, 1.0074, 1.0063, 1.0054,
+        1.0045, 1.0037, 1.003, 1
+      );
+      /* prettier-ignore */
+      --gv-spring-snap: linear(
+        0, 0.0279, 0.0983, 0.1948, 0.3044, 0.4173, 0.5265, 0.6275, 0.7175, 0.795, 0.8598,
+        0.9123, 0.9535, 0.9847, 1.0072, 1.0225, 1.032, 1.0369, 1.0384, 1.0374, 1.0348, 1.0311,
+        1.0269, 1.0226, 1.0184, 1.0145, 1.011, 1.008, 1.0055, 1.0034, 1.0018, 1.0006, 0.9998,
+        0.9992, 0.9988, 0.9986, 1
+      );
+    }
   }
 
   * {
@@ -66,6 +167,13 @@
     font-feature-settings:
       'rlig' 1,
       'calt' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  :where(button, a, input, select, textarea, [role='button']):focus-visible {
+    outline: 2px solid var(--gv-ring);
+    outline-offset: 1px;
   }
 }
 
@@ -78,6 +186,11 @@
     }
   }
 
+  --font-sans:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI',
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC',
+    sans-serif;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -86,6 +199,9 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--gv-accent-hover);
+  --color-primary-ink: var(--gv-accent-ink);
+  --color-primary-soft: var(--gv-accent-soft);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -98,8 +214,885 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  --color-canvas: var(--gv-canvas);
+  --color-surface: var(--gv-bg);
+  --color-well: var(--gv-bg-2);
+  --color-well-2: var(--gv-bg-3);
+  --color-hover: var(--gv-hover);
+  --color-press: var(--gv-press);
+  --color-line: var(--gv-line);
+  --color-line-2: var(--gv-line-2);
+  --color-fg: var(--gv-fg);
+  --color-fg-2: var(--gv-fg-2);
+  --color-fg-3: var(--gv-fg-3);
+  --color-danger: var(--gv-danger);
+  --color-danger-soft: var(--gv-danger-soft);
+  --color-star: var(--gv-star);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* ==========================================================================
+   Components
+   ========================================================================== */
+@layer components {
+  /* ── Shell ─────────────────────────────────────────────────────────────── */
+  .gv-shell {
+    /* Content column; only matters for the resizable fallback window. */
+    --gv-gutter: max(0px, calc((100% - 560px) / 2));
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.45;
+    letter-spacing: normal;
+    color: var(--gv-fg);
+    background-color: var(--gv-canvas);
+  }
+
+  .gv-header {
+    position: relative;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 52px;
+    padding: 0 calc(var(--gv-gutter) + 10px) 0 calc(var(--gv-gutter) + 14px);
+  }
+
+  /* Sub-view header: the back button sits where the logo would. */
+  .gv-header--sub {
+    padding-left: calc(var(--gv-gutter) + 6px);
+  }
+
+  .gv-header::after,
+  .gv-footer::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--gv-line);
+    pointer-events: none;
+  }
+
+  .gv-header::after {
+    bottom: 0;
+  }
+
+  .gv-footer::before {
+    top: 0;
+  }
+
+  .gv-brand {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .gv-brand img {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  .gv-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+    letter-spacing: -0.01em;
+    color: var(--gv-fg);
+  }
+
+  .gv-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    /* --gv-sbw is the measured width of a classic (space-taking) scrollbar,
+       so the right margin doesn't look wider than the left on Windows. */
+    padding-inline: calc(var(--gv-gutter) + 12px)
+      max(4px, calc(var(--gv-gutter) + 12px - var(--gv-sbw, 0px)));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--gv-scroll) transparent;
+  }
+
+  /* The header hairline only shows once content has scrolled beneath it. */
+  @supports (animation-timeline: scroll()) and (timeline-scope: --gv-main) {
+    .gv-shell {
+      timeline-scope: --gv-main;
+    }
+
+    .gv-main {
+      scroll-timeline: --gv-main block;
+    }
+
+    .gv-header::after {
+      opacity: 0;
+      animation: gv-edge-in linear both;
+      animation-timeline: --gv-main;
+      animation-range: 0px 16px;
+    }
+  }
+
+  .gv-footer {
+    position: relative;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 42px;
+    padding: 0 calc(var(--gv-gutter) + 8px) 0 calc(var(--gv-gutter) + 14px);
+    font-size: 12px;
+    color: var(--gv-fg-3);
+  }
+
+  .gv-version {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .gv-footer-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--gv-fg-2);
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      color 140ms var(--gv-ease-out),
+      background-color 140ms var(--gv-ease-out),
+      transform 380ms var(--gv-spring-snap);
+  }
+
+  .gv-footer-link:hover,
+  .gv-footer-link[aria-expanded='true'] {
+    color: var(--gv-fg);
+    background-color: var(--gv-hover);
+  }
+
+  .gv-footer-link:active {
+    transform: scale(0.95);
+    background-color: var(--gv-press);
+    transition-duration: 90ms;
+    transition-timing-function: var(--gv-ease-out);
+  }
+
+  /* ── Sections, groups, rows ───────────────────────────────────────────── */
+  .gv-section {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    animation:
+      gv-fade-in 240ms var(--gv-ease-out) both,
+      gv-rise 460ms var(--gv-spring) both;
+    animation-delay: calc(var(--gv-i, 0) * 25ms);
+  }
+
+  .gv-section-label {
+    margin: 0;
+    padding: 0 12px 6px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    color: var(--gv-fg-3);
+  }
+
+  .gv-group + .gv-section-label,
+  .gv-footnote + .gv-section-label {
+    padding-top: 16px;
+  }
+
+  .gv-group + .gv-group {
+    margin-top: 8px;
+  }
+
+  .gv-footnote {
+    margin: 0;
+    padding: 6px 12px 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--gv-fg-3);
+  }
+
+  .gv-group {
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+    background-color: var(--gv-bg);
+    box-shadow: var(--gv-group-shadow);
+  }
+
+  .gv-group > * {
+    position: relative;
+  }
+
+  /* Inset hairline between rows (from the text edge to the group's right edge). */
+  .gv-group > * + *::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 12px;
+    right: 0;
+    height: 1px;
+    background: var(--gv-line);
+    pointer-events: none;
+    transition: opacity 140ms var(--gv-ease-out);
+  }
+
+  /* A highlighted row swallows the hairlines on both of its edges. */
+  .gv-group > .gv-row--action:hover::before,
+  .gv-group > .gv-row--action:hover + *::before {
+    opacity: 0;
+  }
+
+  .gv-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    width: 100%;
+    min-height: 42px;
+    padding: 10px 12px;
+    text-align: start;
+  }
+
+  .gv-row--stack {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .gv-row__line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 22px;
+  }
+
+  .gv-row__text {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .gv-row__title {
+    font-size: 13.5px;
+    font-weight: 500;
+    line-height: 20px;
+    color: var(--gv-fg);
+  }
+
+  .gv-row__desc {
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.45;
+    color: var(--gv-fg-3);
+  }
+
+  label.gv-row__text,
+  .gv-row__text[for] {
+    cursor: pointer;
+  }
+
+  .gv-row > .gv-switch {
+    margin-top: -1px;
+  }
+
+  /* Clickable rows: navigation / one-shot actions / list choices. */
+  .gv-row--action {
+    align-items: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 140ms var(--gv-ease-out);
+  }
+
+  .gv-row--action:hover {
+    background-color: var(--gv-hover);
+  }
+
+  .gv-row--action:active {
+    background-color: var(--gv-press);
+    transition-duration: 60ms;
+  }
+
+  .gv-row--action:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--gv-ring);
+  }
+
+  .gv-row__trail {
+    flex: none;
+    display: inline-flex;
+    width: 16px;
+    height: 16px;
+    color: var(--gv-fg-3);
+  }
+
+  .gv-row__trail svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .gv-row--action:hover .gv-row__trail {
+    color: var(--gv-fg-2);
+  }
+
+  .gv-spin-once {
+    animation: gv-spin-ccw 640ms var(--gv-spring) both;
+  }
+
+  /* Value read-out next to a slider title. */
+  .gv-value {
+    flex: none;
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 20px;
+    font-variant-numeric: tabular-nums;
+    color: var(--gv-fg-2);
+    transition:
+      opacity 160ms var(--gv-ease-out),
+      transform 360ms var(--gv-spring-snap);
+  }
+
+  .gv-value[data-visible='false'] {
+    opacity: 0;
+    transform: translateX(4px);
+  }
+
+  .gv-scale {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 14px;
+    color: var(--gv-fg-3);
+  }
+
+  /* Smooth disclosure (contained in a row; ≤200ms). */
+  .gv-reveal {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      grid-template-rows 200ms var(--gv-ease-out),
+      opacity 140ms var(--gv-ease-out),
+      visibility 0s linear 200ms;
+  }
+
+  .gv-reveal[data-open='true'] {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    visibility: visible;
+    transition:
+      grid-template-rows 200ms var(--gv-ease-out),
+      opacity 180ms var(--gv-ease-out) 40ms,
+      visibility 0s linear 0s;
+  }
+
+  .gv-reveal > * {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Wider overflow box so focus rings inside a revealed panel aren't clipped. */
+  .gv-reveal__body {
+    padding: 0 3px 3px;
+    margin: 0 -3px -3px;
+  }
+
+  /* ── Single-choice list (radio inputs kept, drawn as check rows) ─────── */
+  .gv-choice__input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+    opacity: 0;
+  }
+
+  .gv-choice__focus {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  .gv-choice__input:focus-visible ~ .gv-choice__focus {
+    box-shadow: inset 0 0 0 2px var(--gv-ring);
+  }
+
+  .gv-choice__check {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    color: var(--gv-accent-ink);
+    opacity: 0;
+    transform: scale(0.4);
+    transition:
+      opacity 120ms var(--gv-ease-out),
+      transform 420ms var(--gv-spring-snap);
+  }
+
+  .gv-choice__input:checked ~ .gv-choice__check {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* ── Switch ───────────────────────────────────────────────────────────── */
+  .gv-switch {
+    position: relative;
+    flex: none;
+    display: inline-flex;
+    width: 36px;
+    height: 22px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .gv-switch__track {
+    position: relative;
+    display: block;
+    width: 36px;
+    height: 22px;
+    border-radius: 999px;
+    background-color: var(--gv-switch-off);
+    transition:
+      background-color 180ms var(--gv-ease-out),
+      opacity 140ms var(--gv-ease-out);
+  }
+
+  .gv-switch__knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow: var(--gv-knob-shadow);
+    transform-origin: left center;
+    transition: transform 440ms var(--gv-spring-snap);
+  }
+
+  .gv-switch__input:checked + .gv-switch__track {
+    background-color: var(--gv-accent);
+  }
+
+  .gv-switch__input:checked + .gv-switch__track .gv-switch__knob {
+    transform: translateX(14px);
+    transform-origin: right center;
+  }
+
+  /* Press: the knob stretches a little toward the side it's about to travel. */
+  .gv-switch:active .gv-switch__input:not(:disabled) + .gv-switch__track .gv-switch__knob {
+    transform: scaleX(1.18);
+    transition-duration: 140ms;
+    transition-timing-function: var(--gv-ease-out);
+  }
+
+  .gv-switch:active .gv-switch__input:checked:not(:disabled) + .gv-switch__track .gv-switch__knob {
+    transform: translateX(14px) scaleX(1.18);
+  }
+
+  .gv-switch__input:focus-visible + .gv-switch__track {
+    outline: 2px solid var(--gv-ring);
+    outline-offset: 2px;
+  }
+
+  .gv-switch__input:disabled + .gv-switch__track {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  /* ── Segmented control ────────────────────────────────────────────────── */
+  .gv-seg {
+    position: relative;
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    width: 100%;
+    padding: 2px;
+    border-radius: 999px;
+    background-color: var(--gv-seg-track);
+    box-shadow: inset 0 0 0 1px var(--gv-line);
+    isolation: isolate;
+  }
+
+  .gv-seg__thumb {
+    position: absolute;
+    z-index: -1;
+    top: 2px;
+    bottom: 2px;
+    left: 2px;
+    width: calc((100% - 4px) / var(--gv-seg-count, 2));
+    border-radius: 999px;
+    background-color: var(--gv-seg-thumb);
+    box-shadow: var(--gv-seg-thumb-shadow);
+    transform: translateX(calc(var(--gv-seg-index, 0) * 100%));
+    transition: transform 460ms var(--gv-spring-snap);
+  }
+
+  .gv-seg__item {
+    position: relative;
+    display: inline-flex;
+    min-width: 0;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--gv-fg-2);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      color 160ms var(--gv-ease-out),
+      transform 380ms var(--gv-spring-snap);
+  }
+
+  .gv-seg__item:hover {
+    color: var(--gv-fg);
+  }
+
+  .gv-seg__item[aria-pressed='true'] {
+    color: var(--gv-fg);
+  }
+
+  .gv-seg__item:active {
+    transform: scale(0.96);
+    transition-duration: 100ms;
+    transition-timing-function: var(--gv-ease-out);
+  }
+
+  .gv-seg__item:focus-visible {
+    outline-offset: -2px;
+  }
+
+  /* ── Slider ───────────────────────────────────────────────────────────── */
+  .gv-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    width: 100%;
+    height: 22px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    --gv-fill: 50%;
+  }
+
+  .gv-slider:focus-visible {
+    outline: none;
+  }
+
+  .gv-slider::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      var(--gv-accent) 0 var(--gv-fill),
+      var(--gv-bg-3) var(--gv-fill) 100%
+    );
+  }
+
+  .gv-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -7px;
+    border: 0;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: var(--gv-knob-shadow);
+    transition:
+      transform 420ms var(--gv-spring-snap),
+      box-shadow 160ms var(--gv-ease-out);
+  }
+
+  .gv-slider:active::-webkit-slider-thumb {
+    transform: scale(1.14);
+    transition-duration: 120ms, 160ms;
+    transition-timing-function: var(--gv-ease-out);
+  }
+
+  .gv-slider:focus-visible::-webkit-slider-thumb {
+    box-shadow:
+      var(--gv-knob-shadow),
+      0 0 0 4px var(--gv-ring);
+  }
+
+  .gv-slider::-moz-range-track {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--gv-bg-3);
+  }
+
+  .gv-slider::-moz-range-progress {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--gv-accent);
+  }
+
+  .gv-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: 0;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: var(--gv-knob-shadow);
+  }
+
+  .gv-slider:focus-visible::-moz-range-thumb {
+    box-shadow:
+      var(--gv-knob-shadow),
+      0 0 0 4px var(--gv-ring);
+  }
+
+  /* ── Text field / select ──────────────────────────────────────────────── */
+  .gv-field {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    height: 32px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 9px;
+    background-color: var(--gv-bg-2);
+    box-shadow: inset 0 0 0 1px transparent;
+    color: var(--gv-fg);
+    font-size: 13px;
+    line-height: 32px;
+    transition:
+      background-color 140ms var(--gv-ease-out),
+      box-shadow 140ms var(--gv-ease-out);
+  }
+
+  .gv-field::placeholder {
+    color: var(--gv-fg-3);
+    opacity: 1;
+  }
+
+  .gv-field:hover:not(:disabled) {
+    background-color: var(--gv-bg-3);
+  }
+
+  .gv-field:focus,
+  .gv-field:focus-visible {
+    outline: none;
+    background-color: var(--gv-bg);
+    box-shadow:
+      inset 0 0 0 1px var(--gv-accent),
+      0 0 0 3px var(--gv-accent-soft-2);
+  }
+
+  .gv-field:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  select.gv-field {
+    -webkit-appearance: none;
+    appearance: none;
+    padding-right: 30px;
+    cursor: pointer;
+    text-overflow: ellipsis;
+  }
+
+  /* ── Buttons ──────────────────────────────────────────────────────────── */
+  .gv-btn {
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      color 140ms var(--gv-ease-out),
+      background-color 140ms var(--gv-ease-out),
+      box-shadow 140ms var(--gv-ease-out),
+      opacity 140ms var(--gv-ease-out),
+      transform 420ms var(--gv-spring-snap);
+  }
+
+  .gv-btn:active:not(:disabled) {
+    transform: scale(0.97);
+    transition-duration: 100ms;
+    transition-timing-function: var(--gv-ease-out);
+  }
+
+  .gv-btn--icon:active:not(:disabled) {
+    transform: scale(0.9);
+  }
+
+  .gv-icon-swap {
+    display: inline-flex;
+    animation: gv-icon-swap 420ms var(--gv-spring-snap) both;
+  }
+
+  /* ── Popover (support card) ───────────────────────────────────────────── */
+  .gv-popover {
+    border-radius: 14px;
+    background-color: var(--gv-bg);
+    box-shadow: var(--gv-shadow);
+    color: var(--gv-fg);
+    transform-origin: 50% 100%;
+    scrollbar-width: thin;
+    scrollbar-color: var(--gv-scroll) transparent;
+    animation:
+      gv-fade-in 180ms var(--gv-ease-out) both,
+      gv-pop-rise 420ms var(--gv-spring) both;
+  }
+
+  .gv-push-in {
+    animation:
+      gv-fade-in 200ms var(--gv-ease-out) both,
+      gv-push 440ms var(--gv-spring) both;
+  }
+
+  /* No transitions while the stored settings settle in right after opening,
+     so switches don't visibly flip from their defaults. */
+  .gv-shell[data-motion='off'],
+  .gv-shell[data-motion='off'] *,
+  .gv-shell[data-motion='off'] *::before,
+  .gv-shell[data-motion='off'] *::after {
+    transition: none !important;
+  }
+
+  /* Vendor pseudo-elements get their own rules: an unknown one would void
+     the whole selector list in other engines. */
+  .gv-shell[data-motion='off'] .gv-slider::-webkit-slider-thumb {
+    transition: none !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gv-section,
+    .gv-push-in,
+    .gv-popover {
+      animation: gv-fade-in 140ms linear both;
+      animation-delay: 0ms;
+    }
+
+    .gv-icon-swap,
+    .gv-spin-once {
+      animation: none;
+    }
+
+    .gv-switch__knob,
+    .gv-seg__thumb,
+    .gv-seg__item,
+    .gv-choice__check,
+    .gv-value,
+    .gv-btn,
+    .gv-footer-link {
+      transition-property: opacity, color, background-color, box-shadow;
+    }
+
+    .gv-slider::-webkit-slider-thumb {
+      transition-property: box-shadow;
+    }
+
+    .gv-switch:active .gv-switch__input:not(:disabled) + .gv-switch__track .gv-switch__knob {
+      transform: none;
+    }
+
+    .gv-switch:active
+      .gv-switch__input:checked:not(:disabled)
+      + .gv-switch__track
+      .gv-switch__knob {
+      transform: translateX(14px);
+    }
+
+    .gv-btn:active:not(:disabled),
+    .gv-seg__item:active,
+    .gv-footer-link:active {
+      transform: none;
+    }
+
+    .gv-slider:active::-webkit-slider-thumb {
+      transform: none;
+    }
+
+    .gv-reveal,
+    .gv-reveal[data-open='true'] {
+      transition: opacity 120ms linear;
+    }
+  }
+}
+
+@keyframes gv-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes gv-rise {
+  from {
+    transform: translateY(6px);
+  }
+}
+
+@keyframes gv-pop-rise {
+  from {
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+@keyframes gv-push {
+  from {
+    transform: translateX(14px);
+  }
+}
+
+@keyframes gv-edge-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes gv-icon-swap {
+  from {
+    opacity: 0;
+    transform: rotate(-70deg) scale(0.6);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes gv-spin-ccw {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(-360deg);
+  }
 }
