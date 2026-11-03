@@ -30,7 +30,7 @@ import { getTranslationSync, getTranslationSyncUnsafe, initI18n } from '@/utils/
 
 import {
   extractChatGptConversationIdFromUrl,
-  findAppShellSidebarScroll,
+  findAppShellSidebarHeader,
   findChatGptHistoryContainer,
   findChatGptSidebar,
   getChatGptConversationElements,
@@ -1523,9 +1523,8 @@ export class FolderManager {
     // 2026-09 layout: the pinned header (title, search, 新聊天) is the element
     // right before the scrolling history area — the same "pinned above the
     // history" slot the sticky nav block used to be.
-    const appShellScroll = findAppShellSidebarScroll(sidebar);
-    const appShellHeader = appShellScroll?.previousElementSibling;
-    if (appShellHeader instanceof HTMLElement) return appShellHeader;
+    const appShellHeader = findAppShellSidebarHeader(sidebar);
+    if (appShellHeader) return appShellHeader;
 
     // The expanded-sidebar "new chat" link is an anchor with href="/" wrapped
     // in <li>→<ul>→<div class="pt-(--sidebar-section-first-margin-top) … tall:sticky">.

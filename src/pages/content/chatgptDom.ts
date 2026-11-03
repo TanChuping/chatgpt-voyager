@@ -305,6 +305,18 @@ export function findAppShellSidebarScroll(root: ParentNode = document): HTMLElem
   );
 }
 
+/** The pinned header and the scroll area are siblings at the panel nav level.
+ * The scrollport itself can be nested inside a flex wrapper. */
+export function findAppShellSidebarHeader(sidebar: HTMLElement): HTMLElement | null {
+  const scroll = findAppShellSidebarScroll(sidebar);
+  const nav = scroll?.closest('nav');
+  if (!scroll || !nav || !sidebar.contains(nav)) return null;
+  let area = scroll;
+  while (area.parentElement && area.parentElement !== nav) area = area.parentElement;
+  const header = area.previousElementSibling;
+  return header instanceof HTMLElement ? header : null;
+}
+
 /**
  * The resizable left panel (rail + sidebar). ChatGPT owns its width: a drag
  * handle (rendered only while expanded), collapse to the rail, the open/close

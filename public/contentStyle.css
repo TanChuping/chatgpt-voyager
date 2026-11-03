@@ -1580,9 +1580,9 @@ body.dark-theme .gv-md-collapsed::after {
   --gv-folder-list-edge: 4px;
   margin: 0 0 4px;
   padding: 0 0 4px;
-  position: sticky;
-  top: var(--gv-folder-sticky-top, 52px);
-  z-index: 20;
+  /* Only the native header pins folders. A fallback inside history must
+     scroll with its sibling rows, including on unfamiliar sidebar layouts. */
+  position: relative;
   background: var(--main-surface-primary, var(--sidebar-surface-primary, transparent));
   /* Ensure alignment with Recent section */
   margin-left: 0;
