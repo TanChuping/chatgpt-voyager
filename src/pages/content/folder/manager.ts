@@ -1,7 +1,6 @@
 ﻿import browser from 'webextension-polyfill';
 
 import {
-  createChevronDownIcon,
   createChevronRightIcon,
   createEyeIcon,
   createEyeOffIcon,
@@ -43,6 +42,7 @@ import { CONVERSATION_ROW_SELECTOR } from '../shared/domCompat';
 import { findActivePageHeader } from '../shared/headerActionSlot';
 import { trackAppShellRowDrag } from './appShellRowDrag';
 import { type ConversationSortMode, sortConversationsByPriority } from './conversationSort';
+import { setFolderDisclosure } from './disclosureMotion';
 import {
   type FloatingFabPos,
   isFloatingFabMounted,
@@ -1817,6 +1817,7 @@ export class FolderManager {
     const collapseButton = document.createElement('button');
     collapseButton.className = 'gv-folder-section-toggle';
     collapseButton.type = 'button';
+    collapseButton.appendChild(createChevronRightIcon(16));
     collapseButton.addEventListener('click', (event) => {
       event.stopPropagation();
       event.preventDefault();
@@ -3661,22 +3662,22 @@ export class FolderManager {
       `${this.t(visiblyExpanded ? 'folder_collapse' : 'folder_expand')}: ${folder.name}`,
     );
 
-    const content = folderElement.querySelector<HTMLElement>(':scope > .gv-folder-content');
+    let content = folderElement.querySelector<HTMLElement>(':scope > .gv-folder-content');
     if (folder.isExpanded) {
       if (!content) {
         const level = Number.parseInt(folderElement.dataset.level || '0', 10) || 0;
-        const nextContent = this.createFolderContent(folder, level);
-        nextContent.classList.add('gv-folder-content--entering');
-        const clearEnteringState = () =>
-          nextContent.classList.remove('gv-folder-content--entering');
-        nextContent.addEventListener('animationend', clearEnteringState, { once: true });
-        window.setTimeout(clearEnteringState, 250);
-        folderElement.appendChild(nextContent);
+        content = this.createFolderContent(folder, level);
+        folderElement.appendChild(content);
         this.flushPendingTitleUpdates();
         this.highlightActiveConversationInFolders();
       }
-    } else {
-      content?.remove();
+    }
+    if (content) {
+      const branch = content;
+      branch.inert = !folder.isExpanded;
+      setFolderDisclosure(branch, folder.isExpanded, (visible) => {
+        if (!visible) branch.remove();
+      });
     }
   }
 
@@ -8437,11 +8438,16 @@ export class FolderManager {
     }
   }
 
-  private applyFoldersCollapsedState(): void {
+  private applyFoldersCollapsedState(animate = false): void {
     const container = this.containerElement;
     if (!container) return;
 
-    container.classList.toggle('gv-folder-collapsed', this.foldersCollapsed);
+    const search = container.querySelector<HTMLElement>('.gv-folder-search');
+    if (search) {
+      setFolderDisclosure(search, !this.foldersCollapsed, (visible) => {
+        container.classList.toggle('gv-folder-collapsed', !visible);
+      }, animate);
+    }
     const button = container.querySelector<HTMLButtonElement>('.gv-folder-section-toggle');
     if (button) {
       const label = this.t(
@@ -8450,17 +8456,16 @@ export class FolderManager {
       button.title = label;
       button.setAttribute('aria-label', label);
       button.setAttribute('aria-expanded', String(!this.foldersCollapsed));
-      button.replaceChildren(
-        this.foldersCollapsed ? createChevronRightIcon(16) : createChevronDownIcon(16),
-      );
     }
   }
 
-  private applyFoldersHiddenState(): void {
+  private applyFoldersHiddenState(animate = false): void {
     const container = this.containerElement;
     if (!container) return;
 
-    container.classList.toggle('gv-folder-hidden', this.foldersHidden);
+    setFolderDisclosure(container, !this.foldersHidden, (visible) => {
+      container.classList.toggle('gv-folder-hidden', !visible);
+    }, animate);
     const button = container.querySelector<HTMLButtonElement>('.gv-folder-visibility-toggle');
     const label = this.t(this.foldersHidden ? 'folder_show_section' : 'folder_hide_section');
     if (button) {
@@ -8482,7 +8487,7 @@ export class FolderManager {
 
   private async toggleFoldersCollapsed(): Promise<void> {
     this.foldersCollapsed = !this.foldersCollapsed;
-    this.applyFoldersCollapsedState();
+    this.applyFoldersCollapsedState(true);
     try {
       await browser.storage.local.set({ [StorageKeys.FOLDERS_COLLAPSED]: this.foldersCollapsed });
     } catch (error) {
@@ -8492,7 +8497,7 @@ export class FolderManager {
 
   private async toggleFoldersHidden(): Promise<void> {
     this.foldersHidden = !this.foldersHidden;
-    this.applyFoldersHiddenState();
+    this.applyFoldersHiddenState(true);
     try {
       await browser.storage.local.set({ [StorageKeys.FOLDERS_HIDDEN]: this.foldersHidden });
     } catch (error) {

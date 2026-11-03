@@ -170,8 +170,7 @@ describe('folder expansion state', () => {
     manager.destroy();
   });
 
-  it('clears the transient animation class even when animationend never fires', () => {
-    vi.useFakeTimers();
+  it('reuses a closing branch when a second click reverses its animation', () => {
     const manager = new FolderManager();
     const typedManager = manager as unknown as TestableManager;
     typedManager.data = { folders: [{ ...folder }], folderContents: { 'folder-1': [] } };
@@ -182,11 +181,22 @@ describe('folder expansion state', () => {
     container.appendChild(folderElement);
     document.body.appendChild(container);
 
-    folderElement.querySelector<HTMLButtonElement>('.gv-folder-expand-btn')!.click();
+    const toggle = folderElement.querySelector<HTMLButtonElement>('.gv-folder-expand-btn')!;
+    toggle.click();
     const content = folderElement.querySelector<HTMLElement>('.gv-folder-content')!;
-    expect(content.classList.contains('gv-folder-content--entering')).toBe(true);
-    vi.advanceTimersByTime(251);
-    expect(content.classList.contains('gv-folder-content--entering')).toBe(false);
+    const animation = { reverse: vi.fn(), onfinish: () => {} };
+    content.animate = vi.fn().mockReturnValue(animation);
+    toggle.click();
+    expect(content.inert).toBe(true);
+    toggle.click();
+    expect(animation.reverse).toHaveBeenCalledOnce();
+    expect(content.animate).toHaveBeenCalledOnce();
+    animation.onfinish();
+    expect(folderElement.querySelector('.gv-folder-content')).toBe(content);
+    expect(content.inert).toBe(false);
+    toggle.click();
+    animation.onfinish();
+    expect(content.isConnected).toBe(false);
     manager.destroy();
   });
 
