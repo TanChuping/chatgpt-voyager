@@ -16,7 +16,13 @@ const PANEL_ID = 'gv-quota-panel';
 const STYLE_ID = 'gv-quota-style';
 const MOUNT_ANCHORS = `${QUOTA_COMPOSER_ANCHOR_SELECTOR}, ${QUOTA_RAIL_AVATAR_SELECTOR}`;
 const STALE_MS = 180_000;
+// Use the browser's local calendar: retire the Chat exemption on December 1.
+const CHAT_NOTE_END = new Date(2026, 11, 1).getTime();
 const SVG_NS = 'http://www.w3.org/2000/svg';
+// Keep this literal in both worlds: a shared runtime import makes CRX emit a
+// chrome.runtime loader, which cannot execute in MAIN world.
+const NATIVE_QUOTA_SELECTOR =
+  'nav[data-app-navigation-rail] button[aria-description]:has(use[href*="#codex-icon-usage-"])';
 type Widget = {
   button: HTMLButtonElement;
   progress: SVGCircleElement;
@@ -38,6 +44,7 @@ const CSS = `
 .gv-quota-ring[data-stale=true]{opacity:.65}
 .gv-quota-sidebar-slot{display:flex;flex:none;width:100%;justify-content:center;align-items:center;margin-block:2px}
 .gv-quota-sidebar-slot .gv-quota-ring{width:36px;height:36px;margin:0}
+.gv-quota-native-replaced{display:none!important}
 #${PANEL_ID}{position:fixed;z-index:2147483000;width:288px;max-width:calc(100vw - 20px);box-sizing:border-box;padding:16px;border-radius:17px;border:1px solid var(--color-border,var(--border-default,rgba(128,128,128,.2)));background:var(--color-surface,var(--main-surface-primary,#202020));color:var(--color-text-primary,#eee);box-shadow:0 14px 44px rgba(0,0,0,.24),0 3px 10px rgba(0,0,0,.1);font:13px/1.45 ui-sans-serif,system-ui,sans-serif;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(6px) scale(.96);transform-origin:bottom center;transition:opacity 130ms ease,transform 260ms cubic-bezier(.22,1.3,.36,1),visibility 0s 150ms}
 #${PANEL_ID}[data-placement=side]{transform:translateX(-5px) scale(.96);transform-origin:left center}
 #${PANEL_ID}[data-open]{opacity:1;visibility:visible;pointer-events:auto;transform:translate(0) scale(1);transition-delay:0s}
@@ -92,6 +99,11 @@ export function startQuotaRing(): () => void {
   let leaveTimer: number | null = null;
   let freshnessTimer: number | null = null;
   let mountTimer: number | null = null;
+  let nativeTimer: number | null = null;
+  let nativeRail: Element | null = null;
+  let nativeButton: Element | null = null;
+  let nativeDescription: string | null = null;
+  const replacedNative = new Set<Element>();
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = CSS;
@@ -143,7 +155,8 @@ export function startQuotaRing(): () => void {
   const renderPanel = () => {
     if (!active) return;
     panel.replaceChildren(div('gv-quota-title', text('quotaRing_title')));
-    if (chatMode(active)) panel.appendChild(div('gv-quota-note', text('quotaRing_chatNote')));
+    const showChatNote = Date.now() < CHAT_NOTE_END && chatMode(active);
+    if (showChatNote) panel.appendChild(div('gv-quota-note', text('quotaRing_chatNote')));
     const snapshot = state.snapshot;
     if (!snapshot?.windows.length)
       panel.appendChild(
@@ -205,7 +218,11 @@ export function startQuotaRing(): () => void {
     }
     clearTimer(freshnessTimer);
     freshnessTimer = null;
-    if (snapshot && !isStale())
+    const nextRefresh = Math.min(
+      snapshot && !isStale() ? snapshot.capturedAt + STALE_MS + 1 : Infinity,
+      showChatNote ? CHAT_NOTE_END : Infinity,
+    );
+    if (Number.isFinite(nextRefresh))
       freshnessTimer = window.setTimeout(
         () => {
           freshnessTimer = null;
@@ -215,7 +232,7 @@ export function startQuotaRing(): () => void {
             position();
           }
         },
-        Math.max(1, snapshot.capturedAt + STALE_MS + 1 - Date.now()),
+        Math.min(2_147_483_647, Math.max(1, nextRefresh - Date.now())),
       );
   };
   const hide = () => {
@@ -305,6 +322,30 @@ export function startQuotaRing(): () => void {
     widgets.add(widget);
     return widget;
   };
+  const readNative = () => {
+    nativeTimer = null;
+    if (stopped) return;
+    const button = nativeRail?.querySelector(NATIVE_QUOTA_SELECTOR) ?? null;
+    const description = button?.getAttribute('aria-description') ?? null;
+    if (button === nativeButton && description === nativeDescription) return;
+    nativeButton = button;
+    nativeDescription = description;
+    if (button) window.postMessage({ __gvType: 'gv-quota-native' }, location.origin);
+  };
+  const nativeObserver = new MutationObserver((mutations) => {
+    // Ignore our own rendering and native ring animation style/class changes.
+    if (
+      mutations.some(
+        (m) =>
+          m.type === 'attributes' ||
+          [...m.addedNodes, ...m.removedNodes].some(
+            (n) => n instanceof Element && !n.closest('.gv-quota-ring,.gv-quota-sidebar-slot'),
+          ),
+      )
+    ) {
+      if (nativeTimer === null) nativeTimer = window.setTimeout(readNative, 80);
+    }
+  });
   const mount = () => {
     mountTimer = null;
     if (stopped) return;
@@ -342,6 +383,21 @@ export function startQuotaRing(): () => void {
       footer.before(wrapper);
       wrapper.appendChild(createWidget(avatar, null, wrapper).button);
     }
+    if (rail !== nativeRail) {
+      nativeObserver.disconnect();
+      nativeRail = rail ?? null;
+      nativeButton = null;
+      nativeDescription = null;
+      if (nativeRail)
+        nativeObserver.observe(nativeRail, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeFilter: ['aria-description'],
+        });
+    }
+    clearTimer(nativeTimer);
+    readNative();
   };
   const scheduleMount = () => {
     if (!stopped && mountTimer === null) mountTimer = window.setTimeout(mount, 80);
@@ -392,6 +448,16 @@ export function startQuotaRing(): () => void {
     )
       return;
     state = next;
+    if (typeof event.data.nativeReady === 'boolean' && nativeButton) {
+      const replace =
+        event.data.nativeReady && [...widgets].some((w) => w.form === null && w.button.isConnected);
+      nativeButton.classList.toggle('gv-quota-native-replaced', replace);
+      if (replace) replacedNative.add(nativeButton);
+    }
+    if (!state.snapshot) {
+      replacedNative.forEach((button) => button.classList.remove('gv-quota-native-replaced'));
+      replacedNative.clear();
+    }
     widgets.forEach(updateWidget);
     if (active) {
       renderPanel();
@@ -441,6 +507,10 @@ export function startQuotaRing(): () => void {
     stopped = true;
     hide();
     clearTimer(mountTimer);
+    clearTimer(nativeTimer);
+    nativeObserver.disconnect();
+    replacedNative.forEach((button) => button.classList.remove('gv-quota-native-replaced'));
+    replacedNative.clear();
     observer.disconnect();
     window.removeEventListener('message', message);
     window.removeEventListener('keydown', key);

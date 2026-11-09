@@ -35,6 +35,7 @@ const message = () =>
 
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 10, 7, 12));
   mount();
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
 });
@@ -46,6 +47,67 @@ afterEach(() => {
 });
 
 describe('quota ring UI', () => {
+  it('retires the Chat note at local midnight on December 1, including an open panel', async () => {
+    vi.setSystemTime(new Date(2026, 10, 30, 23, 59, 59));
+    startQuotaRing();
+    const ring = document.querySelector<HTMLElement>('form .gv-quota-ring')!;
+    ring.dispatchEvent(new FocusEvent('focus'));
+    const panel = document.getElementById('gv-quota-panel')!;
+    expect(panel.querySelector('.gv-quota-note')).not.toBeNull();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(panel.hasAttribute('data-open')).toBe(true);
+    expect(panel.querySelector('.gv-quota-note')).toBeNull();
+    vi.setSystemTime(new Date(2027, 0, 1));
+    ring.dispatchEvent(new FocusEvent('focus'));
+    expect(panel.querySelector('.gv-quota-note')).toBeNull();
+  });
+
+  it('reads a late native ring only on its changes, hides it after success, and restores it on stop', async () => {
+    const post = vi.spyOn(window, 'postMessage').mockImplementation(() => undefined);
+    startQuotaRing();
+    const nativeRequests = () =>
+      post.mock.calls.filter(([data]) => data.__gvType === 'gv-quota-native').length;
+    await vi.advanceTimersByTimeAsync(500);
+    expect(nativeRequests()).toBe(0);
+    const native = document.createElement('button');
+    native.setAttribute('aria-description', '39% left');
+    native.innerHTML = '<svg><use href="/icons.svg#codex-icon-usage-fill-regular-12"></use></svg>';
+    document.querySelector('.footer')!.prepend(native);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(nativeRequests()).toBe(1);
+    expect(native.classList.contains('gv-quota-native-replaced')).toBe(false);
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: location.origin,
+        data: { ...message().data, nativeReady: true },
+      }),
+    );
+    expect(native.classList.contains('gv-quota-native-replaced')).toBe(true);
+    native.style.opacity = '0.8';
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(nativeRequests()).toBe(1);
+    native.setAttribute('aria-description', '38% left');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(nativeRequests()).toBe(2);
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: location.origin,
+        data: { ...message().data, nativeReady: false },
+      }),
+    );
+    expect(native.classList.contains('gv-quota-native-replaced')).toBe(false);
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: location.origin,
+        data: { ...message().data, nativeReady: true },
+      }),
+    );
+    stopQuotaRing();
+    expect(native.classList.contains('gv-quota-native-replaced')).toBe(false);
+    native.setAttribute('aria-description', '37% left');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(nativeRequests()).toBe(2);
+  });
   it('mounts outside the model animation block in the October composer', () => {
     const span = document.querySelector<HTMLElement>('.row > span')!;
     const animation = document.createElement('div');

@@ -1,3 +1,5 @@
+import { NATIVE_QUOTA_SELECTOR, readNativeQuota } from './nativeQuota';
+
 /** Passive MAIN-world mirror. No extra requests, credentials or durable cache. */
 export interface QuotaWindow {
   id: string;
@@ -103,9 +105,13 @@ export function createQuotaMirror() {
   let accepted = 0;
   let snapshot: QuotaSnapshot | null = null;
   let failed = false;
-  const publish = () => {
+  let lastNative: unknown = null;
+  const publish = (nativeReady?: boolean) => {
     try {
-      window.postMessage({ __gvType: 'gv-quota-state', epoch, snapshot, failed }, location.origin);
+      window.postMessage(
+        { __gvType: 'gv-quota-state', epoch, snapshot, failed, nativeReady },
+        location.origin,
+      );
     } catch {
       /* never interfere with ChatGPT */
     }
@@ -114,8 +120,29 @@ export function createQuotaMirror() {
     if (event.origin !== location.origin || !record(event.data)) return;
     if (event.data.__gvType === 'gv-quota-feature' && typeof event.data.enabled === 'boolean') {
       enabled = event.data.enabled;
+      if (!enabled) lastNative = null;
     } else if (event.data.__gvType === 'gv-quota-subscribe' && enabled) {
       publish(); // In-memory replay; no sessionStorage or new request.
+    } else if (event.data.__gvType === 'gv-quota-native' && enabled) {
+      try {
+        const button = document.querySelector(NATIVE_QUOTA_SELECTOR);
+        const raw = button ? record(readNativeQuota(button)) : null;
+        const next = raw && normalizeQuotaSnapshot(raw);
+        if (!next?.windows.length || (account && raw?.account_id !== account)) {
+          publish(false);
+          return;
+        }
+        // A DOM remount/replay must not promote old native data over a newer API response.
+        if (raw !== lastNative) {
+          lastNative = raw;
+          accepted = ++sequence; // Reject API requests started before this native update.
+          snapshot = next;
+          failed = false;
+        }
+        publish(true);
+      } catch {
+        publish(false); // Leave the native control available when its internals change.
+      }
     }
   };
   window.addEventListener('message', listener);
@@ -135,6 +162,7 @@ export function createQuotaMirror() {
           epoch++;
           accepted = 0;
           snapshot = null;
+          lastNative = null;
           failed = false;
           if (enabled) publish();
         }
