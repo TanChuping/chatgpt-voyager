@@ -6896,6 +6896,29 @@ body.gv-rtl .gv-floating-folder-panel__move-hint {
 
 /* Megaphone button — inherits ChatGPT's icon-button class for padding
  * and hover. We only add the unread indicator dot and position it. */
+.gv-header-actions > .gv-header-action {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary, var(--text-primary, inherit));
+  line-height: 1;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.gv-header-actions > .gv-header-action > svg { width: 20px; height: 20px; flex: none; }
+.gv-header-actions > .gv-header-action:hover { background: var(--color-background-secondary, rgba(128,128,128,.15)); }
+.gv-header-actions > .gv-header-action:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+
 .gv-announcement-btn {
   position: relative;
 }

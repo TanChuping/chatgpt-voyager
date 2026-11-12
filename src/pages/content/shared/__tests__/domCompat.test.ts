@@ -129,6 +129,26 @@ describe('ChatGPT 2026-09 DOM compatibility shim', () => {
     expect(document.getElementById('header-trigger')?.hasAttribute('data-testid')).toBe(false);
   });
 
+  it('recognizes the November title dropdown as the conversation menu owner', () => {
+    document.querySelector('header')!.innerHTML = `
+      <div data-app-shell-main-titlebar><div data-app-shell-header-toolbar>
+        <button id="title-menu" aria-haspopup="menu">Old conversation
+          <svg><use href="/icons.svg#codex-icon-chevron-down-md-light-12"></use></svg>
+        </button>
+      </div><div data-app-shell-header-obstacle><button>Share</button></div></div>`;
+    syncChatGptDomCompat();
+    expect(document.getElementById('title-menu')?.getAttribute('data-testid')).toBe(
+      'conversation-options-button',
+    );
+    const menu = document.createElement('div');
+    menu.setAttribute('role', 'menu');
+    menu.setAttribute('aria-labelledby', 'title-menu');
+    menu.innerHTML = '<div role="menuitem">重命名</div><div role="menuitem">删除</div>';
+    document.body.appendChild(menu);
+    syncChatGptDomCompat();
+    expect(menu.querySelector('[data-testid="rename-chat-menu-item"]')).not.toBeNull();
+  });
+
   it('tags delete / share / rename only in menus owned by a conversation trigger', () => {
     syncChatGptDomCompat();
     const menu = document.createElement('div');

@@ -24,6 +24,8 @@
  */
 
 export interface HeaderActionSlot {
+  /** Our own horizontal group; callers use stable Voyager button styling. */
+  owned?: boolean;
   /** Element to `insertBefore` into. */
   parent: HTMLElement;
   /** Reference node; our button goes immediately before it (i.e. to its left). */
@@ -105,6 +107,8 @@ export function findActivePageHeader(): HTMLElement | null {
  */
 export function findOptionsButtonRow(): HeaderActionSlot | null {
   const pageHeader = findActivePageHeader();
+  const titlebar = pageHeader?.querySelector<HTMLElement>('[data-app-shell-main-titlebar]');
+  if (titlebar) return findOwnedHeaderActionsSlot(titlebar);
   const options = pageHeader?.querySelector<HTMLElement>(
     '[data-testid="conversation-options-button"]',
   );
@@ -133,6 +137,47 @@ export function findOptionsButtonRow(): HeaderActionSlot | null {
     parent = parent.parentElement;
   }
   return { parent: header, before: child, styleSource: options };
+}
+
+/** Keep action placement independent of the native menu/share buttons and their classes. */
+function findOwnedHeaderActionsSlot(titlebar: HTMLElement): HeaderActionSlot | null {
+  if (wouldStackVertically(titlebar)) {
+    titlebar.querySelector('[data-gv-header-actions]')?.remove();
+    return null;
+  }
+  const nativeRight = titlebar.querySelector<HTMLElement>(
+    ':scope > [data-app-shell-header-obstacle]',
+  );
+  const parent = nativeRight && !wouldStackVertically(nativeRight) ? nativeRight : titlebar;
+  let group = titlebar.querySelector<HTMLElement>('[data-gv-header-actions]');
+  if (!group) {
+    group = document.createElement('div');
+    group.setAttribute('data-gv-header-actions', '');
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', 'GPT-Voyager');
+    group.className = 'gv-header-actions';
+    Object.assign(group.style, {
+      display: 'inline-flex',
+      flexDirection: 'row',
+      flexWrap: 'nowrap',
+      alignItems: 'center',
+      gap: '4px',
+      flex: '0 0 auto',
+      pointerEvents: 'auto',
+    });
+  }
+  if (group.parentElement !== parent) {
+    if (parent === nativeRight) parent.prepend(group);
+    else parent.appendChild(group);
+  }
+  const margin = parent === titlebar ? 'auto' : '0px';
+  if (group.style.marginInlineStart !== margin) group.style.marginInlineStart = margin;
+  // Left-side optional shortcuts still need a real native icon-button template.
+  const styleSource =
+    Array.from((nativeRight ?? titlebar).querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => !button.closest('[data-gv-header-actions]'),
+    ) ?? document.createElement('button');
+  return { parent: group, before: null, styleSource, owned: true };
 }
 
 /**

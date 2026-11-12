@@ -32,15 +32,19 @@
  * down and re-mount the header on every navigation, and our static
  * injection wouldn't survive.
  */
+import { resolveChatGptMenuTrigger } from '../chatgptDom';
 import { buildClonedButtonClassName } from '../shared/clonedButtonClass';
 import {
+  findHeaderActionsRoot,
   findHorizontalRowAncestor,
   findOptionsButtonRow,
   findShareButtonSlot,
 } from '../shared/headerActionSlot';
+import { cloneAppShellMenuItem } from '../shared/nativeMenuItemTemplate';
 
 const TAG = 'data-gv-announcement-btn';
 const INDICATOR_CLASS = 'gv-announcement-btn__indicator';
+const MENU_CLASS = 'gv-announcement-menu-btn';
 
 /**
  * Last value passed to `applyUnreadState`. Held at module scope so that
@@ -116,6 +120,7 @@ let onClickRef: (() => void) | null = null;
 let labelRef = '';
 
 interface Anchor {
+  owned?: boolean;
   /** Container we insertBefore() into. */
   parent: HTMLElement;
   /** Direct child of `parent` we sit immediately to the LEFT of. */
@@ -143,6 +148,7 @@ function findAnchor(): Anchor | null {
   if (optionsRow) {
     const exportBtn = optionsRow.parent.querySelector<HTMLElement>('[data-gv-export-btn]');
     return {
+      owned: optionsRow.owned,
       parent: optionsRow.parent,
       before: exportBtn ?? optionsRow.before,
       styleSource: optionsRow.styleSource,
@@ -215,7 +221,7 @@ function injectIfNeeded(): void {
   // `cursor-not-allowed`) so our always-functional button never renders dimmed
   // with a not-allowed cursor.
   btn.className = buildClonedButtonClassName(
-    styleSource.className,
+    anchor.owned ? 'gv-header-action' : styleSource.className,
     'gv-announcement-btn',
     currentUnread && 'gv-announcement-btn--unread',
   );
@@ -262,13 +268,68 @@ export function applyUnreadState(unread: boolean): void {
 
 let observer: MutationObserver | null = null;
 
+/** A second entry in the native conversation menu survives missing header slots. */
+function injectAnnouncementMenu(menu: HTMLElement): void {
+  if (!onClickRef || menu.querySelector(`.${MENU_CLASS}`)) return;
+  const trigger = resolveChatGptMenuTrigger(menu);
+  if (
+    !trigger?.matches('[data-testid="conversation-options-button"]') ||
+    !trigger.closest('header')
+  )
+    return;
+  const item = cloneAppShellMenuItem(menu, {
+    className: MENU_CLASS,
+    label: labelRef,
+    tooltip: labelRef,
+    icon: buildMegaphoneIcon(),
+    excludedClassNames: [MENU_CLASS, 'gv-move-to-folder-btn', 'gv-export-conversation-menu-btn'],
+  });
+  if (!item) return;
+  const activate = (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    window.setTimeout(() => onClickRef?.(), 0);
+  };
+  item.addEventListener('click', activate);
+  item.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') activate(event);
+  });
+  menu.appendChild(item);
+}
+
 export function startTopBarAnnouncementButton(args: InjectArgs): void {
   onClickRef = args.onClick;
   labelRef = args.label;
   injectIfNeeded();
   if (observer) return;
-  observer = new MutationObserver(() => injectIfNeeded());
+  observer = new MutationObserver((records) => {
+    const header = findHeaderActionsRoot();
+    const headerChanged = records.some(
+      (record) =>
+        (header && header.contains(record.target)) ||
+        [...record.addedNodes, ...record.removedNodes].some(
+          (node) =>
+            node instanceof Element &&
+            (node.matches(
+              'header, #conversation-header-actions, [data-testid="temporary-chat-toggle"]',
+            ) ||
+              node.querySelector(
+                'header, #conversation-header-actions, [data-testid="temporary-chat-toggle"]',
+              )),
+        ),
+    );
+    if (headerChanged) injectIfNeeded();
+    for (const record of records)
+      for (const node of record.addedNodes) {
+        if (!(node instanceof HTMLElement)) continue;
+        if (node.matches('[role="menu"]')) injectAnnouncementMenu(node);
+        node.querySelectorAll<HTMLElement>('[role="menu"]').forEach(injectAnnouncementMenu);
+      }
+  });
   observer.observe(document.body, { childList: true, subtree: true });
+  window.addEventListener('resize', injectIfNeeded);
+  document.querySelectorAll<HTMLElement>('[role="menu"]').forEach(injectAnnouncementMenu);
 }
 
 export function getButtonRect(): DOMRect | null {
@@ -283,6 +344,8 @@ export function getButtonElement(): HTMLElement | null {
 export function stopTopBarAnnouncementButton(): void {
   observer?.disconnect();
   observer = null;
+  window.removeEventListener('resize', injectIfNeeded);
   document.querySelectorAll<HTMLElement>(`[${TAG}]`).forEach((b) => b.remove());
+  document.querySelectorAll(`.${MENU_CLASS}`).forEach((item) => item.remove());
   onClickRef = null;
 }

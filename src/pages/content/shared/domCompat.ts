@@ -130,8 +130,13 @@ function setTestIdIfFree(el: Element, testId: string): void {
  */
 function syncHeaderOptions(): void {
   if (!CONVERSATION_ROUTE_RE.test(location.pathname)) return;
+  // November: the conversation menu moved from the right-hand ellipsis into
+  // the title dropdown. It remains the owner of rename/move/export menu actions.
+  const titleMenu = document.querySelector(
+    'header [data-app-shell-main-titlebar] [data-app-shell-header-toolbar] button[aria-haspopup="menu"]:has(use[href*="#codex-icon-chevron-down-"])',
+  );
   const triggers = document.querySelectorAll(HEADER_OPTIONS_SELECTOR);
-  const trigger = triggers[triggers.length - 1];
+  const trigger = titleMenu ?? triggers[triggers.length - 1];
   if (trigger) setTestIdIfFree(trigger, LEGACY_HEADER_OPTIONS_TESTID);
 }
 

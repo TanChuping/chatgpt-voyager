@@ -139,7 +139,9 @@ function injectIfNeeded(generation: number): void {
   // and the label (ChatGPT's native icon-only buttons don't need one).
   // Strip Share's transient disabled classes so our (always-functional) button
   // never renders dimmed with a not-allowed cursor.
-  btn.className = buildClonedButtonClassName(styleSource.className, 'gv-export-conv-topbar');
+  btn.className = site.owned
+    ? 'gv-header-action gv-export-conv-topbar'
+    : buildClonedButtonClassName(styleSource.className, 'gv-export-conv-topbar');
   btn.type = 'button';
   btn.setAttribute(TAG, '1');
   btn.setAttribute('aria-haspopup', 'menu');
@@ -155,7 +157,7 @@ function injectIfNeeded(generation: number): void {
   // Mirror the reference button instead: no text on Share ⇒ no text on ours,
   // with the localised label carried by `aria-label` + `title`. If ChatGPT ever
   // goes back to labelled header buttons, this flips back on its own.
-  if (isIconOnly(styleSource)) {
+  if (site.owned || isIconOnly(styleSource)) {
     btn.replaceChildren(icon);
   } else {
     const labelEl = document.createElement('span');
@@ -439,6 +441,7 @@ export function startTopBarExportButton(): void {
   locationChangeHandler = () => scheduleInjection(generation);
   window.addEventListener('popstate', locationChangeHandler);
   window.addEventListener('hashchange', locationChangeHandler);
+  window.addEventListener('resize', locationChangeHandler);
 }
 
 export function stopTopBarExportButton(): void {
@@ -455,6 +458,7 @@ export function stopTopBarExportButton(): void {
   if (locationChangeHandler) {
     window.removeEventListener('popstate', locationChangeHandler);
     window.removeEventListener('hashchange', locationChangeHandler);
+    window.removeEventListener('resize', locationChangeHandler);
     locationChangeHandler = null;
   }
   removeTrackedButton();

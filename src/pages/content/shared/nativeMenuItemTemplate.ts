@@ -142,7 +142,7 @@ export type AppShellMenuItemOptions = {
   excludedClassNames?: string[];
 };
 
-const APP_SHELL_ICON_SLOT_SELECTOR = '[class*="leadingIcon"]';
+const APP_SHELL_ICON_SLOT_SELECTOR = '[data-leading-icon-slot="menu"], [class*="leadingIcon"]';
 const APP_SHELL_LABEL_SELECTOR = 'span.truncate';
 
 /**
@@ -167,7 +167,44 @@ export function cloneAppShellMenuItem(
       !!item.querySelector(APP_SHELL_ICON_SLOT_SELECTOR) &&
       !!item.querySelector(APP_SHELL_LABEL_SELECTOR),
   );
-  if (!template) return null;
+  if (!template) {
+    // Unknown native internals: don't shallow-clone a flex-column menu shell.
+    // A small self-contained row is safer than inheriting its layout classes.
+    if (!menu.querySelector('[role="menuitem"]')) return null;
+    const item = document.createElement('div');
+    item.className = options.className;
+    item.setAttribute('role', 'menuitem');
+    item.tabIndex = 0;
+    item.setAttribute('aria-label', options.tooltip || options.label);
+    item.title = options.tooltip || options.label;
+    Object.assign(item.style, {
+      display: 'flex',
+      flexDirection: 'row',
+      flexWrap: 'nowrap',
+      alignItems: 'center',
+      gap: '8px',
+      minHeight: '32px',
+      padding: '6px 12px',
+      boxSizing: 'border-box',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      color: 'inherit',
+    });
+    const iconSlot = document.createElement('span');
+    Object.assign(iconSlot.style, { display: 'inline-flex', flex: '0 0 20px', width: '20px' });
+    iconSlot.appendChild(options.icon);
+    const label = document.createElement('span');
+    label.setAttribute('data-gv-menu-label', '1');
+    label.textContent = options.label;
+    Object.assign(label.style, {
+      minWidth: '0',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    });
+    item.append(iconSlot, label);
+    return item;
+  }
 
   const item = template.cloneNode(true) as HTMLElement;
   for (const node of [item, ...Array.from(item.querySelectorAll<HTMLElement>('*'))]) {
