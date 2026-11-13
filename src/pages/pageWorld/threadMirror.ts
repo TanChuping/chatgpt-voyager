@@ -47,8 +47,10 @@ const THREAD_ANCHOR_ATTR = 'data-gv-thread-anchor';
 
 const LAYER_ATTR = 'data-gv-thread-anchor-layer';
 const TURN_KEY_SELECTOR = '[data-turn-key]';
-/** List ~5, owning conversation/loading state ~20 above a mounted row. */
-const MAX_CLIMB = 32;
+/** List ~5, owner/loading state ~30 on the November layout; bounded ancestor walk. */
+const MAX_CLIMB = 64;
+/** November's provider stack reaches 314 ancestors; never traverse the full tree. */
+const MAX_ROOT_CLIMB = 512;
 const MAX_HOOKS = 120;
 /** Enough for a dot tooltip / preview row; the full text lives in ChatGPT. */
 const MAX_TEXT = 4000;
@@ -152,13 +154,14 @@ function routeConversationId(): string | null {
 function committedFiberOf(row: Element): Dict | null {
   const fiber = fiberOf(row);
   let root = fiber;
-  for (let i = 0; root && i < 100; i++) {
+  for (let i = 0; root && i < MAX_ROOT_CLIMB; i++) {
     const parent = asDict(root.return);
     if (!parent) break;
     root = parent;
   }
+  if (asDict(root?.return)) return null;
   const current = asDict(asDict(root?.stateNode)?.current);
-  return current && current !== root ? (asDict(fiber?.alternate) ?? fiber) : fiber;
+  return current && current !== root ? asDict(fiber?.alternate) : fiber;
 }
 
 function findThreadList(): ThreadList | null {
@@ -193,7 +196,14 @@ function findThreadList(): ThreadList | null {
       props.conversationId === conversationId
     )
       resolvedScrollOwner = props.scrollStateConversationId;
-    if (!found && props && Array.isArray(props.entries)) {
+    // The generic virtualizer now calls the same turn records `rows`; the
+    // parent still exposes `entries` but no longer owns the layout ref.
+    const entries = Array.isArray(props?.rows)
+      ? props.rows
+      : Array.isArray(props?.entries)
+        ? props.entries
+        : null;
+    if (!found && entries) {
       const layout = readLayout(fiber);
       const container = layout ? hostNodeOf(fiber) : null;
       if (
@@ -201,7 +211,7 @@ function findThreadList(): ThreadList | null {
         container?.contains(row) &&
         layout.turnKeys.includes(row.getAttribute('data-turn-key') ?? '')
       ) {
-        found = { entries: props.entries, layout, container, conversationId: null };
+        found = { entries, layout, container, conversationId: null };
       }
     }
     fiber = asDict(fiber.return);

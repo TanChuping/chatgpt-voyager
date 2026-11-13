@@ -187,6 +187,53 @@ describe('thread mirror (2026-09 virtualised thread)', () => {
     expect(list[0].hasAttribute('data-gv-attachments')).toBe(false);
   });
 
+  it('reads November rows from the layout owner, retaining route/loading checks above wrappers', () => {
+    history.replaceState({}, '', '/c/A');
+    const page = ownedPage('A', K1, true);
+    const row = page.querySelector('[data-turn-key]')! as unknown as Fiber;
+    const list = ((row['__reactFiber$test'] as Fiber).return as Fiber).return as Fiber;
+    const records = (list.memoizedProps as Fiber).entries;
+    list.memoizedProps = { rows: records };
+    let owner = list.return as Fiber;
+    for (let i = 0; i < 38; i++) owner = { memoizedProps: {}, return: owner };
+    list.return = owner;
+    expect(syncThreadMirror()).toBe(1);
+    expect(anchors()[0].getAttribute('data-gv-text')).toBe('A');
+    history.replaceState({}, '', '/c/B');
+    expect(syncThreadMirror()).toBe(0);
+    expect(anchors()).toHaveLength(0);
+  });
+
+  it('uses the committed alternate beyond 300 provider ancestors, not stale measurements', () => {
+    const container = renderVirtualList([K1], [0], [280], [entry(K1, 'old')]);
+    const row = container.querySelector('[data-turn-key]')! as unknown as Fiber;
+    const old = row['__reactFiber$test'] as Fiber;
+    const oldList = (old.return as Fiber).return as Fiber;
+    const newList: Fiber = {
+      ...oldList,
+      memoizedProps: { rows: [entry(K1, 'current')] },
+      memoizedState: {
+        memoizedState: { current: { turnKeys: [K1], topOffsetsPx: [120], heightsPx: [400] } },
+      },
+    };
+    const currentRoot: Fiber = {};
+    const oldRoot: Fiber = { stateNode: { current: currentRoot } };
+    currentRoot.stateNode = { current: currentRoot };
+    for (const [list, root] of [
+      [oldList, oldRoot],
+      [newList, currentRoot],
+    ]) {
+      let parent = root;
+      for (let i = 0; i < 312; i++) parent = { return: parent };
+      list.return = parent;
+    }
+    old.alternate = { return: newList };
+    expect(syncThreadMirror()).toBe(1);
+    expect(anchors()[0].getAttribute('data-gv-text')).toBe('current');
+    expect(anchors()[0].style.top).toBe('120px');
+    expect(anchors()[0].style.height).toBe('400px');
+  });
+
   it('follows re-measurement, paging and branch changes without duplicating anchors', () => {
     const container = renderVirtualList(
       [K2, K3],
