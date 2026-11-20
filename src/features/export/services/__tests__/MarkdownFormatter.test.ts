@@ -1,10 +1,14 @@
 /**
  * MarkdownFormatter unit tests
  */
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { installEnglishLocale } from '@/tests/localeFixture';
 
 import type { ChatTurn, ConversationMetadata } from '../../types/export';
 import { MarkdownFormatter } from '../MarkdownFormatter';
+
+beforeEach(installEnglishLocale);
 
 describe('MarkdownFormatter', () => {
   const mockMetadata: ConversationMetadata = {

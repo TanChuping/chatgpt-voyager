@@ -1,3 +1,5 @@
+import { EmptyImageRenderError } from '../types/errors';
+
 const TRANSPARENT_IMAGE_PLACEHOLDER =
   'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 const DEFAULT_OFFSCREEN_LEFT = '-100000px';
@@ -63,7 +65,7 @@ async function renderTargetToBlob(target: HTMLElement): Promise<Blob> {
     const rect = target.getBoundingClientRect();
     const width = Math.round(rect.width);
     const height = Math.round(rect.height);
-    throw new Error(`Image render failed (${width}x${height})`);
+    throw new EmptyImageRenderError(width, height);
   }
 
   return blob;
@@ -161,3 +163,4 @@ export async function renderElementToImageBlob(
     options.sanitizeSelector ?? DEFAULT_SANITIZE_SELECTOR,
   );
 }
+

@@ -29,7 +29,8 @@
         "prevent-auto-scroll.js",
         "chatgpt-response-complete-observer.js",
         "assets/*.js",
-        "assets/*.png"
+        "assets/*.png",
+        "locales/*.json"
       ],
       "matches": ["<all_urls>"]
     }
@@ -59,5 +60,5 @@
     "service_worker": "src/pages/background/index.ts",
     "type": "module"
   },
-  "version": "1.9.4"
+  "version": "1.9.5"
 }

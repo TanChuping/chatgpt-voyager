@@ -1,3 +1,4 @@
+import { getTranslationSync } from '@/utils/i18n';
 /**
  * Image export service
  *
@@ -95,7 +96,7 @@ export class ImageExportService {
       pointerEvents: 'none',
     } as Partial<CSSStyleDeclaration>);
 
-    const title = metadata.title || 'Conversation';
+    const title = metadata.title || getTranslationSync('exportConversationLabel');
     const date = this.formatDate(metadata.exportedAt);
     const headerHtml = `
       <header class="gv-image-export-header">
@@ -103,7 +104,7 @@ export class ImageExportService {
         <div class="gv-image-export-meta">
           <div>${this.escapeHTML(date)}</div>
           <div><a href="${this.escapeAttr(metadata.url)}">${this.escapeHTML(metadata.url)}</a></div>
-          <div>${metadata.count} conversation turns</div>
+          <div>${this.escapeHTML(getTranslationSync('exportTurns').replace('{count}', String(metadata.count)))}</div>
         </div>
       </header>
     `;
@@ -122,14 +123,14 @@ export class ImageExportService {
         if (!turn.omitEmptySections) {
           return `
           <article class="gv-image-export-turn">
-            <div class="gv-image-export-turn-header">Turn ${turnIndex}${starred}</div>
+            <div class="gv-image-export-turn-header">${this.escapeHTML(getTranslationSync('exportTurn').replace('{count}', String(turnIndex)))}${starred}</div>
             <section class="gv-image-export-block">
-              <div class="gv-image-export-label">User</div>
-              <div class="gv-image-export-content">${userHtml || '<em>No content</em>'}</div>
+              <div class="gv-image-export-label">${this.escapeHTML(getTranslationSync('exportUserLabel'))}</div>
+              <div class="gv-image-export-content">${userHtml || `<em>${this.escapeHTML(getTranslationSync('exportNoContent'))}</em>`}</div>
             </section>
             <section class="gv-image-export-block">
-              <div class="gv-image-export-label">Assistant</div>
-              <div class="gv-image-export-content">${assistantHtml || '<em>No content</em>'}</div>
+              <div class="gv-image-export-label">${this.escapeHTML(getTranslationSync('exportAssistantLabel'))}</div>
+              <div class="gv-image-export-content">${assistantHtml || `<em>${this.escapeHTML(getTranslationSync('exportNoContent'))}</em>`}</div>
             </section>
           </article>
         `;
@@ -140,13 +141,13 @@ export class ImageExportService {
 
         return `
           <article class="gv-image-export-turn">
-            <div class="gv-image-export-turn-header">Turn ${turnIndex}${starred}</div>
+            <div class="gv-image-export-turn-header">${this.escapeHTML(getTranslationSync('exportTurn').replace('{count}', String(turnIndex)))}${starred}</div>
             ${
               hasUser
                 ? `
             <section class="gv-image-export-block">
-              <div class="gv-image-export-label">User</div>
-              <div class="gv-image-export-content">${userHtml || '<em>No content</em>'}</div>
+              <div class="gv-image-export-label">${this.escapeHTML(getTranslationSync('exportUserLabel'))}</div>
+              <div class="gv-image-export-content">${userHtml || `<em>${this.escapeHTML(getTranslationSync('exportNoContent'))}</em>`}</div>
             </section>
             `
                 : ''
@@ -155,8 +156,8 @@ export class ImageExportService {
               hasAssistant
                 ? `
             <section class="gv-image-export-block">
-              <div class="gv-image-export-label">Assistant</div>
-              <div class="gv-image-export-content">${assistantHtml || '<em>No content</em>'}</div>
+              <div class="gv-image-export-label">${this.escapeHTML(getTranslationSync('exportAssistantLabel'))}</div>
+              <div class="gv-image-export-content">${assistantHtml || `<em>${this.escapeHTML(getTranslationSync('exportNoContent'))}</em>`}</div>
             </section>
             `
                 : ''
@@ -168,8 +169,8 @@ export class ImageExportService {
 
     const footerHtml = `
       <footer class="gv-image-export-footer">
-        <div>Exported from Voyager</div>
-        <div>Generated on ${this.escapeHTML(date)}</div>
+        <div>${this.escapeHTML(getTranslationSync('exportSource'))}</div>
+        <div>${this.escapeHTML(getTranslationSync('exportGeneratedOn').replace('{date}', date))}</div>
       </footer>
     `;
 
@@ -304,7 +305,7 @@ export class ImageExportService {
     const bodyHtml = content.html.trim() || this.formatPlainTextAsHtml(content.markdown);
     const headerHtml = `
       <header class="gv-image-export-header">
-        <h1 class="gv-image-export-title">${this.escapeHTML(content.title || 'Deep Research Report')}</h1>
+        <h1 class="gv-image-export-title">${this.escapeHTML(content.title || getTranslationSync('exportResearchReport'))}</h1>
         <div class="gv-image-export-meta">
           <div>${this.escapeHTML(date)}</div>
           <div><a href="${this.escapeAttr(content.url)}">${this.escapeHTML(content.url)}</a></div>
@@ -314,8 +315,8 @@ export class ImageExportService {
 
     const footerHtml = `
       <footer class="gv-image-export-footer">
-        <div>Exported from Voyager</div>
-        <div>Generated on ${this.escapeHTML(date)}</div>
+        <div>${this.escapeHTML(getTranslationSync('exportSource'))}</div>
+        <div>${this.escapeHTML(getTranslationSync('exportGeneratedOn').replace('{date}', date))}</div>
       </footer>
     `;
 
@@ -561,7 +562,7 @@ export class ImageExportService {
 
   private static formatPlainTextAsHtml(text: string): string {
     const safe = this.escapeHTML(text || '');
-    if (!safe.trim()) return '<em>No content</em>';
+    if (!safe.trim()) return `<em>${this.escapeHTML(getTranslationSync('exportNoContent'))}</em>`;
     const paras = safe
       .split(/\n\n+/)
       .map((p) => p.replace(/\n/g, '<br>'))

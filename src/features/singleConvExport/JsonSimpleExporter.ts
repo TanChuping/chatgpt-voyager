@@ -27,6 +27,8 @@
  * simplified format is "human + downstream-tool friendly"; epoch ints
  * fail that bar.
  */
+import { getTranslationSync } from '@/utils/i18n';
+
 import type { LinearAttachment, LinearConversation } from '../conversationApi/types';
 import { filterForSimple } from './simpleFilter';
 
@@ -69,7 +71,7 @@ export function toJsonSimple(linear: LinearConversation): string {
   const filtered = filterForSimple(linear);
   const out: SimpleConversation = {
     v: 1,
-    title: filtered.title || 'Untitled conversation',
+    title: filtered.title || getTranslationSync('conversation_untitled'),
     createTime: isoOrNull(filtered.createTime),
     messages: filtered.messages
       .filter(

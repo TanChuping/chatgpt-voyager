@@ -168,6 +168,14 @@ function label(): string {
   return getTranslationSync(wantFolded ? 'railToggle_show' : 'railToggle_hide');
 }
 
+function refreshLocalizedUi(): void {
+  if (!started) return;
+  const text = label();
+  document.querySelector(`[${BUTTON_ATTR}]`)?.setAttribute('aria-label', text);
+  const tooltip = document.getElementById(TOOLTIP_ID);
+  if (tooltip && tooltip.textContent !== text) tooltip.textContent = text;
+}
+
 function createIcon(): SVGSVGElement {
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', '0 0 20 20');
@@ -430,6 +438,7 @@ export function startRailToggle(): () => void {
   });
   wideQuery = window.matchMedia?.(WIDE_QUERY) ?? null;
   wideQuery?.addEventListener('change', onWideChange);
+  window.addEventListener('voyager:language-changed', refreshLocalizedUi);
   syncFold(false);
 
   chrome.storage?.local?.get(StorageKeys.GV_RAIL_COLLAPSED, (result) => {
@@ -455,6 +464,7 @@ export function startRailToggle(): () => void {
 export function stopRailToggle(): void {
   if (!started) return;
   started = false;
+  window.removeEventListener('voyager:language-changed', refreshLocalizedUi);
   wantFolded = false;
   observer?.disconnect();
   observer = null;

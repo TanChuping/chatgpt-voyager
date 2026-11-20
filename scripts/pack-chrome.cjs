@@ -35,7 +35,6 @@ console.log(`[pack-chrome] version: ${version}`);
 fs.mkdirSync(outDir, { recursive: true });
 
 const zipPath = path.join(outDir, `chatgpt-voyager-${version}-chrome.zip`);
-if (fs.existsSync(zipPath)) fs.rmSync(zipPath);
 
 const zip = new JSZip();
 function addDir(absDir, relDir) {
@@ -52,6 +51,27 @@ function addDir(absDir, relDir) {
 addDir(dist, '');
 
 (async () => {
+  // Check the archive entries CWS receives. The runtime dictionaries live under a different path.
+  const manifest = JSON.parse(await zip.file('manifest.json').async('string'));
+  if (manifest.version !== version || manifest.default_locale !== 'en' ||
+      manifest.name !== '__MSG_extName__' || manifest.description !== '__MSG_extDescription__') {
+    throw new Error('Rebuild dist_chrome: the version or localized manifest fields do not match.');
+  }
+  const sources = path.join(repoRoot, 'src', 'locales');
+  for (const dir of fs.readdirSync(sources, { withFileTypes: true }).filter(dir => dir.isDirectory())) {
+    const locale = dir.name === 'zh' ? 'zh_CN' : dir.name;
+    const filename = `_locales/${locale}/messages.json`;
+    const entry = zip.file(filename);
+    if (!entry) throw new Error(`Missing Chrome locale in ZIP: ${filename}`);
+    const catalog = JSON.parse(await entry.async('string'));
+    const source = JSON.parse(fs.readFileSync(path.join(sources, dir.name, 'messages.json'), 'utf8'));
+    for (const [key, limit] of [['extName', 75], ['extDescription', 132]]) {
+      const value = catalog[key]?.message;
+      if (typeof value !== 'string' || !value.trim() || value.length > limit || value !== source[key]?.message) {
+        throw new Error(`Invalid or stale ${filename}: ${key}`);
+      }
+    }
+  }
   const buf = await zip.generateAsync({
     type: 'nodebuffer',
     compression: 'DEFLATE',

@@ -457,12 +457,19 @@ export class TimelineManager {
   async init(): Promise<void> {
     await initI18n();
     if (!this.isCurrentContext()) return;
-    this.purgeLegacyLocalStorageKeys();
     const ok = await this.findCriticalElements();
     // A fast conversation switch may have destroyed us during the (up to 4s)
     // findCriticalElements await — bail before injecting orphaned DOM.
     if (!ok || !this.isCurrentContext()) return;
     this.injectTimelineUI();
+    const refreshLanguage = () => {
+      this.pinPrevButton?.setAttribute('aria-label', getTranslationSync('timelinePreviousPin'));
+      this.pinNextButton?.setAttribute('aria-label', getTranslationSync('timelineNextPin'));
+      this.pinToggleButton?.setAttribute('aria-label', getTranslationSync('timelinePinText'));
+      this.pinDeleteButton?.setAttribute('aria-label', getTranslationSync('timelineDeletePin'));
+    };
+    window.addEventListener('voyager:language-changed', refreshLanguage);
+    this.eventBusUnsubscribers.push(() => window.removeEventListener('voyager:language-changed', refreshLanguage));
     this.setupEventListeners();
     this.setupObservers();
     this.conversationId = this.computeConversationId();
@@ -1381,19 +1388,19 @@ export class TimelineManager {
       const prev = document.createElement('button');
       prev.type = 'button';
       prev.className = 'timeline-pin-step timeline-pin-prev';
-      prev.setAttribute('aria-label', 'Previous pin in this message');
+      prev.setAttribute('aria-label', getTranslationSync('timelinePreviousPin'));
       prev.innerHTML = '<span aria-hidden="true">&#9650;</span>';
 
       const next = document.createElement('button');
       next.type = 'button';
       next.className = 'timeline-pin-step timeline-pin-next';
-      next.setAttribute('aria-label', 'Next pin in this message');
+      next.setAttribute('aria-label', getTranslationSync('timelineNextPin'));
       next.innerHTML = '<span aria-hidden="true">&#9660;</span>';
 
       const toggle = document.createElement('button');
       toggle.type = 'button';
       toggle.className = 'timeline-pin-toggle';
-      toggle.setAttribute('aria-label', 'Pin text in the current conversation');
+      toggle.setAttribute('aria-label', getTranslationSync('timelinePinText'));
       toggle.setAttribute('aria-pressed', 'false');
       toggle.innerHTML =
         '<svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 4 6 6"/><path d="m8 10 6-6 6 6-6 6"/><path d="m9 15-5 5"/><path d="m14 16-6-6"/></svg>';
@@ -1419,7 +1426,7 @@ export class TimelineManager {
       const deleteButton = document.createElement('button');
       deleteButton.type = 'button';
       deleteButton.className = 'timeline-pin-delete';
-      deleteButton.setAttribute('aria-label', 'Delete selected pin');
+      deleteButton.setAttribute('aria-label', getTranslationSync('timelineDeletePin'));
       deleteButton.innerHTML =
         '<svg aria-hidden="true" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m6 6 1 14h10l1-14"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>';
       this.pinBadgeLayer?.appendChild(deleteButton);
@@ -2643,29 +2650,6 @@ export class TimelineManager {
       },
       { root: this.scrollContainer, threshold: 0.1, rootMargin: '-40% 0px -59% 0px' },
     );
-  }
-
-  /**
-   * One-shot cleanup of localStorage entries left over from the project's
-   * Gemini-Voyager ancestry. The active code path only ever writes the
-   * `gpt*` / `gv-*` namespaces, but old installs accumulated parallel
-   * `geminiTimeline*` keys that no longer get read. Strip them so storage
-   * doesn't quietly fork between two schemas forever.
-   */
-  private purgeLegacyLocalStorageKeys(): void {
-    try {
-      const drop: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!k) continue;
-        if (k.startsWith('geminiTimeline')) drop.push(k);
-      }
-      for (const k of drop) {
-        try {
-          localStorage.removeItem(k);
-        } catch {}
-      }
-    } catch {}
   }
 
   private setupEventListeners(): void {
@@ -5950,6 +5934,7 @@ export class TimelineManager {
     const title = document.createElement('div');
     title.className = 'timeline-context-menu-title';
     title.textContent = getTranslationSync('timelineLevelTitle');
+    title.setAttribute('data-gv-i18n-text', 'timelineLevelTitle');
     menu.appendChild(title);
 
     const levels: { level: MarkerLevel; label: string }[] = [
@@ -5975,6 +5960,7 @@ export class TimelineManager {
 
       const labelSpan = document.createElement('span');
       labelSpan.textContent = label;
+      labelSpan.setAttribute('data-gv-i18n-text', `timelineLevel${level}`);
       item.appendChild(labelSpan);
 
       if (level === currentLevel) {
@@ -6012,6 +5998,7 @@ export class TimelineManager {
       collapseLabel.textContent = isCollapsed
         ? getTranslationSync('timelineExpand')
         : getTranslationSync('timelineCollapse');
+      collapseLabel.setAttribute('data-gv-i18n-text', isCollapsed ? 'timelineExpand' : 'timelineCollapse');
       collapseItem.appendChild(collapseLabel);
 
       collapseItem.addEventListener('click', (e) => {

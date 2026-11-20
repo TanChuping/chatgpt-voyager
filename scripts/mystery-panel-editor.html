@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>神秘小按钮 · 内容编辑</title>
+<style>
+:root{font:15px/1.5 system-ui,sans-serif;color-scheme:light dark}body{max-width:1120px;margin:40px auto;padding:0 20px}header,nav{display:flex;align-items:center;gap:12px;flex-wrap:wrap}h1{font-size:24px}h2{font-size:16px}main{display:grid;grid-template-columns:3fr 2fr;gap:24px}textarea{box-sizing:border-box;width:100%;min-height:62vh;font:14px/1.5 monospace;padding:12px}button,select{font:inherit;padding:5px 10px}#preview{max-width:360px;padding:16px;border:1px solid GrayText;border-radius:12px}output{display:block;white-space:pre-wrap;margin:12px 0}button:not(:disabled){cursor:pointer}@media(max-width:700px){main{grid-template-columns:1fr}}
+</style>
+<header><h1>神秘小按钮</h1></header>
+<nav><button id="load">读取 GitHub 版本</button><button id="example">载入独游示例</button><button id="save">下载草稿</button><button id="publish" disabled>发布到 GitHub</button></nav>
+<output id="status" aria-live="polite"></output>
+<main><section><h2><label for="source">卡片 JSON</label></h2><textarea spellcheck="false" id="source"></textarea></section>
+<section><h2><label for="language">预览语言</label></h2><select id="language"><option value="zh">简体中文</option><option value="en">English</option><option value="ja">日本語</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="es">Español</option><option value="ru">Русский</option></select><p id="trigger"></p><div id="preview"></div></section></main>
+<script type="module">
+import {parseMysteryCard,renderMysteryCard,cardText} from './renderer.js';
+const el=id=>document.getElementById(id);
+let sha, dirty=false, busy=false;
+const example={v:1,enabled:true,icon:'🎮',label:{zh:'作者的独游',en:'From the developer'},align:'start',gap:'normal',colors:{accent:'#5940A5'},rows:[
+  [{type:'heading',text:{zh:'游戏名称',en:'Game title'}}],
+  [{type:'caption',text:{zh:'GPT-Voyager 作者的游戏推广',en:'A game promotion from the developer of GPT-Voyager'}}],
+  [{type:'tabs',side:false,items:[
+    {label:{zh:'玩法',en:'Gameplay'},blocks:[{type:'text',text:{zh:'在这里介绍你的游戏。',en:'Describe your game here.'}}]},
+    {label:{zh:'商店',en:'Store'},color:'#165EAE',blocks:[{type:'link',text:{zh:'查看游戏',en:'View game'},url:'https://example.com/game'}]}
+  ]}]
+]};
+function preview(){
+  el('publish').disabled=true;el('preview').replaceChildren();el('trigger').textContent='';
+  try{
+    const value=parseMysteryCard(JSON.parse(el('source').value));
+    if(!value)throw Error('请检查卡片字段、行列及 HTTPS 链接');
+    const lang=el('language').value;
+    el('trigger').textContent=(value.icon||'?')+' '+cardText(value.label,lang);
+    if(value.enabled)el('preview').replaceChildren(renderMysteryCard(value,lang));
+    else el('preview').textContent='此卡片已停用';
+    el('publish').disabled=!sha||busy;
+    el('status').textContent=dirty?'草稿尚未发布':'已读取线上配置';
+  }catch(err){el('status').textContent=err.message;}
+}
+async function request(path,body){
+  const response=await fetch(path,{method:body?'POST':'GET',headers:{'X-Editor-Key':'__EDITOR_KEY__','Content-Type':'application/json'},body:body&&JSON.stringify(body)});
+  if(!response.ok)throw Error(await response.text());return response.json();
+}
+async function load(){
+  if(dirty&&!confirm('用线上版本替换编辑区里的草稿？'))return;
+  try{const value=await request('/current');sha=value.sha;el('source').value=value.text;dirty=false;preview();}
+  catch(err){el('status').textContent=err.message;}
+}
+el('load').onclick=load;el('source').oninput=()=>{dirty=true;preview()};el('language').onchange=preview;
+el('example').onclick=()=>{if(dirty&&!confirm('用示例替换编辑区里的草稿？'))return;el('source').value=JSON.stringify(example,null,2);dirty=true;preview()};
+el('save').onclick=()=>{const a=document.createElement('a');a.download='panel.json';a.href=URL.createObjectURL(new Blob([el('source').value],{type:'application/json'}));a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+el('publish').onclick=async()=>{
+  if(!confirm('发布到 mystery-panel/panel.json，供新版扩展读取？'))return;
+  busy=true;el('publish').disabled=true;const text=el('source').value;
+  try{const value=await request('/publish',{sha,text});sha=value.sha;dirty=text!==el('source').value;busy=false;preview();el('status').textContent='已发布 '+value.url;}
+  catch(err){busy=false;preview();el('status').textContent=err.message;}
+};
+load();
+</script></html>

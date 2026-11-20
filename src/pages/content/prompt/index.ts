@@ -13,14 +13,8 @@ import { PROJECT_REPOSITORY_URL } from '@/core/constants/project';
 import { logger } from '@/core/services/LoggerService';
 import { exportBackupableSyncSettings } from '@/core/services/SettingsBackupService';
 import { promptStorageService } from '@/core/services/StorageService';
-import {
-  DEFAULT_SUPPORT_GOAL,
-  SUPPORT_GOAL_REFRESH_MS,
-  type SupportGoalData,
-  formatSupportAmount,
-  getSupportGoalProgress,
-  loadSupportGoal,
-} from '@/core/services/SupportGoalService';
+import { CARD_REFRESH_MS, loadMysteryCard } from '@/core/services/mysteryCardFeed';
+import { cardText, renderMysteryCard, type MysteryCard } from '@/core/services/mysteryCard';
 import { type StorageKey, StorageKeys } from '@/core/types/common';
 import {
   buildConversationIdFromUrl,
@@ -35,7 +29,7 @@ import {
   resolveTimelineHierarchyDataForStorageScope,
 } from '@/pages/content/timeline/hierarchyStorage';
 import { normalizeTimelineHierarchyData } from '@/pages/content/timeline/hierarchyTypes';
-import { getCurrentLanguage, getTranslationSync, initI18n, setCachedLanguage } from '@/utils/i18n';
+import { getCurrentLanguage, getTranslationSync, initI18n, setLanguagePreference, subscribeLanguageChange } from '@/utils/i18n';
 import {
   APP_LANGUAGES,
   APP_LANGUAGE_LABELS,
@@ -218,32 +212,7 @@ function safeParseJSON<T>(raw: string, fallback: T): T {
 function createI18n() {
   return {
     t: (key: TranslationKey): string => getTranslationSync(key),
-    set: async (lang: AppLanguage) => {
-      try {
-        // Check if extension context is still valid
-        if (!browser.runtime?.id) {
-          // Extension context invalidated, skip
-          return;
-        }
-        setCachedLanguage(lang);
-        await browser.storage.sync.set({ language: lang });
-        return;
-      } catch (e) {
-        try {
-          await browser.storage.local.set({ language: lang });
-          return;
-        } catch (localError) {
-          // Silently ignore extension context errors
-          if (
-            isExtensionContextInvalidatedError(e) ||
-            isExtensionContextInvalidatedError(localError)
-          ) {
-            return;
-          }
-          console.warn('[PromptManager] Failed to set language:', e, localError);
-        }
-      }
-    },
+    set: setLanguagePreference,
     get: async (): Promise<AppLanguage> => await getCurrentLanguage(),
   };
 }
@@ -329,128 +298,39 @@ export function createSupportPanel(i18n: ReturnType<typeof createI18n>): HTMLEle
   document.body.appendChild(popover);
 
   let pinned = false;
-  let loaded = false;
   let hoveringButton = false;
   let hoveringPopover = false;
   let closeTimer: number | null = null;
   let refreshTimer: number | null = null;
-  let selectedPayment: 'wechat' | 'alipay' = 'wechat';
   let supportLanguage: AppLanguage = 'en';
-  let currentGoal: SupportGoalData | null = null;
+  let currentCard: MysteryCard | null = null;
+  let openRequested = false;
+  const cardTabs = new Map<string, number>();
 
-  const getGoalCopy = (goal: SupportGoalData) => {
-    const useChinese = supportLanguage === 'zh';
-    return {
-      title: useChinese ? goal.titleZh || goal.title : goal.titleEn || goal.title,
-      description: useChinese
-        ? goal.descriptionZh || goal.description
-        : goal.descriptionEn || goal.description,
-    };
-  };
-
-  const renderGoal = (goal: SupportGoalData) => {
-    currentGoal = goal;
-    popover.textContent = '';
-    if (!goal.enabled) {
-      popover.classList.add('gv-hidden');
-      return;
-    }
-
-    const copy = getGoalCopy(goal);
-    const title = createEl('div', 'gv-pm-support-title');
-    title.textContent = copy.title;
-    const description = createEl('p', 'gv-pm-support-copy');
-    description.textContent = copy.description;
-    const children = [title, description] as HTMLElement[];
-
-    if (goal.imageUrl) {
-      const image = createEl('img', 'gv-pm-support-image');
-      image.src = goal.imageUrl;
-      image.alt = copy.title;
-      children.push(image);
-    }
-
-    const progress = getSupportGoalProgress(goal);
-    const meta = createEl('div', 'gv-pm-support-meta');
-    const amount = createEl('span');
-    amount.textContent = `${formatSupportAmount(goal.current, goal.currency)} / ${formatSupportAmount(goal.target, goal.currency)}`;
-    const percent = createEl('span');
-    percent.textContent = `${progress}%`;
-    meta.append(amount, percent);
-
-    const bar = createEl('div', 'gv-pm-support-bar');
-    const fill = createEl('div', 'gv-pm-support-bar-fill');
-    fill.style.width = `${progress}%`;
-    bar.appendChild(fill);
-
-    const actions = createEl('div', 'gv-pm-support-actions');
-    const kofiLink = createEl('a', 'gv-pm-support-kofi');
-    kofiLink.href = goal.kofiUrl;
-    kofiLink.target = '_blank';
-    kofiLink.rel = 'noopener noreferrer';
-    kofiLink.textContent = 'Ko-fi';
-    actions.appendChild(kofiLink);
-
-    const paymentOptions = [
-      { key: 'wechat' as const, label: '\u5fae\u4fe1', url: goal.wechatQrUrl },
-      { key: 'alipay' as const, label: '\u652f\u4ed8\u5b9d', url: goal.alipayQrUrl },
-    ].filter((option) => option.url);
-    if (!paymentOptions.some((option) => option.key === selectedPayment)) {
-      selectedPayment = paymentOptions[0]?.key ?? 'wechat';
-    }
-
-    const layout = createEl('div', 'gv-pm-support-layout');
-    const main = createEl('div', 'gv-pm-support-main');
-    main.append(...children, meta, bar, actions);
-    layout.appendChild(main);
-
-    if (paymentOptions.length > 0) {
-      const side = createEl('div', 'gv-pm-support-side');
-      const payments = createEl('div', 'gv-pm-support-payments');
-      const tabs = createEl('div', 'gv-pm-support-payment-tabs');
-      const activePayment =
-        paymentOptions.find((option) => option.key === selectedPayment) ?? paymentOptions[0];
-
-      for (const option of paymentOptions) {
-        const tab = createEl('button', 'gv-pm-support-payment-tab');
-        tab.type = 'button';
-        tab.textContent = option.label;
-        tab.setAttribute('aria-pressed', String(option.key === activePayment.key));
-        tab.addEventListener('click', () => {
-          selectedPayment = option.key;
-          renderGoal(goal);
-          positionPopover();
-        });
-        tabs.appendChild(tab);
-      }
-
-      const code = createEl(
-        'div',
-        `gv-pm-support-payment gv-pm-support-payment-${activePayment.key}`,
-      );
-      const img = createEl('img');
-      img.src = activePayment.url;
-      img.alt = `${activePayment.label} QR`;
-      code.appendChild(img);
-      payments.append(tabs, code);
-      side.appendChild(payments);
-      layout.appendChild(side);
-    }
-
-    popover.appendChild(layout);
+  const renderCard = (card: MysteryCard | null) => {
+    currentCard = card;
+    const label = cardText(card?.label, supportLanguage) || i18n.t('supportMysteryButton');
+    button.textContent = card?.icon || '?';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    popover.setAttribute('aria-label', label);
+    popover.replaceChildren();
+    const visible = Boolean(card?.enabled && (pinned || hoveringButton || hoveringPopover));
+    popover.classList.toggle('gv-hidden', !visible);
+    if (visible && card) popover.appendChild(renderMysteryCard(card, supportLanguage, cardTabs));
   };
 
   void i18n.get().then((lang) => {
     supportLanguage = lang;
-    if (currentGoal) renderGoal(currentGoal);
+    renderCard(currentCard);
   });
 
   wrap.addEventListener('gv-pm-language-change', (event) => {
     popover.setAttribute('aria-label', i18n.t('supportMysteryButton'));
     const next = (event as CustomEvent<AppLanguage>).detail;
-    if (!isAppLanguage(next)) return;
+    if (!isAppLanguage(next) || next === supportLanguage) return;
     supportLanguage = next;
-    if (currentGoal) renderGoal(currentGoal);
+    renderCard(currentCard);
   });
 
   const positionPopover = () => {
@@ -460,34 +340,37 @@ export function createSupportPanel(i18n: ReturnType<typeof createI18n>): HTMLEle
       document.getElementById(ID.panel)?.getAttribute('data-gv-theme') || detectPageTheme();
     popover.setAttribute('data-gv-theme', panelTheme);
     popover.style.maxHeight = `${Math.max(240, window.innerHeight - margin * 2)}px`;
-    popover.style.left = `${margin}px`;
-    popover.style.top = `${margin}px`;
-
-    const rect = popover.getBoundingClientRect();
+    const width = popover.offsetWidth;
+    const height = popover.offsetHeight;
     const left = Math.min(
-      window.innerWidth - rect.width - margin,
-      Math.max(margin, buttonRect.right - rect.width),
+      window.innerWidth - width - margin,
+      Math.max(margin, buttonRect.right - width),
     );
-    const aboveTop = buttonRect.top - rect.height - 8;
+    const aboveTop = buttonRect.top - height - 8;
     const belowTop = buttonRect.bottom + 8;
     const top =
       aboveTop >= margin
         ? aboveTop
-        : Math.min(window.innerHeight - rect.height - margin, Math.max(margin, belowTop));
+        : Math.min(window.innerHeight - height - margin, Math.max(margin, belowTop));
 
     popover.style.left = `${Math.round(left)}px`;
     popover.style.top = `${Math.round(top)}px`;
   };
 
+  const repositionIfOpen = () => {
+    if (!popover.classList.contains('gv-hidden')) positionPopover();
+  };
+  popover.addEventListener('load', repositionIfOpen, true);
+  popover.addEventListener('gv-card-resize', repositionIfOpen);
   const refreshGoal = (force = false) => {
-    void loadSupportGoal({ force }).then((goal) => {
-      renderGoal(goal);
+    void loadMysteryCard(force).then((card) => {
+      renderCard(card);
       if (!popover.classList.contains('gv-hidden')) positionPopover();
     });
   };
   const startRefreshTimer = () => {
     if (refreshTimer !== null) return;
-    refreshTimer = window.setInterval(() => refreshGoal(true), SUPPORT_GOAL_REFRESH_MS);
+    refreshTimer = window.setInterval(() => refreshGoal(true), CARD_REFRESH_MS);
   };
   const stopRefreshTimer = () => {
     if (refreshTimer === null) return;
@@ -500,14 +383,13 @@ export function createSupportPanel(i18n: ReturnType<typeof createI18n>): HTMLEle
       window.clearTimeout(closeTimer);
       closeTimer = null;
     }
-    popover.classList.remove('gv-hidden');
-    if (!loaded) {
-      loaded = true;
-      renderGoal(DEFAULT_SUPPORT_GOAL);
+    if (!openRequested) {
+      openRequested = true;
+      renderCard(currentCard);
+      positionPopover();
+      refreshGoal();
+      startRefreshTimer();
     }
-    positionPopover();
-    refreshGoal();
-    startRefreshTimer();
   };
   const close = (force = false) => {
     if (closeTimer !== null) {
@@ -515,6 +397,7 @@ export function createSupportPanel(i18n: ReturnType<typeof createI18n>): HTMLEle
       closeTimer = null;
     }
     if (!force && (pinned || hoveringButton || hoveringPopover)) return;
+    openRequested = false;
     popover.classList.add('gv-hidden');
     stopRefreshTimer();
   };
@@ -841,9 +724,14 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     versionBadge.className = 'gv-pm-version';
     versionBadge.setAttribute('role', 'button');
     versionBadge.setAttribute('tabindex', '0');
-    versionBadge.title = manifestVersion
-      ? `${i18n.t('extensionVersion')} ${manifestVersion} — ${i18n.t('announcementVersionChipHint') || 'click to view announcements'}`
-      : i18n.t('extensionVersion');
+    function refreshVersionBadgeLabel(): void {
+      const label = manifestVersion
+        ? `${i18n.t('extensionVersion')} ${manifestVersion} — ${i18n.t('announcementVersionChipHint')}`
+        : i18n.t('extensionVersion');
+      versionBadge.title = label;
+      versionBadge.setAttribute('aria-label', label);
+    }
+    refreshVersionBadgeLabel();
     versionBadge.textContent = manifestVersion ?? '...';
     // Make the version chip a secondary entry-point into the announcement
     // modal (besides the top-bar megaphone). Lazy-import the module so
@@ -924,8 +812,8 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
 
     const langSel = createEl('select', 'gv-pm-lang');
     // Shown as a globe icon, so the closed select needs an explicit name.
-    langSel.title = 'Language / 语言';
-    langSel.setAttribute('aria-label', 'Language / 语言');
+    langSel.title = i18n.t('language');
+    langSel.setAttribute('aria-label', i18n.t('language'));
     for (const lang of APP_LANGUAGES) {
       const opt = createEl('option');
       opt.value = lang;
@@ -1192,10 +1080,12 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       }
     }
 
-    function setInlineHint(text: string, kind: 'ok' | 'err' = 'err'): void {
+    function setInlineHint(key: TranslationKey | '', kind: 'ok' | 'err' = 'err'): void {
       const hint = addForm.querySelector('.gv-pm-inline-hint') as HTMLSpanElement | null;
       if (!hint) return;
-      hint.textContent = text || '';
+      hint.textContent = key ? i18n.t(key) : '';
+      if (key) hint.setAttribute('data-gv-i18n-text', key);
+      else hint.removeAttribute('data-gv-i18n-text');
       hint.classList.toggle('ok', kind === 'ok');
       hint.classList.toggle('err', kind === 'err');
     }
@@ -1647,11 +1537,14 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
           pop.className = 'gv-pm-confirm';
           const msg = document.createElement('span');
           msg.textContent = i18n.t('pm_delete_confirm') || 'Delete this prompt?';
+          msg.setAttribute('data-gv-i18n-text', 'pm_delete_confirm');
           const yes = document.createElement('button');
           yes.className = 'gv-pm-confirm-yes';
           yes.textContent = i18n.t('pm_delete') || 'Delete';
+          yes.setAttribute('data-gv-i18n-text', 'pm_delete');
           const no = document.createElement('button');
           no.textContent = i18n.t('pm_cancel') || 'Cancel';
+          no.setAttribute('data-gv-i18n-text', 'pm_cancel');
           pop.appendChild(msg);
           pop.appendChild(yes);
           pop.appendChild(no);
@@ -1802,10 +1695,13 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       lockBtn.setAttribute('aria-pressed', locked ? 'true' : 'false');
       lockBtn.setAttribute('data-icon', locked ? '🔒' : '🔓');
       lockBtn.title = locked ? i18n.t('pm_unlock') || 'Unlock' : i18n.t('pm_lock') || 'Lock';
+      lockBtn.setAttribute('aria-label', lockBtn.title);
       panel.classList.toggle('gv-locked', locked);
     }
 
     function refreshUITexts(): void {
+      refreshVersionBadgeLabel();
+      applyPMTheme(currentPMTheme);
       // Keep custom icon + label
       titleText.textContent = 'GPT-Voyager';
       addBtn.textContent = i18n.t('pm_add');
@@ -1829,12 +1725,6 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       favoritesBtn.title = i18n.t('favoritesSidebarTitle');
       favoritesBtn.setAttribute('aria-label', i18n.t('favoritesSidebarTitle'));
       favoritesSidebar.refreshLabels();
-      const supportButton = supportPanel.querySelector('.gv-pm-support-btn');
-      if (supportButton) {
-        supportButton.textContent = '?';
-        supportButton.setAttribute('title', i18n.t('supportMysteryButton'));
-        supportButton.setAttribute('aria-label', i18n.t('supportMysteryButton'));
-      }
       supportPanel.dispatchEvent(
         new CustomEvent<AppLanguage>('gv-pm-language-change', {
           detail: normalizeLanguage(langSel.value),
@@ -2034,21 +1924,17 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       refreshUITexts();
     });
 
-    // Listen to external language changes (popup/options)
-    // Note: The centralized i18n system already handles storage changes,
-    // we just need to update the UI when language changes
+    const unsubscribeLanguage = subscribeLanguageChange((next) => {
+      langSel.value = next;
+      langSel.title = i18n.t('language');
+      langSel.setAttribute('aria-label', i18n.t('language'));
+      refreshUITexts();
+    });
+    // Other settings keep their existing storage path.
     const storageChangeHandler = (
       changes: Record<string, browser.Storage.StorageChange>,
       area: string,
     ) => {
-      // Handle language changes from sync storage
-      const nextRaw = changes[StorageKeys.LANGUAGE]?.newValue;
-      if (area === 'sync' && typeof nextRaw === 'string') {
-        try {
-          langSel.value = normalizeLanguage(nextRaw);
-        } catch {}
-        refreshUITexts();
-      }
       // Handle hide prompt manager setting changes
       if (area === 'sync' && changes?.gvHidePromptManager) {
         const shouldHide = changes.gvHidePromptManager.newValue === true;
@@ -2175,7 +2061,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       const result = await savePrompt(items, candidate, editingId);
       if (result.status !== 'saved') {
         setInlineHint(
-          i18n.t(result.status === 'duplicate' ? 'pm_duplicate' : 'pm_save_failed'),
+          result.status === 'duplicate' ? 'pm_duplicate' : 'pm_save_failed',
           'err',
         );
         return;
@@ -2212,7 +2098,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
         a.remove();
         URL.revokeObjectURL(url);
       } catch {
-        setNotice('Export failed', 'err');
+        setNotice(i18n.t('exportFailed'), 'err');
       }
     });
 
@@ -2337,7 +2223,9 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
           await timelineHierarchyWritable.close();
 
           setNotice(
-            `Backed up ${prompts.length} prompts, ${folderData.folders?.length || 0} folders`,
+            i18n.t('pm_backup_complete')
+              .replace('{promptCount}', String(prompts.length))
+              .replace('{folderCount}', String(folderData.folders?.length || 0)),
             'ok',
           );
         } else {
@@ -2368,7 +2256,10 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
           URL.revokeObjectURL(url);
 
           setNotice(
-            `Downloaded ${folderName}.zip (${prompts.length} prompts, ${folderData.folders?.length || 0} folders)`,
+            i18n.t('pm_backup_download_complete')
+              .replace('{fileName}', `${folderName}.zip`)
+              .replace('{promptCount}', String(prompts.length))
+              .replace('{folderCount}', String(folderData.folders?.length || 0)),
             'ok',
           );
         }
@@ -2467,6 +2358,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
           tagsWrap.removeEventListener('scroll', syncTagScrollHint);
 
           chrome.storage?.onChanged?.removeListener(storageChangeHandler);
+          unsubscribeLanguage();
 
           // Tear down the fast-tooltip singleton: cancel pending timer, remove
           // the DOM element, and detach the capture-phase scroll listeners

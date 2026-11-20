@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { installEnglishLocale } from '@/tests/localeFixture';
+
 import { ringRemaining } from '../data';
 import { startQuotaRing, stopQuotaRing } from '../index';
 
@@ -34,6 +36,7 @@ const message = () =>
   });
 
 beforeEach(() => {
+  installEnglishLocale();
   vi.useFakeTimers();
   vi.setSystemTime(new Date(2026, 10, 7, 12));
   mount();

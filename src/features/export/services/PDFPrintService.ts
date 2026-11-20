@@ -1,3 +1,4 @@
+import { getTranslationSync } from '@/utils/i18n';
 /**
  * PDF Print Service
  * Implements elegant "paper book" style PDF export using browser's print function
@@ -453,8 +454,8 @@ export class PDFPrintService {
     const metadataTitle = this.normalizeConversationTitle(metadata.title);
     const pageConversationTitle = this.normalizeConversationTitle(this.getConversationTitle());
     const conversationTitle = preferMetadataTitle
-      ? metadataTitle || pageConversationTitle || 'Untitled Conversation'
-      : pageConversationTitle || metadataTitle || 'Untitled Conversation';
+      ? metadataTitle || pageConversationTitle || getTranslationSync('conversation_untitled')
+      : pageConversationTitle || metadataTitle || getTranslationSync('conversation_untitled');
     // For PDF, avoid repeating the same title in smaller text under the H1.
     // Always derive a neutral "source" label from the URL instead of using metadata.title.
     const urlTitle = this.extractTitleFromURL(metadata.url);
@@ -495,30 +496,30 @@ export class PDFPrintService {
     const userContent = turn.userElement
       ? DOMContentExtractor.extractUserContent(turn.userElement).html ||
         this.formatContent(turn.user) ||
-        '<em>No content</em>'
-      : this.formatContent(turn.user) || '<em>No content</em>';
+        `<em>${this.escapeHTML(getTranslationSync('exportNoContent'))}</em>`
+      : this.formatContent(turn.user) || `<em>${this.escapeHTML(getTranslationSync('exportNoContent'))}</em>`;
 
     const assistantContent = turn.assistantElement
       ? DOMContentExtractor.extractAssistantContent(turn.assistantElement).html ||
         this.formatContent(turn.assistant) ||
-        '<em>No content</em>'
-      : this.formatContent(turn.assistant) || '<em>No content</em>';
+        `<em>${this.escapeHTML(getTranslationSync('exportNoContent'))}</em>`
+      : this.formatContent(turn.assistant) || `<em>${this.escapeHTML(getTranslationSync('exportNoContent'))}</em>`;
 
     if (!turn.omitEmptySections) {
       return `
       <div class="gv-print-turn ${starredClass}">
         <div class="gv-print-turn-header">
-          <span class="gv-print-turn-number">Turn ${index}</span>
+          <span class="gv-print-turn-number">${this.escapeHTML(getTranslationSync('exportTurn').replace('{count}', String(index)))}</span>
           ${turn.starred ? '<span class="gv-print-star">⭐</span>' : ''}
         </div>
 
         <div class="gv-print-turn-user">
-          <div class="gv-print-turn-label">👤 User</div>
+          <div class="gv-print-turn-label">👤 ${this.escapeHTML(getTranslationSync('exportUserLabel'))}</div>
           <div class="gv-print-turn-text">${userContent}</div>
         </div>
 
         <div class="gv-print-turn-assistant">
-          <div class="gv-print-turn-label">🤖 Assistant</div>
+          <div class="gv-print-turn-label">🤖 ${this.escapeHTML(getTranslationSync('exportAssistantLabel'))}</div>
           <div class="gv-print-turn-text">${assistantContent}</div>
         </div>
       </div>
@@ -531,7 +532,7 @@ export class PDFPrintService {
     return `
       <div class="gv-print-turn ${starredClass}">
         <div class="gv-print-turn-header">
-          <span class="gv-print-turn-number">Turn ${index}</span>
+          <span class="gv-print-turn-number">${this.escapeHTML(getTranslationSync('exportTurn').replace('{count}', String(index)))}</span>
           ${turn.starred ? '<span class="gv-print-star">⭐</span>' : ''}
         </div>
 
@@ -539,7 +540,7 @@ export class PDFPrintService {
           hasUser
             ? `
         <div class="gv-print-turn-user">
-          <div class="gv-print-turn-label">👤 User</div>
+          <div class="gv-print-turn-label">👤 ${this.escapeHTML(getTranslationSync('exportUserLabel'))}</div>
           <div class="gv-print-turn-text">${userContent}</div>
         </div>
         `
@@ -550,7 +551,7 @@ export class PDFPrintService {
           hasAssistant
             ? `
           <div class="gv-print-turn-assistant">
-            <div class="gv-print-turn-label">🤖 Assistant</div>
+            <div class="gv-print-turn-label">🤖 ${this.escapeHTML(getTranslationSync('exportAssistantLabel'))}</div>
             <div class="gv-print-turn-text">${assistantContent}</div>
           </div>
         `
@@ -564,7 +565,7 @@ export class PDFPrintService {
    * Format content for HTML output
    */
   private static formatContent(content: string): string {
-    if (!content) return '<em>No content</em>';
+    if (!content) return `<em>${this.escapeHTML(getTranslationSync('exportNoContent'))}</em>`;
 
     // Escape HTML but preserve line breaks
     let formatted = this.escapeHTML(content);
@@ -584,8 +585,8 @@ export class PDFPrintService {
   private static renderFooter(metadata: ConversationMetadata): string {
     return `
       <div class="gv-print-footer">
-          <p>Exported from GPT-Voyager • ${metadata.count} conversation turns</p>
-        <p>Generated on ${this.formatDate(metadata.exportedAt)}</p>
+          <p>${this.escapeHTML(getTranslationSync('exportSource'))} • ${this.escapeHTML(getTranslationSync('exportTurns').replace('{count}', String(metadata.count)))}</p>
+        <p>${this.escapeHTML(getTranslationSync('exportGeneratedOn').replace('{date}', this.formatDate(metadata.exportedAt)))}</p>
       </div>
     `;
   }

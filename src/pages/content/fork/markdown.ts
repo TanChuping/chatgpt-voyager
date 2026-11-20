@@ -1,3 +1,5 @@
+import { getTranslationSync } from '@/utils/i18n';
+
 export interface ForkExtractedTurn {
   user: string;
   assistant?: string;
@@ -16,17 +18,17 @@ export function buildForkMarkdown(
   }
 
   const lines: string[] = [];
-  lines.push(`# ${title || 'Untitled'}`);
+  lines.push(`# ${title || getTranslationSync('conversation_untitled')}`);
   lines.push('');
 
   for (const turn of normalizedTurns) {
-    lines.push('### 👤 User');
+    lines.push(`### 👤 ${getTranslationSync('exportUserLabel')}`);
     lines.push('');
     lines.push(turn.user || '');
     lines.push('');
 
     if (turn.assistant?.trim()) {
-      lines.push('### 馃 Assistant');
+      lines.push(`### 🤖 ${getTranslationSync('exportAssistantLabel')}`);
       lines.push('');
       lines.push(turn.assistant);
       lines.push('');

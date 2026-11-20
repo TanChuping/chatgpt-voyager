@@ -4,12 +4,16 @@
  * "given a conversation that includes noise, does each format produce
  * a clean transcript?".
  */
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { installEnglishLocale } from '@/tests/localeFixture';
 
 import type { LinearConversation, LinearMessage } from '../../conversationApi/types';
 import { toHtml } from '../HtmlExporter';
 import { toJsonSimple } from '../JsonSimpleExporter';
 import { toMarkdownSimple } from '../MarkdownSimpleExporter';
+
+beforeEach(installEnglishLocale);
 
 function msg(partial: Partial<LinearMessage>): LinearMessage {
   return {

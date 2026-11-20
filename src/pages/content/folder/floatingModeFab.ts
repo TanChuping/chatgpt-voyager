@@ -68,6 +68,8 @@ export function mountFloatingFab({
   btn.className = FLOATING_FAB_CLASS;
   btn.setAttribute('aria-label', label);
   btn.title = label;
+  btn.setAttribute('data-gv-i18n-title', 'floatingFabLabel');
+  btn.setAttribute('data-gv-i18n-aria-label', 'floatingFabLabel');
   const iconUrl = getExtensionAssetUrl(FAB_ICON_PATH);
   // Composition: halo ring for an ambient glow, inner body for the icon, icon
   // itself. Separated so we can animate hover on the inner and the halo

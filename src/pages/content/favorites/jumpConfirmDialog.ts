@@ -44,11 +44,13 @@ export function showJumpConfirmDialog(options: JumpConfirmDialogOptions): Promis
     const title = document.createElement('div');
     title.className = `${JUMP_CONFIRM_DIALOG_CLASS}__title`;
     title.textContent = t('favoritesJumpDialogTitle');
+  title.setAttribute('data-gv-i18n-text', 'favoritesJumpDialogTitle');
     dialog.appendChild(title);
 
     const body = document.createElement('div');
     body.className = `${JUMP_CONFIRM_DIALOG_CLASS}__body`;
     body.textContent = t('favoritesJumpDialogBody');
+  body.setAttribute('data-gv-i18n-text', 'favoritesJumpDialogBody');
     dialog.appendChild(body);
 
     const titleText = (options.conversationTitle ?? '').trim();
@@ -59,6 +61,7 @@ export function showJumpConfirmDialog(options: JumpConfirmDialogOptions): Promis
       const label = document.createElement('span');
       label.className = `${JUMP_CONFIRM_DIALOG_CLASS}__target-label`;
       label.textContent = t('favoritesJumpDialogTargetLabel');
+  label.setAttribute('data-gv-i18n-text', 'favoritesJumpDialogTargetLabel');
       target.appendChild(label);
 
       if (titleText) {
@@ -87,12 +90,14 @@ export function showJumpConfirmDialog(options: JumpConfirmDialogOptions): Promis
     cancelBtn.type = 'button';
     cancelBtn.className = `${JUMP_CONFIRM_DIALOG_CLASS}__btn ${JUMP_CONFIRM_DIALOG_CLASS}__btn--cancel`;
     cancelBtn.textContent = t('favoritesJumpDialogCancel');
+  cancelBtn.setAttribute('data-gv-i18n-text', 'favoritesJumpDialogCancel');
     cancelBtn.addEventListener('click', () => settle(false));
 
     const confirmBtn = document.createElement('button');
     confirmBtn.type = 'button';
     confirmBtn.className = `${JUMP_CONFIRM_DIALOG_CLASS}__btn ${JUMP_CONFIRM_DIALOG_CLASS}__btn--confirm`;
     confirmBtn.textContent = t('favoritesJumpDialogConfirm');
+  confirmBtn.setAttribute('data-gv-i18n-text', 'favoritesJumpDialogConfirm');
     confirmBtn.addEventListener('click', () => settle(true));
 
     actions.appendChild(cancelBtn);

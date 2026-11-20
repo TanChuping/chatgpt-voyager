@@ -590,6 +590,7 @@ export function startQuoteReply() {
     }
   }
   browser.storage.onChanged.addListener(onStorageChanged);
+  window.addEventListener('voyager:language-changed', updateButtonText);
 
   // The lazy bootstrap starts us after the first qualifying mouseup/keyup.
   // Re-read that still-active selection so the first quote action is not lost.
@@ -602,6 +603,7 @@ export function startQuoteReply() {
     document.removeEventListener('mouseup', onMouseUp);
     document.removeEventListener('keyup', onKeys);
     browser.storage.onChanged.removeListener(onStorageChanged);
+    window.removeEventListener('voyager:language-changed', updateButtonText);
     if (quoteBtn) quoteBtn.remove();
     const style = document.getElementById(STYLE_ID);
     if (style) style.remove();

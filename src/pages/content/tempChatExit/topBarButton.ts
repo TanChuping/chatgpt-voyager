@@ -273,7 +273,18 @@ function scheduleInject(): void {
   });
 }
 
+function refreshLocaleLabel(): void {
+  document.querySelectorAll<HTMLButtonElement>(`[${TAG}]`).forEach((button) => {
+    button.setAttribute('aria-label', t('tempChatRegretButton'));
+    button.title = t('tempChatRegretButtonTooltip');
+    const label = button.querySelector<HTMLElement>('.gv-temp-regret-btn__label');
+    if (label) label.textContent = t('tempChatRegretButton');
+    applyLabelFit(button);
+  });
+}
+
 export function startTempChatRegretButton(): void {
+  window.addEventListener('voyager:language-changed', refreshLocaleLabel);
   injectIfNeeded();
   if (observer) return;
   observer = new MutationObserver(() => scheduleInject());
@@ -281,6 +292,7 @@ export function startTempChatRegretButton(): void {
 }
 
 export function stopTempChatRegretButton(): void {
+  window.removeEventListener('voyager:language-changed', refreshLocaleLabel);
   observer?.disconnect();
   observer = null;
   removeAll();

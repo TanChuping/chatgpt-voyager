@@ -19,6 +19,8 @@ const SUMMARY_TRUNCATE = 90;
 
 export interface BubbleHandle {
   destroy: () => void;
+  /** Refresh visible text in place without re-popping or touching dedupe flags. */
+  update: (text: Pick<MountBubbleArgs, 'title' | 'summary' | 'detailLabel' | 'closeLabel'>) => void;
   /** Re-position relative to the anchor (call on window resize). */
   reposition: () => void;
 }
@@ -128,5 +130,14 @@ export function mountBubble(args: MountBubbleArgs): BubbleHandle {
     args.onDetail();
   });
 
-  return { destroy, reposition };
+  function update(text: Pick<MountBubbleArgs, 'title' | 'summary' | 'detailLabel' | 'closeLabel'>) {
+    titleEl.textContent = text.title;
+    summaryEl.textContent = truncate(text.summary, SUMMARY_TRUNCATE);
+    detailBtn.textContent = text.detailLabel;
+    closeBtn.setAttribute('aria-label', text.closeLabel);
+    closeBtn.title = text.closeLabel;
+    reposition();
+  }
+
+  return { destroy, reposition, update };
 }

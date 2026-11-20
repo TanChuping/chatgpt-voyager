@@ -1,3 +1,4 @@
+import { getTranslationSync, getCachedLanguage } from '@/utils/i18n';
 /**
  * Conversation walking + export pipeline.
  * Mapping-walk strategy adapted from pionxzh/chatgpt-exporter (MIT).
@@ -18,14 +19,14 @@ function roleHeading(message: LinearMessage): string {
   const ts = formatTimestamp(message.createTime);
   const label =
     message.role === 'user'
-      ? 'You'
+      ? getTranslationSync('exportYouLabel')
       : message.role === 'assistant'
         ? 'ChatGPT'
         : message.role === 'system'
-          ? 'System'
+          ? getTranslationSync('exportSystemLabel')
           : message.authorName
-            ? `tool: ${message.authorName}`
-            : 'tool';
+            ? `${getTranslationSync('exportToolLabel')}: ${message.authorName}`
+            : getTranslationSync('exportToolLabel');
   return ts ? `## ${label} — ${ts}` : `## ${label}`;
 }
 
@@ -34,7 +35,7 @@ function renderAttachments(message: LinearMessage): string {
   const lines = message.attachments.map(
     (a) => `- ${a.name}${a.mimeType ? ` (${a.mimeType})` : ''}`,
   );
-  return ['**Attachments**', ...lines].join('\n');
+  return [`**${getTranslationSync('exportAttachmentsLabel')}**`, ...lines].join('\n');
 }
 
 function renderToolBody(message: LinearMessage): string {
@@ -51,14 +52,14 @@ function renderToolBody(message: LinearMessage): string {
  */
 export function toMarkdown(linear: LinearConversation): string {
   const out: string[] = [];
-  out.push(`# ${linear.title || 'Untitled conversation'}`);
+  out.push(`# ${linear.title || getTranslationSync('conversation_untitled')}`);
   if (linear.createTime != null) {
     out.push('');
-    out.push(`*Created: ${formatTimestamp(linear.createTime)}*`);
+    out.push(`*${getTranslationSync('exportCreatedLabel')}: ${formatTimestamp(linear.createTime)}*`);
   }
   if (linear.id) {
     out.push('');
-    out.push(`*Conversation ID: ${linear.id}*`);
+    out.push(`*${getTranslationSync('exportConversationIdLabel')}: ${linear.id}*`);
   }
   out.push('');
 

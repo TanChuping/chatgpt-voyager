@@ -1,0 +1,2093 @@
+{
+  "extName": {
+    "message": "GPT-Voyager"
+  },
+  "announcementButton": {
+    "message": "Объявления"
+  },
+  "announcementDetail": {
+    "message": "Подробнее"
+  },
+  "announcementClose": {
+    "message": "Закрыть"
+  },
+  "announcementEmptyTitle": {
+    "message": "Объявлений нет"
+  },
+  "announcementEmptyBody": {
+    "message": "Сейчас у расширения нет объявлений. Загляните позже."
+  },
+  "announcementVersionChipHint": {
+    "message": "Нажмите, чтобы открыть объявления"
+  },
+  "singleConvExportButton": {
+    "message": "Экспортировать этот разговор"
+  },
+  "singleConvExportButtonTooltip": {
+    "message": "Экспортировать этот разговор в формате, выбранном во всплывающем окне расширения"
+  },
+  "singleConvExportOptions": {
+    "message": "Экспорт разговора"
+  },
+  "singleConvExportFormat": {
+    "message": "Формат экспорта"
+  },
+  "singleConvExportFormatHint": {
+    "message": "Выбирает формат кнопки скачивания рядом с «Поделиться» в ChatGPT. Упрощённые варианты убирают блоки Code Interpreter, вывод инструментов и пояснения модели перед их вызовом, сохраняя только ваши сообщения, итоговый ответ и метки времени."
+  },
+  "singleConvExportFormatMarkdown": {
+    "message": "Стандартный Markdown"
+  },
+  "singleConvExportFormatMarkdownHint": {
+    "message": "Без потерь. Включает код Code Interpreter, вывод инструментов и промежуточные пояснения."
+  },
+  "singleConvExportFormatMarkdownSimple": {
+    "message": "Упрощённый Markdown"
+  },
+  "singleConvExportFormatJson": {
+    "message": "Стандартный JSON"
+  },
+  "singleConvExportFormatJsonHint": {
+    "message": "Полный линейный JSON из структуры API. Подходит для архивации или дальнейшей обработки инструментами."
+  },
+  "singleConvExportFormatJsonSimple": {
+    "message": "Упрощённый JSON"
+  },
+  "singleConvExportFormatHtml": {
+    "message": "HTML (упрощённый)"
+  },
+  "singleConvExportFormatSimpleHint": {
+    "message": "Только ваши сообщения, итоговый ответ модели и метки времени."
+  },
+  "singleConvExportMenuWhole": {
+    "message": "Весь разговор"
+  },
+  "singleConvExportSelectButton": {
+    "message": "Выбрать и экспортировать"
+  },
+  "singleConvExportSelectButtonTooltip": {
+    "message": "Выберите сообщения для экспорта и скачайте только их в формате, выбранном во всплывающем окне расширения"
+  },
+  "singleConvExportSelectTitle": {
+    "message": "Отметьте сообщения для экспорта"
+  },
+  "singleConvExportSelectAll": {
+    "message": "Выбрать всё"
+  },
+  "singleConvExportSelectNone": {
+    "message": "Снять выделение"
+  },
+  "singleConvExportSelectUser": {
+    "message": "Только ваши сообщения"
+  },
+  "singleConvExportSelectAI": {
+    "message": "Только ChatGPT"
+  },
+  "singleConvExportSelectSelected": {
+    "message": "Выбрано"
+  },
+  "singleConvExportSelectDo": {
+    "message": "Экспортировать"
+  },
+  "singleConvExportSelectCancel": {
+    "message": "Отмена"
+  },
+  "singleConvExportSelectEmpty": {
+    "message": "Выберите хотя бы одно сообщение для экспорта."
+  },
+  "singleConvExportSelectNotReady": {
+    "message": "Разговор ещё загружен не полностью. Прокрутите вверх, чтобы загрузить ранние сообщения, затем повторите попытку."
+  },
+  "singleConvExportGenerating": {
+    "message": "Перед экспортом дождитесь завершения генерации ChatGPT."
+  },
+  "extDescription": {
+    "message": "Для ChatGPT: хронология, папки, копирование LaTeX, экспорт, перенос временных чатов, промпты, шрифты и Mermaid."
+  },
+  "scrollMode": {
+    "message": "Режим прокрутки хронологии"
+  },
+  "flow": {
+    "message": "Плавно"
+  },
+  "jump": {
+    "message": "Переход"
+  },
+  "hideOuterContainer": {
+    "message": "Скрыть контейнер хронологии"
+  },
+  "draggableTimeline": {
+    "message": "Перетаскиваемая хронология"
+  },
+  "pinTimelinePreview": {
+    "message": "Закрепить предпросмотр хронологии"
+  },
+  "pinTimelinePreviewHint": {
+    "message": "Оставлять предпросмотр хронологии открытым при просмотре заголовков."
+  },
+  "enableMarkerLevel": {
+    "message": "Уровни заголовков"
+  },
+  "enableMarkerLevelHint": {
+    "message": "Показывать вложенные уровни заголовков в хронологии разговора."
+  },
+  "experimentalLabel": {
+    "message": "Экспериментально"
+  },
+  "resetPosition": {
+    "message": "Сбросить положение"
+  },
+  "resetTimelinePosition": {
+    "message": "Сбросить положение хронологии"
+  },
+  "language": {
+    "message": "Язык"
+  },
+  "pm_title": {
+    "message": "Prompt Manager"
+  },
+  "pm_add": {
+    "message": "Добавить"
+  },
+  "pm_search_placeholder": {
+    "message": "Поиск по промптам, тегам или содержимому"
+  },
+  "pm_import": {
+    "message": "Импортировать"
+  },
+  "pm_export": {
+    "message": "Экспортировать"
+  },
+  "pm_prompt_placeholder": {
+    "message": "Текст промпта"
+  },
+  "pm_tags_placeholder": {
+    "message": "Теги через запятую"
+  },
+  "pm_save": {
+    "message": "Сохранить"
+  },
+  "pm_cancel": {
+    "message": "Отмена"
+  },
+  "pm_all_tags": {
+    "message": "Все теги"
+  },
+  "pm_empty": {
+    "message": "Промптов пока нет"
+  },
+  "pm_copy": {
+    "message": "Копировать"
+  },
+  "pm_copied": {
+    "message": "Скопировано"
+  },
+  "pm_inserted": {
+    "message": "Вставлено"
+  },
+  "pm_delete": {
+    "message": "Удалить"
+  },
+  "pm_delete_confirm": {
+    "message": "Удалить этот промпт?"
+  },
+  "pm_lock": {
+    "message": "Заблокировать"
+  },
+  "pm_unlock": {
+    "message": "Разблокировать"
+  },
+  "pm_import_invalid": {
+    "message": "Недопустимый файл импорта"
+  },
+  "pm_import_empty": {
+    "message": "В файле импорта не найдено промптов"
+  },
+  "pm_import_success": {
+    "message": "Импортировано промптов: {count}"
+  },
+  "pm_duplicate": {
+    "message": "Такой текст промпта уже существует. Отредактируйте существующий промпт."
+  },
+  "pm_save_failed": {
+    "message": "Не удалось сохранить. Черновик сохранён. Проверьте хранилище расширения и повторите попытку."
+  },
+  "pm_deleted": {
+    "message": "Удалено"
+  },
+  "pm_edit": {
+    "message": "Редактировать"
+  },
+  "pm_expand": {
+    "message": "Развернуть"
+  },
+  "pm_collapse": {
+    "message": "Свернуть"
+  },
+  "pm_saved": {
+    "message": "Сохранено"
+  },
+  "pm_settings": {
+    "message": "Настройки"
+  },
+  "pm_settings_tooltip": {
+    "message": "Открыть настройки Prompt Manager"
+  },
+  "pm_settings_fallback": {
+    "message": "Откройте настройки расширения, чтобы настроить Prompt Manager."
+  },
+  "pm_backup": {
+    "message": "Резервная копия"
+  },
+  "pm_backup_tooltip": {
+    "message": "Экспортировать локальную резервную копию промптов и настроек."
+  },
+  "pm_backup_cancelled": {
+    "message": "Резервное копирование отменено"
+  },
+  "pm_backup_error": {
+    "message": "Ошибка резервного копирования"
+  },
+  "pm_backup_hint_options": {
+    "message": "Экспортировать или импортировать локальные данные Prompt Manager."
+  },
+  "pm_backup_step1": {
+    "message": "Откройте ChatGPT."
+  },
+  "pm_backup_step2": {
+    "message": "Откройте Prompt Manager."
+  },
+  "pm_backup_note": {
+    "message": "Локальные резервные копии остаются на этом устройстве, если вы их не экспортируете."
+  },
+  "pm_theme_light": {
+    "message": "Светлая"
+  },
+  "pm_view_compact": {
+    "message": "Компактно"
+  },
+  "pm_view_comfortable": {
+    "message": "Просторно"
+  },
+  "pm_name_placeholder": {
+    "message": "Название промпта"
+  },
+  "pm_theme_dark": {
+    "message": "Тёмная"
+  },
+  "extensionVersion": {
+    "message": "Версия"
+  },
+  "newVersionAvailable": {
+    "message": "Доступна новая версия"
+  },
+  "currentVersionLabel": {
+    "message": "Текущая версия"
+  },
+  "latestVersionLabel": {
+    "message": "Последняя версия"
+  },
+  "updateNow": {
+    "message": "Обновить сейчас"
+  },
+  "safariUpdateNotSynced": {
+    "message": "Состояние обновления Safari не синхронизировано."
+  },
+  "officialDocs": {
+    "message": "Документация"
+  },
+  "exportChatJson": {
+    "message": "Экспортировать разговор"
+  },
+  "folder_title": {
+    "message": "Папки"
+  },
+  "folder_create": {
+    "message": "Новая папка"
+  },
+  "folder_name_prompt": {
+    "message": "Название папки:"
+  },
+  "folder_rename_prompt": {
+    "message": "Переименовать папку:"
+  },
+  "folder_delete_confirm": {
+    "message": "Удалить эту папку и убрать сохранённые в ней записи разговоров?"
+  },
+  "folder_create_subfolder": {
+    "message": "Новая вложенная папка"
+  },
+  "folder_rename": {
+    "message": "Переименовать"
+  },
+  "folder_change_color": {
+    "message": "Изменить цвет"
+  },
+  "folder_delete": {
+    "message": "Удалить"
+  },
+  "folder_color_default": {
+    "message": "По умолчанию"
+  },
+  "folder_color_red": {
+    "message": "Красный"
+  },
+  "folder_color_orange": {
+    "message": "Оранжевый"
+  },
+  "folder_color_yellow": {
+    "message": "Жёлтый"
+  },
+  "folder_color_green": {
+    "message": "Зелёный"
+  },
+  "folder_color_blue": {
+    "message": "Синий"
+  },
+  "folder_color_purple": {
+    "message": "Фиолетовый"
+  },
+  "folder_color_pink": {
+    "message": "Розовый"
+  },
+  "folder_color_custom": {
+    "message": "Свой цвет"
+  },
+  "folder_empty": {
+    "message": "Папок пока нет"
+  },
+  "folder_pin": {
+    "message": "Закрепить папку"
+  },
+  "folder_unpin": {
+    "message": "Открепить папку"
+  },
+  "folder_remove_conversation": {
+    "message": "Убрать из папки"
+  },
+  "conversation_more": {
+    "message": "Другие действия"
+  },
+  "conversation_move_to_folder": {
+    "message": "Переместить в папку"
+  },
+  "conversation_rename": {
+    "message": "Переименовать чат"
+  },
+  "conversation_move_to_folder_title": {
+    "message": "Переместить в папку"
+  },
+  "chatWidth": {
+    "message": "Ширина чата"
+  },
+  "chatWidthNarrow": {
+    "message": "Узкая"
+  },
+  "chatWidthWide": {
+    "message": "Широкая"
+  },
+  "chatFontSize": {
+    "message": "Размер шрифта чата"
+  },
+  "codeFontSize": {
+    "message": "Размер шрифта в блоках кода"
+  },
+  "chatFontSizeSmall": {
+    "message": "Маленький"
+  },
+  "chatFontSizeLarge": {
+    "message": "Большой"
+  },
+  "chatLineHeight": {
+    "message": "Межстрочный интервал чата"
+  },
+  "chatLineHeightTight": {
+    "message": "Плотный"
+  },
+  "chatLineHeightLoose": {
+    "message": "Свободный"
+  },
+  "chatParagraphSpacing": {
+    "message": "Интервал между абзацами"
+  },
+  "chatParagraphSpacingCompact": {
+    "message": "Компактный"
+  },
+  "chatParagraphSpacingSpacious": {
+    "message": "Просторный"
+  },
+  "chatFontFamily": {
+    "message": "Шрифт чата"
+  },
+  "chatFontFamilyDefault": {
+    "message": "По умолчанию (ChatGPT)"
+  },
+  "chatFontFamilyClaude": {
+    "message": "В стиле Claude (Tiempos)"
+  },
+  "chatFontFamilyGemini": {
+    "message": "В стиле Gemini (Google Sans)"
+  },
+  "chatFontFamilyCustom": {
+    "message": "Свой шрифт"
+  },
+  "chatFontFamilyNoneImported": {
+    "message": "Не импортирован"
+  },
+  "chatFontFamilyHint": {
+    "message": "Если исходный шрифт не установлен, используются системные шрифты. Импортируйте ниже .woff2/.woff/.ttf/.otf для гарантированного отображения. В блоках кода остаётся моноширинный шрифт."
+  },
+  "chatFontFamilyImport": {
+    "message": "Импортировать шрифт…"
+  },
+  "chatFontFamilyClear": {
+    "message": "Удалить свой шрифт"
+  },
+  "sidebarWidth": {
+    "message": "Ширина боковой панели"
+  },
+  "sidebarWidthNarrow": {
+    "message": "Узкая"
+  },
+  "sidebarWidthWide": {
+    "message": "Широкая"
+  },
+  "formula_copied": {
+    "message": "Формула скопирована."
+  },
+  "formula_copy_failed": {
+    "message": "Не удалось скопировать формулу."
+  },
+  "formulaCopyFormat": {
+    "message": "Формат копирования формул"
+  },
+  "formulaCopyFormatLatex": {
+    "message": "LaTeX"
+  },
+  "formulaCopyFormatUnicodeMath": {
+    "message": "MathML / Word"
+  },
+  "formulaCopyFormatHint": {
+    "message": "Выберите формат копирования формул."
+  },
+  "formulaCopyFormatNoDollar": {
+    "message": "LaTeX без знаков доллара"
+  },
+  "formulaCopyFormatDesmos": {
+    "message": "Desmos / калькуляторы"
+  },
+  "formulaCopyFormatNotion": {
+    "message": "Notion ($$)"
+  },
+  "folder_search_placeholder": {
+    "message": "Поиск папок и чатов"
+  },
+  "folder_search_expand": {
+    "message": "Развернуть поиск"
+  },
+  "folder_search_collapse": {
+    "message": "Свернуть поиск"
+  },
+  "folder_expand": {
+    "message": "Развернуть папку"
+  },
+  "folder_collapse": {
+    "message": "Свернуть папку"
+  },
+  "folder_search_mode_folder": {
+    "message": "Только папки"
+  },
+  "folder_search_empty": {
+    "message": "Подходящих папок или чатов нет"
+  },
+  "folder_settings": {
+    "message": "Настройки папок"
+  },
+  "folder_sort": {
+    "message": "Порядок чатов"
+  },
+  "folder_sort_manual": {
+    "message": "Вручную"
+  },
+  "folder_sort_recent": {
+    "message": "Недавно открытые"
+  },
+  "folder_item_font_size": {
+    "message": "Размер шрифта"
+  },
+  "folder_item_font_size_decrease": {
+    "message": "Уменьшить"
+  },
+  "folder_item_font_size_increase": {
+    "message": "Увеличить"
+  },
+  "folder_hide_section": {
+    "message": "Скрыть содержимое папок"
+  },
+  "folder_show_section": {
+    "message": "Показать содержимое папок"
+  },
+  "folder_export": {
+    "message": "Экспортировать папки"
+  },
+  "folder_import_export": {
+    "message": "Импорт / экспорт папок"
+  },
+  "folder_cloud_upload": {
+    "message": "Загрузить папки в облако"
+  },
+  "folder_cloud_sync": {
+    "message": "Облачная синхронизация папок"
+  },
+  "folder_manage_in_library": {
+    "message": "Управлять в библиотеке"
+  },
+  "folder_import": {
+    "message": "Импортировать папки"
+  },
+  "folder_import_title": {
+    "message": "Импортировать папки"
+  },
+  "folder_import_strategy": {
+    "message": "Способ импорта"
+  },
+  "folder_import_merge": {
+    "message": "Объединить с существующими папками"
+  },
+  "folder_import_overwrite": {
+    "message": "Перезаписать существующие папки"
+  },
+  "folder_import_select_file": {
+    "message": "Выбрать файл JSON"
+  },
+  "folder_import_success": {
+    "message": "Импортировано папок: {folders}; разговоров: {conversations}."
+  },
+  "folder_import_success_skipped": {
+    "message": "Импортировано папок: {folders}; разговоров: {conversations}. Пропущено: {skipped}."
+  },
+  "folder_import_error": {
+    "message": "Ошибка импорта: {error}"
+  },
+  "folder_export_success": {
+    "message": "Папки экспортированы."
+  },
+  "folder_import_invalid_format": {
+    "message": "Недопустимый файл резервной копии папок."
+  },
+  "folder_import_confirm_overwrite": {
+    "message": "Существующие папки будут перезаписаны. Продолжить?"
+  },
+  "folder_import_paste_json": {
+    "message": "Вставить JSON"
+  },
+  "folder_import_paste_placeholder": {
+    "message": "Вставьте JSON здесь…"
+  },
+  "export_dialog_title": {
+    "message": "Экспортировать чат"
+  },
+  "export_dialog_select": {
+    "message": "Выбрать формат экспорта"
+  },
+  "export_dialog_warning": {
+    "message": "Некоторые элементы после экспорта могут отличаться от отображаемых."
+  },
+  "export_dialog_safari_cmdp_hint": {
+    "message": "В Safari нажмите Command+P для печати в PDF."
+  },
+  "export_toast_safari_pdf_ready": {
+    "message": "Диалог печати готов."
+  },
+  "export_dialog_safari_markdown_hint": {
+    "message": "Экспорт в Markdown доступен в диалоге экспорта."
+  },
+  "export_format_json_description": {
+    "message": "Экспорт в структурированный JSON"
+  },
+  "export_format_markdown_description": {
+    "message": "Экспорт в читаемый Markdown"
+  },
+  "export_format_pdf_description": {
+    "message": "Экспорт в PDF для печати"
+  },
+  "editInputWidth": {
+    "message": "Ширина поля ввода"
+  },
+  "editInputWidthNarrow": {
+    "message": "Узкая"
+  },
+  "editInputWidthWide": {
+    "message": "Широкая"
+  },
+  "timelineOptions": {
+    "message": "Хронология"
+  },
+  "enableTimeline": {
+    "message": "Включить хронологию"
+  },
+  "enableTimelineDescription": {
+    "message": "Показывать навигацию по точкам справа. При отключении полностью убираются точки, предпросмотр и интерфейс закрепления."
+  },
+  "folderOptions": {
+    "message": "Параметры папок"
+  },
+  "enableFolderFeature": {
+    "message": "Включить папки"
+  },
+  "enableFolderFloatingMode": {
+    "message": "Плавающая панель папок"
+  },
+  "enableFolderFloatingModeHint": {
+    "message": "Показывать папки в плавающей панели вместо боковой."
+  },
+  "hideArchivedConversations": {
+    "message": "Скрывать архивные разговоры"
+  },
+  "hideArchivedNudgeTitle": {
+    "message": "Скрывать архивные разговоры"
+  },
+  "hideArchivedNudgeBody": {
+    "message": "Не показывать архивные разговоры в списке папок."
+  },
+  "hideArchivedNudgeEnable": {
+    "message": "Включить"
+  },
+  "hideArchivedNudgeDismiss": {
+    "message": "Закрыть"
+  },
+  "hideArchivedNudgeFootnote": {
+    "message": "Позже это можно изменить в настройках."
+  },
+  "floatingModeNudgeTitle": {
+    "message": "Плавающая панель папок"
+  },
+  "floatingModeNudgeBody": {
+    "message": "Открывать папки из плавающей панели."
+  },
+  "floatingModeNudgeEnable": {
+    "message": "Включить"
+  },
+  "floatingModeNudgeDismiss": {
+    "message": "Закрыть"
+  },
+  "floatingPanelTitle": {
+    "message": "Папки"
+  },
+  "floatingPanelClose": {
+    "message": "Закрыть"
+  },
+  "floatingPanelEmpty": {
+    "message": "Папок пока нет"
+  },
+  "floatingPanelUntitled": {
+    "message": "Без названия"
+  },
+  "floatingFabLabel": {
+    "message": "Открыть папки"
+  },
+  "conversation_star": {
+    "message": "Добавить разговор в избранное"
+  },
+  "conversation_unstar": {
+    "message": "Убрать разговор из избранного"
+  },
+  "conversation_untitled": {
+    "message": "Разговор без названия"
+  },
+  "folderManager_dataLossWarning": {
+    "message": "Предупреждение: не удалось загрузить данные папок. Подробности доступны в консоли браузера."
+  },
+  "backupOptions": {
+    "message": "Параметры резервного копирования"
+  },
+  "backupEnabled": {
+    "message": "Включить резервное копирование"
+  },
+  "backupNow": {
+    "message": "Создать копию сейчас"
+  },
+  "backupSelectFolder": {
+    "message": "Выбрать папку для копий"
+  },
+  "backupFolderSelected": {
+    "message": "Папка для копий выбрана"
+  },
+  "backupIncludePrompts": {
+    "message": "Включить промпты"
+  },
+  "backupIncludeFolders": {
+    "message": "Включить папки"
+  },
+  "backupIntervalLabel": {
+    "message": "Частота копирования"
+  },
+  "backupIntervalManual": {
+    "message": "Вручную"
+  },
+  "backupIntervalDaily": {
+    "message": "Ежедневно"
+  },
+  "backupIntervalWeekly": {
+    "message": "Еженедельно"
+  },
+  "backupLastBackup": {
+    "message": "Последняя копия"
+  },
+  "backupNever": {
+    "message": "Копий ещё нет"
+  },
+  "backupSuccess": {
+    "message": "Копия создана"
+  },
+  "backupError": {
+    "message": "Ошибка резервного копирования"
+  },
+  "backupNotSupported": {
+    "message": "Этот браузер не поддерживает резервное копирование"
+  },
+  "backupSelectFolderFirst": {
+    "message": "Сначала выберите папку для копий"
+  },
+  "backupUserCancelled": {
+    "message": "Копирование отменено"
+  },
+  "backupConfigSaved": {
+    "message": "Настройки копирования сохранены"
+  },
+  "backupPermissionDenied": {
+    "message": "Разрешение на копирование отклонено"
+  },
+  "backupConfigureInOptions": {
+    "message": "Настроить копирование в параметрах расширения"
+  },
+  "openOptionsPage": {
+    "message": "Открыть страницу параметров"
+  },
+  "optionsPageSubtitle": {
+    "message": "Параметры расширения"
+  },
+  "optionsComingSoon": {
+    "message": "Скоро появятся дополнительные параметры."
+  },
+  "backupDataAccessNotice": {
+    "message": "Доступ к данным резервных копий"
+  },
+  "backupDataAccessHint": {
+    "message": "Разрешите доступ к выбранной папке резервных копий."
+  },
+  "promptManagerOptions": {
+    "message": "Prompt Manager"
+  },
+  "hidePromptManager": {
+    "message": "Скрыть Prompt Manager"
+  },
+  "hidePromptManagerHint": {
+    "message": "Скрыть кнопку Prompt Manager в ChatGPT."
+  },
+  "promptInsertOnClick": {
+    "message": "Вставлять промпт по нажатию"
+  },
+  "promptInsertOnClickHint": {
+    "message": "Сразу вставлять выбранный промпт."
+  },
+  "customWebsites": {
+    "message": "Свои сайты"
+  },
+  "customWebsitesPlaceholder": {
+    "message": "Введите адрес сайта"
+  },
+  "customWebsitesHint": {
+    "message": "Добавьте сайты, на которых хотите использовать расширение."
+  },
+  "addWebsite": {
+    "message": "Добавить сайт"
+  },
+  "removeWebsite": {
+    "message": "Удалить сайт"
+  },
+  "invalidUrl": {
+    "message": "Недопустимый URL"
+  },
+  "websiteAdded": {
+    "message": "Сайт добавлен"
+  },
+  "websiteRemoved": {
+    "message": "Сайт удалён"
+  },
+  "permissionDenied": {
+    "message": "В доступе отказано"
+  },
+  "permissionRequestFailed": {
+    "message": "Не удалось запросить разрешение"
+  },
+  "customWebsitesNote": {
+    "message": "Для своих сайтов требуется разрешение на доступ."
+  },
+  "starredHistory": {
+    "message": "История избранного"
+  },
+  "viewStarredHistory": {
+    "message": "Избранные сообщения"
+  },
+  "noStarredMessages": {
+    "message": "Избранных сообщений нет"
+  },
+  "removeFromStarred": {
+    "message": "Убрать из избранного"
+  },
+  "justNow": {
+    "message": "Только что"
+  },
+  "hoursAgo": {
+    "message": "ч. назад"
+  },
+  "yesterday": {
+    "message": "Вчера"
+  },
+  "daysAgo": {
+    "message": "дн. назад"
+  },
+  "loading": {
+    "message": "Загрузка…"
+  },
+  "keyboardShortcuts": {
+    "message": "Горячие клавиши"
+  },
+  "enableShortcuts": {
+    "message": "Включить горячие клавиши"
+  },
+  "previousNode": {
+    "message": "Предыдущий узел"
+  },
+  "nextNode": {
+    "message": "Следующий узел"
+  },
+  "firstNode": {
+    "message": "Первый узел"
+  },
+  "lastNode": {
+    "message": "Последний узел"
+  },
+  "shortcutKey": {
+    "message": "Клавиша"
+  },
+  "shortcutModifiers": {
+    "message": "Клавиши-модификаторы"
+  },
+  "resetShortcuts": {
+    "message": "Сбросить горячие клавиши"
+  },
+  "shortcutsResetSuccess": {
+    "message": "Горячие клавиши сброшены"
+  },
+  "shortcutsDescription": {
+    "message": "Настройте горячие клавиши навигации по хронологии."
+  },
+  "modifierNone": {
+    "message": "Нет"
+  },
+  "modifierAlt": {
+    "message": "Alt"
+  },
+  "modifierCtrl": {
+    "message": "Ctrl"
+  },
+  "modifierShift": {
+    "message": "Shift"
+  },
+  "modifierMeta": {
+    "message": "Meta"
+  },
+  "preventAutoScroll": {
+    "message": "Запретить автопрокрутку"
+  },
+  "preventAutoScrollHint": {
+    "message": "Сохранять текущую позицию чтения при появлении нового содержимого."
+  },
+  "cloudSync": {
+    "message": "Облачная синхронизация"
+  },
+  "cloudSyncDescription": {
+    "message": "Загрузить или объединить облачные данные."
+  },
+  "syncModeDisabled": {
+    "message": "Отключена"
+  },
+  "syncModeManual": {
+    "message": "Вручную"
+  },
+  "syncServerPort": {
+    "message": "Порт сервера синхронизации"
+  },
+  "syncNow": {
+    "message": "Синхронизировать сейчас"
+  },
+  "lastSynced": {
+    "message": "Последняя синхронизация"
+  },
+  "neverSynced": {
+    "message": "Ещё не синхронизировано"
+  },
+  "lastUploaded": {
+    "message": "Последняя загрузка"
+  },
+  "neverUploaded": {
+    "message": "Ещё не загружено"
+  },
+  "syncSuccess": {
+    "message": "Синхронизация выполнена"
+  },
+  "syncError": {
+    "message": "Ошибка синхронизации"
+  },
+  "syncInProgress": {
+    "message": "Синхронизация…"
+  },
+  "uploadInProgress": {
+    "message": "Загрузка…"
+  },
+  "uploadSuccess": {
+    "message": "Загрузка завершена"
+  },
+  "downloadInProgress": {
+    "message": "Скачивание…"
+  },
+  "downloadMergeSuccess": {
+    "message": "Скачано и объединено"
+  },
+  "syncUpload": {
+    "message": "Загрузить"
+  },
+  "syncMerge": {
+    "message": "Скачать и объединить"
+  },
+  "syncMode": {
+    "message": "Режим синхронизации"
+  },
+  "minutesAgo": {
+    "message": "мин. назад"
+  },
+  "syncNoData": {
+    "message": "Нет данных для синхронизации"
+  },
+  "syncUploadFailed": {
+    "message": "Ошибка загрузки"
+  },
+  "syncDownloadFailed": {
+    "message": "Ошибка скачивания"
+  },
+  "syncAuthFailed": {
+    "message": "Ошибка авторизации для синхронизации"
+  },
+  "signOut": {
+    "message": "Выйти"
+  },
+  "signInWithGoogle": {
+    "message": "Войти через Google"
+  },
+  "nanobananaOptions": {
+    "message": "Параметры Nanobanana"
+  },
+  "nanobananaDownloadLabel": {
+    "message": "Скачивать изображения Nanobanana"
+  },
+  "nanobananaDownloadHint": {
+    "message": "Скачивать оригиналы изображений, созданных Nanobanana."
+  },
+  "nanobananaPreviewLabel": {
+    "message": "Предпросмотр изображений Nanobanana"
+  },
+  "nanobananaPreviewHint": {
+    "message": "Показывать предпросмотр изображений, созданных Nanobanana."
+  },
+  "nanobananaDownloadTooltip": {
+    "message": "Скачать оригинал изображения"
+  },
+  "deepResearchDownload": {
+    "message": "Скачать отчёт глубокого исследования"
+  },
+  "deepResearchDownloadTooltip": {
+    "message": "Скачать этот отчёт глубокого исследования"
+  },
+  "folder_uncategorized": {
+    "message": "Без категории"
+  },
+  "timelineLevelTitle": {
+    "message": "Уровни хронологии"
+  },
+  "timelineLevel1": {
+    "message": "Уровень 1"
+  },
+  "timelineLevel2": {
+    "message": "Уровень 2"
+  },
+  "timelineLevel3": {
+    "message": "Уровень 3"
+  },
+  "timelineCollapse": {
+    "message": "Свернуть"
+  },
+  "timelineExpand": {
+    "message": "Развернуть"
+  },
+  "timelinePreviewSearch": {
+    "message": "Поиск сообщений…"
+  },
+  "timelinePreviewNoResults": {
+    "message": "Нет результатов"
+  },
+  "timelinePreviewNoMessages": {
+    "message": "Сообщений нет"
+  },
+  "timelineUnmountedTooltip": {
+    "message": "Сообщение не загружено — содержимое появится после перехода"
+  },
+  "quoteReply": {
+    "message": "Ответить с цитатой"
+  },
+  "inputCollapseOptions": {
+    "message": "Поле ввода"
+  },
+  "enableInputCollapse": {
+    "message": "Сворачивать поле ввода"
+  },
+  "enableInputCollapseHint": {
+    "message": "Сворачивать поле ввода в компактную панель, когда оно не в фокусе."
+  },
+  "inputCollapseShortcutHint": {
+    "message": "{modifier}+I сворачивает или разворачивает поле ввода."
+  },
+  "inputCollapsePlaceholder": {
+    "message": "Написать ChatGPT"
+  },
+  "allowCollapseWhenNotEmpty": {
+    "message": "Сворачивать при наличии текста"
+  },
+  "allowCollapseWhenNotEmptyHint": {
+    "message": "Разрешить сворачивание поля ввода, даже если в нём есть текст."
+  },
+  "inputVimMode": {
+    "message": "Режим Vim в поле ввода"
+  },
+  "inputVimModeHint": {
+    "message": "Используйте i и Escape для переключения между режимами вставки и обычным режимом в поле ввода."
+  },
+  "plainTextInput": {
+    "message": "Ввод обычного текста"
+  },
+  "plainTextInputHint": {
+    "message": "Сохранять символы Markdown при редактировании и отображать форматирование после отправки."
+  },
+  "ctrlEnterSend": {
+    "message": "Отправлять по {modifier}+Enter"
+  },
+  "ctrlEnterSendHint": {
+    "message": "Используйте {modifier}+Enter для отправки и Enter для новой строки."
+  },
+  "safariEnterFix": {
+    "message": "Исправление Enter в Safari"
+  },
+  "safariEnterFixHint": {
+    "message": "Режим совместимости поведения Enter в Safari."
+  },
+  "draftAutoSave": {
+    "message": "Автоматически сохранять черновики"
+  },
+  "draftAutoSaveHint": {
+    "message": "Восстанавливать неотправленный текст при возвращении в чат."
+  },
+  "batch_delete_confirm": {
+    "message": "Удалить разговоры ({count})?"
+  },
+  "batch_delete_in_progress": {
+    "message": "Удаление… ({current}/{total})"
+  },
+  "batch_delete_success": {
+    "message": "Удалено разговоров: {count}."
+  },
+  "batch_delete_partial": {
+    "message": "Удалено: {success}; не удалось: {failed}."
+  },
+  "batch_delete_limit_reached": {
+    "message": "Достигнут предел выбора: {max}."
+  },
+  "batch_delete_button": {
+    "message": "Удалить выбранное"
+  },
+  "batch_delete_match_patterns": {
+    "message": "delete,confirm,yes,ok,remove,удалить,подтвердить,да,ок,убрать"
+  },
+  "generalOptions": {
+    "message": "Общие"
+  },
+  "enableTabTitleUpdate": {
+    "message": "Обновлять заголовок вкладки"
+  },
+  "enableTabTitleUpdateHint": {
+    "message": "Обновлять заголовок вкладки браузера в соответствии с текущим разговором."
+  },
+  "enableMermaidRendering": {
+    "message": "Диаграммы Mermaid"
+  },
+  "enableMermaidRenderingHint": {
+    "message": "Отображать блоки кода Mermaid как диаграммы."
+  },
+  "enableQuoteReply": {
+    "message": "Ответить с цитатой"
+  },
+  "enableQuoteReplyHint": {
+    "message": "Ответить, используя выделенный текст как цитируемый контекст."
+  },
+  "contextSync": {
+    "message": "Синхронизация контекста"
+  },
+  "contextSyncDescription": {
+    "message": "Синхронизировать контекст с IDE."
+  },
+  "syncToIDE": {
+    "message": "Синхронизировать с IDE"
+  },
+  "ideOnline": {
+    "message": "IDE в сети"
+  },
+  "ideOffline": {
+    "message": "IDE не в сети"
+  },
+  "syncing": {
+    "message": "Синхронизация…"
+  },
+  "checkServer": {
+    "message": "Проверить сервер"
+  },
+  "capturing": {
+    "message": "Сбор данных…"
+  },
+  "syncedSuccess": {
+    "message": "Синхронизировано."
+  },
+  "downloadingOriginal": {
+    "message": "Скачивание оригинала…"
+  },
+  "downloadingOriginalLarge": {
+    "message": "Скачивание большого оригинала…"
+  },
+  "downloadLargeWarning": {
+    "message": "Скачивание большого файла"
+  },
+  "downloadProcessing": {
+    "message": "Обработка скачивания…"
+  },
+  "downloadSuccess": {
+    "message": "Скачивание началось…"
+  },
+  "downloadError": {
+    "message": "Ошибка скачивания"
+  },
+  "recentsHide": {
+    "message": "Скрыть недавние чаты"
+  },
+  "recentsShow": {
+    "message": "Показать недавние чаты"
+  },
+  "gemsHide": {
+    "message": "Скрыть GPT"
+  },
+  "gemsShow": {
+    "message": "Показать GPT"
+  },
+  "notebooksHide": {
+    "message": "Скрыть блокноты"
+  },
+  "notebooksShow": {
+    "message": "Показать блокноты"
+  },
+  "setAsDefaultModel": {
+    "message": "Сделать моделью по умолчанию"
+  },
+  "cancelDefaultModel": {
+    "message": "Сбросить модель по умолчанию"
+  },
+  "defaultModelSet": {
+    "message": "Модель по умолчанию: $1"
+  },
+  "defaultModelCleared": {
+    "message": "Модель по умолчанию сброшена"
+  },
+  "railToggle_enable": {
+    "message": "Переключатель панели значков"
+  },
+  "driveAutoAllow": {
+    "message": "Автоматически разрешать Google Drive"
+  },
+  "driveAutoAllowHint": {
+    "message": "Автоматически нажимать «Всегда разрешать» в карточках разрешений Google Drive в ChatGPT, включая загрузку файлов. По умолчанию отключено. Работает в фоновых вкладках, пока страница выполняется."
+  },
+  "quotaRing_enable": {
+    "message": "Показывать кольцо квоты"
+  },
+  "quotaRing_description": {
+    "message": "Показывать квоту Codex / Work в поле ввода и боковой панели."
+  },
+  "quotaRing_title": {
+    "message": "Остаток квоты Codex / Work"
+  },
+  "quotaRing_chatNote": {
+    "message": "(Разговоры в Chat не расходуют эту квоту)"
+  },
+  "quotaRing_waiting": {
+    "message": "Ожидание обновления данных об использовании"
+  },
+  "quotaRing_remaining": {
+    "message": "Осталось {percent}%"
+  },
+  "quotaRing_weekly": {
+    "message": "Недельный лимит"
+  },
+  "quotaRing_fiveHour": {
+    "message": "Лимит на 5 часов"
+  },
+  "quotaRing_window": {
+    "message": "Лимит на {hours} ч"
+  },
+  "quotaRing_review": {
+    "message": "Проверка кода"
+  },
+  "quotaRing_additional": {
+    "message": "Дополнительная квота"
+  },
+  "quotaRing_reset": {
+    "message": "Сброс: {time}"
+  },
+  "quotaRing_updated": {
+    "message": "Обновлено: {time}"
+  },
+  "quotaRing_stale": {
+    "message": "Последние данные · ожидание обновления"
+  },
+  "quotaRing_credits": {
+    "message": "Кредиты: {balance}"
+  },
+  "quotaRing_unlimited": {
+    "message": "Без ограничений"
+  },
+  "quotaRing_noPercentage": {
+    "message": "Процентный лимит не указан"
+  },
+  "railToggle_description": {
+    "message": "Добавляет кнопку ◀ рядом с заголовком ChatGPT в боковой панели. Она сворачивает новую левую панель значков (главная, история, аватар…). Повторное нажатие возвращает её."
+  },
+  "railToggle_hide": {
+    "message": "Скрыть панель значков"
+  },
+  "railToggle_show": {
+    "message": "Показать панель значков"
+  },
+  "sidebarAutoHide": {
+    "message": "Автоматически скрывать боковую панель"
+  },
+  "sidebarAutoHideHint": {
+    "message": "Сворачивать боковую панель, пока указатель не окажется у левого края."
+  },
+  "sidebarFullHide": {
+    "message": "Полностью скрывать боковую панель"
+  },
+  "sidebarFullHideHint": {
+    "message": "Полностью скрывать боковую панель при включённом автоскрытии."
+  },
+  "folderSpacing": {
+    "message": "Интервал между папками"
+  },
+  "folderSpacingCompact": {
+    "message": "Компактный"
+  },
+  "folderSpacingSpacious": {
+    "message": "Просторный"
+  },
+  "folderTreeIndent": {
+    "message": "Отступ дерева папок"
+  },
+  "folderTreeIndentCompact": {
+    "message": "Компактный"
+  },
+  "folderTreeIndentSpacious": {
+    "message": "Широкий"
+  },
+  "export_select_mode_select_all": {
+    "message": "Выбрать всё"
+  },
+  "export_select_mode_count": {
+    "message": "Выбрано: {count}"
+  },
+  "export_select_mode_toggle": {
+    "message": "Выбрать сообщение"
+  },
+  "export_select_mode_select_below": {
+    "message": "Выбрать сообщения ниже"
+  },
+  "export_select_mode_empty": {
+    "message": "Выберите хотя бы одно сообщение для экспорта."
+  },
+  "export_format_image_description": {
+    "message": "Экспорт в изображение PNG"
+  },
+  "export_image_progress": {
+    "message": "Создание изображения…"
+  },
+  "deepResearchSaveReport": {
+    "message": "Сохранить отчёт"
+  },
+  "deepResearchSaveReportTooltip": {
+    "message": "Экспортировать этот исследовательский отчёт"
+  },
+  "export_fontsize_label": {
+    "message": "Размер шрифта"
+  },
+  "export_fontsize_preview": {
+    "message": "Текст предпросмотра"
+  },
+  "export_image_width_label": {
+    "message": "Ширина изображения"
+  },
+  "export_image_width_narrow": {
+    "message": "Узкая"
+  },
+  "export_image_width_medium": {
+    "message": "Средняя"
+  },
+  "export_image_width_wide": {
+    "message": "Широкая"
+  },
+  "export_error_generic": {
+    "message": "Ошибка экспорта: {error}"
+  },
+  "export_error_refresh_retry": {
+    "message": "Не удалось экспортировать. Обновите страницу и повторите попытку."
+  },
+  "export_md_include_source_confirm": {
+    "message": "Включить исходный Markdown?"
+  },
+  "deepResearch_exportedAt": {
+    "message": "Время экспорта"
+  },
+  "deepResearch_totalPhases": {
+    "message": "Всего этапов"
+  },
+  "deepResearch_thinkingPhase": {
+    "message": "Этап размышления"
+  },
+  "deepResearch_researchedWebsites": {
+    "message": "Изученные сайты"
+  },
+  "visualEffect": {
+    "message": "Визуальный эффект"
+  },
+  "visualEffectHint": {
+    "message": "Выберите лёгкий эффект для страницы."
+  },
+  "visualEffectOff": {
+    "message": "Выключено"
+  },
+  "visualEffectSnow": {
+    "message": "Снег"
+  },
+  "visualEffectSakura": {
+    "message": "Сакура"
+  },
+  "visualEffectRain": {
+    "message": "Дождь"
+  },
+  "forkConversation": {
+    "message": "Создать ветку"
+  },
+  "forkConfirm": {
+    "message": "Создать ветку разговора с этого места?"
+  },
+  "forkConfirmBtn": {
+    "message": "Создать ветку"
+  },
+  "forkCancel": {
+    "message": "Отмена"
+  },
+  "forkBranch": {
+    "message": "Ветка"
+  },
+  "forkOriginal": {
+    "message": "Исходный"
+  },
+  "forkCurrent": {
+    "message": "Текущий"
+  },
+  "forkPreparing": {
+    "message": "Подготовка ветки…"
+  },
+  "forkPasteHint": {
+    "message": "Нажмите Enter, чтобы отправить и создать ветку"
+  },
+  "forkDeleteData": {
+    "message": "Удалить данные веток"
+  },
+  "forkDeleteDataConfirm": {
+    "message": "Удалить все сохранённые данные веток?"
+  },
+  "enableForkFeature": {
+    "message": "Ветки разговоров"
+  },
+  "enableForkFeatureHint": {
+    "message": "Создавать новую ветку с выбранного места в разговоре."
+  },
+  "enableAccountIsolation": {
+    "message": "Включить строгое разделение"
+  },
+  "enableAccountIsolationHint": {
+    "message": "Разделять данные по аккаунтам."
+  },
+  "currentPlatform": {
+    "message": "Текущая платформа"
+  },
+  "export_select_mode_only_user": {
+    "message": "Только сообщения пользователя"
+  },
+  "export_select_mode_only_ai": {
+    "message": "Только сообщения ассистента"
+  },
+  "aiOrgCopyButton": {
+    "message": "Скопировать структуру для ИИ"
+  },
+  "aiOrgCopied": {
+    "message": "Скопировано"
+  },
+  "aiOrgError": {
+    "message": "Не удалось скопировать данные структуры."
+  },
+  "aiOrgCopyHint": {
+    "message": "Скопировать структуру папок как контекст."
+  },
+  "aiOrgCurrentFolders": {
+    "message": "Текущие папки"
+  },
+  "aiOrgUnfiledConversations": {
+    "message": "Разговоры вне папок"
+  },
+  "aiOrgEmpty": {
+    "message": "Пусто"
+  },
+  "aiOrgInstructions": {
+    "message": "Инструкции"
+  },
+  "showMessageTimestamps": {
+    "message": "Показывать время сообщений"
+  },
+  "showMessageTimestampsHint": {
+    "message": "Показывать метки времени рядом с сообщениями."
+  },
+  "moveSectionUp": {
+    "message": "Переместить вверх"
+  },
+  "moveSectionDown": {
+    "message": "Переместить вниз"
+  },
+  "folderAsProject_enable": {
+    "message": "Инструкции папки"
+  },
+  "folderAsProject_description": {
+    "message": "Добавлять к папке многоразовые инструкции и вставлять их в чаты."
+  },
+  "folderHeaderButton_enable": {
+    "message": "Ярлыки в заголовке разговора"
+  },
+  "folderHeaderButton_description": {
+    "message": "Показывать ярлыки папки и переименования вверху слева в текущем разговоре."
+  },
+  "folderBelowProjects": {
+    "message": "Размещать папки под проектами"
+  },
+  "folderBelowProjects_description": {
+    "message": "Переместить список папок из закреплённой верхней позиции под «Проекты» и над «Недавние», чтобы он прокручивался вместе со списком чатов."
+  },
+  "folderAsProject_noFolder": {
+    "message": "Без папки"
+  },
+  "folderAsProject_setInstructions": {
+    "message": "Задать инструкции"
+  },
+  "folderAsProject_editInstructions": {
+    "message": "Редактировать инструкции"
+  },
+  "folderAsProject_expand": {
+    "message": "Развернуть"
+  },
+  "folderAsProject_collapse": {
+    "message": "Свернуть"
+  },
+  "canvasExportCopyMarkdown": {
+    "message": "Скопировать Markdown из Canvas"
+  },
+  "canvasExportCopyMarkdownTooltip": {
+    "message": "Скопировать текущий Canvas в формате Markdown."
+  },
+  "canvasExportCopied": {
+    "message": "Markdown из Canvas скопирован."
+  },
+  "canvasExportEmpty": {
+    "message": "Содержимое Canvas не найдено."
+  },
+  "canvasExportFailed": {
+    "message": "Не удалось скопировать Markdown из Canvas."
+  },
+  "floatingPanelCreateFolder": {
+    "message": "Новая папка"
+  },
+  "floatingPanelCreateSubfolder": {
+    "message": "Новая вложенная папка"
+  },
+  "floatingPanelFolderNamePlaceholder": {
+    "message": "Название папки"
+  },
+  "floatingPanelRenameFolder": {
+    "message": "Переименовать папку"
+  },
+  "floatingPanelDeleteFolder": {
+    "message": "Удалить"
+  },
+  "floatingPanelDeleteConfirm": {
+    "message": "Удалить эту папку?"
+  },
+  "floatingPanelCancel": {
+    "message": "Отмена"
+  },
+  "floatingPanelSave": {
+    "message": "Сохранить"
+  },
+  "floatingPanelPinFolder": {
+    "message": "Закрепить"
+  },
+  "floatingPanelUnpinFolder": {
+    "message": "Открепить"
+  },
+  "floatingPanelRemoveConversation": {
+    "message": "Убрать разговор"
+  },
+  "floatingPanelStarConversation": {
+    "message": "В избранное"
+  },
+  "floatingPanelUnstarConversation": {
+    "message": "Убрать из избранного"
+  },
+  "floatingPanelColor": {
+    "message": "Цвет"
+  },
+  "floatingPanelExpandFolder": {
+    "message": "Развернуть"
+  },
+  "floatingPanelCollapseFolder": {
+    "message": "Свернуть"
+  },
+  "floatingPanelCloudUpload": {
+    "message": "Загрузить в облако"
+  },
+  "floatingPanelCloudSync": {
+    "message": "Облачная синхронизация"
+  },
+  "floatingPanelGestureHint": {
+    "message": "Двойное нажатие на имя — переименовать, правое нажатие — открыть меню"
+  },
+  "folder_new_chat_in_folder": {
+    "message": "Новый чат в папке"
+  },
+  "pm_backup_step3": {
+    "message": "Воспользуйтесь импортом или экспортом."
+  },
+  "starProject": {
+    "message": "Добавить проект в избранное"
+  },
+  "supportMysteryButton": {
+    "message": "Загадочная кнопка"
+  },
+  "folder_remove_conversation_confirm": {
+    "message": "Убрать этот разговор из папки?"
+  },
+  "aiOrgInstructionsBody": {
+    "message": "Используйте текущую структуру папок как контекст."
+  },
+  "folderAsProject_selectFolder": {
+    "message": "Выбрать папку"
+  },
+  "floatingPanelMoveHint": {
+    "message": "Перетащите для перемещения"
+  },
+  "conversation_saved_to_root": {
+    "message": "Сохранено в корневой папке"
+  },
+  "folder_default_name": {
+    "message": "Новая папка"
+  },
+  "conversation_added_to_folder": {
+    "message": "Добавлено в папку"
+  },
+  "folder_export_in_progress": {
+    "message": "Экспорт папок…"
+  },
+  "folder_import_in_progress": {
+    "message": "Импорт папок…"
+  },
+  "mermaidRendering": {
+    "message": "Диаграммы Mermaid"
+  },
+  "mermaidRenderingHint": {
+    "message": "Отображать блоки кода Mermaid как диаграммы."
+  },
+  "longCodeBlockCollapse": {
+    "message": "Сворачивание длинных блоков кода"
+  },
+  "longCodeBlockCollapseHint": {
+    "message": "Добавлять кнопку разворачивания и сворачивания длинных блоков кода ChatGPT."
+  },
+  "responseCompleteNotification": {
+    "message": "Уведомление о готовом ответе"
+  },
+  "responseCompleteNotificationHint": {
+    "message": "Показывать системное уведомление, когда ChatGPT завершит ответ. Нажатие возвращает к разговору."
+  },
+  "responseCompleteNotificationTitle": {
+    "message": "Ответ ChatGPT готов"
+  },
+  "responseCompleteNotificationMessage": {
+    "message": "Ответ готов."
+  },
+  "codeBlockExpand": {
+    "message": "Развернуть блок кода"
+  },
+  "codeBlockCollapse": {
+    "message": "Свернуть блок кода"
+  },
+  "quoteReplyHint": {
+    "message": "Ответить, используя выделенный текст как цитируемый контекст."
+  },
+  "inputCollapseWhenNotEmpty": {
+    "message": "Сворачивать заполненное поле ввода"
+  },
+  "inputCollapseWhenNotEmptyHint": {
+    "message": "Разрешить сворачивание поля ввода, даже если в нём есть текст."
+  },
+  "enableFloatingFolderPanel": {
+    "message": "Плавающая панель папок"
+  },
+  "enableFolders": {
+    "message": "Папки"
+  },
+  "layoutOptions": {
+    "message": "Макет"
+  },
+  "inputOptions": {
+    "message": "Ввод"
+  },
+  "markdownOptions": {
+    "message": "Markdown"
+  },
+  "appearanceOptions": {
+    "message": "Внешний вид"
+  },
+  "gentleDarkMode": {
+    "message": "Мягкий тёмный режим"
+  },
+  "gentleDarkModeHint": {
+    "message": "В тёмном режиме заменяет чисто чёрный фон ChatGPT мягкими тёмно-серыми оттенками, уменьшая резкость контраста."
+  },
+  "favoritesSidebarTitle": {
+    "message": "Избранное"
+  },
+  "favoritesCurrentSectionTitle": {
+    "message": "Этот разговор"
+  },
+  "favoritesAllSectionTitle": {
+    "message": "Всё избранное"
+  },
+  "favoritesViewFlat": {
+    "message": "По времени"
+  },
+  "favoritesViewGrouped": {
+    "message": "По разговорам"
+  },
+  "favoritesEmptyAll": {
+    "message": "Избранных сообщений пока нет. Нажмите ★ в предпросмотре хронологии, чтобы добавить сообщение."
+  },
+  "favoritesEmptyCurrent": {
+    "message": "В этом разговоре пока нет избранного."
+  },
+  "favoritesRemove": {
+    "message": "Убрать из избранного"
+  },
+  "favoritesJumpDialogTitle": {
+    "message": "Перейти к другому разговору?"
+  },
+  "favoritesJumpDialogBody": {
+    "message": "При выходе из текущего разговора загрузится другой чат. Содержимое временного чата будет потеряно. Неотправленный текст сохраняется функцией автосохранения черновиков, но перед продолжением проверьте его."
+  },
+  "favoritesJumpDialogConfirm": {
+    "message": "Перейти"
+  },
+  "favoritesJumpDialogCancel": {
+    "message": "Отмена"
+  },
+  "favoritesJumpDialogTargetLabel": {
+    "message": "Цель:"
+  },
+  "favoritesUntitledConversation": {
+    "message": "Разговор без названия"
+  },
+  "tempChatRegretButton": {
+    "message": "Перенести временный чат"
+  },
+  "tempChatRegretButtonTooltip": {
+    "message": "Сохранить временный чат в виде промпта для продолжения в новом постоянном разговоре: прокрутить наверх, загрузить все сообщения, автоматически выйти из временного режима и вставить промпт в поле ввода для проверки и отправки."
+  },
+  "tempChatRegretConfirmTitle": {
+    "message": "Перенос временного чата"
+  },
+  "tempChatRegretConfirmBodyHead": {
+    "message": "Текущий временный чат будет извлечён в виде промпта для продолжения и перенесён в новый постоянный разговор."
+  },
+  "tempChatRegretConfirmBodyDetail": {
+    "message": "Это займёт несколько секунд: прокрутка наверх для загрузки всей истории (уже видно ~{count}+ сообщений), выход из временного режима и вставка промпта продолжения. Во время операции не взаимодействуйте со страницей."
+  },
+  "tempChatRegretConfirmBodyFooter": {
+    "message": "Решение об отправке за вами: промпт останется в поле ввода для проверки."
+  },
+  "tempChatRegretConfirmCancel": {
+    "message": "Отмена"
+  },
+  "tempChatRegretConfirmContinue": {
+    "message": "Продолжить"
+  },
+  "tempChatRegretOverlayHint": {
+    "message": "Не взаимодействуйте со страницей"
+  },
+  "tempChatRegretMsgLoading": {
+    "message": "Загрузка истории сообщений…"
+  },
+  "tempChatRegretMsgLoaded": {
+    "message": "Загружено сообщений: {count}…"
+  },
+  "tempChatRegretMsgExtracting": {
+    "message": "Извлечение разговора…"
+  },
+  "tempChatRegretMsgLeavingTemp": {
+    "message": "Выход из временного режима…"
+  },
+  "tempChatRegretMsgFillingInline": {
+    "message": "Вставка промпта продолжения…"
+  },
+  "tempChatRegretMsgFillingAttachment": {
+    "message": "Вставка инструкций и загрузка .txt…"
+  },
+  "tempChatRegretErrNotInTempMode": {
+    "message": "Вы не во временном чате"
+  },
+  "tempChatRegretErrNoMessages": {
+    "message": "В этом временном чате пока нет сообщений"
+  },
+  "tempChatRegretErrExtractFailed": {
+    "message": "Не удалось извлечь сообщения из DOM (возможно, разметка ChatGPT изменилась)"
+  },
+  "tempChatRegretErrCantLeaveTemp": {
+    "message": "Не удалось выйти из временного режима. Отключите значок временного чата вручную и повторите попытку"
+  },
+  "tempChatRegretErrInputNotFound": {
+    "message": "Поле ввода не найдено. Промпт скопирован в буфер обмена"
+  },
+  "tempChatRegretErrFailed": {
+    "message": "Операция не выполнена"
+  },
+  "tempChatRegretErrPartial": {
+    "message": "Часть текста не удалось вставить. Проверьте поле ввода (текст также скопирован в буфер обмена)"
+  },
+  "tempChatRegretOkInline": {
+    "message": "Промпт продолжения готов ({count} сообщений). Нажмите «Отправить», чтобы продолжить."
+  },
+  "tempChatRegretOkAttachment": {
+    "message": "Продолжение готово: инструкции и {filename} ({count} сообщений). Нажмите «Отправить», чтобы продолжить."
+  },
+  "tempChatRegretDirectiveTitle": {
+    "message": "[Перенос из временного чата]"
+  },
+  "tempChatRegretDirectiveInlineBody": {
+    "message": "Ниже приведён наш полный разговор из временного режима (**исходный Markdown**: жирный текст, блоки кода, списки, формулы, заголовки и прочее сохранены в исходном синтаксисе). Переними ту же роль, тон, состояние знаний и контекст и продолжи разговор без разрыва.\n\nШаг 1: дословно повтори ПОСЛЕДНЕЕ сообщение ассистента ниже **с полным корректным оформлением Markdown** как связующий ответ. **Не превращай его в обычный текст только потому, что носитель выглядит неформатированным**: оригинал был в Markdown. Затем остановись и дождись моего следующего сообщения.\n\nВо всех дальнейших ответах продолжай использовать Markdown, сохраняя привычки оформления ассистента из исходного разговора."
+  },
+  "tempChatRegretDirectiveAttachmentBody": {
+    "message": "Полный разговор из временного режима находится в **прикреплённом файле .txt** (разделён на секции ## User / ## Assistant).\n\n**Примечание: расширение `.txt` используется только из-за ограничений загрузки; содержимое — исходный Markdown**. Жирный текст, блоки кода, списки, формулы, заголовки и прочее сохранены в исходном синтаксисе Markdown. Читай содержимое как Markdown.\n\nПереними ту же роль, тон, состояние знаний и контекст и продолжи разговор без разрыва.\n\nШаг 1: дословно повтори ПОСЛЕДНЕЕ сообщение ассистента из вложения **с полным корректным оформлением Markdown** как связующий ответ. **Не превращай его в обычный текст только потому, что файл имеет расширение .txt**: оригинал — Markdown. Затем остановись и дождись моего следующего сообщения.\n\nВо всех дальнейших ответах продолжай использовать Markdown, сохраняя привычки оформления ассистента из исходного разговора."
+  },
+  "tempChatRegretTranscriptStart": {
+    "message": "—— Разговор ——"
+  },
+  "tempChatRegretTranscriptEnd": {
+    "message": "—— Конец ——"
+  },
+  "responseImageCopy": {
+    "message": "Скопировать ответ как изображение"
+  },
+  "responseImageCopied": {
+    "message": "Изображение ответа скопировано"
+  },
+  "responseImageDownloaded": {
+    "message": "Изображение ответа скачано (ограничение буфера обмена Safari)"
+  },
+  "responseImageFailed": {
+    "message": "Не удалось скопировать изображение ответа"
+  },
+  "responseImageUnsupported": {
+    "message": "Этот браузер не поддерживает копирование изображений в буфер обмена"
+  },
+  "responseImageMissing": {
+    "message": "Не удалось найти содержимое ответа"
+  },
+  "exportConversationMissing": {
+    "message": "Не удалось найти выбранный разговор. Сначала откройте его, затем экспортируйте."
+  },
+  "exportConversationOpenFailed": {
+    "message": "Не удалось открыть выбранный разговор для экспорта. Повторите попытку."
+  },
+  "exportTooManyAttempts": {
+    "message": "Экспорт остановлен: обнаружено слишком много попыток."
+  },
+  "exportFailed": {
+    "message": "Не удалось экспортировать. Повторите попытку."
+  },
+  "exportIncompleteConversation": {
+    "message": "GPT-Voyager не удалось надёжно загрузить разговор целиком. Оставьте чат открытым и повторите попытку."
+  },
+  "exportRecommended": {
+    "message": "Рекомендуется"
+  },
+  "exportImageLabel": {
+    "message": "Изображение"
+  },
+  "exportDocumentLabel": {
+    "message": "Документ"
+  },
+  "exportConversationLabel": {
+    "message": "Разговор"
+  },
+  "exportNoContent": {
+    "message": "Нет содержимого"
+  },
+  "exportUserLabel": {
+    "message": "Пользователь"
+  },
+  "exportAssistantLabel": {
+    "message": "Ассистент"
+  },
+  "exportSource": {
+    "message": "Экспортировано из GPT-Voyager"
+  },
+  "exportTurns": {
+    "message": "Ходов разговора: {count}"
+  },
+  "exportDateLabel": {
+    "message": "Дата"
+  },
+  "exportConversationIdLabel": {
+    "message": "ID разговора"
+  },
+  "exportSourceUrlLabel": {
+    "message": "Источник"
+  },
+  "exportImageUnavailable": {
+    "message": "Изображение недоступно при экспорте в Safari: {label}"
+  },
+  "exportSearchImage": {
+    "message": "Изображение из результатов поиска"
+  },
+  "exportGeneratedImage": {
+    "message": "Созданное изображение"
+  },
+  "exportResearchReport": {
+    "message": "Отчёт глубокого исследования"
+  },
+  "shortcutPressKey": {
+    "message": "Нажмите клавишу…"
+  },
+  "shortcutEscapeCancel": {
+    "message": "Нажмите Esc для отмены"
+  },
+  "toggleDarkMode": {
+    "message": "Переключить тёмный режим"
+  },
+  "switchToLight": {
+    "message": "Включить светлый режим"
+  },
+  "switchToDark": {
+    "message": "Включить тёмный режим"
+  },
+  "sidePanel": {
+    "message": "Боковая панель"
+  },
+  "wechatLabel": {
+    "message": "WeChat"
+  },
+  "alipayLabel": {
+    "message": "Alipay"
+  },
+  "wechatQr": {
+    "message": "QR-код WeChat"
+  },
+  "alipayQr": {
+    "message": "QR-код Alipay"
+  },
+  "mermaidZoomIn": {
+    "message": "Увеличить"
+  },
+  "mermaidZoomOut": {
+    "message": "Уменьшить"
+  },
+  "mermaidReset": {
+    "message": "Сбросить"
+  },
+  "mermaidClose": {
+    "message": "Закрыть (Esc)"
+  },
+  "mermaidHint": {
+    "message": "Прокрутка — масштаб · Перетаскивание — перемещение · Esc — закрыть"
+  },
+  "mermaidDiagram": {
+    "message": "Диаграмма"
+  },
+  "mermaidCode": {
+    "message": "Код"
+  },
+  "timelineTogglePreview": {
+    "message": "Переключить панель предпросмотра"
+  },
+  "timelinePreviousPin": {
+    "message": "Предыдущее закрепление в сообщении"
+  },
+  "timelineNextPin": {
+    "message": "Следующее закрепление в сообщении"
+  },
+  "timelinePinText": {
+    "message": "Закрепить текст в текущем разговоре"
+  },
+  "timelineDeletePin": {
+    "message": "Удалить выбранное закрепление"
+  },
+  "newChat": {
+    "message": "Новый чат"
+  },
+  "forkContextPrefix": {
+    "message": "# Контекст ветки\nТы продолжаешь ответвлённый разговор.\n- Ниже приведена история разговора до точки ветвления.\n- Продолжи с последнего сообщения «User» как новую ветку.\n- Не переписывай историю; дай только следующий ответ ассистента.\n"
+  },
+  "forkHistoryHeading": {
+    "message": "История разговора"
+  },
+  "exportLoadingHistory": {
+    "message": "Загрузка истории разговора ({count})…"
+  },
+  "exportUpdatingCache": {
+    "message": "Обновление кэша разговора…"
+  },
+  "exportCheckingCache": {
+    "message": "Проверка кэша разговора…"
+  },
+  "multi_select_count": {
+    "message": "Выбрано: {count}"
+  },
+  "batch_remove_from_folder_confirm": {
+    "message": "Убрать разговоры ({count}) из этой папки?"
+  },
+  "multi_select_exit": {
+    "message": "Выйти из режима выбора"
+  },
+  "folderManager_dataRecoveredFromBackup": {
+    "message": "Данные папок восстановлены из локальной резервной копии."
+  },
+  "folder_import_invalid_version": {
+    "message": "Версия резервной копии папок не поддерживается."
+  },
+  "folder_import_missing_data": {
+    "message": "В резервной копии отсутствуют необходимые данные папок."
+  },
+  "folder_import_corrupted_data": {
+    "message": "Резервная копия папок содержит недопустимые данные."
+  },
+  "folder_import_save_failed": {
+    "message": "Не удалось сохранить импортированные папки. Проверьте хранилище расширения и повторите попытку."
+  },
+  "announcementUnavailableTitle": {
+    "message": "Объявления недоступны"
+  },
+  "announcementUnavailableBody": {
+    "message": "Не удалось загрузить объявления. Повторите попытку позже."
+  },
+  "announcementTranslationFallback": {
+    "message": "Этот перевод недоступен. Отображается {language}."
+  },
+  "announcementCached": {
+    "message": "Показано последнее сохранённое объявление. Не удалось загрузить последнюю версию."
+  },
+  "exportTurn": {
+    "message": "Ход {count}"
+  },
+  "exportTurnsLabel": {
+    "message": "Ходы"
+  },
+  "exportGeneratedOn": {
+    "message": "Создано: {date}"
+  },
+  "exportCreatedLabel": {
+    "message": "Создано"
+  },
+  "exportExportedLabel": {
+    "message": "Экспортировано"
+  },
+  "exportAttachmentsLabel": {
+    "message": "Вложения"
+  },
+  "exportIncludesImages": {
+    "message": "Этот ход содержит загруженные изображения"
+  },
+  "exportYouLabel": {
+    "message": "Вы"
+  },
+  "exportSystemLabel": {
+    "message": "Система"
+  },
+  "exportToolLabel": {
+    "message": "Инструмент"
+  },
+  "customWebsiteAlreadyAdded": {
+    "message": "Этот сайт уже добавлен."
+  },
+  "customFontUnsupported": {
+    "message": "{fileName}: Неподдерживаемый формат шрифта. Используйте woff2, woff, ttf или otf."
+  },
+  "customFontTooLarge": {
+    "message": "{fileName}: Файл слишком большой ({size} KB > 4 MB)."
+  },
+  "customFontImported": {
+    "message": "Шрифт {fontName} импортирован ({size} KB)."
+  },
+  "customFontImportFailed": {
+    "message": "Не удалось импортировать шрифт: {error}"
+  },
+  "settingsSaveFailed": {
+    "message": "Не удалось сохранить эту настройку. Повторите попытку."
+  },
+  "pm_backup_complete": {
+    "message": "Резервная копия создана — промпты: {promptCount}; папки: {folderCount}."
+  },
+  "pm_backup_download_complete": {
+    "message": "Резервная копия скачана: {fileName} — промпты: {promptCount}; папки: {folderCount}."
+  },
+  "tempChatRegretErrCollectionTimeout": {
+    "message": "Время сбора истекло до завершения обновления диалога."
+  },
+  "tempChatRegretErrHistoryTimeout": {
+    "message": "Время сбора истекло до завершения загрузки истории диалога."
+  },
+  "tempChatRegretErrCollectionStopped": {
+    "message": "Сбор диалога завершился преждевременно (найдено сообщений: {count})."
+  },
+  "export_image_render_failed": {
+    "message": "Не удалось сформировать изображение ({width} × {height})"
+  }
+}

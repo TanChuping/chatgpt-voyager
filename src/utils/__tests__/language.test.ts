@@ -19,8 +19,20 @@ describe('normalizeLanguage', () => {
   });
 
   it('falls back to en for unknown languages', () => {
-    expect(normalizeLanguage('de-DE')).toBe('en');
     expect(normalizeLanguage('it-IT')).toBe('en');
+    expect(normalizeLanguage('ko-KR')).toBe('en');
+    expect(normalizeLanguage('not-a-language')).toBe('en');
+  });
+
+  it.each([
+    ['ja-JP', 'ja'],
+    ['fr-CA', 'fr'],
+    ['de-DE', 'de'],
+    ['es-MX', 'es'],
+    ['ru-RU', 'ru'],
+    [' FR_ca ', 'fr'],
+  ])('normalizes supported regional preference %s to %s', (input, expected) => {
+    expect(normalizeLanguage(input)).toBe(expected);
   });
 });
 

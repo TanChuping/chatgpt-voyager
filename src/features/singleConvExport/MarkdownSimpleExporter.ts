@@ -1,3 +1,4 @@
+import { getTranslationSync, getCachedLanguage } from '@/utils/i18n';
 /**
  * Simplified markdown exporter.
  *
@@ -27,7 +28,7 @@ function formatTimestamp(epochSeconds: number | null | undefined): string {
 }
 
 function roleLabel(message: LinearMessage): string {
-  return message.role === 'user' ? 'You' : 'ChatGPT';
+  return message.role === 'user' ? getTranslationSync('exportYouLabel') : 'ChatGPT';
 }
 
 function heading(message: LinearMessage): string {
@@ -41,7 +42,7 @@ function renderAttachments(message: LinearMessage): string {
   const lines = message.attachments.map(
     (a) => `- ${a.name}${a.mimeType ? ` (${a.mimeType})` : ''}`,
   );
-  return ['**Attachments**', ...lines].join('\n');
+  return [`**${getTranslationSync('exportAttachmentsLabel')}**`, ...lines].join('\n');
 }
 
 /**
@@ -67,10 +68,10 @@ export function toMarkdownSimple(linear: LinearConversation): string {
   const filtered = filterForSimple(linear);
   const out: string[] = [];
 
-  out.push(`# ${filtered.title || 'Untitled conversation'}`);
+  out.push(`# ${filtered.title || getTranslationSync('conversation_untitled')}`);
   if (filtered.createTime != null) {
     out.push('');
-    out.push(`*Created: ${formatTimestamp(filtered.createTime)}*`);
+    out.push(`*${getTranslationSync('exportCreatedLabel')}: ${formatTimestamp(filtered.createTime)}*`);
   }
   out.push('');
 

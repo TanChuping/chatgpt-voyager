@@ -7,7 +7,7 @@
  */
 import { StorageKeys } from '@/core/types/common';
 import { addPageExitListener } from '@/core/utils/pageLifecycle';
-import { getTranslationSyncUnsafe } from '@/utils/i18n';
+import { getTranslationSync, getTranslationSyncUnsafe } from '@/utils/i18n';
 
 import { findChatInput } from '../chatInput/index';
 import { extractChatGptConversationIdFromUrl } from '../chatgptDom';
@@ -593,7 +593,7 @@ function getConversationTitle(convId: string): string {
   const link = document.querySelector<HTMLAnchorElement>(
     `a[href*="/c/${escapedId}"], a[href*="/c/"][href$="/${escapedId}"]`,
   );
-  return link?.textContent?.trim() || document.title || 'New Chat';
+  return link?.textContent?.trim() || document.title || getTranslationSync('newChat');
 }
 
 // ============================================================================

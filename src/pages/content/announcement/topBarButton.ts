@@ -332,6 +332,18 @@ export function startTopBarAnnouncementButton(args: InjectArgs): void {
   document.querySelectorAll<HTMLElement>('[role="menu"]').forEach(injectAnnouncementMenu);
 }
 
+/** Update existing extension labels without changing the host DOM anchor path. */
+export function updateAnnouncementButtonLabel(label: string): void {
+  labelRef = label;
+  document.querySelectorAll<HTMLElement>(`[${TAG}]`).forEach((button) => {
+    button.setAttribute('aria-label', label);
+    button.title = label;
+  });
+  // Re-clone only our own menu entries; native ChatGPT menu items are untouched.
+  document.querySelectorAll<HTMLElement>(`.${MENU_CLASS}`).forEach((item) => item.remove());
+  document.querySelectorAll<HTMLElement>('[role="menu"]').forEach(injectAnnouncementMenu);
+}
+
 export function getButtonRect(): DOMRect | null {
   const btn = document.querySelector<HTMLElement>(`[${TAG}]`);
   return btn ? btn.getBoundingClientRect() : null;

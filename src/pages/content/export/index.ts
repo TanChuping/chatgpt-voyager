@@ -9,7 +9,7 @@ import {
 } from '@/core/utils/conversationIdentity';
 import { addPageExitListener } from '@/core/utils/pageLifecycle';
 import { type AppLanguage, normalizeLanguage } from '@/utils/language';
-import { extractMessageDictionary } from '@/utils/localeMessages';
+import { getCurrentLanguage as readPreferredLanguage, getTranslationSync, getTranslationSyncUnsafe, initI18n, subscribeLanguageChange } from '@/utils/i18n';
 import type { TranslationKey } from '@/utils/translations';
 
 import { ConversationExportService } from '../../../features/export/services/ConversationExportService';
@@ -49,6 +49,7 @@ import {
   getConversationMenuContext,
   getResponseMenuContext,
   injectConversationMenuExportButton,
+  refreshInjectedExportLabels,
   injectResponseMenuExportButton,
 } from './conversationMenuInjection';
 import { injectResponseActionCopyImageButtons } from './responseActionImageButton';
@@ -85,6 +86,7 @@ let exportStorageChangeHandler:
   | ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void)
   | null = null;
 let removeExportPageExitListener: (() => void) | null = null;
+let removeExportLanguageListener: (() => void) | null = null;
 let activeExportSelectionCleanup: (() => void) | null = null;
 let exportStartupAbortController: AbortController | null = null;
 const exportInjectionTimers = new Set<number>();
@@ -660,23 +662,12 @@ export function buildResponseImageTurnForTrigger(trigger: HTMLElement): ExportCh
   };
 }
 
-async function loadDictionaries(): Promise<Record<AppLanguage, Record<string, string>>> {
-  try {
-    const [enRaw, zhRaw] = await Promise.all([
-      import(/* @vite-ignore */ '../../../locales/en/messages.json'),
-      import(/* @vite-ignore */ '../../../locales/zh/messages.json'),
-    ]);
+type ExportTranslations = { get: (key: string) => string };
 
-    return {
-      en: extractMessageDictionary(enRaw),
-      zh: extractMessageDictionary(zhRaw),
-    };
-  } catch {
-    return {
-      en: {},
-      zh: {},
-    };
-  }
+async function loadExportTranslations(): Promise<ExportTranslations> {
+  await initI18n();
+  // A live accessor cannot retain a dictionary from a previous language.
+  return { get: getTranslationSyncUnsafe };
 }
 
 /**
@@ -856,18 +847,18 @@ async function navigateToConversationAndWait(
 
 async function exportFromSidebarConversationTrigger(
   trigger: HTMLElement,
-  dict: Record<AppLanguage, Record<string, string>>,
+  dict: ExportTranslations,
   getCurrentLanguage: () => AppLanguage,
 ): Promise<void> {
   const target = resolveSidebarConversationTarget(trigger);
   if (!target) {
-    alert('Unable to locate the selected conversation. Please open it first, then export.');
+    alert(getTranslationSync('exportConversationMissing'));
     return;
   }
 
   const ready = await navigateToConversationAndWait(target.conversationId, target.url);
   if (!ready) {
-    alert('Failed to open the selected conversation for export. Please retry.');
+    alert(getTranslationSync('exportConversationOpenFailed'));
     return;
   }
 
@@ -879,46 +870,7 @@ function normalizeLang(lang: string | undefined): AppLanguage {
 }
 
 async function getLanguage(): Promise<AppLanguage> {
-  try {
-    // Add timeout to prevent hanging in Firefox
-    const stored = await Promise.race([
-      new Promise<unknown>((resolve) => {
-        try {
-          const win = window as Window & {
-            chrome?: {
-              storage?: {
-                sync?: { get: (key: string, cb: (r: unknown) => void) => void };
-              };
-            };
-            browser?: {
-              storage?: { sync?: { get: (key: string) => Promise<unknown> } };
-            };
-          };
-          if (win.chrome?.storage?.sync?.get) {
-            win.chrome.storage.sync.get(StorageKeys.LANGUAGE, resolve);
-          } else if (win.browser?.storage?.sync?.get) {
-            win.browser.storage.sync
-              .get(StorageKeys.LANGUAGE)
-              .then(resolve)
-              .catch(() => resolve({}));
-          } else {
-            resolve({});
-          }
-        } catch {
-          resolve({});
-        }
-      }),
-      new Promise<unknown>((resolve) => setTimeout(() => resolve({}), 1000)),
-    ]);
-    const rec = stored && typeof stored === 'object' ? (stored as Record<string, unknown>) : {};
-    const v =
-      typeof rec[StorageKeys.LANGUAGE] === 'string'
-        ? (rec[StorageKeys.LANGUAGE] as string)
-        : undefined;
-    return normalizeLang(v || navigator.language || 'en');
-  } catch {
-    return 'en';
-  }
+  return readPreferredLanguage();
 }
 
 /**
@@ -1104,7 +1056,7 @@ function alignElementToConversationTitleCenter(element: HTMLElement): () => void
  */
 async function executeExportSequence(
   format: ExportFormat,
-  dict: Record<AppLanguage, Record<string, string>>,
+  dict: ExportTranslations,
   lang: AppLanguage,
   paramState?: PendingExportState,
   fontSize?: number,
@@ -1125,7 +1077,7 @@ async function executeExportSequence(
   if (state.attempt > 25) {
     console.warn('[GPT-Voyager] Export aborted: too many attempts.');
     sessionStorage.removeItem(SESSION_KEY_PENDING_EXPORT);
-    alert('Export stopped: Too many attempts detected.');
+    alert(getTranslationSync('exportTooManyAttempts'));
     return;
   }
 
@@ -1220,14 +1172,14 @@ async function executeExportSequence(
 
 async function executeExportSequenceWithProgress(
   format: ExportFormat,
-  dict: Record<AppLanguage, Record<string, string>>,
+  dict: ExportTranslations,
   lang: AppLanguage,
   paramState?: PendingExportState,
   fontSize?: number,
   initialSelectedMessageId?: string,
   imageWidth?: number,
 ): Promise<void> {
-  const t = (key: TranslationKey) => dict[lang]?.[key] ?? dict.en?.[key] ?? key;
+  const t = (key: TranslationKey) => dict.get(key);
   const hideProgress = showExportProgressOverlay(t);
   try {
     await executeExportSequence(
@@ -1249,13 +1201,13 @@ async function executeExportSequenceWithProgress(
  */
 async function performFinalExport(
   format: ExportFormat,
-  dict: Record<AppLanguage, Record<string, string>>,
+  dict: ExportTranslations,
   lang: AppLanguage,
   fontSize?: number,
   initialSelectedMessageId?: string,
   imageWidth?: number,
 ) {
-  const t = (key: TranslationKey) => dict[lang]?.[key] ?? dict.en?.[key] ?? key;
+  const t = (key: TranslationKey) => dict.get(key);
 
   await new Promise((r) => setTimeout(r, FINAL_EXPORT_PREPARE_DELAY_MS));
 
@@ -1623,7 +1575,7 @@ async function performFinalExport(
       }
     } catch (err) {
       console.error('[GPT-Voyager] Export error:', err);
-      alert('Export error occurred.');
+      alert(getTranslationSync('exportFailed'));
     } finally {
       hideProgress();
     }
@@ -1746,7 +1698,7 @@ async function checkPendingExport() {
     console.log('[GPT-Voyager] Resuming pending export sequence...');
 
     // We need i18n for final export/alert
-    const dict = await loadDictionaries();
+    const dict = await loadExportTranslations();
     const lang = await getLanguage();
 
     await executeExportSequenceWithProgress(
@@ -1792,27 +1744,14 @@ type ResponseCopyImageTexts = {
   targetMissing: string;
 };
 
-function getResponseCopyImageTexts(lang: AppLanguage): ResponseCopyImageTexts {
-  if (lang === 'zh') {
-    return {
-      label: '\u590d\u5236\u56de\u590d\u4e3a\u56fe\u7247',
-      copied: '\u56de\u590d\u56fe\u7247\u5df2\u590d\u5236',
-      downloaded:
-        '\u5df2\u4e0b\u8f7d\u56de\u590d\u56fe\u7247\uff08Safari \u526a\u8d34\u677f\u9650\u5236\uff09',
-      failed: '\u590d\u5236\u56de\u590d\u56fe\u7247\u5931\u8d25',
-      unsupported:
-        '\u5f53\u524d\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u590d\u5236\u56fe\u7247\u5230\u526a\u8d34\u677f',
-      targetMissing: '\u65e0\u6cd5\u5b9a\u4f4d\u56de\u590d\u5185\u5bb9',
-    };
-  }
-
+function getResponseCopyImageTexts(_lang: AppLanguage): ResponseCopyImageTexts {
   return {
-    label: 'Copy response as image',
-    copied: 'Response image copied',
-    downloaded: 'Downloaded response image (Safari clipboard limitation)',
-    failed: 'Failed to copy response image',
-    unsupported: 'Clipboard image copy is not supported in this browser',
-    targetMissing: 'Unable to locate response content',
+    label: getTranslationSync('responseImageCopy'),
+    copied: getTranslationSync('responseImageCopied'),
+    downloaded: getTranslationSync('responseImageDownloaded'),
+    failed: getTranslationSync('responseImageFailed'),
+    unsupported: getTranslationSync('responseImageUnsupported'),
+    targetMissing: getTranslationSync('responseImageMissing'),
   };
 }
 
@@ -1928,7 +1867,7 @@ function setupConversationMenuExportObserver({
   getCurrentLanguage,
   onExport,
 }: {
-  dict: Record<AppLanguage, Record<string, string>>;
+  dict: ExportTranslations;
   getCurrentLanguage: () => AppLanguage;
   onExport: (context: {
     menuType: 'top' | 'sidebar' | 'message';
@@ -1947,13 +1886,9 @@ function setupConversationMenuExportObserver({
     }
     const currentLang = getCurrentLanguage();
     const label =
-      dict[currentLang]?.['exportChatJson'] ??
-      dict.en?.['exportChatJson'] ??
-      'Export conversation history';
+      dict.get('exportChatJson');
     const tooltip =
-      dict[currentLang]?.['exportChatJson'] ??
-      dict.en?.['exportChatJson'] ??
-      'Export conversation history';
+      dict.get('exportChatJson');
 
     const menuContext = getConversationMenuContext(menuPanel);
     if (menuContext) {
@@ -2070,7 +2005,7 @@ export async function startExportButton(): Promise<void> {
   checkPendingExport();
 
   // i18n setup for tooltip and label
-  const dict = await loadDictionaries();
+  const dict = await loadExportTranslations();
   let lang = await getLanguage();
   if (!exportStarted || generation !== exportGeneration) return;
 
@@ -2094,41 +2029,31 @@ export async function startExportButton(): Promise<void> {
     getCurrentLanguage: () => lang,
   });
 
-  exportStorageChangeHandler = (
-    changes: Record<string, chrome.storage.StorageChange>,
-    area: string,
-  ) => {
-    if (!exportStarted || area !== 'sync') return;
-    const nextRaw = changes[StorageKeys.LANGUAGE]?.newValue;
-    if (typeof nextRaw !== 'string') return;
-    lang = normalizeLang(nextRaw);
+  removeExportLanguageListener = subscribeLanguageChange((next) => {
+    if (!exportStarted || generation !== exportGeneration) return;
+    lang = next;
     const legacyButton = document.querySelector<HTMLElement>('.gv-export-dropdown-btn');
     if (legacyButton) {
-      const title =
-        dict[lang]?.['exportChatJson'] ?? dict.en?.['exportChatJson'] ?? 'Export chat history';
-      legacyButton.title = title;
-      legacyButton.setAttribute('aria-label', title);
+      legacyButton.title = dict.get('exportChatJson');
+      legacyButton.setAttribute('aria-label', legacyButton.title);
       const label = legacyButton.querySelector<HTMLElement>('.gv-export-dropdown-label');
-      if (label)
-        label.textContent = dict[lang]?.['pm_export'] ?? dict.en?.['pm_export'] ?? 'Export';
+      if (label) label.textContent = dict.get('pm_export');
     }
+    refreshInjectedExportLabels(dict.get('exportChatJson'));
     applyResponseActionCopyImageButtons(() => lang);
-  };
-  try {
-    chrome.storage?.onChanged?.addListener(exportStorageChangeHandler);
-  } catch {}
+  });
 
   removeExportPageExitListener = addPageExitListener(stopExportButton);
 }
 
 async function showExportDialog(
-  dict: Record<AppLanguage, Record<string, string>>,
+  dict: ExportTranslations,
   lang: AppLanguage,
   options?: {
     initialSelectedMessageId?: string | null;
   },
 ): Promise<void> {
-  const t = (key: TranslationKey) => dict[lang]?.[key] ?? dict.en?.[key] ?? key;
+  const t = (key: TranslationKey) => dict.get(key);
   const initialImageWidth = await getSavedImageExportWidth();
 
   // We defer collection until after the export sequence (scrolling/refresh checks)
@@ -2184,6 +2109,8 @@ async function showExportDialog(
 }
 
 export function stopExportButton(): void {
+  removeExportLanguageListener?.();
+  removeExportLanguageListener = null;
   exportStarted = false;
   exportGeneration += 1;
   exportStartupAbortController?.abort();

@@ -544,6 +544,7 @@ function teardownInputCollapse() {
   if (languageChangeHandler) {
     try {
       browser.storage.onChanged.removeListener(languageChangeHandler);
+      window.removeEventListener('voyager:language-changed', onLocaleDictionaryReady);
     } catch {}
     languageChangeHandler = null;
   }
@@ -788,6 +789,7 @@ function initInputCollapse(allowCollapseNotEmpty: boolean = false) {
     }
   };
   browser.storage.onChanged.addListener(languageChangeHandler);
+  window.addEventListener('voyager:language-changed', onLocaleDictionaryReady);
 
   // Process an already-mounted composer explicitly. Runtime enabling must not
   // depend on an unrelated future DOM mutation to become effective.
@@ -899,4 +901,8 @@ function tryCollapse(container: HTMLElement) {
       }
     }
   }, 150);
+}
+
+function onLocaleDictionaryReady(): void {
+  languageChangeHandler?.({ [StorageKeys.LANGUAGE]: { newValue: 'ready' } }, 'sync');
 }

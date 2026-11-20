@@ -92,7 +92,16 @@ export function crxI18n(options: {
     const source = options.stripDescriptions
       ? JSON.stringify(stripDescriptions(raw))
       : JSON.stringify(raw);
-    return { id: '', fileName: file, source };
+    const language = file.split(/[\\/]/)[0];
+    const browserLocale = language === 'zh' ? 'zh_CN' : language;
+    const dictionary = Object.fromEntries(Object.entries(raw).map(([key, value]) => [key, value.message]));
+    // Browser metadata is localized independently of the user's in-app choice.
+    // The complete application dictionary is fetched only for the selected language.
+    const metadata = Object.fromEntries(
+      ['extName', 'extDescription'].filter((key) => raw[key]).map((key) => [key, raw[key]]),
+    );
+    return { id: '', fileName: `${browserLocale}/messages.json`, source: JSON.stringify(stripDescriptions(metadata)), language, dictionary };
+
   });
   return {
     name: 'crx-i18n',
@@ -107,6 +116,11 @@ export function crxI18n(options: {
             fileName: '_locales/' + file.fileName,
           });
           file.id = refId;
+          this.emitFile({
+            type: 'asset',
+            source: JSON.stringify(file.dictionary),
+            fileName: `locales/${file.language}.json`,
+          });
         });
       },
     },

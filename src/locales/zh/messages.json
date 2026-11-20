@@ -15,7 +15,7 @@
     "message": "暂无公告"
   },
   "announcementEmptyBody": {
-    "message": "目前没有插件公告。下次再来看看吧。"
+    "message": "目前没有扩展公告，请稍后再来看看。"
   },
   "announcementVersionChipHint": {
     "message": "点击查看公告"
@@ -24,7 +24,7 @@
     "message": "导出此对话"
   },
   "singleConvExportButtonTooltip": {
-    "message": "按照扩展弹窗里选定的格式导出此对话"
+    "message": "使用扩展弹窗中所选的格式导出此对话"
   },
   "singleConvExportOptions": {
     "message": "对话导出"
@@ -33,40 +33,40 @@
     "message": "导出格式"
   },
   "singleConvExportFormatHint": {
-    "message": "选择 ChatGPT 顶栏 Share 按钮旁那个下载按钮使用的格式。简化版会去掉 Code Interpreter 的代码块、工具输出和模型调用工具前的旁白，只保留你的消息、模型最终回答和时间戳。"
+    "message": "选择 ChatGPT「分享」旁下载按钮使用的格式。精简版会去掉 Code Interpreter 代码块、工具输出及模型调用工具前的说明，只保留你的消息、最终回复和时间戳。"
   },
   "singleConvExportFormatMarkdown": {
     "message": "标准 Markdown"
   },
   "singleConvExportFormatMarkdownHint": {
-    "message": "完整保留。包含 Code Interpreter 代码、工具输出和中间旁白。"
+    "message": "无损导出，包含 Code Interpreter 代码、工具输出和中间说明。"
   },
   "singleConvExportFormatMarkdownSimple": {
-    "message": "简化 Markdown"
+    "message": "精简 Markdown"
   },
   "singleConvExportFormatJson": {
     "message": "标准 JSON"
   },
   "singleConvExportFormatJsonHint": {
-    "message": "完整线性 JSON（直接来自 API mapping）。适合归档或下游处理。"
+    "message": "从 API 映射中导出的完整线性 JSON，适合归档或后续工具处理。"
   },
   "singleConvExportFormatJsonSimple": {
-    "message": "简化 JSON"
+    "message": "精简 JSON"
   },
   "singleConvExportFormatHtml": {
-    "message": "HTML（简化）"
+    "message": "HTML（精简）"
   },
   "singleConvExportFormatSimpleHint": {
-    "message": "只保留你的消息、模型最终回答和时间戳。"
+    "message": "仅包含你的消息、模型最终回复和时间戳。"
   },
   "singleConvExportMenuWhole": {
-    "message": "整个导出"
+    "message": "整段对话"
   },
   "singleConvExportSelectButton": {
-    "message": "选择导出"
+    "message": "选择并导出"
   },
   "singleConvExportSelectButtonTooltip": {
-    "message": "勾选要导出的消息，只下载选中的部分（使用扩展弹窗里选定的格式）"
+    "message": "选择要导出的消息，仅下载选中项（使用扩展弹窗中所选的格式）"
   },
   "singleConvExportSelectTitle": {
     "message": "勾选要导出的消息"
@@ -75,10 +75,10 @@
     "message": "全选"
   },
   "singleConvExportSelectNone": {
-    "message": "清空"
+    "message": "清空选择"
   },
   "singleConvExportSelectUser": {
-    "message": "仅你"
+    "message": "仅你的消息"
   },
   "singleConvExportSelectAI": {
     "message": "仅 ChatGPT"
@@ -93,55 +93,55 @@
     "message": "取消"
   },
   "singleConvExportSelectEmpty": {
-    "message": "请至少勾选一条消息再导出。"
+    "message": "请至少选择一条消息再导出。"
   },
   "singleConvExportSelectNotReady": {
-    "message": "此对话尚未完全加载。请向上滚动加载更早的消息后再试。"
+    "message": "此对话尚未完整加载。请向上滚动以加载较早的消息，然后重试。"
   },
   "singleConvExportGenerating": {
     "message": "请等待 ChatGPT 完成生成后再导出。"
   },
   "extDescription": {
-    "message": "为 ChatGPT 提供时间线、文件夹、Prompt 管理和聊天导出。"
+    "message": "为 ChatGPT 提供时间线、文件夹、公式复制、对话导出、临时对话记忆、提示词、字体及 Mermaid 图表。"
   },
   "scrollMode": {
-    "message": "Timeline scroll mode"
+    "message": "时间线滚动模式"
   },
   "flow": {
-    "message": "流畅滚动"
+    "message": "平滑滚动"
   },
   "jump": {
     "message": "直接跳转"
   },
   "hideOuterContainer": {
-    "message": "隐藏时间线外框"
+    "message": "隐藏时间线容器"
   },
   "draggableTimeline": {
-    "message": "时间线可拖动"
+    "message": "允许拖动时间线"
   },
   "pinTimelinePreview": {
     "message": "固定时间线预览"
   },
   "pinTimelinePreviewHint": {
-    "message": "浏览节点时保持预览面板打开。"
+    "message": "浏览标题时保持时间线预览打开。"
   },
   "enableMarkerLevel": {
-    "message": "显示层级"
+    "message": "标题层级"
   },
   "enableMarkerLevelHint": {
-    "message": "在对话时间线中显示嵌套层级。"
+    "message": "在对话时间线中显示嵌套的标题层级。"
   },
   "experimentalLabel": {
-    "message": "Experimental"
+    "message": "实验性"
   },
   "resetPosition": {
-    "message": "Reset position"
+    "message": "重置位置"
   },
   "resetTimelinePosition": {
     "message": "重置时间线位置"
   },
   "language": {
-    "message": "Language"
+    "message": "语言"
   },
   "pm_title": {
     "message": "Prompt Manager"
@@ -150,7 +150,7 @@
     "message": "添加"
   },
   "pm_search_placeholder": {
-    "message": "搜索 prompts、标签或内容"
+    "message": "搜索提示词、标签或内容"
   },
   "pm_import": {
     "message": "导入"
@@ -159,10 +159,10 @@
     "message": "导出"
   },
   "pm_prompt_placeholder": {
-    "message": "Prompt text"
+    "message": "提示词正文"
   },
   "pm_tags_placeholder": {
-    "message": "Tags, separated by commas"
+    "message": "标签，用逗号分隔"
   },
   "pm_save": {
     "message": "保存"
@@ -174,7 +174,7 @@
     "message": "全部标签"
   },
   "pm_empty": {
-    "message": "还没有 Prompt"
+    "message": "暂无提示词"
   },
   "pm_copy": {
     "message": "复制"
@@ -183,46 +183,46 @@
     "message": "已复制"
   },
   "pm_inserted": {
-    "message": "Inserted"
+    "message": "已插入"
   },
   "pm_delete": {
     "message": "删除"
   },
   "pm_delete_confirm": {
-    "message": "Delete this prompt?"
+    "message": "删除这条提示词？"
   },
   "pm_lock": {
-    "message": "Lock"
+    "message": "锁定"
   },
   "pm_unlock": {
-    "message": "Unlock"
+    "message": "解锁"
   },
   "pm_import_invalid": {
-    "message": "Invalid import file"
+    "message": "导入文件无效"
   },
   "pm_import_empty": {
-    "message": "No prompts found in import file"
+    "message": "导入文件中没有提示词"
   },
   "pm_import_success": {
-    "message": "Imported {count} prompts"
+    "message": "已导入 {count} 条提示词"
   },
   "pm_duplicate": {
-    "message": "该提示词正文已存在，请编辑已有条目。"
+    "message": "这条提示词已存在，请编辑已有条目。"
   },
   "pm_save_failed": {
-    "message": "保存失败，内容已保留。请检查扩展存储空间后重试。"
+    "message": "保存失败，草稿已保留。请检查扩展存储空间后重试。"
   },
   "pm_deleted": {
-    "message": "Deleted"
+    "message": "已删除"
   },
   "pm_edit": {
-    "message": "Edit"
+    "message": "编辑"
   },
   "pm_expand": {
-    "message": "Expand"
+    "message": "展开"
   },
   "pm_collapse": {
-    "message": "Collapse"
+    "message": "折叠"
   },
   "pm_saved": {
     "message": "已保存"
@@ -231,136 +231,136 @@
     "message": "设置"
   },
   "pm_settings_tooltip": {
-    "message": "Open Prompt Manager settings"
+    "message": "打开 Prompt Manager 设置"
   },
   "pm_settings_fallback": {
-    "message": "Open extension settings to configure Prompt Manager."
+    "message": "请打开扩展设置来配置 Prompt Manager。"
   },
   "pm_backup": {
     "message": "备份"
   },
   "pm_backup_tooltip": {
-    "message": "Export a local backup of prompts and settings."
+    "message": "导出提示词和设置的本地备份。"
   },
   "pm_backup_cancelled": {
-    "message": "Backup cancelled"
+    "message": "已取消备份"
   },
   "pm_backup_error": {
-    "message": "Backup failed"
+    "message": "备份失败"
   },
   "pm_backup_hint_options": {
-    "message": "Export or import local Prompt Manager data."
+    "message": "导出或导入本地 Prompt Manager 数据。"
   },
   "pm_backup_step1": {
-    "message": "Open ChatGPT."
+    "message": "打开 ChatGPT。"
   },
   "pm_backup_step2": {
-    "message": "Open Prompt Manager."
+    "message": "打开 Prompt Manager。"
   },
   "pm_backup_note": {
-    "message": "Local backups stay on this device unless you export them."
+    "message": "本地备份会留在此设备上，除非你将其导出。"
   },
   "pm_theme_light": {
-    "message": "Light"
+    "message": "浅色"
   },
   "pm_view_compact": {
     "message": "紧凑"
   },
   "pm_view_comfortable": {
-    "message": "舒适"
+    "message": "宽松"
   },
   "pm_name_placeholder": {
-    "message": "Prompt name"
+    "message": "提示词名称"
   },
   "pm_theme_dark": {
-    "message": "Dark"
+    "message": "深色"
   },
   "extensionVersion": {
-    "message": "Version"
+    "message": "版本"
   },
   "newVersionAvailable": {
-    "message": "New version available"
+    "message": "发现新版本"
   },
   "currentVersionLabel": {
-    "message": "Current version"
+    "message": "当前版本"
   },
   "latestVersionLabel": {
-    "message": "Latest version"
+    "message": "最新版本"
   },
   "updateNow": {
-    "message": "Update now"
+    "message": "立即更新"
   },
   "safariUpdateNotSynced": {
-    "message": "Safari update status is not synced."
+    "message": "Safari 更新状态尚未同步。"
   },
   "officialDocs": {
-    "message": "Documentation"
+    "message": "使用文档"
   },
   "exportChatJson": {
-    "message": "Export chat"
+    "message": "导出对话"
   },
   "folder_title": {
     "message": "文件夹"
   },
   "folder_create": {
-    "message": "New folder"
+    "message": "新建文件夹"
   },
   "folder_name_prompt": {
-    "message": "Folder name:"
+    "message": "文件夹名称："
   },
   "folder_rename_prompt": {
-    "message": "Rename folder:"
+    "message": "重命名文件夹："
   },
   "folder_delete_confirm": {
-    "message": "Delete this folder and remove its saved conversations?"
+    "message": "删除此文件夹，并移除其中保存的对话条目？"
   },
   "folder_create_subfolder": {
-    "message": "New subfolder"
+    "message": "新建子文件夹"
   },
   "folder_rename": {
-    "message": "Rename"
+    "message": "重命名"
   },
   "folder_change_color": {
-    "message": "Change color"
+    "message": "更改颜色"
   },
   "folder_delete": {
-    "message": "Delete"
+    "message": "删除"
   },
   "folder_color_default": {
-    "message": "Default"
+    "message": "默认"
   },
   "folder_color_red": {
-    "message": "Red"
+    "message": "红色"
   },
   "folder_color_orange": {
-    "message": "Orange"
+    "message": "橙色"
   },
   "folder_color_yellow": {
-    "message": "Yellow"
+    "message": "黄色"
   },
   "folder_color_green": {
-    "message": "Green"
+    "message": "绿色"
   },
   "folder_color_blue": {
-    "message": "Blue"
+    "message": "蓝色"
   },
   "folder_color_purple": {
-    "message": "Purple"
+    "message": "紫色"
   },
   "folder_color_pink": {
-    "message": "Pink"
+    "message": "粉色"
   },
   "folder_color_custom": {
-    "message": "Custom"
+    "message": "自定义"
   },
   "folder_empty": {
-    "message": "还没有文件夹"
+    "message": "暂无文件夹"
   },
   "folder_pin": {
     "message": "置顶文件夹"
   },
   "folder_unpin": {
-    "message": "取消置顶"
+    "message": "取消置顶文件夹"
   },
   "folder_remove_conversation": {
     "message": "从文件夹中移除"
@@ -369,16 +369,16 @@
     "message": "更多操作"
   },
   "conversation_move_to_folder": {
-    "message": "移动到文件夹"
+    "message": "移至文件夹"
   },
   "conversation_rename": {
     "message": "重命名对话"
   },
   "conversation_move_to_folder_title": {
-    "message": "移动到文件夹"
+    "message": "移至文件夹"
   },
   "chatWidth": {
-    "message": "聊天宽度"
+    "message": "对话宽度"
   },
   "chatWidthNarrow": {
     "message": "窄"
@@ -387,10 +387,10 @@
     "message": "宽"
   },
   "chatFontSize": {
-    "message": "聊天字号"
+    "message": "对话字号"
   },
   "codeFontSize": {
-    "message": "代码框字号"
+    "message": "代码块字号"
   },
   "chatFontSizeSmall": {
     "message": "小"
@@ -402,7 +402,7 @@
     "message": "对话行高"
   },
   "chatLineHeightTight": {
-    "message": "紧凑"
+    "message": "紧密"
   },
   "chatLineHeightLoose": {
     "message": "宽松"
@@ -417,7 +417,7 @@
     "message": "宽松"
   },
   "chatFontFamily": {
-    "message": "聊天字体"
+    "message": "对话字体"
   },
   "chatFontFamilyDefault": {
     "message": "默认（ChatGPT）"
@@ -432,10 +432,10 @@
     "message": "自定义"
   },
   "chatFontFamilyNoneImported": {
-    "message": "未导入"
+    "message": "尚未导入"
   },
   "chatFontFamilyHint": {
-    "message": "预设字体若本机未安装会回退到系统字体。下方可导入 .woff2/.woff/.ttf/.otf 文件以保证渲染。代码块保持等宽字体。"
+    "message": "未安装原字体时，预设会回退到系统字体。可在下方导入 .woff2/.woff/.ttf/.otf 文件以确保显示效果。代码块仍使用等宽字体。"
   },
   "chatFontFamilyImport": {
     "message": "导入字体…"
@@ -456,7 +456,7 @@
     "message": "公式已复制。"
   },
   "formula_copy_failed": {
-    "message": "公式复制失败。"
+    "message": "无法复制公式。"
   },
   "formulaCopyFormat": {
     "message": "公式复制格式"
@@ -468,25 +468,25 @@
     "message": "MathML / Word"
   },
   "formulaCopyFormatHint": {
-    "message": "选择公式复制方式。"
+    "message": "选择公式复制时使用的格式。"
   },
   "formulaCopyFormatNoDollar": {
-    "message": "不带美元符号的 LaTeX"
+    "message": "无美元符号的 LaTeX"
   },
   "formulaCopyFormatDesmos": {
     "message": "Desmos / 计算器"
   },
   "formulaCopyFormatNotion": {
-    "message": "Notion（$$）"
+    "message": "Notion ($$)"
   },
   "folder_search_placeholder": {
     "message": "搜索文件夹和对话"
   },
   "folder_search_expand": {
-    "message": "展开搜索框"
+    "message": "展开搜索"
   },
   "folder_search_collapse": {
-    "message": "折叠搜索框"
+    "message": "收起搜索"
   },
   "folder_expand": {
     "message": "展开文件夹"
@@ -504,10 +504,10 @@
     "message": "文件夹设置"
   },
   "folder_sort": {
-    "message": "会话排序"
+    "message": "对话排序"
   },
   "folder_sort_manual": {
-    "message": "手动排序"
+    "message": "手动"
   },
   "folder_sort_recent": {
     "message": "最近打开"
@@ -528,88 +528,88 @@
     "message": "显示文件夹内容"
   },
   "folder_export": {
-    "message": "Export folders"
+    "message": "导出文件夹"
   },
   "folder_import_export": {
-    "message": "Import / export folders"
+    "message": "导入 / 导出文件夹"
   },
   "folder_cloud_upload": {
-    "message": "Folder cloud upload"
+    "message": "上传文件夹至云端"
   },
   "folder_cloud_sync": {
-    "message": "Folder cloud sync"
+    "message": "文件夹云同步"
   },
   "folder_manage_in_library": {
-    "message": "Manage in library"
+    "message": "在资料库中管理"
   },
   "folder_import": {
-    "message": "Import folders"
+    "message": "导入文件夹"
   },
   "folder_import_title": {
-    "message": "Import folders"
+    "message": "导入文件夹"
   },
   "folder_import_strategy": {
-    "message": "Import strategy"
+    "message": "导入方式"
   },
   "folder_import_merge": {
-    "message": "Merge with existing folders"
+    "message": "与现有文件夹合并"
   },
   "folder_import_overwrite": {
-    "message": "Overwrite existing folders"
+    "message": "覆盖现有文件夹"
   },
   "folder_import_select_file": {
-    "message": "Select JSON file"
+    "message": "选择 JSON 文件"
   },
   "folder_import_success": {
-    "message": "Imported {folders} folders and {conversations} conversations."
+    "message": "已导入 {folders} 个文件夹和 {conversations} 段对话。"
   },
   "folder_import_success_skipped": {
-    "message": "Imported {folders} folders and {conversations} conversations. Skipped {skipped}."
+    "message": "已导入 {folders} 个文件夹和 {conversations} 段对话，跳过 {skipped} 项。"
   },
   "folder_import_error": {
-    "message": "Import failed: {error}"
+    "message": "导入失败：{error}"
   },
   "folder_export_success": {
-    "message": "Folders exported."
+    "message": "文件夹已导出。"
   },
   "folder_import_invalid_format": {
-    "message": "Invalid folder backup file."
+    "message": "文件夹备份文件无效。"
   },
   "folder_import_confirm_overwrite": {
-    "message": "This will overwrite existing folders. Continue?"
+    "message": "这将覆盖现有文件夹，是否继续？"
   },
   "folder_import_paste_json": {
-    "message": "Paste JSON"
+    "message": "粘贴 JSON"
   },
   "folder_import_paste_placeholder": {
-    "message": "Paste JSON here..."
+    "message": "在此粘贴 JSON…"
   },
   "export_dialog_title": {
-    "message": "Export chat"
+    "message": "导出对话"
   },
   "export_dialog_select": {
-    "message": "Choose export format"
+    "message": "选择导出格式"
   },
   "export_dialog_warning": {
-    "message": "Some content may not export exactly as shown."
+    "message": "部分内容的导出效果可能与页面显示不同。"
   },
   "export_dialog_safari_cmdp_hint": {
-    "message": "Use Command+P to print to PDF in Safari."
+    "message": "在 Safari 中使用 Command+P 打印为 PDF。"
   },
   "export_toast_safari_pdf_ready": {
-    "message": "Print dialog is ready."
+    "message": "打印对话框已就绪。"
   },
   "export_dialog_safari_markdown_hint": {
-    "message": "Markdown export is available from the export dialog."
+    "message": "可在导出对话框中选择 Markdown 导出。"
   },
   "export_format_json_description": {
-    "message": "Structured JSON export"
+    "message": "结构化 JSON 导出"
   },
   "export_format_markdown_description": {
-    "message": "Readable Markdown export"
+    "message": "易读的 Markdown 导出"
   },
   "export_format_pdf_description": {
-    "message": "Print-ready PDF export"
+    "message": "适合打印的 PDF 导出"
   },
   "editInputWidth": {
     "message": "输入框宽度"
@@ -627,154 +627,154 @@
     "message": "启用时间线"
   },
   "enableTimelineDescription": {
-    "message": "显示右侧的小豆豆导航。关掉则完全移除（豆豆、预览、钉子 UI 都不再出现）。"
+    "message": "显示右侧圆点导航。关闭后会完全移除圆点、预览和图钉界面。"
   },
   "folderOptions": {
-    "message": "Folder Options"
+    "message": "文件夹选项"
   },
   "enableFolderFeature": {
-    "message": "Enable folders"
+    "message": "启用文件夹"
   },
   "enableFolderFloatingMode": {
-    "message": "Floating folder panel"
+    "message": "悬浮文件夹面板"
   },
   "enableFolderFloatingModeHint": {
-    "message": "Show folders in a floating panel instead of the sidebar."
+    "message": "在悬浮面板中显示文件夹，而非侧边栏。"
   },
   "hideArchivedConversations": {
-    "message": "隐藏归档对话"
+    "message": "隐藏已归档对话"
   },
   "hideArchivedNudgeTitle": {
-    "message": "Hide archived conversations"
+    "message": "隐藏已归档对话"
   },
   "hideArchivedNudgeBody": {
-    "message": "Keep archived conversations out of the folder list."
+    "message": "不在文件夹列表中显示已归档对话。"
   },
   "hideArchivedNudgeEnable": {
-    "message": "Enable"
+    "message": "启用"
   },
   "hideArchivedNudgeDismiss": {
-    "message": "Dismiss"
+    "message": "暂不启用"
   },
   "hideArchivedNudgeFootnote": {
-    "message": "You can change this later in settings."
+    "message": "你可以稍后在设置中更改。"
   },
   "floatingModeNudgeTitle": {
-    "message": "Floating folder panel"
+    "message": "悬浮文件夹面板"
   },
   "floatingModeNudgeBody": {
-    "message": "Open folders from a floating panel."
+    "message": "通过悬浮面板打开文件夹。"
   },
   "floatingModeNudgeEnable": {
-    "message": "Enable"
+    "message": "启用"
   },
   "floatingModeNudgeDismiss": {
-    "message": "Dismiss"
+    "message": "暂不启用"
   },
   "floatingPanelTitle": {
-    "message": "Folders"
+    "message": "文件夹"
   },
   "floatingPanelClose": {
-    "message": "Close"
+    "message": "关闭"
   },
   "floatingPanelEmpty": {
-    "message": "No folders yet"
+    "message": "暂无文件夹"
   },
   "floatingPanelUntitled": {
     "message": "未命名"
   },
   "floatingFabLabel": {
-    "message": "Open folders"
+    "message": "打开文件夹"
   },
   "conversation_star": {
-    "message": "Star conversation"
+    "message": "收藏对话"
   },
   "conversation_unstar": {
-    "message": "Unstar conversation"
+    "message": "取消收藏对话"
   },
   "conversation_untitled": {
     "message": "未命名对话"
   },
   "folderManager_dataLossWarning": {
-    "message": "Folder Manager data Loss Warning"
+    "message": "警告：无法加载文件夹数据。请查看浏览器控制台了解详情。"
   },
   "backupOptions": {
-    "message": "Backup Options"
+    "message": "备份选项"
   },
   "backupEnabled": {
-    "message": "Backup Enabled"
+    "message": "启用备份"
   },
   "backupNow": {
-    "message": "Backup Now"
+    "message": "立即备份"
   },
   "backupSelectFolder": {
-    "message": "Backup Select Folder"
+    "message": "选择备份文件夹"
   },
   "backupFolderSelected": {
-    "message": "Backup Folder Selected"
+    "message": "已选择备份文件夹"
   },
   "backupIncludePrompts": {
-    "message": "Backup Include Prompts"
+    "message": "包含提示词"
   },
   "backupIncludeFolders": {
-    "message": "Backup Include Folders"
+    "message": "包含文件夹"
   },
   "backupIntervalLabel": {
-    "message": "Backup Interval Label"
+    "message": "备份频率"
   },
   "backupIntervalManual": {
-    "message": "Backup Interval Manual"
+    "message": "手动"
   },
   "backupIntervalDaily": {
-    "message": "Backup Interval Daily"
+    "message": "每天"
   },
   "backupIntervalWeekly": {
-    "message": "Backup Interval Weekly"
+    "message": "每周"
   },
   "backupLastBackup": {
-    "message": "Backup Last Backup"
+    "message": "上次备份"
   },
   "backupNever": {
-    "message": "Backup Never"
+    "message": "从未备份"
   },
   "backupSuccess": {
-    "message": "Backup Success"
+    "message": "备份成功"
   },
   "backupError": {
-    "message": "Backup Error"
+    "message": "备份失败"
   },
   "backupNotSupported": {
-    "message": "Backup Not Supported"
+    "message": "此浏览器不支持备份"
   },
   "backupSelectFolderFirst": {
-    "message": "Backup Select Folder First"
+    "message": "请先选择备份文件夹"
   },
   "backupUserCancelled": {
-    "message": "Backup User Cancelled"
+    "message": "已取消备份"
   },
   "backupConfigSaved": {
-    "message": "Backup Config Saved"
+    "message": "备份设置已保存"
   },
   "backupPermissionDenied": {
-    "message": "Backup Permission Denied"
+    "message": "备份权限被拒绝"
   },
   "backupConfigureInOptions": {
-    "message": "Backup Configure In Options"
+    "message": "在扩展选项页中配置备份"
   },
   "openOptionsPage": {
-    "message": "Open Options Page"
+    "message": "打开选项页"
   },
   "optionsPageSubtitle": {
-    "message": "Options Page Subtitle"
+    "message": "扩展选项"
   },
   "optionsComingSoon": {
-    "message": "Options Coming Soon"
+    "message": "更多选项即将推出。"
   },
   "backupDataAccessNotice": {
-    "message": "Backup Data Access Notice"
+    "message": "备份数据访问"
   },
   "backupDataAccessHint": {
-    "message": "Backup Data Access Hint"
+    "message": "请授权访问所选备份文件夹。"
   },
   "promptManagerOptions": {
     "message": "Prompt Manager"
@@ -786,118 +786,118 @@
     "message": "在 ChatGPT 页面隐藏 Prompt Manager 入口。"
   },
   "promptInsertOnClick": {
-    "message": "点击即插入 Prompt"
+    "message": "点击即插入提示词"
   },
   "promptInsertOnClickHint": {
-    "message": "选中 Prompt 后立即插入输入框。"
+    "message": "选中提示词后立即插入输入框。"
   },
   "customWebsites": {
     "message": "自定义网站"
   },
   "customWebsitesPlaceholder": {
-    "message": "Custom Websites Placeholder"
+    "message": "输入网站地址"
   },
   "customWebsitesHint": {
-    "message": "Custom Websites Hint"
+    "message": "添加要使用扩展功能的网站。"
   },
   "addWebsite": {
-    "message": "Add Website"
+    "message": "添加网站"
   },
   "removeWebsite": {
-    "message": "Remove Website"
+    "message": "移除网站"
   },
   "invalidUrl": {
-    "message": "Invalid Url"
+    "message": "网址无效"
   },
   "websiteAdded": {
-    "message": "Website Added"
+    "message": "网站已添加"
   },
   "websiteRemoved": {
-    "message": "Website Removed"
+    "message": "网站已移除"
   },
   "permissionDenied": {
-    "message": "Permission Denied"
+    "message": "权限被拒绝"
   },
   "permissionRequestFailed": {
-    "message": "Permission Request Failed"
+    "message": "权限申请失败"
   },
   "customWebsitesNote": {
-    "message": "Custom Websites Note"
+    "message": "自定义网站需要授予相应的访问权限。"
   },
   "starredHistory": {
-    "message": "Starred History"
+    "message": "收藏记录"
   },
   "viewStarredHistory": {
     "message": "收藏消息"
   },
   "noStarredMessages": {
-    "message": "No Starred Messages"
+    "message": "暂无收藏消息"
   },
   "removeFromStarred": {
-    "message": "Remove From Starred"
+    "message": "取消收藏"
   },
   "justNow": {
-    "message": "Just Now"
+    "message": "刚刚"
   },
   "hoursAgo": {
-    "message": "Hours Ago"
+    "message": "小时前"
   },
   "yesterday": {
-    "message": "Yesterday"
+    "message": "昨天"
   },
   "daysAgo": {
-    "message": "Days Ago"
+    "message": "天前"
   },
   "loading": {
-    "message": "Loading"
+    "message": "加载中…"
   },
   "keyboardShortcuts": {
-    "message": "Keyboard Shortcuts"
+    "message": "键盘快捷键"
   },
   "enableShortcuts": {
-    "message": "Enable Shortcuts"
+    "message": "启用快捷键"
   },
   "previousNode": {
-    "message": "Previous Node"
+    "message": "上一个节点"
   },
   "nextNode": {
-    "message": "Next Node"
+    "message": "下一个节点"
   },
   "firstNode": {
-    "message": "First Node"
+    "message": "第一个节点"
   },
   "lastNode": {
-    "message": "Last Node"
+    "message": "最后一个节点"
   },
   "shortcutKey": {
-    "message": "Shortcut Key"
+    "message": "按键"
   },
   "shortcutModifiers": {
-    "message": "Shortcut Modifiers"
+    "message": "修饰键"
   },
   "resetShortcuts": {
-    "message": "Reset Shortcuts"
+    "message": "重置快捷键"
   },
   "shortcutsResetSuccess": {
-    "message": "Shortcuts Reset Success"
+    "message": "快捷键已重置"
   },
   "shortcutsDescription": {
-    "message": "Shortcuts Description"
+    "message": "配置时间线导航快捷键。"
   },
   "modifierNone": {
-    "message": "Modifier None"
+    "message": "无"
   },
   "modifierAlt": {
-    "message": "Modifier Alt"
+    "message": "Alt"
   },
   "modifierCtrl": {
-    "message": "Modifier Ctrl"
+    "message": "Ctrl"
   },
   "modifierShift": {
-    "message": "Modifier Shift"
+    "message": "Shift"
   },
   "modifierMeta": {
-    "message": "Modifier Meta"
+    "message": "Meta"
   },
   "preventAutoScroll": {
     "message": "阻止自动滚动"
@@ -906,356 +906,394 @@
     "message": "新内容出现时保持当前阅读位置。"
   },
   "cloudSync": {
-    "message": "Cloud Sync"
+    "message": "云同步"
   },
   "cloudSyncDescription": {
-    "message": "Cloud Sync Description"
+    "message": "上传或合并云端数据。"
   },
   "syncModeDisabled": {
-    "message": "Sync Mode Disabled"
+    "message": "禁用"
   },
   "syncModeManual": {
-    "message": "Sync Mode Manual"
+    "message": "手动"
   },
   "syncServerPort": {
-    "message": "Sync Server Port"
+    "message": "同步服务器端口"
   },
   "syncNow": {
-    "message": "Sync Now"
+    "message": "立即同步"
   },
   "lastSynced": {
-    "message": "Last Synced"
+    "message": "上次同步"
   },
   "neverSynced": {
-    "message": "Never Synced"
+    "message": "从未同步"
   },
   "lastUploaded": {
-    "message": "Last Uploaded"
+    "message": "上次上传"
   },
   "neverUploaded": {
-    "message": "Never Uploaded"
+    "message": "从未上传"
   },
   "syncSuccess": {
-    "message": "Sync Success"
+    "message": "同步成功"
   },
   "syncError": {
-    "message": "Sync Error"
+    "message": "同步失败"
   },
   "syncInProgress": {
-    "message": "Sync In Progress"
+    "message": "正在同步…"
   },
   "uploadInProgress": {
-    "message": "Upload In Progress"
+    "message": "正在上传…"
   },
   "uploadSuccess": {
-    "message": "Upload Success"
+    "message": "上传成功"
   },
   "downloadInProgress": {
-    "message": "Download In Progress"
+    "message": "正在下载…"
   },
   "downloadMergeSuccess": {
-    "message": "Download Merge Success"
+    "message": "已下载并合并"
   },
   "syncUpload": {
-    "message": "Sync Upload"
+    "message": "上传"
   },
   "syncMerge": {
-    "message": "Sync Merge"
+    "message": "下载并合并"
   },
   "syncMode": {
-    "message": "Sync Mode"
+    "message": "同步模式"
   },
   "minutesAgo": {
-    "message": "Minutes Ago"
+    "message": "分钟前"
   },
   "syncNoData": {
-    "message": "Sync No Data"
+    "message": "没有可同步的数据"
   },
   "syncUploadFailed": {
-    "message": "Sync Upload Failed"
+    "message": "上传失败"
   },
   "syncDownloadFailed": {
-    "message": "Sync Download Failed"
+    "message": "下载失败"
   },
   "syncAuthFailed": {
-    "message": "Sync Auth Failed"
+    "message": "同步身份验证失败"
   },
   "signOut": {
-    "message": "Sign Out"
+    "message": "退出登录"
   },
   "signInWithGoogle": {
-    "message": "Sign In With Google"
+    "message": "使用 Google 登录"
   },
   "nanobananaOptions": {
-    "message": "Nanobanana Options"
+    "message": "Nanobanana 选项"
   },
   "nanobananaDownloadLabel": {
-    "message": "Nanobanana Download Label"
+    "message": "下载 Nanobanana 图片"
   },
   "nanobananaDownloadHint": {
-    "message": "Nanobanana Download Hint"
+    "message": "下载 Nanobanana 生成的原图。"
   },
   "nanobananaPreviewLabel": {
-    "message": "Nanobanana Preview Label"
+    "message": "预览 Nanobanana 图片"
   },
   "nanobananaPreviewHint": {
-    "message": "Nanobanana Preview Hint"
+    "message": "预览 Nanobanana 生成的图片。"
   },
   "nanobananaDownloadTooltip": {
-    "message": "Nanobanana Download Tooltip"
+    "message": "下载原图"
   },
   "deepResearchDownload": {
-    "message": "Deep Research Download"
+    "message": "下载深度研究报告"
   },
   "deepResearchDownloadTooltip": {
-    "message": "Deep Research Download Tooltip"
+    "message": "下载这份深度研究报告"
   },
   "folder_uncategorized": {
-    "message": "Folder uncategorized"
+    "message": "未分类"
   },
   "timelineLevelTitle": {
-    "message": "Timeline levels"
+    "message": "时间线层级"
   },
   "timelineLevel1": {
-    "message": "Level 1"
+    "message": "一级"
   },
   "timelineLevel2": {
-    "message": "Level 2"
+    "message": "二级"
   },
   "timelineLevel3": {
-    "message": "Level 3"
+    "message": "三级"
   },
   "timelineCollapse": {
-    "message": "Collapse"
+    "message": "折叠"
   },
   "timelineExpand": {
-    "message": "Expand"
+    "message": "展开"
   },
   "timelinePreviewSearch": {
-    "message": "Search messages..."
+    "message": "搜索消息…"
   },
   "timelinePreviewNoResults": {
-    "message": "No results"
+    "message": "没有结果"
   },
   "timelinePreviewNoMessages": {
-    "message": "No messages"
+    "message": "暂无消息"
   },
   "timelineUnmountedTooltip": {
-    "message": "消息未加载，跳转后将显示内容"
+    "message": "消息尚未加载，跳转后会显示内容"
   },
   "quoteReply": {
     "message": "引用回复"
   },
   "inputCollapseOptions": {
-    "message": "Composer"
+    "message": "输入框"
   },
   "enableInputCollapse": {
     "message": "折叠输入框"
   },
   "enableInputCollapseHint": {
-    "message": "输入框未聚焦时折叠成紧凑栏。"
+    "message": "输入框未聚焦时将其折叠为紧凑条。"
   },
   "inputCollapseShortcutHint": {
-    "message": "{modifier}+I toggles composer collapse."
+    "message": "按 {modifier}+I 切换输入框折叠状态。"
   },
   "inputCollapsePlaceholder": {
-    "message": "Message ChatGPT"
+    "message": "向 ChatGPT 发送消息"
   },
   "allowCollapseWhenNotEmpty": {
-    "message": "Collapse when filled"
+    "message": "有内容时仍可折叠"
   },
   "allowCollapseWhenNotEmptyHint": {
-    "message": "Allow the composer to collapse even when it contains text."
+    "message": "允许输入框在有文字时仍可折叠。"
   },
   "inputVimMode": {
-    "message": "Vim 输入模式"
+    "message": "输入框 Vim 模式"
   },
   "inputVimModeHint": {
-    "message": "在输入框中使用 i 和 Esc 切换插入/普通模式。"
+    "message": "使用 i 和 Escape 在输入框的插入模式与普通模式间切换。"
   },
   "plainTextInput": {
-    "message": "纯文本输入模式"
+    "message": "纯文本输入"
   },
   "plainTextInputHint": {
-    "message": "编辑时原样保留 Markdown 字符，发送后仍正常渲染。"
+    "message": "编辑时保留 Markdown 字符原样，发送后正常渲染。"
   },
   "ctrlEnterSend": {
-    "message": "{modifier}+Enter 发送"
+    "message": "使用 {modifier}+Enter 发送"
   },
   "ctrlEnterSendHint": {
     "message": "使用 {modifier}+Enter 发送，Enter 换行。"
   },
   "safariEnterFix": {
-    "message": "Safari Enter 修复"
+    "message": "Safari 回车修复"
   },
   "safariEnterFixHint": {
-    "message": "兼容 Safari 的 Enter 行为。"
+    "message": "Safari 回车行为兼容模式。"
   },
   "draftAutoSave": {
     "message": "自动保存草稿"
   },
   "draftAutoSaveHint": {
-    "message": "回到对话时恢复未发送文本。"
+    "message": "返回对话时恢复尚未发送的文字。"
   },
   "batch_delete_confirm": {
-    "message": "Delete {count} conversations?"
+    "message": "删除 {count} 段对话？"
   },
   "batch_delete_in_progress": {
-    "message": "Deleting... ({current}/{total})"
+    "message": "正在删除…（{current}/{total}）"
   },
   "batch_delete_success": {
-    "message": "Deleted {count} conversations."
+    "message": "已删除 {count} 段对话。"
   },
   "batch_delete_partial": {
-    "message": "Deleted {success}; failed {failed}."
+    "message": "已删除 {success} 项，失败 {failed} 项。"
   },
   "batch_delete_limit_reached": {
-    "message": "Selection limit reached: {max}."
+    "message": "已达到选择上限：{max}。"
   },
   "batch_delete_button": {
-    "message": "Delete selected"
+    "message": "删除选中项"
   },
   "batch_delete_match_patterns": {
-    "message": "delete,confirm,yes,ok,remove"
+    "message": "delete,confirm,yes,ok,remove,删除,确认,是,确定,移除"
   },
   "generalOptions": {
-    "message": "General"
+    "message": "通用"
   },
   "enableTabTitleUpdate": {
-    "message": "Enable Tab Title Update"
+    "message": "更新标签页标题"
   },
   "enableTabTitleUpdateHint": {
-    "message": "Enable Tab Title Update Hint"
+    "message": "让浏览器标签页标题跟随当前对话。"
   },
   "enableMermaidRendering": {
-    "message": "Mermaid diagrams"
+    "message": "Mermaid 图表"
   },
   "enableMermaidRenderingHint": {
-    "message": "Render Mermaid code blocks as diagrams."
+    "message": "将 Mermaid 代码块渲染为图表。"
   },
   "enableQuoteReply": {
-    "message": "Quote reply"
+    "message": "引用回复"
   },
   "enableQuoteReplyHint": {
-    "message": "Reply with selected text as quoted context."
+    "message": "将选中的文字作为引用上下文进行回复。"
   },
   "contextSync": {
-    "message": "Context sync"
+    "message": "上下文同步"
   },
   "contextSyncDescription": {
-    "message": "Sync context with an IDE."
+    "message": "将上下文与 IDE 同步。"
   },
   "syncToIDE": {
-    "message": "Sync to IDE"
+    "message": "同步至 IDE"
   },
   "ideOnline": {
-    "message": "IDE online"
+    "message": "IDE 在线"
   },
   "ideOffline": {
-    "message": "IDE offline"
+    "message": "IDE 离线"
   },
   "syncing": {
-    "message": "Syncing..."
+    "message": "正在同步…"
   },
   "checkServer": {
-    "message": "Check server"
+    "message": "检查服务器"
   },
   "capturing": {
-    "message": "Capturing..."
+    "message": "正在采集…"
   },
   "syncedSuccess": {
-    "message": "Synced."
+    "message": "已同步。"
   },
   "downloadingOriginal": {
-    "message": "Downloading original..."
+    "message": "正在下载原始文件…"
   },
   "downloadingOriginalLarge": {
-    "message": "Downloading large original..."
+    "message": "正在下载较大的原始文件…"
   },
   "downloadLargeWarning": {
-    "message": "Large download"
+    "message": "大文件下载"
   },
   "downloadProcessing": {
-    "message": "Processing download..."
+    "message": "正在处理下载…"
   },
   "downloadSuccess": {
-    "message": "Download started..."
+    "message": "下载已开始…"
   },
   "downloadError": {
-    "message": "Download failed"
+    "message": "下载失败"
   },
   "recentsHide": {
-    "message": "Hide recents"
+    "message": "隐藏最近对话"
   },
   "recentsShow": {
-    "message": "Show recents"
+    "message": "显示最近对话"
   },
   "gemsHide": {
-    "message": "Hide GPTs"
+    "message": "隐藏 GPT"
   },
   "gemsShow": {
-    "message": "Show GPTs"
+    "message": "显示 GPT"
   },
   "notebooksHide": {
-    "message": "Hide notebooks"
+    "message": "隐藏笔记本"
   },
   "notebooksShow": {
-    "message": "Show notebooks"
+    "message": "显示笔记本"
   },
   "setAsDefaultModel": {
-    "message": "Set as default model"
+    "message": "设为默认模型"
   },
   "cancelDefaultModel": {
-    "message": "Cancel default model"
+    "message": "取消默认模型"
   },
   "defaultModelSet": {
-    "message": "Default model set: $1"
+    "message": "已设置默认模型：$1"
   },
   "defaultModelCleared": {
-    "message": "Default model cleared"
+    "message": "已清除默认模型"
   },
   "railToggle_enable": {
-    "message": "图标栏收起按钮"
+    "message": "图标栏开关"
   },
-  "driveAutoAllow": { "message": "自动允许 Google Drive" },
-  "driveAutoAllowHint": { "message": "自动点击 ChatGPT 的 Google Drive 工具授权卡中的“始终允许”，包括上传文件等操作。默认关闭；后台标签页仍在运行时也可处理。" },
-  "quotaRing_enable": { "message": "显示额度圆环" },
-  "quotaRing_description": { "message": "在输入框和侧边栏显示 Codex / Work 额度。" },
-  "quotaRing_title": { "message": "Codex / Work 剩余额度" },
-  "quotaRing_chatNote": { "message": "（Chat 对话不消耗此额度）" },
-  "quotaRing_waiting": { "message": "等待额度更新" },
-  "quotaRing_remaining": { "message": "剩余 {percent}%" },
-  "quotaRing_weekly": { "message": "每周额度" },
-  "quotaRing_fiveHour": { "message": "5 小时额度" },
-  "quotaRing_window": { "message": "{hours} 小时额度" },
-  "quotaRing_review": { "message": "代码审查" },
-  "quotaRing_additional": { "message": "额外额度" },
-  "quotaRing_reset": { "message": "{time} 重置" },
-  "quotaRing_updated": { "message": "更新于 {time}" },
-  "quotaRing_stale": { "message": "上次额度 · 等待更新" },
-  "quotaRing_credits": { "message": "点数余额：{balance}" },
-  "quotaRing_unlimited": { "message": "不限额" },
-  "quotaRing_noPercentage": { "message": "未提供百分比额度" },
+  "driveAutoAllow": {
+    "message": "自动允许 Google Drive"
+  },
+  "driveAutoAllowHint": {
+    "message": "自动点击 ChatGPT 的 Google Drive 工具授权卡片中的「始终允许」，包括文件上传。默认关闭。后台标签页只要页面仍在运行也能生效。"
+  },
+  "quotaRing_enable": {
+    "message": "显示额度圆环"
+  },
+  "quotaRing_description": {
+    "message": "在输入框和侧边栏显示 Codex / Work 额度。"
+  },
+  "quotaRing_title": {
+    "message": "Codex / Work 剩余额度"
+  },
+  "quotaRing_chatNote": {
+    "message": "（Chat 对话不消耗此额度）"
+  },
+  "quotaRing_waiting": {
+    "message": "等待用量更新"
+  },
+  "quotaRing_remaining": {
+    "message": "剩余 {percent}%"
+  },
+  "quotaRing_weekly": {
+    "message": "每周上限"
+  },
+  "quotaRing_fiveHour": {
+    "message": "5 小时上限"
+  },
+  "quotaRing_window": {
+    "message": "{hours} 小时上限"
+  },
+  "quotaRing_review": {
+    "message": "代码审查"
+  },
+  "quotaRing_additional": {
+    "message": "额外额度"
+  },
+  "quotaRing_reset": {
+    "message": "重置于 {time}"
+  },
+  "quotaRing_updated": {
+    "message": "更新于 {time}"
+  },
+  "quotaRing_stale": {
+    "message": "上次记录的用量 · 等待更新"
+  },
+  "quotaRing_credits": {
+    "message": "点数：{balance}"
+  },
+  "quotaRing_unlimited": {
+    "message": "不限量"
+  },
+  "quotaRing_noPercentage": {
+    "message": "未报告百分比上限"
+  },
   "railToggle_description": {
-    "message": "在侧边栏「ChatGPT」标题旁加一个 ◀ 按钮，一键收起左侧新增的图标栏（主页、历史、头像等），再点一下展开。"
+    "message": "在侧边栏 ChatGPT 标题旁添加 ◀ 按钮，可收起左侧新增图标栏（主页、历史、头像等），再次点击即可恢复。"
   },
   "railToggle_hide": {
-    "message": "隐藏烦人的新增侧边栏"
+    "message": "隐藏图标栏"
   },
   "railToggle_show": {
-    "message": "显示左侧图标栏"
+    "message": "显示图标栏"
   },
   "sidebarAutoHide": {
-    "message": "侧边栏自动隐藏"
+    "message": "自动隐藏侧边栏"
   },
   "sidebarAutoHideHint": {
-    "message": "空闲时自动隐藏侧边栏。"
+    "message": "将侧边栏收起，指针移至左边缘时再展开。"
   },
   "sidebarFullHide": {
     "message": "完全隐藏侧边栏"
   },
   "sidebarFullHideHint": {
-    "message": "启用自动隐藏时完全收起侧边栏。"
+    "message": "启用自动隐藏时，将侧边栏完全隐藏。"
   },
   "folderSpacing": {
     "message": "文件夹间距"
@@ -1267,7 +1305,7 @@
     "message": "宽松"
   },
   "folderTreeIndent": {
-    "message": "文件夹缩进"
+    "message": "文件夹树缩进"
   },
   "folderTreeIndentCompact": {
     "message": "紧凑"
@@ -1276,217 +1314,217 @@
     "message": "宽松"
   },
   "export_select_mode_select_all": {
-    "message": "Select all"
+    "message": "全选"
   },
   "export_select_mode_count": {
-    "message": "{count} selected"
+    "message": "已选择 {count} 条"
   },
   "export_select_mode_toggle": {
-    "message": "Select message"
+    "message": "选择消息"
   },
   "export_select_mode_select_below": {
-    "message": "Select messages below"
+    "message": "选择下方消息"
   },
   "export_select_mode_empty": {
-    "message": "Please select at least one message to export."
+    "message": "请至少选择一条消息再导出。"
   },
   "export_format_image_description": {
-    "message": "PNG image export"
+    "message": "PNG 图片导出"
   },
   "export_image_progress": {
-    "message": "Generating image..."
+    "message": "正在生成图片…"
   },
   "deepResearchSaveReport": {
-    "message": "Save report"
+    "message": "保存报告"
   },
   "deepResearchSaveReportTooltip": {
-    "message": "Export this research report"
+    "message": "导出此研究报告"
   },
   "export_fontsize_label": {
-    "message": "Font size"
+    "message": "字号"
   },
   "export_fontsize_preview": {
-    "message": "Preview text"
+    "message": "预览文字"
   },
   "export_image_width_label": {
-    "message": "Image width"
+    "message": "图片宽度"
   },
   "export_image_width_narrow": {
-    "message": "Narrow"
+    "message": "窄"
   },
   "export_image_width_medium": {
-    "message": "Medium"
+    "message": "中"
   },
   "export_image_width_wide": {
-    "message": "Wide"
+    "message": "宽"
   },
   "export_error_generic": {
-    "message": "Export failed: {error}"
+    "message": "导出失败：{error}"
   },
   "export_error_refresh_retry": {
-    "message": "Export failed. Refresh the page and try again."
+    "message": "导出失败，请刷新页面后重试。"
   },
   "export_md_include_source_confirm": {
-    "message": "Include source Markdown?"
+    "message": "包含 Markdown 源码？"
   },
   "deepResearch_exportedAt": {
-    "message": "Exported at"
+    "message": "导出时间"
   },
   "deepResearch_totalPhases": {
-    "message": "Total phases"
+    "message": "阶段总数"
   },
   "deepResearch_thinkingPhase": {
-    "message": "Thinking phase"
+    "message": "思考阶段"
   },
   "deepResearch_researchedWebsites": {
-    "message": "Researched websites"
+    "message": "已研究的网站"
   },
   "visualEffect": {
-    "message": "Visual effect"
+    "message": "视觉效果"
   },
   "visualEffectHint": {
-    "message": "Choose a lightweight page effect."
+    "message": "选择轻量的页面效果。"
   },
   "visualEffectOff": {
-    "message": "Off"
+    "message": "关闭"
   },
   "visualEffectSnow": {
-    "message": "Snow"
+    "message": "飘雪"
   },
   "visualEffectSakura": {
-    "message": "Sakura"
+    "message": "樱花"
   },
   "visualEffectRain": {
-    "message": "Rain"
+    "message": "下雨"
   },
   "forkConversation": {
-    "message": "Fork"
+    "message": "分支"
   },
   "forkConfirm": {
-    "message": "Fork conversation from this point?"
+    "message": "从此处创建对话分支？"
   },
   "forkConfirmBtn": {
-    "message": "Fork"
+    "message": "创建分支"
   },
   "forkCancel": {
-    "message": "Cancel"
+    "message": "取消"
   },
   "forkBranch": {
-    "message": "Branch"
+    "message": "分支"
   },
   "forkOriginal": {
-    "message": "Original"
+    "message": "原始对话"
   },
   "forkCurrent": {
-    "message": "Current"
+    "message": "当前对话"
   },
   "forkPreparing": {
-    "message": "Preparing fork..."
+    "message": "正在准备分支…"
   },
   "forkPasteHint": {
-    "message": "Press Enter to send and create the fork"
+    "message": "按 Enter 发送并创建分支"
   },
   "forkDeleteData": {
-    "message": "Delete fork data"
+    "message": "删除分支数据"
   },
   "forkDeleteDataConfirm": {
-    "message": "Delete all stored fork data?"
+    "message": "删除所有已保存的分支数据？"
   },
   "enableForkFeature": {
-    "message": "分叉对话"
+    "message": "对话分支"
   },
   "enableForkFeatureHint": {
-    "message": "从对话中的某一点创建新分支。"
+    "message": "从对话中的选定位置创建新分支。"
   },
   "enableAccountIsolation": {
-    "message": "Enable hard isolation"
+    "message": "启用严格隔离"
   },
   "enableAccountIsolationHint": {
-    "message": "Isolate data by account."
+    "message": "按账号隔离数据。"
   },
   "currentPlatform": {
-    "message": "Current platform"
+    "message": "当前平台"
   },
   "export_select_mode_only_user": {
-    "message": "User messages only"
+    "message": "仅用户消息"
   },
   "export_select_mode_only_ai": {
-    "message": "Assistant messages only"
+    "message": "仅助手消息"
   },
   "aiOrgCopyButton": {
-    "message": "Copy AI organization"
+    "message": "复制供 AI 整理的信息"
   },
   "aiOrgCopied": {
-    "message": "Copied"
+    "message": "已复制"
   },
   "aiOrgError": {
-    "message": "Could not copy organization data."
+    "message": "无法复制整理数据。"
   },
   "aiOrgCopyHint": {
-    "message": "Copy folder organization as context."
+    "message": "将文件夹组织结构复制为上下文。"
   },
   "aiOrgCurrentFolders": {
-    "message": "Current folders"
+    "message": "当前文件夹"
   },
   "aiOrgUnfiledConversations": {
-    "message": "Unfiled conversations"
+    "message": "未归档到文件夹的对话"
   },
   "aiOrgEmpty": {
-    "message": "Empty"
+    "message": "空"
   },
   "aiOrgInstructions": {
-    "message": "Instructions"
+    "message": "指令"
   },
   "showMessageTimestamps": {
-    "message": "Show message timestamps"
+    "message": "显示消息时间戳"
   },
   "showMessageTimestampsHint": {
-    "message": "Show timestamps beside messages."
+    "message": "在消息旁显示时间戳。"
   },
   "moveSectionUp": {
-    "message": "Move up"
+    "message": "上移"
   },
   "moveSectionDown": {
-    "message": "Move down"
+    "message": "下移"
   },
   "folderAsProject_enable": {
-    "message": "文件夹项目模式"
+    "message": "文件夹指令"
   },
   "folderAsProject_description": {
-    "message": "把文件夹作为项目入口使用。"
+    "message": "为文件夹附加可复用指令，并将其插入对话。"
   },
   "folderHeaderButton_enable": {
-    "message": "顶栏对话快捷按钮"
+    "message": "对话标题栏快捷按钮"
   },
   "folderHeaderButton_description": {
-    "message": "在当前对话左上角显示文件夹和重命名快捷入口。"
+    "message": "在当前对话左上角显示文件夹和重命名快捷按钮。"
   },
   "folderBelowProjects": {
-    "message": "文件夹放到项目下方"
+    "message": "将文件夹放在项目下方"
   },
   "folderBelowProjects_description": {
-    "message": "把文件夹列表从顶部置顶位置移到「项目」下方、「最近」上方，与聊天列表一起滚动，不再固定置顶。"
+    "message": "将文件夹列表从顶部固定位置移至「项目」下方、「最近对话」上方，使其随对话列表一起滚动。"
   },
   "folderAsProject_noFolder": {
-    "message": "No folder"
+    "message": "无文件夹"
   },
   "folderAsProject_setInstructions": {
-    "message": "Set instructions"
+    "message": "设置指令"
   },
   "folderAsProject_editInstructions": {
-    "message": "Edit instructions"
+    "message": "编辑指令"
   },
   "folderAsProject_expand": {
-    "message": "Expand"
+    "message": "展开"
   },
   "folderAsProject_collapse": {
-    "message": "Collapse"
+    "message": "折叠"
   },
   "canvasExportCopyMarkdown": {
     "message": "复制 Canvas Markdown"
   },
   "canvasExportCopyMarkdownTooltip": {
-    "message": "Copy the current Canvas as Markdown."
+    "message": "将当前 Canvas 复制为 Markdown。"
   },
   "canvasExportCopied": {
     "message": "Canvas Markdown 已复制。"
@@ -1498,100 +1536,100 @@
     "message": "无法复制 Canvas Markdown。"
   },
   "floatingPanelCreateFolder": {
-    "message": "New folder"
+    "message": "新建文件夹"
   },
   "floatingPanelCreateSubfolder": {
-    "message": "New subfolder"
+    "message": "新建子文件夹"
   },
   "floatingPanelFolderNamePlaceholder": {
-    "message": "Folder name"
+    "message": "文件夹名称"
   },
   "floatingPanelRenameFolder": {
-    "message": "Rename folder"
+    "message": "重命名文件夹"
   },
   "floatingPanelDeleteFolder": {
-    "message": "Delete"
+    "message": "删除"
   },
   "floatingPanelDeleteConfirm": {
-    "message": "Delete this folder?"
+    "message": "删除此文件夹？"
   },
   "floatingPanelCancel": {
-    "message": "Cancel"
+    "message": "取消"
   },
   "floatingPanelSave": {
-    "message": "Save"
+    "message": "保存"
   },
   "floatingPanelPinFolder": {
-    "message": "Pin"
+    "message": "置顶"
   },
   "floatingPanelUnpinFolder": {
-    "message": "Unpin"
+    "message": "取消置顶"
   },
   "floatingPanelRemoveConversation": {
-    "message": "Remove conversation"
+    "message": "移除对话"
   },
   "floatingPanelStarConversation": {
-    "message": "Star"
+    "message": "收藏"
   },
   "floatingPanelUnstarConversation": {
-    "message": "Unstar"
+    "message": "取消收藏"
   },
   "floatingPanelColor": {
-    "message": "Color"
+    "message": "颜色"
   },
   "floatingPanelExpandFolder": {
-    "message": "Expand"
+    "message": "展开"
   },
   "floatingPanelCollapseFolder": {
-    "message": "Collapse"
+    "message": "折叠"
   },
   "floatingPanelCloudUpload": {
-    "message": "Floating panel Cloud Upload"
+    "message": "上传至云端"
   },
   "floatingPanelCloudSync": {
-    "message": "Floating panel Cloud Sync"
+    "message": "云同步"
   },
   "floatingPanelGestureHint": {
-    "message": "Floating panel Gesture Hint"
+    "message": "双击名称重命名，右键打开菜单"
   },
   "folder_new_chat_in_folder": {
-    "message": "New chat in folder"
+    "message": "在文件夹中新建对话"
   },
   "pm_backup_step3": {
-    "message": "Use import or export."
+    "message": "使用导入或导出。"
   },
   "starProject": {
-    "message": "为项目点亮"
+    "message": "收藏项目"
   },
   "supportMysteryButton": {
-    "message": "神秘小按钮"
+    "message": "神秘按钮"
   },
   "folder_remove_conversation_confirm": {
-    "message": "Remove this conversation from the folder?"
+    "message": "将此对话从文件夹中移除？"
   },
   "aiOrgInstructionsBody": {
-    "message": "Use the current folder structure as context."
+    "message": "将当前文件夹结构作为上下文。"
   },
   "folderAsProject_selectFolder": {
-    "message": "Select folder"
+    "message": "选择文件夹"
   },
   "floatingPanelMoveHint": {
-    "message": "Drag to move"
+    "message": "拖动以移动"
   },
   "conversation_saved_to_root": {
-    "message": "Saved to root"
+    "message": "已保存到根目录"
   },
   "folder_default_name": {
-    "message": "New folder"
+    "message": "新建文件夹"
   },
   "conversation_added_to_folder": {
-    "message": "Added to folder"
+    "message": "已添加到文件夹"
   },
   "folder_export_in_progress": {
-    "message": "Exporting folders..."
+    "message": "正在导出文件夹…"
   },
   "folder_import_in_progress": {
-    "message": "Importing folders..."
+    "message": "正在导入文件夹…"
   },
   "mermaidRendering": {
     "message": "Mermaid 图表"
@@ -1603,19 +1641,19 @@
     "message": "长代码块折叠"
   },
   "longCodeBlockCollapseHint": {
-    "message": "为较长的 ChatGPT 代码块添加展开和折叠按钮。"
+    "message": "为 ChatGPT 的长代码块添加展开 / 折叠按钮。"
   },
   "responseCompleteNotification": {
     "message": "回复完成通知"
   },
   "responseCompleteNotificationHint": {
-    "message": "ChatGPT 回复完成时显示系统通知；点击通知返回对应对话。"
+    "message": "ChatGPT 完成回复时显示系统通知，点击后返回该对话。"
   },
   "responseCompleteNotificationTitle": {
-    "message": "ChatGPT 回复完成"
+    "message": "ChatGPT 回复已完成"
   },
   "responseCompleteNotificationMessage": {
-    "message": "回复已完成。"
+    "message": "回复已就绪。"
   },
   "codeBlockExpand": {
     "message": "展开代码块"
@@ -1624,40 +1662,40 @@
     "message": "折叠代码块"
   },
   "quoteReplyHint": {
-    "message": "用选中文本作为引用上下文回复。"
+    "message": "将选中的文字作为引用上下文进行回复。"
   },
   "inputCollapseWhenNotEmpty": {
-    "message": "有内容时也可折叠"
+    "message": "折叠已有内容的输入框"
   },
   "inputCollapseWhenNotEmptyHint": {
-    "message": "允许输入框里有文本时仍然折叠。"
+    "message": "允许输入框在有文字时仍可折叠。"
   },
   "enableFloatingFolderPanel": {
-    "message": "浮动文件夹面板"
+    "message": "悬浮文件夹面板"
   },
   "enableFolders": {
-    "message": "启用文件夹"
+    "message": "文件夹"
   },
   "layoutOptions": {
     "message": "布局"
   },
   "inputOptions": {
-    "message": "输入增强"
+    "message": "输入"
   },
   "markdownOptions": {
-    "message": "Markdown / 公式"
+    "message": "Markdown"
   },
   "appearanceOptions": {
     "message": "外观"
   },
   "gentleDarkMode": {
-    "message": "更温和的深色模式"
+    "message": "柔和深色模式"
   },
   "gentleDarkModeHint": {
-    "message": "深色模式下，把纯黑背景换成柔和的深灰，看着不那么刺眼。"
+    "message": "在深色模式下，将 ChatGPT 的纯黑背景替换为柔和的深灰色，降低视觉反差。"
   },
   "favoritesSidebarTitle": {
-    "message": "收藏夹"
+    "message": "收藏"
   },
   "favoritesCurrentSectionTitle": {
     "message": "当前对话"
@@ -1672,19 +1710,19 @@
     "message": "按对话"
   },
   "favoritesEmptyAll": {
-    "message": "暂无收藏。点击时间线预览里的 ★ 即可收藏消息。"
+    "message": "暂无收藏消息，点击时间线预览中的 ★ 即可添加。"
   },
   "favoritesEmptyCurrent": {
-    "message": "当前对话还没有收藏。"
+    "message": "此对话暂无收藏。"
   },
   "favoritesRemove": {
     "message": "移除收藏"
   },
   "favoritesJumpDialogTitle": {
-    "message": "跳转到其他对话？"
+    "message": "跳转到另一段对话？"
   },
   "favoritesJumpDialogBody": {
-    "message": "离开当前对话会载入另一个会话。如果你当前在临时对话里，离开后内容会丢失。输入框里未发送的文字已由草稿自动保存功能托底，但还是建议你确认一下再继续。"
+    "message": "离开当前对话后将加载另一段对话。若你正在临时对话中，其内容会丢失。输入框中未发送的文字会由草稿自动保存功能保存，但继续前仍请确认。"
   },
   "favoritesJumpDialogConfirm": {
     "message": "跳转"
@@ -1693,28 +1731,28 @@
     "message": "取消"
   },
   "favoritesJumpDialogTargetLabel": {
-    "message": "目标对话："
+    "message": "目标："
   },
   "favoritesUntitledConversation": {
     "message": "未命名对话"
   },
   "tempChatRegretButton": {
-    "message": "临时反悔"
+    "message": "挽回临时对话"
   },
   "tempChatRegretButtonTooltip": {
-    "message": "把当前临时对话作为前情提要带到一段正式对话——抓取所有消息后会自动关闭临时模式并把衔接 prompt 填进输入框，由你决定是否发送。"
+    "message": "将这段临时对话保存为续聊提示词，交接给一段新的永久对话：滚动到顶部加载全部消息，自动退出临时模式，再将提示词粘贴到输入框供你检查和发送。"
   },
   "tempChatRegretConfirmTitle": {
-    "message": "临时反悔"
+    "message": "挽回临时对话"
   },
   "tempChatRegretConfirmBodyHead": {
-    "message": "即将把当前临时对话作为前情提要带到一段新的正式对话。"
+    "message": "即将把当前临时对话提取为续聊提示词，并交接给一段新的永久对话。"
   },
   "tempChatRegretConfirmBodyDetail": {
-    "message": "过程会需要几秒钟：先滚到顶部加载所有历史消息（约 {count}+ 条已在视野内），然后关闭临时模式、把衔接 prompt 填进输入框。期间请不要操作页面。"
+    "message": "这需要几秒钟：先滚动到顶部加载全部历史消息（当前已显示约 {count}+ 条），再退出临时模式并将续聊提示词粘贴到输入框。期间请勿操作页面。"
   },
   "tempChatRegretConfirmBodyFooter": {
-    "message": "最后是否发送由你决定 —— prompt 会停在输入框等你审视。"
+    "message": "是否发送由你决定，提示词会停留在输入框中等待检查。"
   },
   "tempChatRegretConfirmCancel": {
     "message": "取消"
@@ -1723,7 +1761,7 @@
     "message": "继续"
   },
   "tempChatRegretOverlayHint": {
-    "message": "请不要操作页面"
+    "message": "请勿操作页面"
   },
   "tempChatRegretMsgLoading": {
     "message": "正在加载历史消息…"
@@ -1732,57 +1770,324 @@
     "message": "已加载 {count} 条消息…"
   },
   "tempChatRegretMsgExtracting": {
-    "message": "提取对话内容…"
+    "message": "正在提取对话…"
   },
   "tempChatRegretMsgLeavingTemp": {
-    "message": "关闭临时模式…"
+    "message": "正在退出临时模式…"
   },
   "tempChatRegretMsgFillingInline": {
-    "message": "填入衔接 prompt…"
+    "message": "正在填入续聊提示词…"
   },
   "tempChatRegretMsgFillingAttachment": {
-    "message": "填入指令 + 上传 .txt…"
+    "message": "正在填入说明并上传 .txt…"
   },
   "tempChatRegretErrNotInTempMode": {
-    "message": "不在临时聊天模式"
+    "message": "当前不在临时对话模式"
   },
   "tempChatRegretErrNoMessages": {
-    "message": "临时对话还没有任何消息"
+    "message": "此临时对话尚无消息"
   },
   "tempChatRegretErrExtractFailed": {
-    "message": "没能从 DOM 里提取出任何消息（ChatGPT 的 DOM 结构可能变了）"
+    "message": "未能从 DOM 提取到消息（ChatGPT 布局可能已变化）"
   },
   "tempChatRegretErrCantLeaveTemp": {
-    "message": "没能关闭临时模式，请手动点掉临时聊天图标后重试"
+    "message": "无法退出临时模式，请手动关闭临时对话图标后重试"
   },
   "tempChatRegretErrInputNotFound": {
-    "message": "找不到输入框，prompt 已复制到剪贴板"
+    "message": "未找到输入框，提示词已复制到剪贴板"
   },
   "tempChatRegretErrFailed": {
     "message": "操作失败"
   },
   "tempChatRegretErrPartial": {
-    "message": "部分内容注入失败，请检查输入框（已复制到剪贴板）"
+    "message": "部分内容填入失败，请检查输入框（也已复制到剪贴板）"
   },
   "tempChatRegretOkInline": {
-    "message": "衔接 prompt 已就绪（{count} 条消息），点发送即可继续"
+    "message": "续聊提示词已就绪（{count} 条消息），点击发送即可继续。"
   },
   "tempChatRegretOkAttachment": {
-    "message": "衔接已就绪：指令 + {filename}（{count} 条消息），点发送即可继续"
+    "message": "续聊内容已就绪：说明和 {filename}（{count} 条消息），点击发送即可继续。"
   },
   "tempChatRegretDirectiveTitle": {
-    "message": "[来自临时对话的接力]"
+    "message": "[临时对话交接]"
   },
   "tempChatRegretDirectiveInlineBody": {
-    "message": "以下是我们刚刚在临时模式里的完整对话（**Markdown 源码**——原本带粗体、代码块、列表、公式、标题等格式）。请扮演同样的角色、保持相同的语气、知识状态和上下文，无缝接续这次对话。\n\n第一步：用**完整的 Markdown 排版**把下面**最后一条 assistant 消息**逐字复述一遍作为衔接，让我看到熟悉的接续点——**别因为载体看上去是纯文本就退化成无格式回复**，原本就是 Markdown。复述完即停，等我下一条消息。\n\n后续所有回复请保持 Markdown 排版风格，和原对话里 assistant 的格式习惯一致。"
+    "message": "以下是我们在临时模式下的完整对话（**Markdown 源码**，粗体、代码块、列表、数学公式、标题等均保留原始语法）。请沿用相同的角色、语气、知识状态与上下文，无缝继续。\n\n第 1 步：将下方最后一条助手消息逐字复述，并**完整保留正确的 Markdown 格式**，作为衔接；**不要因为载体看起来是纯文本就降级为纯文本**，原文就是 Markdown。然后停下，等待我的下一条消息。\n\n此后的所有回复也请继续使用 Markdown 格式，与原对话中助手的排版习惯保持一致。"
   },
   "tempChatRegretDirectiveAttachmentBody": {
-    "message": "我们刚才在临时模式里的完整对话见**附件中的 .txt 文件**（按 ## User / ## Assistant 分段）。\n\n**注意：附件后缀是 .txt 仅仅因为上传机制要求，文件内容其实是 Markdown 源码**——粗体、代码块、列表、公式、标题这些格式标记都以 Markdown 语法的形式存在文本里。请按 Markdown 阅读和理解。\n\n请扮演同样的角色、保持相同的语气、知识状态和上下文，无缝接续这次对话。\n\n第一步：用**完整的 Markdown 排版**把附件里**最后一条 assistant 消息**逐字复述一遍作为衔接——**别因为附件后缀是 .txt 就退化成纯文本回复**，原本就是 Markdown。复述完即停，等我下一条消息。\n\n后续所有回复请保持 Markdown 排版风格，和原对话里 assistant 的格式习惯一致。"
+    "message": "临时模式下的完整对话保存在**随附的 .txt 文件**中（按 ## User / ## Assistant 分段）。\n\n**注意：扩展名使用 `.txt` 只是因为上传限制，内容实际是 Markdown 源码**，粗体、代码块、列表、数学公式、标题等均以原始 Markdown 语法保留。阅读时请将其视为 Markdown。\n\n请沿用相同的角色、语气、知识状态与上下文，无缝继续。\n\n第 1 步：将附件中最后一条助手消息逐字复述，并**完整保留正确的 Markdown 格式**，作为衔接；**不要因为文件是 .txt 就降级为纯文本**，原文就是 Markdown。然后停下，等待我的下一条消息。\n\n此后的所有回复也请继续使用 Markdown 格式，与原对话中助手的排版习惯保持一致。"
   },
   "tempChatRegretTranscriptStart": {
-    "message": "—— 临时对话内容 ——"
+    "message": "—— 对话 ——"
   },
   "tempChatRegretTranscriptEnd": {
     "message": "—— 结束 ——"
+  },
+  "responseImageCopy": {
+    "message": "将回复复制为图片"
+  },
+  "responseImageCopied": {
+    "message": "回复图片已复制"
+  },
+  "responseImageDownloaded": {
+    "message": "回复图片已下载（Safari 剪贴板限制）"
+  },
+  "responseImageFailed": {
+    "message": "复制回复图片失败"
+  },
+  "responseImageUnsupported": {
+    "message": "此浏览器不支持将图片复制到剪贴板"
+  },
+  "responseImageMissing": {
+    "message": "无法找到回复内容"
+  },
+  "exportConversationMissing": {
+    "message": "无法找到所选对话，请先打开该对话再导出。"
+  },
+  "exportConversationOpenFailed": {
+    "message": "无法打开所选对话进行导出，请重试。"
+  },
+  "exportTooManyAttempts": {
+    "message": "导出已停止：检测到尝试次数过多。"
+  },
+  "exportFailed": {
+    "message": "导出失败，请重试。"
+  },
+  "exportIncompleteConversation": {
+    "message": "GPT-Voyager 无法可靠地加载完整对话，请保持此对话打开并重试。"
+  },
+  "exportRecommended": {
+    "message": "推荐"
+  },
+  "exportImageLabel": {
+    "message": "图片"
+  },
+  "exportDocumentLabel": {
+    "message": "文档"
+  },
+  "exportConversationLabel": {
+    "message": "对话"
+  },
+  "exportNoContent": {
+    "message": "无内容"
+  },
+  "exportUserLabel": {
+    "message": "用户"
+  },
+  "exportAssistantLabel": {
+    "message": "助手"
+  },
+  "exportSource": {
+    "message": "由 GPT-Voyager 导出"
+  },
+  "exportTurns": {
+    "message": "{count} 轮对话"
+  },
+  "exportDateLabel": {
+    "message": "日期"
+  },
+  "exportConversationIdLabel": {
+    "message": "对话 ID"
+  },
+  "exportSourceUrlLabel": {
+    "message": "来源"
+  },
+  "exportImageUnavailable": {
+    "message": "Safari 导出中无法显示图片：{label}"
+  },
+  "exportSearchImage": {
+    "message": "搜索结果图片"
+  },
+  "exportGeneratedImage": {
+    "message": "生成的图片"
+  },
+  "exportResearchReport": {
+    "message": "深度研究报告"
+  },
+  "shortcutPressKey": {
+    "message": "请按键…"
+  },
+  "shortcutEscapeCancel": {
+    "message": "按 Esc 取消"
+  },
+  "toggleDarkMode": {
+    "message": "切换深色模式"
+  },
+  "switchToLight": {
+    "message": "切换为浅色模式"
+  },
+  "switchToDark": {
+    "message": "切换为深色模式"
+  },
+  "sidePanel": {
+    "message": "侧面板"
+  },
+  "wechatLabel": {
+    "message": "微信"
+  },
+  "alipayLabel": {
+    "message": "支付宝"
+  },
+  "wechatQr": {
+    "message": "微信二维码"
+  },
+  "alipayQr": {
+    "message": "支付宝二维码"
+  },
+  "mermaidZoomIn": {
+    "message": "放大"
+  },
+  "mermaidZoomOut": {
+    "message": "缩小"
+  },
+  "mermaidReset": {
+    "message": "重置"
+  },
+  "mermaidClose": {
+    "message": "关闭（Esc）"
+  },
+  "mermaidHint": {
+    "message": "滚轮缩放 · 拖动平移 · Esc 关闭"
+  },
+  "mermaidDiagram": {
+    "message": "图表"
+  },
+  "mermaidCode": {
+    "message": "代码"
+  },
+  "timelineTogglePreview": {
+    "message": "切换预览面板"
+  },
+  "timelinePreviousPin": {
+    "message": "此消息的上一个图钉"
+  },
+  "timelineNextPin": {
+    "message": "此消息的下一个图钉"
+  },
+  "timelinePinText": {
+    "message": "在当前对话中钉住文字"
+  },
+  "timelineDeletePin": {
+    "message": "删除选中的图钉"
+  },
+  "newChat": {
+    "message": "新对话"
+  },
+  "forkContextPrefix": {
+    "message": "# 分支上下文\n你正在继续一段分支对话。\n- 下方是截至分支点的对话历史。\n- 请从最后一条“User”消息开始，作为新分支继续。\n- 不要重写历史，只需给出助手的下一条回复。\n"
+  },
+  "forkHistoryHeading": {
+    "message": "对话历史"
+  },
+  "exportLoadingHistory": {
+    "message": "正在加载对话历史（{count}）…"
+  },
+  "exportUpdatingCache": {
+    "message": "正在更新对话缓存…"
+  },
+  "exportCheckingCache": {
+    "message": "正在检查对话缓存…"
+  },
+  "multi_select_count": {
+    "message": "已选择 {count} 项"
+  },
+  "batch_remove_from_folder_confirm": {
+    "message": "从此文件夹中移除 {count} 段对话？"
+  },
+  "multi_select_exit": {
+    "message": "退出选择模式"
+  },
+  "folderManager_dataRecoveredFromBackup": {
+    "message": "已从本地备份恢复文件夹数据。"
+  },
+  "folder_import_invalid_version": {
+    "message": "不支持此文件夹备份版本。"
+  },
+  "folder_import_missing_data": {
+    "message": "此备份缺少必要的文件夹数据。"
+  },
+  "folder_import_corrupted_data": {
+    "message": "文件夹备份包含无效数据。"
+  },
+  "folder_import_save_failed": {
+    "message": "无法保存导入的文件夹，请检查扩展存储后重试。"
+  },
+  "announcementUnavailableTitle": {
+    "message": "公告暂不可用"
+  },
+  "announcementUnavailableBody": {
+    "message": "无法加载公告，请稍后重试。"
+  },
+  "announcementTranslationFallback": {
+    "message": "此翻译暂不可用，正在显示{language}。"
+  },
+  "announcementCached": {
+    "message": "正在显示上次保存的公告，暂时无法加载最新内容。"
+  },
+  "exportTurn": {
+    "message": "第 {count} 轮"
+  },
+  "exportTurnsLabel": {
+    "message": "轮次"
+  },
+  "exportGeneratedOn": {
+    "message": "生成于 {date}"
+  },
+  "exportCreatedLabel": {
+    "message": "创建时间"
+  },
+  "exportExportedLabel": {
+    "message": "导出时间"
+  },
+  "exportAttachmentsLabel": {
+    "message": "附件"
+  },
+  "exportIncludesImages": {
+    "message": "本轮包含上传的图片"
+  },
+  "exportYouLabel": {
+    "message": "你"
+  },
+  "exportSystemLabel": {
+    "message": "系统"
+  },
+  "exportToolLabel": {
+    "message": "工具"
+  },
+  "customWebsiteAlreadyAdded": {
+    "message": "这个网站已添加。"
+  },
+  "customFontUnsupported": {
+    "message": "{fileName}：不支持的字体格式。请使用 woff2、woff、ttf 或 otf。"
+  },
+  "customFontTooLarge": {
+    "message": "{fileName}：文件过大（{size} KB > 4 MB）。"
+  },
+  "customFontImported": {
+    "message": "已导入 {fontName}（{size} KB）。"
+  },
+  "customFontImportFailed": {
+    "message": "字体导入失败：{error}"
+  },
+  "settingsSaveFailed": {
+    "message": "无法保存此设置，请重试。"
+  },
+  "pm_backup_complete": {
+    "message": "备份完成 — 提示词：{promptCount}；文件夹：{folderCount}。"
+  },
+  "pm_backup_download_complete": {
+    "message": "备份已下载：{fileName} — 提示词：{promptCount}；文件夹：{folderCount}。"
+  },
+  "tempChatRegretErrCollectionTimeout": {
+    "message": "对话未能在收集超时前完成更新。"
+  },
+  "tempChatRegretErrHistoryTimeout": {
+    "message": "对话历史未能在收集超时前完成加载。"
+  },
+  "tempChatRegretErrCollectionStopped": {
+    "message": "对话收集提前停止（已找到 {count} 条消息）。"
+  },
+  "export_image_render_failed": {
+    "message": "图片渲染失败（{width} × {height}）"
   }
 }

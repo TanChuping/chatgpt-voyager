@@ -2,10 +2,13 @@ import React, { useLayoutEffect, useState } from 'react';
 
 import { Moon, Sun } from 'lucide-react';
 
+import { useLanguage } from '../contexts/LanguageContext';
+
 import { useDarkMode } from '../hooks/useDarkMode';
 import { Button } from './ui/button';
 
 export const DarkModeToggle: React.FC = () => {
+  const { t } = useLanguage();
   const { isDark, toggleDarkMode } = useDarkMode();
   // Animate the icon swap only once the theme has actually changed — never
   // on first paint, and never on the outgoing icon (it would be caught
@@ -29,7 +32,7 @@ export const DarkModeToggle: React.FC = () => {
       variant="ghost"
       size="icon"
       onClick={(e) => toggleDarkMode(e)}
-      title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={isDark ? t('switchToLight') : t('switchToDark')}
       className="text-fg-3 hover:text-fg h-[30px] w-[30px]"
     >
       <span key={isDark ? 'sun' : 'moon'} className={swapped ? 'gv-icon-swap' : 'inline-flex'}>
@@ -39,7 +42,7 @@ export const DarkModeToggle: React.FC = () => {
           <Moon className="h-4 w-4" strokeWidth={1.8} />
         )}
       </span>
-      <span className="sr-only">Toggle dark mode</span>
+      <span className="sr-only">{t('toggleDarkMode')}</span>
     </Button>
   );
 };

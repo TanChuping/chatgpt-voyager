@@ -25,7 +25,7 @@ import {
   ValidationErrorType,
 } from '@/features/folder/types/import-export';
 import { sanitizeFolderConversationUrl } from '@/features/folder/utils/conversationUrlSecurity';
-import { getTranslationSync, getTranslationSyncUnsafe, initI18n } from '@/utils/i18n';
+import { getCachedLanguage, getTranslationSync, getTranslationSyncUnsafe, initI18n } from '@/utils/i18n';
 
 import {
   extractChatGptConversationIdFromUrl,
@@ -2273,7 +2273,14 @@ export class FolderManager {
     const title = document.createElement('span');
     title.className = 'gv-conversation-title gds-label-l';
     title.id = `gv-conversation-title-${this.generateId()}`;
-    title.textContent = displayTitle;
+    if (!displayTitle || (!conv.customTitle && this.isUntitledPlaceholder(displayTitle))) {
+      // Translate only the display placeholder. The persisted legacy sentinel
+      // must stay recognizable by delayed native-title reconciliation.
+      title.textContent = getTranslationSync('conversation_untitled');
+      title.setAttribute('data-gv-i18n-text', 'conversation_untitled');
+    } else {
+      title.textContent = displayTitle;
+    }
 
     // Add tooltip event listeners
     title.addEventListener('mouseenter', () =>
@@ -6586,8 +6593,10 @@ export class FolderManager {
         return bTime - aTime;
       });
       sorted.forEach((conv, i) => {
-        const original = conversations.find((c) => c.conversationId === conv.conversationId);
-        if (original && original.sortIndex == null) original.sortIndex = i;
+        // The sorted array contains the original conversation objects; integrity
+        // validation already removed duplicate IDs. Avoid searching the whole
+        // folder again for each old conversation that needs an order index.
+        if (conv.sortIndex == null) conv.sortIndex = i;
       });
     }
   }
@@ -6662,7 +6671,9 @@ export class FolderManager {
         conversations.map((conversation) => ({ ...conversation })),
       ]),
     );
-    return { folders, folderContents };
+    // Preserve optional/unknown fields from older exports while replacing the
+    // mutable collections with the save snapshot's copies.
+    return { ...data, folders, folderContents };
   }
 
   /** Import migration only: old Gemini backups encoded an account slot in
@@ -7351,6 +7362,9 @@ export class FolderManager {
       }
     };
     browser.storage.onChanged.addListener(this.storageChangeListener);
+    const refreshLanguage = () => this.updateHeaderLanguageText();
+    window.addEventListener('voyager:language-changed', refreshLanguage);
+    this.cleanupTasks.push(() => window.removeEventListener('voyager:language-changed', refreshLanguage));
 
     // Perform migration from legacy settings
     void this.performMigration();
@@ -8805,9 +8819,9 @@ export class FolderManager {
     if (diffMins < 1) {
       return this.t('justNow');
     } else if (diffMins < 60) {
-      return `${diffMins} ${this.t('minutesAgo')}`;
+      return new Intl.RelativeTimeFormat(getCachedLanguage(), { numeric: 'auto' }).format(-diffMins, 'minute');
     } else if (diffHours < 24) {
-      return `${diffHours} ${this.t('hoursAgo')}`;
+      return new Intl.RelativeTimeFormat(getCachedLanguage(), { numeric: 'auto' }).format(-diffHours, 'hour');
     } else if (diffDays === 1) {
       return this.t('yesterday');
     } else {

@@ -10,29 +10,32 @@
  * Also exports `openCurrentAnnouncementModal()` so the prompt-manager
  * version chip (`.gv-pm-version`) can wire into the same code path.
  */
-import { getTranslationSyncUnsafe } from '@/utils/i18n';
+import { getTranslationSyncUnsafe, initI18n, subscribeLanguageChange } from '@/utils/i18n';
 
-import { mountBubble, type BubbleHandle } from './bubble';
-import { openAnnouncementModal } from './modal';
+import { type BubbleHandle, mountBubble } from './bubble';
+import { openAnnouncementModal, refreshOpenAnnouncementModalLanguage } from './modal';
+import {
+  type AnnouncementSnapshot,
+  getLastSnapshot,
+  installAnnouncementWatchers,
+  markBubbleShown,
+  markSeen,
+  refreshSnapshot,
+} from './service';
 import {
   applyUnreadState,
   getButtonElement,
   setAnnouncementButtonAvailableListener,
   startTopBarAnnouncementButton,
   stopTopBarAnnouncementButton,
+  updateAnnouncementButtonLabel,
 } from './topBarButton';
-import {
-  getLastSnapshot,
-  installAnnouncementWatchers,
-  markBubbleShown,
-  markSeen,
-  refreshSnapshot,
-  type AnnouncementSnapshot,
-} from './service';
 import type { RemoteAnnouncement } from './types';
 
 let bubble: BubbleHandle | null = null;
 let started = false;
+let unsubscribeLanguage: (() => void) | null = null;
+let startRevision = 0;
 
 /**
  * The announcement id our currently-mounted bubble belongs to. Used to
@@ -83,16 +86,16 @@ function tt(key: string, fallback: string): string {
 }
 
 function openModalFor(announcement: RemoteAnnouncement): void {
+  pendingAnnouncement = null;
   // Close the bubble first so the modal isn't fighting it for attention.
   destroyBubble();
   openAnnouncementModal({
     announcement,
     closeLabel: tt('announcementClose', 'Close'),
     versionPrefix: 'v',
+    cached: getLastSnapshot().status === 'stale',
     onClose: () => {
-      // The user has now read it — mark seen. Other tabs will also
-      // dismiss via the storage.onChanged listener.
-      void markSeen(announcement.id);
+      /* Opening already acknowledged this ID; language/close do not extend cooldowns. */
     },
   });
   // Mark as seen immediately on open as well — closing via × should not
@@ -121,7 +124,7 @@ function showBubbleFor(announcement: RemoteAnnouncement): void {
   // The `current.id`-keyed flag means a NEW announcement (different
   // id pushed to the support repo) STILL passes the shouldPopBubble
   // check — eager write only locks in the *current* id.
-  void markBubbleShown(announcement.id);
+  if (mountedBubbleId !== announcement.id) void markBubbleShown(announcement.id);
 
   // IDEMPOTENCY: applySnapshot fires twice per refresh (notify path +
   // any redundant .then path) — and any cross-tab onChanged can fire
@@ -149,7 +152,11 @@ function showBubbleFor(announcement: RemoteAnnouncement): void {
     detailLabel: tt('announcementDetail', 'View details'),
     closeLabel: tt('announcementClose', 'Close'),
     onDetail: () => {
-      openModalFor(announcement);
+      openModalFor(
+        getLastSnapshot().current?.id === announcement.id
+          ? getLastSnapshot().current!
+          : announcement,
+      );
     },
     onClose: () => {
       void markSeen(announcement.id);
@@ -195,7 +202,9 @@ function onAnnouncementButtonAvailable(): void {
     detailLabel: tt('announcementDetail', 'View details'),
     closeLabel: tt('announcementClose', 'Close'),
     onDetail: () => {
-      openModalFor(pending);
+      openModalFor(
+        getLastSnapshot().current?.id === pending.id ? getLastSnapshot().current! : pending,
+      );
     },
     onClose: () => {
       void markSeen(pending.id);
@@ -205,10 +214,24 @@ function onAnnouncementButtonAvailable(): void {
 }
 
 function applySnapshot(snapshot: AnnouncementSnapshot): void {
+  if (!started) return;
   applyUnreadState(snapshot.hasUnread);
+  if (bubble && snapshot.current?.id !== mountedBubbleId) destroyBubble();
+  if (pendingAnnouncement && snapshot.current?.id === pendingAnnouncement.id) {
+    pendingAnnouncement = snapshot.current;
+  }
+  if (bubble && snapshot.current?.id === mountedBubbleId) {
+    bubble.update({
+      title: snapshot.current.title,
+      summary: snapshot.current.summary,
+      detailLabel: tt('announcementDetail', 'View details'),
+      closeLabel: tt('announcementClose', 'Close'),
+    });
+  }
   if (snapshot.shouldPopBubble && snapshot.current) {
     showBubbleFor(snapshot.current);
   } else if (!snapshot.hasUnread) {
+    pendingAnnouncement = null;
     // Cross-tab acknowledgment: another tab just marked this seen —
     // dismiss any bubble we still have hanging around. Also clear
     // mountedBubbleId so a fresh announcement (different id) can
@@ -223,6 +246,7 @@ function applySnapshot(snapshot: AnnouncementSnapshot): void {
  * without re-importing all the service plumbing.
  */
 export async function openCurrentAnnouncementModal(): Promise<void> {
+  await initI18n();
   // Force a refresh so a user clicking right after a push sees the new
   // content even if the 30-min cache hasn't expired.
   const snap = await refreshSnapshot(true);
@@ -234,12 +258,21 @@ export async function openCurrentAnnouncementModal(): Promise<void> {
     openAnnouncementModal({
       announcement: {
         id: 'gv-no-current',
-        title: tt('announcementEmptyTitle', 'No announcements'),
+        title:
+          snap.status === 'unavailable'
+            ? tt('announcementUnavailableTitle', 'Announcements unavailable')
+            : tt('announcementEmptyTitle', 'No announcements'),
         summary: '',
-        bodyMarkdown: tt(
-          'announcementEmptyBody',
-          'There are no extension announcements right now. Check back later.',
-        ),
+        bodyMarkdown:
+          snap.status === 'unavailable'
+            ? tt(
+                'announcementUnavailableBody',
+                'Announcements could not be loaded. Please try again later.',
+              )
+            : tt(
+                'announcementEmptyBody',
+                'There are no extension announcements right now. Check back later.',
+              ),
       },
       closeLabel: tt('announcementClose', 'Close'),
       onClose: () => {
@@ -252,51 +285,34 @@ export async function openCurrentAnnouncementModal(): Promise<void> {
 export function startAnnouncement(): void {
   if (started) return;
   started = true;
-
-  startTopBarAnnouncementButton({
-    label: tt('announcementButton', 'Announcements'),
-    onClick: () => {
-      void openCurrentAnnouncementModal();
-    },
+  const revision = ++startRevision;
+  // Wait for the saved preference and dictionary before creating visible labels.
+  void initI18n().then(() => {
+    if (!started || revision !== startRevision) return;
+    startTopBarAnnouncementButton({
+      label: tt('announcementButton', 'Announcements'),
+      onClick: () => {
+        void openCurrentAnnouncementModal();
+      },
+    });
+    setAnnouncementButtonAvailableListener(onAnnouncementButtonAvailable);
+    installAnnouncementWatchers(applySnapshot);
+    unsubscribeLanguage = subscribeLanguageChange(() => {
+      updateAnnouncementButtonLabel(tt('announcementButton', 'Announcements'));
+      refreshOpenAnnouncementModalLanguage();
+      // This refresh only selects text from the current cache. It does not
+      // acknowledge, re-pop, or modify the read/cooldown keys.
+      void refreshSnapshot();
+    });
+    void refreshSnapshot();
   });
-
-  // Register BEFORE the first refreshSnapshot/applySnapshot so that
-  // if the button is *already* in the DOM by the time we get here
-  // (uncommon but possible if startAnnouncement is called late in
-  // feature-init), the listener fires immediately and re-syncs state.
-  setAnnouncementButtonAvailableListener(onAnnouncementButtonAvailable);
-
-  installAnnouncementWatchers(applySnapshot);
-
-  // Kick off the first fetch + render pass. Note: we DON'T chain
-  // `.then(applySnapshot)` here. `refreshSnapshot` internally calls
-  // `notify(snap)`, which fan-outs to every subscriber including the
-  // one `installAnnouncementWatchers` registered above pointing at
-  // `applySnapshot`. Calling .then(applySnapshot) would fire a SECOND
-  // applySnapshot with the same snapshot — and with eager-mark
-  // shouldPopBubble flipping true→false async, the two calls would
-  // race and each could call showBubbleFor, which (pre-fix) destroyed
-  // and re-mounted the bubble = visible flashing + × button stolen
-  // mid-click. The notify path is enough.
-  void refreshSnapshot();
-
-  // The old 2.5s setTimeout retry is now redundant (button-available
-  // listener covers the same case more responsively), but we keep a
-  // shorter version as a defense against the listener never firing —
-  // e.g., if ChatGPT removes the temp-toggle anchor entirely and our
-  // findAnchor returns null indefinitely. In that scenario the bubble
-  // can't visually appear anyway, but a snapshot re-eval is harmless.
-  window.setTimeout(() => {
-    const snap = getLastSnapshot();
-    if (snap.shouldPopBubble && snap.current && !bubble) {
-      applySnapshot(snap);
-    }
-  }, 2500);
 }
 
 export function stopAnnouncement(): void {
-  bubble?.destroy();
-  bubble = null;
+  startRevision++;
+  unsubscribeLanguage?.();
+  unsubscribeLanguage = null;
+  destroyBubble();
   pendingAnnouncement = null;
   setAnnouncementButtonAvailableListener(null);
   stopTopBarAnnouncementButton();

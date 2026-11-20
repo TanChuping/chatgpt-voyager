@@ -7,20 +7,15 @@ import { Check, ChevronRight, RotateCcw, Star } from 'lucide-react';
 import browser from 'webextension-polyfill';
 
 import { PROJECT_REPOSITORY_URL } from '@/core/constants/project';
-import {
-  DEFAULT_SUPPORT_GOAL,
-  SUPPORT_GOAL_REFRESH_MS,
-  type SupportGoalData,
-  formatSupportAmount,
-  getSupportGoalProgress,
-  loadSupportGoal,
-} from '@/core/services/SupportGoalService';
+import { CARD_REFRESH_MS, loadMysteryCard } from '@/core/services/mysteryCardFeed';
+import { cardText, renderMysteryCard, type MysteryCard } from '@/core/services/mysteryCard';
 import { StorageKeys } from '@/core/types/common';
 import {
   DEFAULT_SINGLE_CONV_EXPORT_FORMAT,
   type SingleConvExportFormat,
   isSingleConvExportFormat,
 } from '@/features/singleConvExport';
+import type { TranslationKey } from '@/utils/translations';
 
 import { DarkModeToggle } from '../../components/DarkModeToggle';
 import { LanguageSwitcher } from '../../components/LanguageSwitcher';
@@ -31,10 +26,23 @@ import { Switch } from '../../components/ui/switch';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { StarredHistory } from './components/StarredHistory';
 import WidthSlider from './components/WidthSlider';
+import { createSettingWriteQueue } from './settingWrites';
 
 type ScrollMode = 'jump' | 'flow';
 type FormulaCopyFormat = 'latex' | 'unicodemath' | 'no-dollar' | 'notion' | 'desmos';
 type PromptViewMode = 'compact' | 'comfortable';
+type PopupNotice = {
+  key: TranslationKey;
+  values?: Record<string, string | number>;
+  mark?: '✓' | '✗';
+};
+
+function renderNotice(notice: PopupNotice, t: (key: TranslationKey) => string): string {
+  const message = t(notice.key).replace(/\{(\w+)\}/g, (placeholder, key: string) =>
+    notice.values?.[key] === undefined ? placeholder : String(notice.values[key]),
+  );
+  return notice.mark ? `${notice.mark} ${message}` : message;
+}
 /**
  * Mirror of `FontPreset` in `src/pages/content/chatFontFamily/index.ts`.
  * Keep in sync — both ends validate against this list.
@@ -233,14 +241,24 @@ function ResetRow({ title, onReset }: { title: string; onReset: () => void }) {
   );
 }
 
+function ConfiguredCard({ card }: { card: MysteryCard }) {
+  const { language } = useLanguage();
+  const ref = useRef<HTMLDivElement>(null);
+  const selection = useRef(new Map<string, number>());
+  useLayoutEffect(() => {
+    ref.current?.replaceChildren(renderMysteryCard(card, language, selection.current));
+  }, [card, language]);
+  return <div ref={ref} />;
+}
+
 function SupportPopover({ label }: { label: string }) {
+  const { language } = useLanguage();
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
-  const [goal, setGoal] = useState<SupportGoalData>(DEFAULT_SUPPORT_GOAL);
+  const [card, setCard] = useState<MysteryCard | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const hoveringButtonRef = useRef(false);
   const hoveringPopoverRef = useRef(false);
-  const progress = getSupportGoalProgress(goal);
 
   const clearCloseTimer = () => {
     if (closeTimerRef.current === null) return;
@@ -266,12 +284,12 @@ function SupportPopover({ label }: { label: string }) {
     if (!open) return;
     let cancelled = false;
     const refresh = (force = false) =>
-      void loadSupportGoal({ force }).then((data) => {
-        if (!cancelled) setGoal(data);
+      void loadMysteryCard(force).then((data) => {
+        if (!cancelled) setCard(data);
       });
 
     refresh();
-    const interval = window.setInterval(() => refresh(true), SUPPORT_GOAL_REFRESH_MS);
+    const interval = window.setInterval(() => refresh(true), CARD_REFRESH_MS);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
@@ -280,7 +298,7 @@ function SupportPopover({ label }: { label: string }) {
 
   useEffect(() => () => clearCloseTimer(), []);
 
-  const visible = open && goal.enabled;
+  const visible = open && card?.enabled;
 
   return (
     <div className="relative">
@@ -305,7 +323,7 @@ function SupportPopover({ label }: { label: string }) {
           });
         }}
       >
-        {label}
+        {cardText(card?.label, language) || label}
       </button>
       {visible ? (
         <div
@@ -319,66 +337,7 @@ function SupportPopover({ label }: { label: string }) {
             scheduleClose();
           }}
         >
-          <div className="mb-3">
-            <p className="text-fg text-sm leading-[1.35] font-semibold">{goal.title}</p>
-            <p className="text-fg-2 mt-1 text-[12.5px] leading-[1.55]">{goal.description}</p>
-          </div>
-          {goal.imageUrl ? (
-            <img
-              src={goal.imageUrl}
-              alt={goal.title}
-              className="bg-well mb-3 max-h-36 w-full rounded-[10px] object-cover"
-            />
-          ) : null}
-          <div className="space-y-2">
-            <div className="text-fg-2 flex items-center justify-between text-xs font-medium tabular-nums">
-              <span>
-                {formatSupportAmount(goal.current, goal.currency)} /{' '}
-                {formatSupportAmount(goal.target, goal.currency)}
-              </span>
-              <span>{progress}%</span>
-            </div>
-            <div className="bg-well-2 h-1.5 overflow-hidden rounded-full">
-              <div
-                className="bg-primary h-full rounded-full transition-[width] duration-500"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-          <div className="mt-4 grid gap-3">
-            <a
-              href={goal.kofiUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="gv-btn bg-primary text-primary-foreground hover:bg-primary-hover inline-flex h-8 items-center justify-center rounded-[9px] px-4 text-[13px] font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_1px_2px_rgba(0,0,0,0.12)]"
-            >
-              Ko-fi
-            </a>
-          </div>
-          {goal.wechatQrUrl || goal.alipayQrUrl ? (
-            <div className="mt-3 grid grid-cols-2 gap-2.5">
-              {goal.wechatQrUrl ? (
-                <div className="bg-well text-fg-3 flex flex-col items-center justify-center overflow-hidden rounded-[10px] text-center text-[11px] leading-tight">
-                  <img
-                    src={goal.wechatQrUrl}
-                    alt="WeChat QR"
-                    className="aspect-square w-full object-cover"
-                  />
-                  <span className="py-1.5">微信</span>
-                </div>
-              ) : null}
-              {goal.alipayQrUrl ? (
-                <div className="bg-well text-fg-3 flex flex-col items-center justify-center overflow-hidden rounded-[10px] text-center text-[11px] leading-tight">
-                  <img
-                    src={goal.alipayQrUrl}
-                    alt="Alipay QR"
-                    className="aspect-square w-full object-cover"
-                  />
-                  <span className="py-1.5">支付宝</span>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+          <ConfiguredCard card={card} />
         </div>
       ) : null}
     </div>
@@ -387,6 +346,18 @@ function SupportPopover({ label }: { label: string }) {
 
 export default function Popup() {
   const { t } = useLanguage();
+  const translationRef = useRef(t);
+  translationRef.current = t;
+  const viewActiveRef = useRef(true);
+  const [settingWrites] = useState(() =>
+    createSettingWriteQueue((items) => browser.storage.sync.set(items)),
+  );
+  useEffect(() => {
+    viewActiveRef.current = true;
+    return () => {
+      viewActiveRef.current = false;
+    };
+  }, []);
   const [showStarredHistory, setShowStarredHistory] = useState(false);
   const [extVersion, setExtVersion] = useState('');
 
@@ -433,7 +404,7 @@ export default function Popup() {
    * Transient status line under the import button — last import success
    * or failure message. Not persisted; recomputed on each file pick.
    */
-  const [customFontStatus, setCustomFontStatus] = useState<string>('');
+  const [customFontStatus, setCustomFontStatus] = useState<PopupNotice | null>(null);
   const customFontInputRef = useRef<HTMLInputElement | null>(null);
   const [editInputWidthEnabled, setEditInputWidthEnabled] = useState(false);
   const [editInputWidth, setEditInputWidth] = useState(EDIT_PERCENT.defaultValue);
@@ -463,7 +434,7 @@ export default function Popup() {
   const [promptViewMode, setPromptViewMode] = useState<PromptViewMode>('comfortable');
   const [customWebsites, setCustomWebsites] = useState<string[]>([]);
   const [customWebsiteInput, setCustomWebsiteInput] = useState('');
-  const [customWebsiteNotice, setCustomWebsiteNotice] = useState('');
+  const [customWebsiteNotice, setCustomWebsiteNotice] = useState<PopupNotice | null>(null);
 
   const setSyncStorage = useCallback(async (items: Record<string, unknown>) => {
     await browser.storage.sync.set(items);
@@ -480,58 +451,81 @@ export default function Popup() {
    * are rejected before allocating any payload, to keep us under
    * chrome.storage.local's ~5 MB quota.
    */
-  const handleCustomFontPicked = useCallback(async (file: File) => {
-    const ext = (file.name.split('.').pop() || '').toLowerCase();
-    if (ext !== 'woff2' && ext !== 'woff' && ext !== 'ttf' && ext !== 'otf') {
-      setCustomFontStatus(`✗ ${file.name}: unsupported (use woff2/woff/ttf/otf)`);
-      return;
-    }
-    if (file.size > MAX_CUSTOM_FONT_BYTES) {
-      setCustomFontStatus(`✗ ${file.name}: too large (${Math.round(file.size / 1024)} KB > 4 MB)`);
-      return;
-    }
-    try {
-      const buf = await file.arrayBuffer();
-      // Base64-encode in 32 KB chunks. `String.fromCharCode(...bigArray)`
-      // overflows the call stack for files larger than ~125 KB on V8.
-      const bytes = new Uint8Array(buf);
-      const CHUNK = 0x8000;
-      let binary = '';
-      for (let i = 0; i < bytes.length; i += CHUNK) {
-        binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)));
+  const handleCustomFontPicked = useCallback(
+    async (file: File) => {
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      if (ext !== 'woff2' && ext !== 'woff' && ext !== 'ttf' && ext !== 'otf') {
+        setCustomFontStatus({
+          key: 'customFontUnsupported',
+          values: { fileName: file.name },
+          mark: '✗',
+        });
+        return;
       }
-      const base64 = btoa(binary);
-      const mime =
-        ext === 'woff2'
-          ? 'font/woff2'
-          : ext === 'woff'
-            ? 'font/woff'
-            : ext === 'ttf'
-              ? 'font/ttf'
-              : 'font/otf';
-      const dataUrl = `data:${mime};base64,${base64}`;
-      const displayName = file.name.replace(/\.[^.]+$/, '');
+      if (file.size > MAX_CUSTOM_FONT_BYTES) {
+        setCustomFontStatus({
+          key: 'customFontTooLarge',
+          values: { fileName: file.name, size: Math.round(file.size / 1024) },
+          mark: '✗',
+        });
+        return;
+      }
+      try {
+        const buf = await file.arrayBuffer();
+        // Base64-encode in 32 KB chunks. `String.fromCharCode(...bigArray)`
+        // overflows the call stack for files larger than ~125 KB on V8.
+        const bytes = new Uint8Array(buf);
+        const CHUNK = 0x8000;
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += CHUNK) {
+          binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)));
+        }
+        const base64 = btoa(binary);
+        const mime =
+          ext === 'woff2'
+            ? 'font/woff2'
+            : ext === 'woff'
+              ? 'font/woff'
+              : ext === 'ttf'
+                ? 'font/ttf'
+                : 'font/otf';
+        const dataUrl = `data:${mime};base64,${base64}`;
+        const displayName = file.name.replace(/\.[^.]+$/, '');
 
-      // Heavy payload → chrome.storage.local (sync has 8 KB per-item cap).
-      await browser.storage.local.set({ [StorageKeys.CHAT_CUSTOM_FONT_DATA]: dataUrl });
-      // Metadata + preset selection → chrome.storage.sync so it round-
-      // trips across devices. Without the data the content script falls
-      // back to system fonts gracefully on the other device.
-      await browser.storage.sync.set({
-        [StorageKeys.CHAT_CUSTOM_FONT_NAME]: displayName,
-        [StorageKeys.CHAT_CUSTOM_FONT_FORMAT]: ext,
-        [StorageKeys.CHAT_FONT_FAMILY]: 'custom',
-        [StorageKeys.CHAT_FONT_FAMILY_ENABLED]: true,
-      });
-      setCustomFontName(displayName);
-      setFontFamily('custom');
-      setFontFamilyEnabled(true);
-      setCustomFontStatus(`✓ ${displayName} (${Math.round(file.size / 1024)} KB)`);
-    } catch (err) {
-      console.warn('[GPT-Voyager] custom font import failed:', err);
-      setCustomFontStatus(`✗ ${String((err as Error)?.message || err)}`);
-    }
-  }, []);
+        // Heavy payload → chrome.storage.local (sync has 8 KB per-item cap).
+        await browser.storage.local.set({ [StorageKeys.CHAT_CUSTOM_FONT_DATA]: dataUrl });
+        // Metadata + preset selection → chrome.storage.sync so it round-
+        // trips across devices. Without the data the content script falls
+        // back to system fonts gracefully on the other device.
+        await browser.storage.sync.set({
+          [StorageKeys.CHAT_CUSTOM_FONT_NAME]: displayName,
+          [StorageKeys.CHAT_CUSTOM_FONT_FORMAT]: ext,
+          [StorageKeys.CHAT_FONT_FAMILY]: 'custom',
+          [StorageKeys.CHAT_FONT_FAMILY_ENABLED]: true,
+        });
+        settingWrites.acknowledge({
+          [StorageKeys.CHAT_FONT_FAMILY]: 'custom',
+          [StorageKeys.CHAT_FONT_FAMILY_ENABLED]: true,
+        });
+        setCustomFontName(displayName);
+        setFontFamily('custom');
+        setFontFamilyEnabled(true);
+        setCustomFontStatus({
+          key: 'customFontImported',
+          values: { fontName: displayName, size: Math.round(file.size / 1024) },
+          mark: '✓',
+        });
+      } catch (err) {
+        console.warn('[GPT-Voyager] custom font import failed:', err);
+        setCustomFontStatus({
+          key: 'customFontImportFailed',
+          values: { error: String((err as Error)?.message || err) },
+          mark: '✗',
+        });
+      }
+    },
+    [settingWrites],
+  );
 
   /**
    * Drop the imported font bytes + metadata. If the user was currently on
@@ -545,12 +539,13 @@ export default function Popup() {
       [StorageKeys.CHAT_CUSTOM_FONT_FORMAT]: '',
     });
     setCustomFontName('');
-    setCustomFontStatus('');
+    setCustomFontStatus(null);
     if (fontFamily === 'custom') {
       setFontFamily('default');
       await browser.storage.sync.set({ [StorageKeys.CHAT_FONT_FAMILY]: 'default' });
+      settingWrites.acknowledge({ [StorageKeys.CHAT_FONT_FAMILY]: 'default' });
     }
-  }, [fontFamily]);
+  }, [fontFamily, settingWrites]);
 
   useEffect(() => {
     try {
@@ -752,32 +747,47 @@ export default function Popup() {
   }, []);
 
   const updateToggle = useCallback(
-    <T,>(setter: React.Dispatch<React.SetStateAction<T>>, key: string, value: T) => {
-      setter(value);
-      void setSyncStorage({ [key]: value });
+    <T,>(setter: React.Dispatch<React.SetStateAction<T>>, key: string, value: T, previous: T) => {
+      void settingWrites.change(
+        key,
+        value,
+        previous,
+        (next) => {
+          if (viewActiveRef.current) setter(next);
+        },
+        (error) => {
+          console.warn('[GPT-Voyager] setting save failed:', error);
+          if (!viewActiveRef.current) return;
+          // Native feedback preserves the existing popup layout. Keep raw browser
+          // diagnostics in the console; the actionable message follows its locale.
+          try {
+            window.alert(translationRef.current('settingsSaveFailed'));
+          } catch {}
+        },
+      );
     },
-    [setSyncStorage],
+    [settingWrites],
   );
 
   const addCustomWebsite = useCallback(async () => {
     const domain = normalizeDomain(customWebsiteInput);
     if (!domain) return;
     if (customWebsites.includes(domain)) {
-      setCustomWebsiteNotice('Already added');
+      setCustomWebsiteNotice({ key: 'customWebsiteAlreadyAdded' });
       return;
     }
 
     const origins = toMatchPatterns(domain);
     const granted = await browser.permissions.request({ origins });
     if (!granted) {
-      setCustomWebsiteNotice('Permission was not granted');
+      setCustomWebsiteNotice({ key: 'permissionDenied' });
       return;
     }
 
     const next = [...customWebsites, domain];
     setCustomWebsites(next);
     setCustomWebsiteInput('');
-    setCustomWebsiteNotice('Added');
+    setCustomWebsiteNotice({ key: 'websiteAdded' });
     await setSyncStorage({ [StorageKeys.PROMPT_CUSTOM_WEBSITES]: next });
   }, [customWebsiteInput, customWebsites, setSyncStorage]);
 
@@ -896,7 +906,12 @@ export default function Popup() {
               description={t('enableTimelineDescription')}
               checked={timelineEnabled}
               onChange={(value) =>
-                updateToggle(setTimelineEnabled, StorageKeys.TIMELINE_ENABLED, value)
+                updateToggle(
+                  setTimelineEnabled,
+                  StorageKeys.TIMELINE_ENABLED,
+                  value,
+                  timelineEnabled,
+                )
               }
             />
             <div className="gv-row py-2">
@@ -911,6 +926,7 @@ export default function Popup() {
                         setTimelineMode,
                         StorageKeys.TIMELINE_SCROLL_MODE,
                         'flow',
+                        timelineMode,
                       ),
                   },
                   {
@@ -921,6 +937,7 @@ export default function Popup() {
                         setTimelineMode,
                         StorageKeys.TIMELINE_SCROLL_MODE,
                         'jump',
+                        timelineMode,
                       ),
                   },
                 ]}
@@ -931,7 +948,12 @@ export default function Popup() {
               title={t('hideOuterContainer')}
               checked={timelineHidden}
               onChange={(value) =>
-                updateToggle(setTimelineHidden, StorageKeys.TIMELINE_HIDE_CONTAINER, value)
+                updateToggle(
+                  setTimelineHidden,
+                  StorageKeys.TIMELINE_HIDE_CONTAINER,
+                  value,
+                  timelineHidden,
+                )
               }
             />
             <ToggleRow
@@ -939,7 +961,12 @@ export default function Popup() {
               title={t('draggableTimeline')}
               checked={timelineDraggable}
               onChange={(value) =>
-                updateToggle(setTimelineDraggable, StorageKeys.TIMELINE_DRAGGABLE, value)
+                updateToggle(
+                  setTimelineDraggable,
+                  StorageKeys.TIMELINE_DRAGGABLE,
+                  value,
+                  timelineDraggable,
+                )
               }
             />
             <ToggleRow
@@ -948,7 +975,12 @@ export default function Popup() {
               description={t('pinTimelinePreviewHint')}
               checked={timelinePreviewPinned}
               onChange={(value) =>
-                updateToggle(setTimelinePreviewPinned, StorageKeys.TIMELINE_PREVIEW_PINNED, value)
+                updateToggle(
+                  setTimelinePreviewPinned,
+                  StorageKeys.TIMELINE_PREVIEW_PINNED,
+                  value,
+                  timelinePreviewPinned,
+                )
               }
             />
             <ToggleRow
@@ -957,7 +989,12 @@ export default function Popup() {
               description={t('enableMarkerLevelHint')}
               checked={timelineMarkerLevel}
               onChange={(value) =>
-                updateToggle(setTimelineMarkerLevel, StorageKeys.TIMELINE_MARKER_LEVEL, value)
+                updateToggle(
+                  setTimelineMarkerLevel,
+                  StorageKeys.TIMELINE_MARKER_LEVEL,
+                  value,
+                  timelineMarkerLevel,
+                )
               }
             />
             <ToggleRow
@@ -965,7 +1002,9 @@ export default function Popup() {
               title={t('enableForkFeature')}
               description={t('enableForkFeatureHint')}
               checked={forkEnabled}
-              onChange={(value) => updateToggle(setForkEnabled, StorageKeys.FORK_ENABLED, value)}
+              onChange={(value) =>
+                updateToggle(setForkEnabled, StorageKeys.FORK_ENABLED, value, forkEnabled)
+              }
             />
           </Group>
           <Group>
@@ -984,7 +1023,7 @@ export default function Popup() {
               title={t('enableFolders')}
               checked={folderEnabled}
               onChange={(value) =>
-                updateToggle(setFolderEnabled, StorageKeys.FOLDER_ENABLED, value)
+                updateToggle(setFolderEnabled, StorageKeys.FOLDER_ENABLED, value, folderEnabled)
               }
             />
             <ToggleRow
@@ -992,7 +1031,12 @@ export default function Popup() {
               title={t('enableFloatingFolderPanel')}
               checked={folderFloating}
               onChange={(value) =>
-                updateToggle(setFolderFloating, StorageKeys.FOLDER_FLOATING_MODE_ENABLED, value)
+                updateToggle(
+                  setFolderFloating,
+                  StorageKeys.FOLDER_FLOATING_MODE_ENABLED,
+                  value,
+                  folderFloating,
+                )
               }
             />
             <ToggleRow
@@ -1000,7 +1044,12 @@ export default function Popup() {
               title={t('hideArchivedConversations')}
               checked={hideArchived}
               onChange={(value) =>
-                updateToggle(setHideArchived, StorageKeys.FOLDER_HIDE_ARCHIVED_CONVERSATIONS, value)
+                updateToggle(
+                  setHideArchived,
+                  StorageKeys.FOLDER_HIDE_ARCHIVED_CONVERSATIONS,
+                  value,
+                  hideArchived,
+                )
               }
             />
             <ToggleRow
@@ -1009,7 +1058,12 @@ export default function Popup() {
               description={t('folderAsProject_description')}
               checked={folderProjectEnabled}
               onChange={(value) =>
-                updateToggle(setFolderProjectEnabled, StorageKeys.FOLDER_PROJECT_ENABLED, value)
+                updateToggle(
+                  setFolderProjectEnabled,
+                  StorageKeys.FOLDER_PROJECT_ENABLED,
+                  value,
+                  folderProjectEnabled,
+                )
               }
             />
             <ToggleRow
@@ -1022,6 +1076,7 @@ export default function Popup() {
                   setFolderHeaderButtonEnabled,
                   StorageKeys.FOLDER_HEADER_BUTTON_ENABLED,
                   value,
+                  folderHeaderButtonEnabled,
                 )
               }
             />
@@ -1031,7 +1086,12 @@ export default function Popup() {
               description={t('folderBelowProjects_description')}
               checked={folderBelowProjects}
               onChange={(value) =>
-                updateToggle(setFolderBelowProjects, StorageKeys.GV_FOLDER_BELOW_PROJECTS, value)
+                updateToggle(
+                  setFolderBelowProjects,
+                  StorageKeys.GV_FOLDER_BELOW_PROJECTS,
+                  value,
+                  folderBelowProjects,
+                )
               }
             />
             <WidthSlider
@@ -1079,7 +1139,12 @@ export default function Popup() {
               onChangeComplete={(value) => void setSyncStorage({ [StorageKeys.CHAT_WIDTH]: value })}
               enabled={chatWidthEnabled}
               onToggle={(value) =>
-                updateToggle(setChatWidthEnabled, StorageKeys.CHAT_WIDTH_ENABLED, value)
+                updateToggle(
+                  setChatWidthEnabled,
+                  StorageKeys.CHAT_WIDTH_ENABLED,
+                  value,
+                  chatWidthEnabled,
+                )
               }
             />
             <WidthSlider
@@ -1096,7 +1161,12 @@ export default function Popup() {
               }
               enabled={chatFontSizeEnabled}
               onToggle={(value) =>
-                updateToggle(setChatFontSizeEnabled, StorageKeys.CHAT_FONT_SIZE_ENABLED, value)
+                updateToggle(
+                  setChatFontSizeEnabled,
+                  StorageKeys.CHAT_FONT_SIZE_ENABLED,
+                  value,
+                  chatFontSizeEnabled,
+                )
               }
             />
             <WidthSlider
@@ -1113,7 +1183,12 @@ export default function Popup() {
               }
               enabled={codeFontSizeEnabled}
               onToggle={(value) =>
-                updateToggle(setCodeFontSizeEnabled, StorageKeys.CODE_FONT_SIZE_ENABLED, value)
+                updateToggle(
+                  setCodeFontSizeEnabled,
+                  StorageKeys.CODE_FONT_SIZE_ENABLED,
+                  value,
+                  codeFontSizeEnabled,
+                )
               }
             />
             <WidthSlider
@@ -1130,7 +1205,12 @@ export default function Popup() {
               }
               enabled={chatLineHeightEnabled}
               onToggle={(value) =>
-                updateToggle(setChatLineHeightEnabled, StorageKeys.CHAT_LINE_HEIGHT_ENABLED, value)
+                updateToggle(
+                  setChatLineHeightEnabled,
+                  StorageKeys.CHAT_LINE_HEIGHT_ENABLED,
+                  value,
+                  chatLineHeightEnabled,
+                )
               }
             />
             <WidthSlider
@@ -1152,6 +1232,7 @@ export default function Popup() {
                   setChatParagraphSpacingEnabled,
                   StorageKeys.CHAT_PARAGRAPH_SPACING_ENABLED,
                   value,
+                  chatParagraphSpacingEnabled,
                 )
               }
             />
@@ -1175,6 +1256,7 @@ export default function Popup() {
                       setFontFamilyEnabled,
                       StorageKeys.CHAT_FONT_FAMILY_ENABLED,
                       event.target.checked,
+                      fontFamilyEnabled,
                     )
                   }
                 />
@@ -1188,8 +1270,7 @@ export default function Popup() {
                       disabled={!fontFamilyEnabled}
                       onChange={(e) => {
                         const v = e.target.value as FontPreset;
-                        setFontFamily(v);
-                        void setSyncStorage({ [StorageKeys.CHAT_FONT_FAMILY]: v });
+                        updateToggle(setFontFamily, StorageKeys.CHAT_FONT_FAMILY, v, fontFamily);
                       }}
                     >
                       <option value="default">{t('chatFontFamilyDefault')}</option>
@@ -1237,7 +1318,9 @@ export default function Popup() {
                       ) : null}
                     </div>
                     {customFontStatus ? (
-                      <p className="text-fg-3 text-xs leading-[1.45]">{customFontStatus}</p>
+                      <p className="text-fg-3 text-xs leading-[1.45]">
+                        {renderNotice(customFontStatus, t)}
+                      </p>
                     ) : null}
                   </div>
                 </div>
@@ -1257,7 +1340,12 @@ export default function Popup() {
               }
               enabled={editInputWidthEnabled}
               onToggle={(value) =>
-                updateToggle(setEditInputWidthEnabled, StorageKeys.EDIT_INPUT_WIDTH_ENABLED, value)
+                updateToggle(
+                  setEditInputWidthEnabled,
+                  StorageKeys.EDIT_INPUT_WIDTH_ENABLED,
+                  value,
+                  editInputWidthEnabled,
+                )
               }
             />
           </Group>
@@ -1268,7 +1356,12 @@ export default function Popup() {
               description={t('railToggle_description')}
               checked={railToggleEnabled}
               onChange={(value) =>
-                updateToggle(setRailToggleEnabled, StorageKeys.GV_RAIL_TOGGLE_ENABLED, value)
+                updateToggle(
+                  setRailToggleEnabled,
+                  StorageKeys.GV_RAIL_TOGGLE_ENABLED,
+                  value,
+                  railToggleEnabled,
+                )
               }
             />
             <ToggleRow
@@ -1277,7 +1370,12 @@ export default function Popup() {
               description={t('quotaRing_description')}
               checked={quotaRingEnabled}
               onChange={(value) =>
-                updateToggle(setQuotaRingEnabled, StorageKeys.GV_QUOTA_RING_ENABLED, value)
+                updateToggle(
+                  setQuotaRingEnabled,
+                  StorageKeys.GV_QUOTA_RING_ENABLED,
+                  value,
+                  quotaRingEnabled,
+                )
               }
             />
           </Group>
@@ -1291,7 +1389,7 @@ export default function Popup() {
               description={withModifier(t('ctrlEnterSendHint'))}
               checked={ctrlEnterSend}
               onChange={(value) =>
-                updateToggle(setCtrlEnterSend, StorageKeys.CTRL_ENTER_SEND, value)
+                updateToggle(setCtrlEnterSend, StorageKeys.CTRL_ENTER_SEND, value, ctrlEnterSend)
               }
             />
             <ToggleRow
@@ -1300,7 +1398,7 @@ export default function Popup() {
               description={t('safariEnterFixHint')}
               checked={safariEnterFix}
               onChange={(value) =>
-                updateToggle(setSafariEnterFix, StorageKeys.SAFARI_ENTER_FIX, value)
+                updateToggle(setSafariEnterFix, StorageKeys.SAFARI_ENTER_FIX, value, safariEnterFix)
               }
             />
             <ToggleRow
@@ -1309,7 +1407,12 @@ export default function Popup() {
               description={t('enableInputCollapseHint')}
               checked={inputCollapse}
               onChange={(value) =>
-                updateToggle(setInputCollapse, StorageKeys.INPUT_COLLAPSE_ENABLED, value)
+                updateToggle(
+                  setInputCollapse,
+                  StorageKeys.INPUT_COLLAPSE_ENABLED,
+                  value,
+                  inputCollapse,
+                )
               }
             />
             <ToggleRow
@@ -1322,6 +1425,7 @@ export default function Popup() {
                   setInputCollapseWhenNotEmpty,
                   StorageKeys.INPUT_COLLAPSE_WHEN_NOT_EMPTY,
                   value,
+                  inputCollapseWhenNotEmpty,
                 )
               }
             />
@@ -1330,7 +1434,9 @@ export default function Popup() {
               title={t('inputVimMode')}
               description={t('inputVimModeHint')}
               checked={vimMode}
-              onChange={(value) => updateToggle(setVimMode, StorageKeys.INPUT_VIM_MODE, value)}
+              onChange={(value) =>
+                updateToggle(setVimMode, StorageKeys.INPUT_VIM_MODE, value, vimMode)
+              }
             />
             <ToggleRow
               id="plain-text-input"
@@ -1338,7 +1444,12 @@ export default function Popup() {
               description={t('plainTextInputHint')}
               checked={plainTextInput}
               onChange={(value) =>
-                updateToggle(setPlainTextInput, StorageKeys.PLAIN_TEXT_INPUT_ENABLED, value)
+                updateToggle(
+                  setPlainTextInput,
+                  StorageKeys.PLAIN_TEXT_INPUT_ENABLED,
+                  value,
+                  plainTextInput,
+                )
               }
             />
             <ToggleRow
@@ -1347,7 +1458,7 @@ export default function Popup() {
               description={t('draftAutoSaveHint')}
               checked={draftAutoSave}
               onChange={(value) =>
-                updateToggle(setDraftAutoSave, StorageKeys.DRAFT_AUTO_SAVE, value)
+                updateToggle(setDraftAutoSave, StorageKeys.DRAFT_AUTO_SAVE, value, draftAutoSave)
               }
             />
             <ToggleRow
@@ -1356,7 +1467,12 @@ export default function Popup() {
               description={t('preventAutoScrollHint')}
               checked={preventAutoScroll}
               onChange={(value) =>
-                updateToggle(setPreventAutoScroll, StorageKeys.PREVENT_AUTO_SCROLL_ENABLED, value)
+                updateToggle(
+                  setPreventAutoScroll,
+                  StorageKeys.PREVENT_AUTO_SCROLL_ENABLED,
+                  value,
+                  preventAutoScroll,
+                )
               }
             />
             <ToggleRow
@@ -1365,7 +1481,7 @@ export default function Popup() {
               description={t('quoteReplyHint')}
               checked={quoteReply}
               onChange={(value) =>
-                updateToggle(setQuoteReply, StorageKeys.QUOTE_REPLY_ENABLED, value)
+                updateToggle(setQuoteReply, StorageKeys.QUOTE_REPLY_ENABLED, value, quoteReply)
               }
             />
             <ToggleRow
@@ -1378,6 +1494,7 @@ export default function Popup() {
                   setResponseCompleteNotification,
                   StorageKeys.RESPONSE_COMPLETE_NOTIFICATION_ENABLED,
                   value,
+                  responseCompleteNotification,
                 )
               }
             />
@@ -1387,7 +1504,12 @@ export default function Popup() {
               description={t('driveAutoAllowHint')}
               checked={driveAutoAllowEnabled}
               onChange={(value) =>
-                updateToggle(setDriveAutoAllowEnabled, StorageKeys.DRIVE_AUTO_ALLOW_ENABLED, value)
+                updateToggle(
+                  setDriveAutoAllowEnabled,
+                  StorageKeys.DRIVE_AUTO_ALLOW_ENABLED,
+                  value,
+                  driveAutoAllowEnabled,
+                )
               }
             />
           </Group>
@@ -1401,7 +1523,7 @@ export default function Popup() {
               description={t('mermaidRenderingHint')}
               checked={mermaidEnabled}
               onChange={(value) =>
-                updateToggle(setMermaidEnabled, StorageKeys.MERMAID_ENABLED, value)
+                updateToggle(setMermaidEnabled, StorageKeys.MERMAID_ENABLED, value, mermaidEnabled)
               }
             />
             <ToggleRow
@@ -1414,6 +1536,7 @@ export default function Popup() {
                   setLongCodeBlockCollapse,
                   StorageKeys.LONG_CODE_BLOCK_COLLAPSE_ENABLED,
                   value,
+                  longCodeBlockCollapse,
                 )
               }
             />
@@ -1428,8 +1551,12 @@ export default function Popup() {
                   value={value}
                   checked={formulaCopyFormat === value}
                   onChange={() => {
-                    setFormulaCopyFormat(value);
-                    void setSyncStorage({ gvFormulaCopyFormat: value });
+                    updateToggle(
+                      setFormulaCopyFormat,
+                      'gvFormulaCopyFormat',
+                      value,
+                      formulaCopyFormat,
+                    );
                   }}
                   className="gv-choice__input"
                 />
@@ -1450,7 +1577,12 @@ export default function Popup() {
               description={t('gentleDarkModeHint')}
               checked={gentleDarkEnabled}
               onChange={(value) =>
-                updateToggle(setGentleDarkEnabled, StorageKeys.GENTLE_DARK_ENABLED, value)
+                updateToggle(
+                  setGentleDarkEnabled,
+                  StorageKeys.GENTLE_DARK_ENABLED,
+                  value,
+                  gentleDarkEnabled,
+                )
               }
             />
           </Group>
@@ -1471,8 +1603,12 @@ export default function Popup() {
                   value={value}
                   checked={singleConvExportFormat === value}
                   onChange={() => {
-                    setSingleConvExportFormat(value);
-                    void setSyncStorage({ [StorageKeys.SINGLE_CONV_EXPORT_FORMAT]: value });
+                    updateToggle(
+                      setSingleConvExportFormat,
+                      StorageKeys.SINGLE_CONV_EXPORT_FORMAT,
+                      value,
+                      singleConvExportFormat,
+                    );
                   }}
                   className="gv-choice__input"
                 />
@@ -1496,7 +1632,7 @@ export default function Popup() {
               description={t('hidePromptManagerHint')}
               checked={promptHidden}
               onChange={(value) =>
-                updateToggle(setPromptHidden, StorageKeys.HIDE_PROMPT_MANAGER, value)
+                updateToggle(setPromptHidden, StorageKeys.HIDE_PROMPT_MANAGER, value, promptHidden)
               }
             />
             <ToggleRow
@@ -1505,7 +1641,12 @@ export default function Popup() {
               description={t('promptInsertOnClickHint')}
               checked={promptInsertOnClick}
               onChange={(value) =>
-                updateToggle(setPromptInsertOnClick, StorageKeys.PROMPT_INSERT_ON_CLICK, value)
+                updateToggle(
+                  setPromptInsertOnClick,
+                  StorageKeys.PROMPT_INSERT_ON_CLICK,
+                  value,
+                  promptInsertOnClick,
+                )
               }
             />
             <div className="gv-row py-2">
@@ -1520,6 +1661,7 @@ export default function Popup() {
                         setPromptViewMode,
                         StorageKeys.PROMPT_VIEW_MODE,
                         'comfortable',
+                        promptViewMode,
                       ),
                   },
                   {
@@ -1530,6 +1672,7 @@ export default function Popup() {
                         setPromptViewMode,
                         StorageKeys.PROMPT_VIEW_MODE,
                         'compact',
+                        promptViewMode,
                       ),
                   },
                 ]}
@@ -1557,7 +1700,9 @@ export default function Popup() {
                 </Button>
               </div>
               {customWebsiteNotice ? (
-                <p className="text-fg-3 px-0.5 text-xs leading-[1.45]">{customWebsiteNotice}</p>
+                <p className="text-fg-3 px-0.5 text-xs leading-[1.45]">
+                  {renderNotice(customWebsiteNotice, t)}
+                </p>
               ) : null}
             </div>
             {customWebsites.map((domain) => (

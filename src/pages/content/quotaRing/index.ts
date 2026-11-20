@@ -494,6 +494,8 @@ export function startQuotaRing(): () => void {
   window.addEventListener('resize', scheduleMount);
   window.addEventListener('scroll', scroll, true);
   document.addEventListener('visibilitychange', visibility);
+  const onLocaleDictionaryReady = () => language({ [StorageKeys.LANGUAGE]: {} }, 'sync');
+  window.addEventListener('voyager:language-changed', onLocaleDictionaryReady);
   chrome.storage?.onChanged?.addListener(language);
   observer.observe(document.body, {
     childList: true,
@@ -519,6 +521,7 @@ export function startQuotaRing(): () => void {
     window.removeEventListener('scroll', scroll, true);
     document.removeEventListener('visibilitychange', visibility);
     chrome.storage?.onChanged?.removeListener(language);
+    window.removeEventListener('voyager:language-changed', onLocaleDictionaryReady);
     widgets.forEach((w) => {
       w.button.remove();
       w.wrapper?.remove();

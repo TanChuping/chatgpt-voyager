@@ -68,6 +68,8 @@ const SKIP_TOP = new Set([
 // Pattern-based skips that apply at any depth.
 function shouldSkip(_relPath, name) {
   if (name.startsWith('.tmp_')) return true;
+  if (name.startsWith('.edge-build-') || name.startsWith('dist_edge.previous-')) return true;
+  if (/^voyager-edge-v.*\.zip(?:\.previous-[a-f0-9-]+)?$/.test(name)) return true;
   if (name === '.extension-key.pem' || name.startsWith('.extension-key.')) return true;
   if (name === '公式交接.md') return true;
   if (name === 'LOCAL_DEVELOPMENT.md') return true;

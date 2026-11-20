@@ -54,9 +54,26 @@ let keydownHandler: ((e: KeyboardEvent) => void) | null = null;
 let selectionPolicy: 'all' | 'user' | 'assistant' | null = null;
 let observerSyncTimer: number | null = null;
 const observerRoots = new Set<HTMLElement>();
+const barLabels = new Map<HTMLElement, Parameters<typeof getTranslationSync>[0]>();
 
 function t(key: Parameters<typeof getTranslationSync>[0]): string {
   return getTranslationSync(key);
+}
+
+function setBarLabel(element: HTMLElement, key: Parameters<typeof getTranslationSync>[0]): void {
+  barLabels.set(element, key);
+  element.textContent = t(key);
+}
+
+function refreshLocalizedUi(): void {
+  if (!active) return;
+  for (const [element, key] of barLabels) element.textContent = t(key);
+  const label = t('singleConvExportSelectTitle');
+  for (const checkbox of idToCheckbox.values()) {
+    checkbox.setAttribute('aria-label', label);
+    checkbox.title = label;
+  }
+  updateCount();
 }
 
 async function resolveExportFormat(): Promise<SingleConvExportFormat> {
@@ -232,11 +249,11 @@ function syncLiveSelectionMessages(convId: string, roots?: Iterable<HTMLElement>
   }
 }
 
-function makeBarButton(label: string): HTMLButtonElement {
+function makeBarButton(key: Parameters<typeof getTranslationSync>[0]): HTMLButtonElement {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'gv-export-pick-bar__btn';
-  b.textContent = label;
+  setBarLabel(b, key);
   return b;
 }
 
@@ -246,27 +263,27 @@ function buildBar(convId: string): void {
 
   const title = document.createElement('span');
   title.className = 'gv-export-pick-bar__title';
-  title.textContent = t('singleConvExportSelectTitle');
+  setBarLabel(title, 'singleConvExportSelectTitle');
 
-  const allBtn = makeBarButton(t('singleConvExportSelectAll'));
+  const allBtn = makeBarButton('singleConvExportSelectAll');
   allBtn.addEventListener('click', () => applySelectionPolicy('all'));
 
-  const noneBtn = makeBarButton(t('singleConvExportSelectNone'));
+  const noneBtn = makeBarButton('singleConvExportSelectNone');
   noneBtn.addEventListener('click', () => {
     selectionPolicy = null;
     clearSelection();
   });
 
-  const userBtn = makeBarButton(t('singleConvExportSelectUser'));
+  const userBtn = makeBarButton('singleConvExportSelectUser');
   userBtn.addEventListener('click', () => applySelectionPolicy('user'));
 
-  const aiBtn = makeBarButton(t('singleConvExportSelectAI'));
+  const aiBtn = makeBarButton('singleConvExportSelectAI');
   aiBtn.addEventListener('click', () => applySelectionPolicy('assistant'));
 
   countEl = document.createElement('span');
   countEl.className = 'gv-export-pick-bar__count';
 
-  const exportBtn = makeBarButton(t('singleConvExportSelectDo'));
+  const exportBtn = makeBarButton('singleConvExportSelectDo');
   exportButton = exportBtn;
   exportBtn.classList.add('gv-export-pick-bar__btn--primary');
   exportBtn.addEventListener('click', () => {
@@ -304,7 +321,7 @@ function buildBar(convId: string): void {
     });
   });
 
-  const cancelBtn = makeBarButton(t('singleConvExportSelectCancel'));
+  const cancelBtn = makeBarButton('singleConvExportSelectCancel');
   cancelBtn.classList.add('gv-export-pick-bar__btn--ghost');
   cancelBtn.addEventListener('click', () => exitSelectionMode());
 
@@ -370,11 +387,13 @@ export function enterSelectionMode(convId: string): void {
     }
   };
   window.addEventListener('keydown', keydownHandler, true);
+  window.addEventListener('voyager:language-changed', refreshLocalizedUi);
 }
 
 export function exitSelectionMode(): void {
   if (!active) return;
   active = false;
+  window.removeEventListener('voyager:language-changed', refreshLocalizedUi);
 
   observer?.disconnect();
   observer = null;
@@ -400,5 +419,6 @@ export function exitSelectionMode(): void {
   bar = null;
   countEl = null;
   exportButton = null;
+  barLabels.clear();
   document.body.classList.remove('gv-export-pick-active');
 }

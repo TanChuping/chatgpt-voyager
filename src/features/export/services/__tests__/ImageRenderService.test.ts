@@ -1,7 +1,7 @@
 import { toBlob } from 'html-to-image';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { renderElementToImageBlob } from '../ImageRenderService';
+import { isImageResourceRenderError, renderElementToImageBlob } from '../ImageRenderService';
 
 vi.mock('html-to-image', () => ({
   toBlob: vi.fn(),
@@ -123,5 +123,21 @@ describe('ImageRenderService', () => {
     expect(Number.parseInt((secondTarget as HTMLElement).style.width || '0', 10)).toBeGreaterThan(
       0,
     );
+  });
+
+  it('retains null-Blob dimensions and diagnostic text without changing retry classification', async () => {
+    const target = document.createElement('div');
+    target.getBoundingClientRect = () => ({ width: 640, height: 480 }) as DOMRect;
+    vi.mocked(toBlob).mockReset().mockResolvedValue(null);
+
+    await expect(renderElementToImageBlob(target, {
+      maxAttempts: 2,
+      shouldRetry: isImageResourceRenderError,
+    })).rejects.toMatchObject({
+      message: 'Image render failed (640x480)',
+      width: 640,
+      height: 480,
+    });
+    expect(toBlob).toHaveBeenCalledTimes(2);
   });
 });

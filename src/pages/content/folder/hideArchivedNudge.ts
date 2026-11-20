@@ -62,10 +62,12 @@ export function mountHideArchivedNudge({
   const title = document.createElement('div');
   title.className = `${NUDGE_CLASS}__title`;
   title.textContent = t(keys.title);
+  title.setAttribute('data-gv-i18n-text', keys.title);
 
   const body = document.createElement('div');
   body.className = `${NUDGE_CLASS}__body`;
   body.textContent = t(keys.body);
+  body.setAttribute('data-gv-i18n-text', keys.body);
 
   const actions = document.createElement('div');
   actions.className = `${NUDGE_CLASS}__actions`;
@@ -74,11 +76,13 @@ export function mountHideArchivedNudge({
   dismissBtn.type = 'button';
   dismissBtn.className = `${NUDGE_CLASS}__btn ${NUDGE_CLASS}__btn--secondary`;
   dismissBtn.textContent = t(keys.dismiss);
+  dismissBtn.setAttribute('data-gv-i18n-text', keys.dismiss);
 
   const enableBtn = document.createElement('button');
   enableBtn.type = 'button';
   enableBtn.className = `${NUDGE_CLASS}__btn ${NUDGE_CLASS}__btn--primary`;
   enableBtn.textContent = t(keys.enable);
+  enableBtn.setAttribute('data-gv-i18n-text', keys.enable);
 
   actions.appendChild(dismissBtn);
   actions.appendChild(enableBtn);
@@ -86,6 +90,7 @@ export function mountHideArchivedNudge({
   const footnote = document.createElement('div');
   footnote.className = `${NUDGE_CLASS}__footnote`;
   footnote.textContent = t(keys.footnote);
+  footnote.setAttribute('data-gv-i18n-text', keys.footnote);
 
   card.appendChild(title);
   card.appendChild(body);

@@ -251,7 +251,7 @@ export function KeyboardShortcutSettings() {
                   } `}
                 >
                   {recording.action === 'previous'
-                    ? 'Press key...'
+                    ? t('shortcutPressKey')
                     : keyboardShortcutService.formatShortcut(config.previous)}
                 </button>
               </div>
@@ -269,7 +269,7 @@ export function KeyboardShortcutSettings() {
                   } `}
                 >
                   {recording.action === 'next'
-                    ? 'Press key...'
+                    ? t('shortcutPressKey')
                     : keyboardShortcutService.formatShortcut(config.next)}
                 </button>
               </div>
@@ -289,7 +289,7 @@ export function KeyboardShortcutSettings() {
                   } `}
                 >
                   {recording.action === 'first'
-                    ? 'Press key...'
+                    ? t('shortcutPressKey')
                     : keyboardShortcutService.formatShortcut(config.first)}
                 </button>
               </div>
@@ -307,7 +307,7 @@ export function KeyboardShortcutSettings() {
                   } `}
                 >
                   {recording.action === 'last'
-                    ? 'Press key...'
+                    ? t('shortcutPressKey')
                     : keyboardShortcutService.formatShortcut(config.last)}
                 </button>
               </div>
@@ -316,7 +316,7 @@ export function KeyboardShortcutSettings() {
             {/* Hint text */}
             {recording.action && (
               <p className="text-muted-foreground animate-in fade-in text-center text-xs">
-                Press Esc to cancel
+                {t('shortcutEscapeCancel')}
               </p>
             )}
 

@@ -6,11 +6,9 @@
  *    {count} messages…", and the existing i18n layer doesn't include
  *    a formatter — every caller would otherwise hand-roll the same
  *    `replace` chain.
- *  - We want a defensive try/catch for the rare case where this code
- *    runs before `initI18n()` has cached the language (cold-load
- *    races). The fallback is the English `messages.json` value, which
- *    `getTranslationSync` already serves when `cachedLanguage` is null,
- *    so we just keep the call site clean.
+ *  - Content bootstrap waits for initI18n before mounting this feature. The
+ *    defensive catch keeps an unavailable translation from breaking user actions;
+ *    the loader owns the small emergency fallback when packaged files fail.
  */
 import { getTranslationSync } from '@/utils/i18n';
 import type { TranslationKey } from '@/utils/translations';

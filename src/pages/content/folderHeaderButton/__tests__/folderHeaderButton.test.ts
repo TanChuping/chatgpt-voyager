@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { startFolderHeaderButton, stopFolderHeaderButton } from '../index';
+import enMessages from '@/locales/en/messages.json';
+import frMessages from '@/locales/fr/messages.json';
+import { installEnglishLocale } from '@/tests/localeFixture';
+import { extractMessageDictionary } from '@/utils/localeMessages';
+import { installTranslations } from '@/utils/translations';
 
-vi.mock('@/utils/i18n', () => ({
-  getTranslationSync: (key: string) => key,
-  getTranslationSyncUnsafe: (key: string) => key,
-  initI18n: () => Promise.resolve(),
-}));
+import { startFolderHeaderButton, stopFolderHeaderButton } from '../index';
 
 const BUTTON = '[data-gv-folder-header-btn]';
 const TITLE = '[data-gv-conversation-title-header]';
@@ -77,6 +77,7 @@ function fakeManager(open = vi.fn().mockReturnValue(true)) {
 }
 
 beforeEach(() => {
+  installEnglishLocale();
   window.history.pushState({}, '', '/c/69ecf9a2-d5b4-83ea-a03c-80b3b2514998');
   mountHeader();
 });
@@ -86,6 +87,7 @@ afterEach(() => {
   document.body.innerHTML = '';
   document.title = '';
   window.history.pushState({}, '', '/');
+  vi.restoreAllMocks();
 });
 
 describe('folder header button', () => {
@@ -158,6 +160,55 @@ describe('folder header button', () => {
 
     document.querySelector<HTMLElement>(BUTTON)!.click();
     expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes both shortcuts and the empty-title fallback without replacing their nodes', () => {
+    const { manager, open } = fakeManager();
+    startFolderHeaderButton(manager);
+    const button = document.querySelector<HTMLElement>(BUTTON)!;
+    const rename = document.querySelector<HTMLElement>('[data-gv-conversation-rename-header-btn]')!;
+    const title = document.querySelector<HTMLElement>(TITLE)!;
+    expect(title.textContent).toBe(enMessages.conversation_untitled.message);
+    const icon = button.querySelector('svg');
+
+    installTranslations(extractMessageDictionary(frMessages));
+    window.dispatchEvent(new CustomEvent('voyager:language-changed'));
+
+    expect(document.querySelector(BUTTON)).toBe(button);
+    expect(document.querySelector('[data-gv-conversation-rename-header-btn]')).toBe(rename);
+    expect(button.querySelector('svg')).toBe(icon);
+    expect(button.getAttribute('aria-label')).toBe(frMessages.conversation_move_to_folder.message);
+    expect(button.title).toBe(frMessages.conversation_move_to_folder.message);
+    expect(rename.getAttribute('aria-label')).toBe(frMessages.conversation_rename.message);
+    expect(rename.title).toBe(frMessages.conversation_rename.message);
+    expect(title.textContent).toBe(frMessages.conversation_untitled.message);
+    expect(title.getAttribute('aria-label')).toBe(frMessages.conversation_untitled.message);
+    button.click();
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves a native conversation title on language changes and disposes the listener', () => {
+    const added = vi.spyOn(window, 'addEventListener');
+    const removed = vi.spyOn(window, 'removeEventListener');
+    mountSidebarConversation('My original conversation title');
+    const { manager } = fakeManager();
+    startFolderHeaderButton(manager);
+    startFolderHeaderButton(manager);
+    const languageCalls = added.mock.calls.filter(([event]) => event === 'voyager:language-changed');
+    expect(languageCalls).toHaveLength(1);
+    const title = document.querySelector<HTMLElement>(TITLE)!;
+    const button = document.querySelector<HTMLElement>(BUTTON)!;
+    installTranslations(extractMessageDictionary(frMessages));
+    window.dispatchEvent(new CustomEvent('voyager:language-changed'));
+    expect(title.textContent).toBe('My original conversation title');
+    expect(title.title).toBe('My original conversation title');
+
+    stopFolderHeaderButton();
+    expect(removed).toHaveBeenCalledWith('voyager:language-changed', languageCalls[0][1]);
+    installEnglishLocale();
+    window.dispatchEvent(new CustomEvent('voyager:language-changed'));
+    expect(button.title).toBe(frMessages.conversation_move_to_folder.message);
+    expect(document.querySelector(BUTTON)).toBeNull();
   });
 
   it('shows the current conversation title beside the shortcuts and keeps it synced', async () => {

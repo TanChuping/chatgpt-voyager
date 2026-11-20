@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { installEnglishLocale } from '@/tests/localeFixture';
 
 import type { LinearConversation } from '../../conversationApi/types';
 import { toMarkdown } from '../MarkdownExporter';
+
+beforeEach(installEnglishLocale);
 
 function makeLinear(): LinearConversation {
   return {

@@ -6,8 +6,15 @@ import { JSDOM } from 'jsdom';
 import JSZip from 'jszip';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { installEnglishLocale } from '@/tests/localeFixture';
+import frMessages from '@/locales/fr/messages.json';
+import { getTranslationSync } from '@/utils/i18n';
+import { extractMessageDictionary } from '@/utils/localeMessages';
+import { installTranslations } from '@/utils/translations';
+
 import type { ChatTurn, ConversationMetadata, ExportLayout } from '../../types/export';
 import { ExportFormat } from '../../types/export';
+import { resolveExportErrorMessage } from '../../ui/ExportErrorMessage';
 import { ConversationExportService } from '../ConversationExportService';
 import { ImageExportService } from '../ImageExportService';
 import { MarkdownFormatter } from '../MarkdownFormatter';
@@ -54,6 +61,7 @@ describe('ConversationExportService', () => {
 
   // Mock DOM methods
   beforeEach(() => {
+    installEnglishLocale();
     document.body.innerHTML = '';
     setUserAgentVendor(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -337,6 +345,36 @@ describe('ConversationExportService', () => {
       expect(imageExportSpy).toHaveBeenCalledOnce();
       expect(result.success).toBe(false);
       expect(result.error).toBe('image_render_event_error');
+    });
+
+    it('localizes the actual null-Blob export failure before the visible error formatter', async () => {
+      installTranslations(extractMessageDictionary(frMessages));
+      vi.mocked(toBlob).mockReset().mockResolvedValue(null);
+
+      const result = await ConversationExportService.export(mockTurns, mockMetadata, {
+        format: ExportFormat.IMAGE,
+      });
+
+      expect(result.success).toBe(false);
+      expect(toBlob).toHaveBeenCalledTimes(3);
+      expect(resolveExportErrorMessage(result.error, getTranslationSync)).toBe(
+        'Échec de l’export : Échec du rendu de l’image (0 × 0)',
+      );
+    });
+
+    it('keeps a third-party rendering error unchanged even if its wording matches our diagnostic', async () => {
+      installTranslations(extractMessageDictionary(frMessages));
+      vi.mocked(toBlob).mockReset().mockRejectedValue(new Error('Image render failed (640x480)'));
+
+      const result = await ConversationExportService.export(mockTurns, mockMetadata, {
+        format: ExportFormat.IMAGE,
+      });
+
+      expect(result.success).toBe(false);
+      expect(toBlob).toHaveBeenCalledTimes(3);
+      expect(resolveExportErrorMessage(result.error, getTranslationSync)).toBe(
+        'Échec de l’export : Image render failed (640x480)',
+      );
     });
   });
 

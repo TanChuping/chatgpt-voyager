@@ -204,6 +204,22 @@ function refreshInjectedTitle(): void {
   }
 }
 
+function refreshLocalizedUi(): void {
+  if (activeGeneration === null) return;
+  if (injectedFolderButton?.isConnected) {
+    const label = getTranslationSync('conversation_move_to_folder');
+    injectedFolderButton.setAttribute('aria-label', label);
+    injectedFolderButton.title = label;
+  }
+  if (injectedRenameButton?.isConnected) {
+    const label = getTranslationSync('conversation_rename');
+    injectedRenameButton.setAttribute('aria-label', label);
+    injectedRenameButton.title = label;
+  }
+  // Only the empty-title fallback is localized; a native conversation title is preserved.
+  refreshInjectedTitle();
+}
+
 function createHeaderButton(
   styleSource: HTMLElement,
   className: string,
@@ -445,10 +461,12 @@ export function startFolderHeaderButton(manager: FolderManager): () => void {
   window.addEventListener('popstate', locationChangeHandler);
   window.addEventListener('hashchange', locationChangeHandler);
   window.addEventListener('gv-location-change', locationChangeHandler);
+  window.addEventListener('voyager:language-changed', refreshLocalizedUi);
   return stopFolderHeaderButton;
 }
 
 export function stopFolderHeaderButton(): void {
+  window.removeEventListener('voyager:language-changed', refreshLocalizedUi);
   activeGeneration = null;
   lifecycleGeneration++;
   folderManager = null;

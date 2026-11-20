@@ -1,3 +1,4 @@
+import { getTranslationSync } from '@/utils/i18n';
 /**
  * Conversation Export Service
  * Unified service for exporting conversations in multiple formats
@@ -6,7 +7,11 @@
 
 import { isSafari } from '@/core/utils/browser';
 
-import { IMAGE_RENDER_EVENT_ERROR_CODE, isEventLikeImageRenderError } from '../types/errors';
+import {
+  EmptyImageRenderError,
+  IMAGE_RENDER_EVENT_ERROR_CODE,
+  isEventLikeImageRenderError,
+} from '../types/errors';
 import type {
   ChatTurn,
   ConversationMetadata,
@@ -73,6 +78,11 @@ export class ConversationExportService {
   }
 
   private static normalizeError(error: unknown): string {
+    if (error instanceof EmptyImageRenderError) {
+      return getTranslationSync('export_image_render_failed')
+        .replace('{width}', String(error.width))
+        .replace('{height}', String(error.height));
+    }
     if (error instanceof Error) {
       return error.message;
     }
@@ -294,7 +304,7 @@ export class ConversationExportService {
     const filename = options.filename || this.generateFilename('png', metadata.title);
     await ImageExportService.exportDocument(
       {
-        title: metadata.title || 'Document',
+        title: metadata.title || getTranslationSync('exportDocumentLabel'),
         url: metadata.url,
         exportedAt: metadata.exportedAt,
         markdown: content.markdown,
@@ -666,23 +676,23 @@ export class ConversationExportService {
       {
         format: 'json' as ExportFormat,
         label: 'JSON',
-        description: 'Machine-readable format for developers',
+        description: getTranslationSync('export_format_json_description'),
       },
       {
         format: 'markdown' as ExportFormat,
         label: 'Markdown',
-        description: 'Clean, portable text format (recommended)',
+        description: getTranslationSync('export_format_markdown_description'),
         recommended: true,
       },
       {
         format: 'pdf' as ExportFormat,
         label: 'PDF',
-        description: 'Print-friendly format via Save as PDF',
+        description: getTranslationSync('export_format_pdf_description'),
       },
       {
         format: 'image' as ExportFormat,
-        label: 'Image',
-        description: 'Single PNG image for sharing',
+        label: getTranslationSync('exportImageLabel'),
+        description: getTranslationSync('export_format_image_description'),
       },
     ];
   }

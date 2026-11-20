@@ -78,6 +78,6 @@ describe('getCurrentLanguage', () => {
 
     const lang = await getCurrentLanguage();
 
-    expect(lang).toBe('en');
+    expect(lang).toBe('fr');
   });
 });

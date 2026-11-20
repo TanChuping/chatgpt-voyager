@@ -226,6 +226,7 @@ export async function startCanvasExport(): Promise<void> {
   };
   try {
     chrome.storage?.onChanged?.addListener(canvasStorageHandler);
+  window.addEventListener('voyager:language-changed', onLocaleDictionaryReady);
   } catch {}
 
   removeCanvasPageExitListener = addPageExitListener(stopCanvasExport);
@@ -246,6 +247,7 @@ export function stopCanvasExport(): void {
   if (canvasStorageHandler) {
     try {
       chrome.storage?.onChanged?.removeListener(canvasStorageHandler);
+      window.removeEventListener('voyager:language-changed', onLocaleDictionaryReady);
     } catch {}
   }
   canvasStorageHandler = null;
@@ -255,4 +257,8 @@ export function stopCanvasExport(): void {
   removeCanvasPageExitListener = null;
 
   removeInjectedButtonsFrom(document);
+}
+
+function onLocaleDictionaryReady(): void {
+  canvasStorageHandler?.({ [StorageKeys.LANGUAGE]: { newValue: 'ready' } }, 'sync');
 }

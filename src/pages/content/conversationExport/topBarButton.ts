@@ -18,12 +18,13 @@ import {
   isSingleConvExportFormat,
 } from '@/features/singleConvExport';
 import { getTranslationSync } from '@/utils/i18n';
+import type { TranslationKey } from '@/utils/translations';
 
 import { extractChatGptConversationIdFromUrl } from '../chatgptDom';
 import { buildClonedButtonClassName } from '../shared/clonedButtonClass';
 import { findHeaderActionsRoot, findOptionsButtonRow } from '../shared/headerActionSlot';
 import { isChatGptResponseGenerating } from './generationState';
-import { prepareWholeConversationExport } from './prepareExport';
+import { type WholeExportPreparationStage, prepareWholeConversationExport } from './prepareExport';
 import { enterSelectionMode, exitSelectionMode } from './selectionMode';
 
 const TAG = 'data-gv-export-btn';
@@ -32,6 +33,11 @@ const INJECT_DEBOUNCE_MS = 50;
 let lifecycleGeneration = 0;
 let activeGeneration: number | null = null;
 let injectedButton: HTMLButtonElement | null = null;
+let preparationProgress: {
+  anchor: HTMLElement;
+  stage: WholeExportPreparationStage;
+  discovered?: number;
+} | null = null;
 
 function isActiveGeneration(generation: number): boolean {
   return activeGeneration === generation;
@@ -97,8 +103,40 @@ export function isIconOnly(reference: HTMLElement): boolean {
 }
 
 function removeTrackedButton(): void {
+  preparationProgress = null;
   injectedButton?.remove();
   injectedButton = null;
+}
+
+function preparationTitle(stage: WholeExportPreparationStage, discovered = 0): string {
+  if (stage === 'rebuilding') {
+    return getTranslationSync('exportLoadingHistory').replace('{count}', String(discovered));
+  }
+  return getTranslationSync(stage === 'incremental' ? 'exportUpdatingCache' : 'exportCheckingCache');
+}
+
+/** Update the existing controls so a language change preserves focus and pending work. */
+function refreshLocalizedUi(): void {
+  if (activeGeneration === null) return;
+  const label = getTranslationSync('singleConvExportButton');
+  if (injectedButton?.isConnected) {
+    injectedButton.setAttribute('aria-label', label);
+    const visibleLabel = injectedButton.querySelector('.gv-export-conv-topbar__label');
+    if (visibleLabel) visibleLabel.textContent = label;
+    injectedButton.title =
+      preparationProgress?.anchor === injectedButton
+        ? preparationTitle(preparationProgress.stage, preparationProgress.discovered)
+        : getTranslationSync('singleConvExportButtonTooltip');
+  }
+  if (openMenuEl) {
+    openMenuEl.setAttribute('aria-label', label);
+    for (const itemLabel of openMenuEl.querySelectorAll<HTMLElement>('[data-gv-export-label]')) {
+      itemLabel.textContent = getTranslationSync(itemLabel.dataset.gvExportLabel as TranslationKey);
+    }
+    for (const item of openMenuEl.querySelectorAll<HTMLButtonElement>('button:disabled')) {
+      item.title = getTranslationSync('singleConvExportGenerating');
+    }
+  }
 }
 
 function injectIfNeeded(generation: number): void {
@@ -196,12 +234,15 @@ function closeExportMenu(restoreAnchorFocus = false): void {
   if (restoreAnchorFocus && anchor?.isConnected) anchor.focus();
 }
 
-function makeMenuItem(label: string, onClick: () => void, generation: number): HTMLButtonElement {
+function makeMenuItem(key: TranslationKey, onClick: () => void, generation: number): HTMLButtonElement {
   const item = document.createElement('button');
   item.type = 'button';
   item.className = 'gv-export-menu__item';
   item.setAttribute('role', 'menuitem');
-  item.textContent = label;
+  const label = document.createElement('span');
+  label.dataset.gvExportLabel = key;
+  label.textContent = getTranslationSync(key);
+  item.appendChild(label);
   item.addEventListener('click', (event) => {
     if (!isActiveGeneration(generation)) return;
     event.preventDefault();
@@ -237,7 +278,7 @@ function toggleExportMenu(anchor: HTMLElement, generation: number): void {
   menu.setAttribute('aria-label', getTranslationSync('singleConvExportButton'));
 
   const wholeItem = makeMenuItem(
-    getTranslationSync('singleConvExportMenuWhole'),
+    'singleConvExportMenuWhole',
     () => {
       if (isChatGptResponseGenerating()) {
         alert(getTranslationSync('singleConvExportGenerating'));
@@ -255,12 +296,8 @@ function toggleExportMenu(anchor: HTMLElement, generation: number): void {
           const prepared = await prepareWholeConversationExport(convId, {
             onStage: (stage, discovered) => {
               if (!isActiveGeneration(generation)) return;
-              anchor.title =
-                stage === 'rebuilding'
-                  ? `Loading conversation history (${discovered ?? 0})…`
-                  : stage === 'incremental'
-                    ? 'Updating conversation cache…'
-                    : 'Checking conversation cache…';
+              preparationProgress = { anchor, stage, discovered };
+              anchor.title = preparationTitle(stage, discovered);
             },
           });
           if (
@@ -273,9 +310,10 @@ function toggleExportMenu(anchor: HTMLElement, generation: number): void {
         } catch (error) {
           console.warn('[GPT-Voyager] export: unable to prepare complete conversation', error);
           alert(
-            'GPT-Voyager could not safely load the complete conversation. Please keep this chat open and try again.',
+            getTranslationSync('exportIncompleteConversation'),
           );
         } finally {
+          if (preparationProgress?.anchor === anchor) preparationProgress = null;
           if (isActiveGeneration(generation) && anchor.isConnected) {
             anchor.removeAttribute('aria-busy');
             anchor.title = getTranslationSync('singleConvExportButtonTooltip');
@@ -292,7 +330,7 @@ function toggleExportMenu(anchor: HTMLElement, generation: number): void {
   disableWhileGenerating(wholeItem);
 
   const selectItem = makeMenuItem(
-    getTranslationSync('singleConvExportSelectButton'),
+    'singleConvExportSelectButton',
     () => enterSelectionMode(convId),
     generation,
   );
@@ -442,9 +480,11 @@ export function startTopBarExportButton(): void {
   window.addEventListener('popstate', locationChangeHandler);
   window.addEventListener('hashchange', locationChangeHandler);
   window.addEventListener('resize', locationChangeHandler);
+  window.addEventListener('voyager:language-changed', refreshLocalizedUi);
 }
 
 export function stopTopBarExportButton(): void {
+  window.removeEventListener('voyager:language-changed', refreshLocalizedUi);
   activeGeneration = null;
   lifecycleGeneration++;
   if (injectTimer !== null) {

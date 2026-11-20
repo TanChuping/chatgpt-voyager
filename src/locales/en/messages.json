@@ -696,85 +696,85 @@
     "message": "Conversation untitled"
   },
   "folderManager_dataLossWarning": {
-    "message": "Folder Manager data Loss Warning"
+    "message": "Warning: Failed to load folder data. Please check your browser console for details."
   },
   "backupOptions": {
-    "message": "Backup Options"
+    "message": "Backup options"
   },
   "backupEnabled": {
-    "message": "Backup Enabled"
+    "message": "Enable backups"
   },
   "backupNow": {
-    "message": "Backup Now"
+    "message": "Back up now"
   },
   "backupSelectFolder": {
-    "message": "Backup Select Folder"
+    "message": "Select backup folder"
   },
   "backupFolderSelected": {
-    "message": "Backup Folder Selected"
+    "message": "Backup folder selected"
   },
   "backupIncludePrompts": {
-    "message": "Backup Include Prompts"
+    "message": "Include prompts"
   },
   "backupIncludeFolders": {
-    "message": "Backup Include Folders"
+    "message": "Include folders"
   },
   "backupIntervalLabel": {
-    "message": "Backup Interval Label"
+    "message": "Backup frequency"
   },
   "backupIntervalManual": {
-    "message": "Backup Interval Manual"
+    "message": "Manual"
   },
   "backupIntervalDaily": {
-    "message": "Backup Interval Daily"
+    "message": "Daily"
   },
   "backupIntervalWeekly": {
-    "message": "Backup Interval Weekly"
+    "message": "Weekly"
   },
   "backupLastBackup": {
-    "message": "Backup Last Backup"
+    "message": "Last backup"
   },
   "backupNever": {
-    "message": "Backup Never"
+    "message": "Never backed up"
   },
   "backupSuccess": {
-    "message": "Backup Success"
+    "message": "Backup completed"
   },
   "backupError": {
-    "message": "Backup Error"
+    "message": "Backup failed"
   },
   "backupNotSupported": {
-    "message": "Backup Not Supported"
+    "message": "Backups are not supported in this browser"
   },
   "backupSelectFolderFirst": {
-    "message": "Backup Select Folder First"
+    "message": "Select a backup folder first"
   },
   "backupUserCancelled": {
-    "message": "Backup User Cancelled"
+    "message": "Backup cancelled"
   },
   "backupConfigSaved": {
-    "message": "Backup Config Saved"
+    "message": "Backup settings saved"
   },
   "backupPermissionDenied": {
-    "message": "Backup Permission Denied"
+    "message": "Backup permission denied"
   },
   "backupConfigureInOptions": {
-    "message": "Backup Configure In Options"
+    "message": "Configure backups in extension options"
   },
   "openOptionsPage": {
-    "message": "Open Options Page"
+    "message": "Open options page"
   },
   "optionsPageSubtitle": {
-    "message": "Options Page Subtitle"
+    "message": "Extension options"
   },
   "optionsComingSoon": {
-    "message": "Options Coming Soon"
+    "message": "More options are coming soon."
   },
   "backupDataAccessNotice": {
-    "message": "Backup Data Access Notice"
+    "message": "Backup data access"
   },
   "backupDataAccessHint": {
-    "message": "Backup Data Access Hint"
+    "message": "Allow access to the selected backup folder."
   },
   "promptManagerOptions": {
     "message": "Prompt Manager"
@@ -795,109 +795,109 @@
     "message": "Custom websites"
   },
   "customWebsitesPlaceholder": {
-    "message": "Custom Websites Placeholder"
+    "message": "Enter a website address"
   },
   "customWebsitesHint": {
-    "message": "Custom Websites Hint"
+    "message": "Add websites where you want to use the extension."
   },
   "addWebsite": {
-    "message": "Add Website"
+    "message": "Add website"
   },
   "removeWebsite": {
-    "message": "Remove Website"
+    "message": "Remove website"
   },
   "invalidUrl": {
-    "message": "Invalid Url"
+    "message": "Invalid URL"
   },
   "websiteAdded": {
-    "message": "Website Added"
+    "message": "Website added"
   },
   "websiteRemoved": {
-    "message": "Website Removed"
+    "message": "Website removed"
   },
   "permissionDenied": {
-    "message": "Permission Denied"
+    "message": "Permission denied"
   },
   "permissionRequestFailed": {
-    "message": "Permission Request Failed"
+    "message": "Permission request failed"
   },
   "customWebsitesNote": {
-    "message": "Custom Websites Note"
+    "message": "Custom websites require access permission."
   },
   "starredHistory": {
-    "message": "Starred History"
+    "message": "Favorites history"
   },
   "viewStarredHistory": {
     "message": "Starred messages"
   },
   "noStarredMessages": {
-    "message": "No Starred Messages"
+    "message": "No starred messages"
   },
   "removeFromStarred": {
-    "message": "Remove From Starred"
+    "message": "Remove from favorites"
   },
   "justNow": {
-    "message": "Just Now"
+    "message": "Just now"
   },
   "hoursAgo": {
-    "message": "Hours Ago"
+    "message": "hours ago"
   },
   "yesterday": {
     "message": "Yesterday"
   },
   "daysAgo": {
-    "message": "Days Ago"
+    "message": "days ago"
   },
   "loading": {
-    "message": "Loading"
+    "message": "Loading…"
   },
   "keyboardShortcuts": {
-    "message": "Keyboard Shortcuts"
+    "message": "Keyboard shortcuts"
   },
   "enableShortcuts": {
-    "message": "Enable Shortcuts"
+    "message": "Enable shortcuts"
   },
   "previousNode": {
-    "message": "Previous Node"
+    "message": "Previous node"
   },
   "nextNode": {
-    "message": "Next Node"
+    "message": "Next node"
   },
   "firstNode": {
-    "message": "First Node"
+    "message": "First node"
   },
   "lastNode": {
-    "message": "Last Node"
+    "message": "Last node"
   },
   "shortcutKey": {
-    "message": "Shortcut Key"
+    "message": "Key"
   },
   "shortcutModifiers": {
-    "message": "Shortcut Modifiers"
+    "message": "Modifier keys"
   },
   "resetShortcuts": {
-    "message": "Reset Shortcuts"
+    "message": "Reset shortcuts"
   },
   "shortcutsResetSuccess": {
-    "message": "Shortcuts Reset Success"
+    "message": "Shortcuts reset"
   },
   "shortcutsDescription": {
-    "message": "Shortcuts Description"
+    "message": "Configure shortcuts for timeline navigation."
   },
   "modifierNone": {
-    "message": "Modifier None"
+    "message": "None"
   },
   "modifierAlt": {
-    "message": "Modifier Alt"
+    "message": "Alt"
   },
   "modifierCtrl": {
-    "message": "Modifier Ctrl"
+    "message": "Ctrl"
   },
   "modifierShift": {
-    "message": "Modifier Shift"
+    "message": "Shift"
   },
   "modifierMeta": {
-    "message": "Modifier Meta"
+    "message": "Meta"
   },
   "preventAutoScroll": {
     "message": "Prevent auto-scroll"
@@ -906,112 +906,112 @@
     "message": "Keep your current reading position when new content appears."
   },
   "cloudSync": {
-    "message": "Cloud Sync"
+    "message": "Cloud sync"
   },
   "cloudSyncDescription": {
-    "message": "Cloud Sync Description"
+    "message": "Upload or merge cloud data."
   },
   "syncModeDisabled": {
-    "message": "Sync Mode Disabled"
+    "message": "Disabled"
   },
   "syncModeManual": {
-    "message": "Sync Mode Manual"
+    "message": "Manual"
   },
   "syncServerPort": {
-    "message": "Sync Server Port"
+    "message": "Sync server port"
   },
   "syncNow": {
-    "message": "Sync Now"
+    "message": "Sync now"
   },
   "lastSynced": {
-    "message": "Last Synced"
+    "message": "Last synced"
   },
   "neverSynced": {
-    "message": "Never Synced"
+    "message": "Never synced"
   },
   "lastUploaded": {
-    "message": "Last Uploaded"
+    "message": "Last uploaded"
   },
   "neverUploaded": {
-    "message": "Never Uploaded"
+    "message": "Never uploaded"
   },
   "syncSuccess": {
-    "message": "Sync Success"
+    "message": "Sync completed"
   },
   "syncError": {
-    "message": "Sync Error"
+    "message": "Sync failed"
   },
   "syncInProgress": {
-    "message": "Sync In Progress"
+    "message": "Syncing…"
   },
   "uploadInProgress": {
-    "message": "Upload In Progress"
+    "message": "Uploading…"
   },
   "uploadSuccess": {
-    "message": "Upload Success"
+    "message": "Upload completed"
   },
   "downloadInProgress": {
-    "message": "Download In Progress"
+    "message": "Downloading…"
   },
   "downloadMergeSuccess": {
-    "message": "Download Merge Success"
+    "message": "Downloaded and merged"
   },
   "syncUpload": {
-    "message": "Sync Upload"
+    "message": "Upload"
   },
   "syncMerge": {
-    "message": "Sync Merge"
+    "message": "Download and merge"
   },
   "syncMode": {
-    "message": "Sync Mode"
+    "message": "Sync mode"
   },
   "minutesAgo": {
-    "message": "Minutes Ago"
+    "message": "minutes ago"
   },
   "syncNoData": {
-    "message": "Sync No Data"
+    "message": "No data to sync"
   },
   "syncUploadFailed": {
-    "message": "Sync Upload Failed"
+    "message": "Upload failed"
   },
   "syncDownloadFailed": {
-    "message": "Sync Download Failed"
+    "message": "Download failed"
   },
   "syncAuthFailed": {
-    "message": "Sync Auth Failed"
+    "message": "Sync authentication failed"
   },
   "signOut": {
-    "message": "Sign Out"
+    "message": "Sign out"
   },
   "signInWithGoogle": {
-    "message": "Sign In With Google"
+    "message": "Sign in with Google"
   },
   "nanobananaOptions": {
-    "message": "Nanobanana Options"
+    "message": "Nanobanana options"
   },
   "nanobananaDownloadLabel": {
-    "message": "Nanobanana Download Label"
+    "message": "Download Nanobanana images"
   },
   "nanobananaDownloadHint": {
-    "message": "Nanobanana Download Hint"
+    "message": "Download original images generated by Nanobanana."
   },
   "nanobananaPreviewLabel": {
-    "message": "Nanobanana Preview Label"
+    "message": "Preview Nanobanana images"
   },
   "nanobananaPreviewHint": {
-    "message": "Nanobanana Preview Hint"
+    "message": "Preview images generated by Nanobanana."
   },
   "nanobananaDownloadTooltip": {
-    "message": "Nanobanana Download Tooltip"
+    "message": "Download original image"
   },
   "deepResearchDownload": {
-    "message": "Deep Research Download"
+    "message": "Download Deep Research report"
   },
   "deepResearchDownloadTooltip": {
-    "message": "Deep Research Download Tooltip"
+    "message": "Download this Deep Research report"
   },
   "folder_uncategorized": {
-    "message": "Folder uncategorized"
+    "message": "Uncategorized"
   },
   "timelineLevelTitle": {
     "message": "Timeline levels"
@@ -1122,10 +1122,10 @@
     "message": "General"
   },
   "enableTabTitleUpdate": {
-    "message": "Enable Tab Title Update"
+    "message": "Update tab title"
   },
   "enableTabTitleUpdateHint": {
-    "message": "Enable Tab Title Update Hint"
+    "message": "Keep the browser tab title in sync with the current conversation."
   },
   "enableMermaidRendering": {
     "message": "Mermaid diagrams"
@@ -1217,25 +1217,63 @@
   "railToggle_enable": {
     "message": "Icon rail toggle"
   },
-  "driveAutoAllow": { "message": "Auto-allow Google Drive" },
-  "driveAutoAllowHint": { "message": "Automatically click Always allow on ChatGPT's Google Drive tool approval cards, including file uploads. Off by default. Background tabs work while the page is running." },
-  "quotaRing_enable": { "message": "Show quota ring" },
-  "quotaRing_description": { "message": "Show Codex / Work quota in the composer and sidebar." },
-  "quotaRing_title": { "message": "Codex / Work quota remaining" },
-  "quotaRing_chatNote": { "message": "(Chat conversations do not consume this quota)" },
-  "quotaRing_waiting": { "message": "Waiting for usage update" },
-  "quotaRing_remaining": { "message": "{percent}% remaining" },
-  "quotaRing_weekly": { "message": "Weekly limit" },
-  "quotaRing_fiveHour": { "message": "5-hour limit" },
-  "quotaRing_window": { "message": "{hours}-hour limit" },
-  "quotaRing_review": { "message": "Code review" },
-  "quotaRing_additional": { "message": "Additional quota" },
-  "quotaRing_reset": { "message": "Resets {time}" },
-  "quotaRing_updated": { "message": "Updated {time}" },
-  "quotaRing_stale": { "message": "Last known usage · awaiting update" },
-  "quotaRing_credits": { "message": "Credits: {balance}" },
-  "quotaRing_unlimited": { "message": "Unlimited" },
-  "quotaRing_noPercentage": { "message": "No percentage limit reported" },
+  "driveAutoAllow": {
+    "message": "Auto-allow Google Drive"
+  },
+  "driveAutoAllowHint": {
+    "message": "Automatically click Always allow on ChatGPT's Google Drive tool approval cards, including file uploads. Off by default. Background tabs work while the page is running."
+  },
+  "quotaRing_enable": {
+    "message": "Show quota ring"
+  },
+  "quotaRing_description": {
+    "message": "Show Codex / Work quota in the composer and sidebar."
+  },
+  "quotaRing_title": {
+    "message": "Codex / Work quota remaining"
+  },
+  "quotaRing_chatNote": {
+    "message": "(Chat conversations do not consume this quota)"
+  },
+  "quotaRing_waiting": {
+    "message": "Waiting for usage update"
+  },
+  "quotaRing_remaining": {
+    "message": "{percent}% remaining"
+  },
+  "quotaRing_weekly": {
+    "message": "Weekly limit"
+  },
+  "quotaRing_fiveHour": {
+    "message": "5-hour limit"
+  },
+  "quotaRing_window": {
+    "message": "{hours}-hour limit"
+  },
+  "quotaRing_review": {
+    "message": "Code review"
+  },
+  "quotaRing_additional": {
+    "message": "Additional quota"
+  },
+  "quotaRing_reset": {
+    "message": "Resets {time}"
+  },
+  "quotaRing_updated": {
+    "message": "Updated {time}"
+  },
+  "quotaRing_stale": {
+    "message": "Last known usage · awaiting update"
+  },
+  "quotaRing_credits": {
+    "message": "Credits: {balance}"
+  },
+  "quotaRing_unlimited": {
+    "message": "Unlimited"
+  },
+  "quotaRing_noPercentage": {
+    "message": "No percentage limit reported"
+  },
   "railToggle_description": {
     "message": "Adds a ◀ button next to the ChatGPT title in the sidebar that folds away the new left icon rail (home, history, avatar…). Click again to bring it back."
   },
@@ -1546,13 +1584,13 @@
     "message": "Collapse"
   },
   "floatingPanelCloudUpload": {
-    "message": "Floating panel Cloud Upload"
+    "message": "Upload to cloud"
   },
   "floatingPanelCloudSync": {
-    "message": "Floating panel Cloud Sync"
+    "message": "Cloud sync"
   },
   "floatingPanelGestureHint": {
-    "message": "Floating panel Gesture Hint"
+    "message": "Double-click a name to rename; right-click for the menu"
   },
   "folder_new_chat_in_folder": {
     "message": "New chat in folder"
@@ -1784,5 +1822,272 @@
   },
   "tempChatRegretTranscriptEnd": {
     "message": "—— End ——"
+  },
+  "responseImageCopy": {
+    "message": "Copy response as image"
+  },
+  "responseImageCopied": {
+    "message": "Response image copied"
+  },
+  "responseImageDownloaded": {
+    "message": "Downloaded response image (Safari clipboard limitation)"
+  },
+  "responseImageFailed": {
+    "message": "Failed to copy response image"
+  },
+  "responseImageUnsupported": {
+    "message": "Clipboard image copy is not supported in this browser"
+  },
+  "responseImageMissing": {
+    "message": "Unable to locate response content"
+  },
+  "exportConversationMissing": {
+    "message": "Unable to locate the selected conversation. Please open it first, then export."
+  },
+  "exportConversationOpenFailed": {
+    "message": "Failed to open the selected conversation for export. Please retry."
+  },
+  "exportTooManyAttempts": {
+    "message": "Export stopped: Too many attempts detected."
+  },
+  "exportFailed": {
+    "message": "Export failed. Please try again."
+  },
+  "exportIncompleteConversation": {
+    "message": "GPT-Voyager could not safely load the complete conversation. Please keep this chat open and try again."
+  },
+  "exportRecommended": {
+    "message": "Recommended"
+  },
+  "exportImageLabel": {
+    "message": "Image"
+  },
+  "exportDocumentLabel": {
+    "message": "Document"
+  },
+  "exportConversationLabel": {
+    "message": "Conversation"
+  },
+  "exportNoContent": {
+    "message": "No content"
+  },
+  "exportUserLabel": {
+    "message": "User"
+  },
+  "exportAssistantLabel": {
+    "message": "Assistant"
+  },
+  "exportSource": {
+    "message": "Exported from GPT-Voyager"
+  },
+  "exportTurns": {
+    "message": "{count} conversation turns"
+  },
+  "exportDateLabel": {
+    "message": "Date"
+  },
+  "exportConversationIdLabel": {
+    "message": "Conversation ID"
+  },
+  "exportSourceUrlLabel": {
+    "message": "Source"
+  },
+  "exportImageUnavailable": {
+    "message": "Image unavailable in Safari export: {label}"
+  },
+  "exportSearchImage": {
+    "message": "Search result image"
+  },
+  "exportGeneratedImage": {
+    "message": "Generated image"
+  },
+  "exportResearchReport": {
+    "message": "Deep Research report"
+  },
+  "shortcutPressKey": {
+    "message": "Press key..."
+  },
+  "shortcutEscapeCancel": {
+    "message": "Press Esc to cancel"
+  },
+  "toggleDarkMode": {
+    "message": "Toggle dark mode"
+  },
+  "switchToLight": {
+    "message": "Switch to light mode"
+  },
+  "switchToDark": {
+    "message": "Switch to dark mode"
+  },
+  "sidePanel": {
+    "message": "Side panel"
+  },
+  "wechatLabel": {
+    "message": "WeChat"
+  },
+  "alipayLabel": {
+    "message": "Alipay"
+  },
+  "wechatQr": {
+    "message": "WeChat QR code"
+  },
+  "alipayQr": {
+    "message": "Alipay QR code"
+  },
+  "mermaidZoomIn": {
+    "message": "Zoom in"
+  },
+  "mermaidZoomOut": {
+    "message": "Zoom out"
+  },
+  "mermaidReset": {
+    "message": "Reset"
+  },
+  "mermaidClose": {
+    "message": "Close (Esc)"
+  },
+  "mermaidHint": {
+    "message": "Scroll to zoom · Drag to pan · Esc to close"
+  },
+  "mermaidDiagram": {
+    "message": "Diagram"
+  },
+  "mermaidCode": {
+    "message": "Code"
+  },
+  "timelineTogglePreview": {
+    "message": "Toggle preview panel"
+  },
+  "timelinePreviousPin": {
+    "message": "Previous pin in this message"
+  },
+  "timelineNextPin": {
+    "message": "Next pin in this message"
+  },
+  "timelinePinText": {
+    "message": "Pin text in the current conversation"
+  },
+  "timelineDeletePin": {
+    "message": "Delete selected pin"
+  },
+  "newChat": {
+    "message": "New chat"
+  },
+  "forkContextPrefix": {
+    "message": "# Branch Context\nYou are continuing a branched conversation.\n- The section below is the conversation history up to the fork point.\n- Continue from the final \"User\" message as a new branch.\n- Do not rewrite the history; only provide the next assistant response.\n"
+  },
+  "forkHistoryHeading": {
+    "message": "Conversation History"
+  },
+  "exportLoadingHistory": {
+    "message": "Loading conversation history ({count})…"
+  },
+  "exportUpdatingCache": {
+    "message": "Updating conversation cache…"
+  },
+  "exportCheckingCache": {
+    "message": "Checking conversation cache…"
+  },
+  "multi_select_count": {
+    "message": "{count} selected"
+  },
+  "batch_remove_from_folder_confirm": {
+    "message": "Remove {count} conversations from this folder?"
+  },
+  "multi_select_exit": {
+    "message": "Exit selection mode"
+  },
+  "folderManager_dataRecoveredFromBackup": {
+    "message": "Folder data recovered from a local backup."
+  },
+  "folder_import_invalid_version": {
+    "message": "Unsupported folder backup version."
+  },
+  "folder_import_missing_data": {
+    "message": "Required folder data is missing from this backup."
+  },
+  "folder_import_corrupted_data": {
+    "message": "The folder backup contains invalid data."
+  },
+  "folder_import_save_failed": {
+    "message": "Could not save the imported folders. Please check extension storage and try again."
+  },
+  "announcementUnavailableTitle": {
+    "message": "Announcements unavailable"
+  },
+  "announcementUnavailableBody": {
+    "message": "Announcements could not be loaded. Please try again later."
+  },
+  "announcementTranslationFallback": {
+    "message": "This translation is unavailable. Showing {language}."
+  },
+  "announcementCached": {
+    "message": "Showing the last saved announcement. The latest version could not be loaded."
+  },
+  "exportTurn": {
+    "message": "Turn {count}"
+  },
+  "exportTurnsLabel": {
+    "message": "Turns"
+  },
+  "exportGeneratedOn": {
+    "message": "Generated on {date}"
+  },
+  "exportCreatedLabel": {
+    "message": "Created"
+  },
+  "exportExportedLabel": {
+    "message": "Exported"
+  },
+  "exportAttachmentsLabel": {
+    "message": "Attachments"
+  },
+  "exportIncludesImages": {
+    "message": "This turn includes uploaded images"
+  },
+  "exportYouLabel": {
+    "message": "You"
+  },
+  "exportSystemLabel": {
+    "message": "System"
+  },
+  "exportToolLabel": {
+    "message": "Tool"
+  },
+  "customWebsiteAlreadyAdded": {
+    "message": "This website has already been added."
+  },
+  "customFontUnsupported": {
+    "message": "{fileName}: Unsupported font format. Use woff2, woff, ttf, or otf."
+  },
+  "customFontTooLarge": {
+    "message": "{fileName}: The file is too large ({size} KB > 4 MB)."
+  },
+  "customFontImported": {
+    "message": "Imported {fontName} ({size} KB)."
+  },
+  "customFontImportFailed": {
+    "message": "Font import failed: {error}"
+  },
+  "settingsSaveFailed": {
+    "message": "Could not save this setting. Please try again."
+  },
+  "pm_backup_complete": {
+    "message": "Backup completed — prompts: {promptCount}; folders: {folderCount}."
+  },
+  "pm_backup_download_complete": {
+    "message": "Backup downloaded: {fileName} — prompts: {promptCount}; folders: {folderCount}."
+  },
+  "tempChatRegretErrCollectionTimeout": {
+    "message": "The conversation did not finish updating before collection timed out."
+  },
+  "tempChatRegretErrHistoryTimeout": {
+    "message": "Conversation history did not finish loading before collection timed out."
+  },
+  "tempChatRegretErrCollectionStopped": {
+    "message": "Conversation collection stopped early ({count} messages found)."
+  },
+  "export_image_render_failed": {
+    "message": "Image rendering failed ({width} × {height})"
   }
 }

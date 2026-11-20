@@ -1,3 +1,4 @@
+import { getTranslationSync } from '@/utils/i18n';
 /**
  * Markdown formatter service
  * Converts conversation to clean, standard Markdown format
@@ -68,7 +69,7 @@ export class MarkdownFormatter {
     return markdown.replace(imgRegex, (_all, altText) => {
       const alt = String(altText || '').trim();
       const label = alt || 'image';
-      return `[Image unavailable in Safari export: ${label}]`;
+      return `[${getTranslationSync('exportImageUnavailable').replace('{label}', label)}]`;
     });
   }
 
@@ -112,9 +113,9 @@ export class MarkdownFormatter {
     lines.push('');
 
     // Metadata table
-    lines.push(`**Date**: ${this.formatDate(metadata.exportedAt)}`);
-    lines.push(`**Turns**: ${metadata.count}`);
-    lines.push(`**Source**: [ChatGPT](${metadata.url})`);
+    lines.push(`**${getTranslationSync('exportDateLabel')}**: ${this.formatDate(metadata.exportedAt)}`);
+    lines.push(`**${getTranslationSync('exportTurnsLabel')}**: ${metadata.count}`);
+    lines.push(`**${getTranslationSync('exportSourceUrlLabel')}**: [ChatGPT](${metadata.url})`);
 
     return lines.join('\n');
   }
@@ -125,34 +126,34 @@ export class MarkdownFormatter {
   private static formatTurn(turn: ChatTurn, index: number): string {
     const lines: string[] = [];
 
-    lines.push(`## Turn ${index}${turn.starred ? ' ⭐' : ''}`);
+    lines.push(`## ${getTranslationSync('exportTurn').replace('{count}', String(index))}${turn.starred ? ' ⭐' : ''}`);
     lines.push('');
 
     if (!turn.omitEmptySections) {
-      lines.push('### 👤 User');
+      lines.push(`### 👤 ${getTranslationSync('exportUserLabel')}`);
       lines.push('');
 
       if (turn.userElement) {
         const extracted = DOMContentExtractor.extractUserContent(turn.userElement);
         if (extracted.hasImages) {
-          lines.push('*[This turn includes uploaded images]*');
+          lines.push(`*[${getTranslationSync('exportIncludesImages')}]*`);
           lines.push('');
         }
-        lines.push(extracted.text || '_No content_');
+        lines.push(extracted.text || `_${getTranslationSync('exportNoContent')}_`);
       } else {
-        lines.push(this.formatContent(turn.user) || '_No content_');
+        lines.push(this.formatContent(turn.user) || `_${getTranslationSync('exportNoContent')}_`);
       }
 
       lines.push('');
-      lines.push('### 🤖 Assistant');
+      lines.push(`### 🤖 ${getTranslationSync('exportAssistantLabel')}`);
       lines.push('');
 
       if (turn.assistantElement) {
         const extracted = DOMContentExtractor.extractAssistantContent(turn.assistantElement);
         const fallback = this.formatContent(turn.assistant);
-        lines.push(extracted.text || fallback || '_No content_');
+        lines.push(extracted.text || fallback || `_${getTranslationSync('exportNoContent')}_`);
       } else {
-        lines.push(this.formatContent(turn.assistant) || '_No content_');
+        lines.push(this.formatContent(turn.assistant) || `_${getTranslationSync('exportNoContent')}_`);
       }
 
       return lines.join('\n');
@@ -163,18 +164,18 @@ export class MarkdownFormatter {
     const userFallback = this.formatContent(turn.user);
     const hasUser = !!turn.userElement || !!userFallback;
     if (hasUser) {
-      lines.push('### 👤 User');
+      lines.push(`### 👤 ${getTranslationSync('exportUserLabel')}`);
       lines.push('');
 
       if (turn.userElement) {
         const extracted = DOMContentExtractor.extractUserContent(turn.userElement);
         if (extracted.hasImages) {
-          lines.push('*[This turn includes uploaded images]*');
+          lines.push(`*[${getTranslationSync('exportIncludesImages')}]*`);
           lines.push('');
         }
-        lines.push(extracted.text || userFallback || '_No content_');
+        lines.push(extracted.text || userFallback || `_${getTranslationSync('exportNoContent')}_`);
       } else {
-        lines.push(userFallback || '_No content_');
+        lines.push(userFallback || `_${getTranslationSync('exportNoContent')}_`);
       }
 
       lines.push('');
@@ -184,21 +185,21 @@ export class MarkdownFormatter {
     const assistantFallback = this.formatContent(turn.assistant);
     const hasAssistant = !!turn.assistantElement || !!assistantFallback;
     if (hasAssistant) {
-      lines.push('### 🤖 Assistant');
+      lines.push(`### 🤖 ${getTranslationSync('exportAssistantLabel')}`);
       lines.push('');
 
       if (turn.assistantElement) {
         const extracted = DOMContentExtractor.extractAssistantContent(turn.assistantElement);
-        lines.push(extracted.text || assistantFallback || '_No content_');
+        lines.push(extracted.text || assistantFallback || `_${getTranslationSync('exportNoContent')}_`);
       } else {
-        lines.push(assistantFallback || '_No content_');
+        lines.push(assistantFallback || `_${getTranslationSync('exportNoContent')}_`);
       }
 
       hasAnySection = true;
     }
 
     if (!hasAnySection) {
-      lines.push('_No content_');
+      lines.push(`_${getTranslationSync('exportNoContent')}_`);
     }
 
     return lines.join('\n');
@@ -228,8 +229,8 @@ export class MarkdownFormatter {
    */
   private static formatFooter(metadata: ConversationMetadata): string {
     return [
-      `*Exported from GPT-Voyager*`,
-      `*Generated on ${this.formatDate(metadata.exportedAt)}*`,
+      `*${getTranslationSync('exportSource')}*`,
+      `*${getTranslationSync('exportGeneratedOn').replace('{date}', this.formatDate(metadata.exportedAt))}*`,
     ].join('  \n'); // Two spaces for line break
   }
 

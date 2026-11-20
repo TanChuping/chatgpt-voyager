@@ -1,3 +1,4 @@
+import { getTranslationSync } from '@/utils/i18n';
 /**
  * DOM Content Extractor
  * Extracts rich content from the host chat DOM while preserving formatting
@@ -495,7 +496,7 @@ export class DOMContentExtractor {
             // by both CORS and host-page CSP, so it's only usable as an attribution link.
             const src = imgEl.src || '';
             if (!src || src === 'about:blank') continue;
-            const alt = imgEl.alt || 'Search result image';
+            const alt = imgEl.alt || getTranslationSync('exportSearchImage');
             const sourceLink = container.querySelector('a.source') as HTMLAnchorElement | null;
             const sourceUrl = sourceLink?.href || '';
             const sourceLabel =
@@ -540,7 +541,7 @@ export class DOMContentExtractor {
             const imgEl = img as HTMLImageElement;
             const src = imgEl.src || imgEl.getAttribute('src') || '';
             if (!src || src === 'about:blank') continue;
-            const alt = imgEl.alt || 'Generated image';
+            const alt = imgEl.alt || getTranslationSync('exportGeneratedImage');
             flags.hasImages = true;
             htmlParts.push(
               `<img src="${this.escapeHtmlAttribute(src)}" alt="${this.escapeHtmlAttribute(alt)}" />`,
@@ -768,7 +769,7 @@ export class DOMContentExtractor {
           const imgEl = el as HTMLImageElement;
           const src = imgEl.src || imgEl.getAttribute('src') || '';
           if (src && src !== 'about:blank') {
-            const alt = imgEl.alt || 'Image';
+            const alt = imgEl.alt || getTranslationSync('exportImageLabel');
             htmlParts.push(
               `<img src="${this.escapeHtmlAttribute(src)}" alt="${this.escapeHtmlAttribute(alt)}" />`,
             );

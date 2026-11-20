@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import frMessages from '@/locales/fr/messages.json';
+import { installEnglishLocale } from '@/tests/localeFixture';
+import { extractMessageDictionary } from '@/utils/localeMessages';
+import { installTranslations } from '@/utils/translations';
+
 import { startRailToggle, stopRailToggle } from '../index';
 
 const BUTTON = '[data-gv-rail-toggle]';
@@ -46,6 +51,7 @@ describe('icon rail toggle', () => {
   let stored: Record<string, unknown>;
 
   beforeEach(() => {
+    installEnglishLocale();
     vi.useFakeTimers();
     // A wide window: ChatGPT's side-by-side layout (the global mock matches nothing).
     vi.stubGlobal('matchMedia', (query: string) => ({
@@ -71,6 +77,7 @@ describe('icon rail toggle', () => {
     document.body.innerHTML = '';
     vi.mocked(chrome.storage.local.get).mockReset();
     vi.mocked(chrome.storage.local.set).mockReset();
+    vi.restoreAllMocks();
   });
 
   it('adds a compact button before search in the sidebar header row', () => {
@@ -97,6 +104,47 @@ describe('icon rail toggle', () => {
     button().click();
     expect(rail.hasAttribute('data-gv-rail-folded')).toBe(false);
     expect(stored.gvRailCollapsed).toBe(false);
+  });
+
+  it('relabels a folded rail and its visible tooltip only after dictionary readiness', async () => {
+    const added = vi.spyOn(window, 'addEventListener');
+    const removed = vi.spyOn(window, 'removeEventListener');
+    startRailToggle();
+    startRailToggle();
+    const languageCalls = added.mock.calls.filter(([event]) => event === 'voyager:language-changed');
+    expect(languageCalls).toHaveLength(1);
+    const button = document.querySelector<HTMLButtonElement>(BUTTON)!;
+    const rail = document.querySelector('nav[data-app-navigation-rail]')!;
+    const icon = button.querySelector('svg');
+    button.click();
+    button.dispatchEvent(new MouseEvent('mouseenter'));
+    await vi.advanceTimersByTimeAsync(250);
+    const tooltip = document.getElementById('gv-rail-toggle-tooltip')!;
+    expect(tooltip.hasAttribute('data-visible')).toBe(true);
+    const writes = vi.mocked(chrome.storage.local.set).mock.calls.length;
+    installTranslations(extractMessageDictionary(frMessages));
+    expect(button.getAttribute('aria-label')).toBe('Show the icon rail');
+
+    window.dispatchEvent(new CustomEvent('voyager:language-changed'));
+
+    expect(document.querySelector(BUTTON)).toBe(button);
+    expect(button.querySelector('svg')).toBe(icon);
+    expect(button.getAttribute('aria-label')).toBe(frMessages.railToggle_show.message);
+    expect(tooltip.textContent).toBe(frMessages.railToggle_show.message);
+    expect(tooltip.hasAttribute('data-visible')).toBe(true);
+    expect(rail.hasAttribute('data-gv-rail-folded')).toBe(true);
+    expect(stored.gvRailCollapsed).toBe(true);
+    expect(chrome.storage.local.set).toHaveBeenCalledTimes(writes);
+    button.click();
+    expect(button.getAttribute('aria-label')).toBe(frMessages.railToggle_hide.message);
+    expect(stored.gvRailCollapsed).toBe(false);
+
+    stopRailToggle();
+    expect(removed).toHaveBeenCalledWith('voyager:language-changed', languageCalls[0][1]);
+    installEnglishLocale();
+    window.dispatchEvent(new CustomEvent('voyager:language-changed'));
+    expect(button.getAttribute('aria-label')).toBe(frMessages.railToggle_hide.message);
+    expect(document.querySelector(BUTTON)).toBeNull();
   });
 
   it('replaces both native icon variants with a single visible arrow', () => {

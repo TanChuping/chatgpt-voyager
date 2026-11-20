@@ -3,6 +3,8 @@
  * Material Design styled format selection dialog
  */
 import { isSafari } from '@/core/utils/browser';
+import { getTranslationSync } from '@/utils/i18n';
+import type { TranslationKey } from '@/utils/translations';
 
 import { ConversationExportService } from '../services/ConversationExportService';
 import {
@@ -47,20 +49,43 @@ const PDF_MIN = 8;
 const PDF_MAX = 16;
 const IMAGE_MIN = 14;
 const IMAGE_MAX = 28;
+const FORMAT_DESCRIPTION_KEYS: Record<ExportFormat, TranslationKey> = {
+  json: 'export_format_json_description',
+  markdown: 'export_format_markdown_description',
+  pdf: 'export_format_pdf_description',
+  image: 'export_format_image_description',
+};
 
 export class ExportDialog {
   private overlay: HTMLElement | null = null;
   private selectedFormat: ExportFormat = 'markdown' as ExportFormat;
   private fontSize: number = PDF_DEFAULT_FONT_SIZE;
   private imageWidth: ImageExportWidth = DEFAULT_IMAGE_EXPORT_WIDTH;
+  private translationUpdates: Array<() => void> = [];
+  private removeEscapeListener: (() => void) | null = null;
+
+  private onLanguageReady = (): void => {
+    // Do not recreate controls or call updateOptionalSections: either would reset
+    // the user's current format, slider value, width selection or focus.
+    this.translationUpdates.forEach((update) => update());
+  };
+
+  private localizeText(element: HTMLElement, key: TranslationKey, initialValue?: string): void {
+    element.textContent = initialValue ?? getTranslationSync(key);
+    this.translationUpdates.push(() => {
+      element.textContent = getTranslationSync(key);
+    });
+  }
 
   /**
    * Show export dialog
    */
   show(options: ExportDialogOptions): void {
+    this.hide();
     this.imageWidth = normalizeImageExportWidth(options.initialImageWidth);
     this.overlay = this.createDialog(options);
     document.body.appendChild(this.overlay);
+    window.addEventListener('voyager:language-changed', this.onLanguageReady);
 
     // Keep initial focus on container to avoid showing a browser focus ring on JSON radio.
     const dialog = this.overlay.querySelector('.gv-export-dialog') as HTMLElement | null;
@@ -71,6 +96,10 @@ export class ExportDialog {
    * Hide and cleanup dialog
    */
   hide(): void {
+    window.removeEventListener('voyager:language-changed', this.onLanguageReady);
+    this.removeEscapeListener?.();
+    this.removeEscapeListener = null;
+    this.translationUpdates = [];
     if (this.overlay) {
       this.overlay.remove();
       this.overlay = null;
@@ -91,12 +120,12 @@ export class ExportDialog {
     // Title
     const title = document.createElement('div');
     title.className = 'gv-export-dialog-title';
-    title.textContent = options.translations.title;
+    this.localizeText(title, 'export_dialog_title', options.translations.title);
 
     // Subtitle
     const subtitle = document.createElement('div');
     subtitle.className = 'gv-export-dialog-subtitle';
-    subtitle.textContent = options.translations.selectFormat;
+    this.localizeText(subtitle, 'export_dialog_select', options.translations.selectFormat);
 
     // Format options
     const formatsList = document.createElement('div');
@@ -128,7 +157,7 @@ export class ExportDialog {
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'gv-export-dialog-btn gv-export-dialog-btn-secondary';
-    cancelBtn.textContent = options.translations.cancel;
+    this.localizeText(cancelBtn, 'pm_cancel', options.translations.cancel);
     cancelBtn.addEventListener('click', () => {
       options.onCancel();
       this.hide();
@@ -137,7 +166,7 @@ export class ExportDialog {
     const exportBtn = document.createElement('button');
     exportBtn.type = 'button';
     exportBtn.className = 'gv-export-dialog-btn gv-export-dialog-btn-primary';
-    exportBtn.textContent = options.translations.export;
+    this.localizeText(exportBtn, 'pm_export', options.translations.export);
     exportBtn.addEventListener('click', () => {
       const isPdf = this.selectedFormat === ('pdf' as ExportFormat);
       const isImage = this.selectedFormat === ('image' as ExportFormat);
@@ -158,7 +187,7 @@ export class ExportDialog {
     if (options.translations.warning.trim()) {
       const warning = document.createElement('div');
       warning.className = 'gv-export-dialog-warning';
-      warning.textContent = options.translations.warning;
+      this.localizeText(warning, 'export_dialog_warning', options.translations.warning);
       dialog.appendChild(warning);
     }
     dialog.appendChild(formatsList);
@@ -180,10 +209,10 @@ export class ExportDialog {
       if (e.key === 'Escape') {
         options.onCancel();
         this.hide();
-        document.removeEventListener('keydown', handleEscape);
       }
     };
     document.addEventListener('keydown', handleEscape);
+    this.removeEscapeListener = () => document.removeEventListener('keydown', handleEscape);
 
     return overlay;
   }
@@ -226,31 +255,45 @@ export class ExportDialog {
 
     const labelDiv = document.createElement('div');
     labelDiv.className = 'gv-export-format-label';
-    labelDiv.textContent = formatInfo.label;
+    const labelText = document.createTextNode(formatInfo.label);
+    labelDiv.appendChild(labelText);
+    if (formatInfo.format === ('image' as ExportFormat)) {
+      this.translationUpdates.push(() => {
+        labelText.data = getTranslationSync('exportImageLabel');
+      });
+    }
 
     if (formatInfo.recommended) {
       const badge = document.createElement('span');
       badge.className = 'gv-export-format-badge';
-      badge.textContent = 'Recommended';
+      this.localizeText(badge, 'exportRecommended');
       labelDiv.appendChild(badge);
     }
 
     const desc = document.createElement('div');
     desc.className = 'gv-export-format-description';
-    let hintText = formatInfo.description;
-
+    let safariHintKey: TranslationKey | undefined;
+    let initialSafariHint = '';
     if (isSafari()) {
       if (formatInfo.format === ('pdf' as ExportFormat)) {
-        hintText = `${formatInfo.description} ${safariCmdpHint}`;
+        safariHintKey = 'export_dialog_safari_cmdp_hint';
+        initialSafariHint = safariCmdpHint;
       } else if (
         formatInfo.format === ('markdown' as ExportFormat) ||
         formatInfo.format === ('image' as ExportFormat)
       ) {
-        hintText = `${formatInfo.description} ${safariMarkdownHint}`;
+        safariHintKey = 'export_dialog_safari_markdown_hint';
+        initialSafariHint = safariMarkdownHint;
       }
     }
 
-    desc.textContent = hintText;
+    desc.textContent = formatInfo.description + (safariHintKey ? ` ${initialSafariHint}` : '');
+    const descriptionKey = FORMAT_DESCRIPTION_KEYS[formatInfo.format];
+    this.translationUpdates.push(() => {
+      desc.textContent =
+        getTranslationSync(descriptionKey) +
+        (safariHintKey ? ` ${getTranslationSync(safariHintKey)}` : '');
+    });
 
     content.appendChild(labelDiv);
     content.appendChild(desc);
@@ -276,7 +319,7 @@ export class ExportDialog {
 
     const label = document.createElement('span');
     label.className = 'gv-export-fontsize-label';
-    label.textContent = options.translations.fontSizeLabel;
+    this.localizeText(label, 'export_fontsize_label', options.translations.fontSizeLabel);
 
     const value = document.createElement('span');
     value.className = 'gv-export-fontsize-value';
@@ -297,7 +340,7 @@ export class ExportDialog {
     // Preview text
     const preview = document.createElement('div');
     preview.className = 'gv-export-fontsize-preview';
-    preview.textContent = options.translations.fontSizePreview;
+    this.localizeText(preview, 'export_fontsize_preview', options.translations.fontSizePreview);
     preview.style.fontSize = `${this.fontSize}pt`;
 
     slider.addEventListener('input', () => {
@@ -325,7 +368,7 @@ export class ExportDialog {
     const label = document.createElement('div');
     label.className = 'gv-export-fontsize-label';
     label.style.marginBottom = '8px';
-    label.textContent = options.translations.imageWidthLabel;
+    this.localizeText(label, 'export_image_width_label', options.translations.imageWidthLabel);
 
     const group = document.createElement('div');
     group.className = 'gv-export-width-group';
@@ -336,19 +379,25 @@ export class ExportDialog {
       {
         value: IMAGE_EXPORT_WIDTH_NARROW,
         label: options.translations.imageWidthNarrow,
+        key: 'export_image_width_narrow',
       },
       {
         value: IMAGE_EXPORT_WIDTH_MEDIUM,
         label: options.translations.imageWidthMedium,
+        key: 'export_image_width_medium',
       },
-      { value: IMAGE_EXPORT_WIDTH_WIDE, label: options.translations.imageWidthWide },
-    ];
+      {
+        value: IMAGE_EXPORT_WIDTH_WIDE,
+        label: options.translations.imageWidthWide,
+        key: 'export_image_width_wide',
+      },
+    ] as const;
 
     widths.forEach((w) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'gv-export-width-btn';
-      btn.textContent = w.label;
+      this.localizeText(btn, w.key, w.label);
       if (w.value === this.imageWidth) {
         btn.classList.add('active');
       }

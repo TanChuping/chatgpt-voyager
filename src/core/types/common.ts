@@ -226,6 +226,7 @@ export const StorageKeys = {
   ANNOUNCEMENT_SEEN_ID: 'gvAnnouncementSeenId',
   ANNOUNCEMENT_BUBBLE_SHOWN_FOR: 'gvAnnouncementBubbleShownFor',
   ANNOUNCEMENT_CACHE_V1: 'gvAnnouncementCacheV1',
+  ANNOUNCEMENT_CACHE_V2: 'gvAnnouncementCacheV2',
   ANNOUNCEMENT_LAST_BUBBLE_AT: 'gvAnnouncementLastBubbleAt',
   ANNOUNCEMENT_LAST_SEEN_AT: 'gvAnnouncementLastSeenAt',
 } as const;

@@ -139,6 +139,17 @@ function updateCurrentMenuItem(item: HTMLElement, label: string, tooltip: string
   if (labelElement) labelElement.textContent = label;
 }
 
+/** Refresh labels on already-open menus without replacing native nodes or handlers. */
+export function refreshInjectedExportLabels(label: string, root: ParentNode = document): void {
+  root.querySelectorAll<HTMLElement>(`.${MENU_BUTTON_CLASS}, .${RESPONSE_MENU_BUTTON_CLASS}`).forEach((item) => {
+    if (item.closest(LEGACY_MENU_PANEL_SELECTOR)) {
+      updateMenuItemTemplateLabel(item as HTMLButtonElement, label, label);
+    } else {
+      updateCurrentMenuItem(item, label, label);
+    }
+  });
+}
+
 function createCurrentMenuItem(
   menu: HTMLElement,
   className: string,

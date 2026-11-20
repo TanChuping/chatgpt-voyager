@@ -15,10 +15,12 @@
  * announcement; if you click ×, never again; if you ignore it forever,
  * the dot stays but the bubble doesn't re-pop on every page reload".
  */
-import { ANNOUNCEMENT_JSON_URL } from '@/core/constants/project';
+import { ANNOUNCEMENT_I18N_JSON_URL } from '@/core/constants/project';
 import { StorageKeys } from '@/core/types/common';
 import { addPageExitListener } from '@/core/utils/pageLifecycle';
+import { getCachedLanguage, initI18n } from '@/utils/i18n';
 
+import { isAnnouncementFile, localizeAnnouncement } from './localization';
 import type { AnnouncementCacheEntry, RemoteAnnouncement, RemoteAnnouncementFile } from './types';
 
 const CACHE_TTL_MS = 30 * 60 * 1000; // refetch at most every 30 min
@@ -68,41 +70,22 @@ const CDN_BUST_WINDOW_MS = 5 * 60 * 1000;
 
 type Listener = (current: RemoteAnnouncement | null) => void;
 
-function isAnnouncement(value: unknown): value is RemoteAnnouncement {
-  if (!value || typeof value !== 'object') return false;
-  const v = value as Record<string, unknown>;
-  return (
-    typeof v.id === 'string' &&
-    v.id.length > 0 &&
-    typeof v.title === 'string' &&
-    typeof v.summary === 'string' &&
-    typeof v.bodyMarkdown === 'string'
-  );
-}
-
-function isAnnouncementFile(value: unknown): value is RemoteAnnouncementFile {
-  if (!value || typeof value !== 'object') return false;
-  const v = value as Record<string, unknown>;
-  if (v.v !== 1) return false;
-  return v.current === null || isAnnouncement(v.current);
-}
-
 async function readCache(): Promise<AnnouncementCacheEntry | null> {
   return new Promise((resolve) => {
     try {
-      chrome.storage?.local?.get([StorageKeys.ANNOUNCEMENT_CACHE_V1], (res) => {
-        const raw = res?.[StorageKeys.ANNOUNCEMENT_CACHE_V1];
+      if (!chrome.storage?.local?.get) return resolve(null);
+      chrome.storage.local.get([StorageKeys.ANNOUNCEMENT_CACHE_V2], (res) => {
+        const raw = res?.[StorageKeys.ANNOUNCEMENT_CACHE_V2];
         if (!raw || typeof raw !== 'object') return resolve(null);
         const cache = raw as Partial<AnnouncementCacheEntry>;
-        if (typeof cache.fetchedAt !== 'number') return resolve(null);
-        // `payload` may be null (we successfully fetched and the feed had
-        // no current announcement) — that's a meaningful cache state.
-        if (cache.payload !== null && !isAnnouncementFile(cache.payload)) {
+        if (typeof cache.fetchedAt !== 'number' || !Number.isFinite(cache.fetchedAt))
+          return resolve(null);
+        if (!isAnnouncementFile(cache.payload)) {
           return resolve(null);
         }
         resolve({
           fetchedAt: cache.fetchedAt,
-          payload: cache.payload as RemoteAnnouncementFile | null,
+          payload: cache.payload as RemoteAnnouncementFile,
         });
       });
     } catch {
@@ -111,20 +94,35 @@ async function readCache(): Promise<AnnouncementCacheEntry | null> {
   });
 }
 
-async function writeCache(entry: AnnouncementCacheEntry): Promise<void> {
+/** Callback APIs report quota/context errors through lastError, not thrown exceptions. */
+async function writeLocal(values: Record<string, unknown>): Promise<boolean> {
   return new Promise((resolve) => {
     try {
-      chrome.storage?.local?.set({ [StorageKeys.ANNOUNCEMENT_CACHE_V1]: entry }, () => resolve());
+      if (!chrome.storage?.local?.set) return resolve(false);
+      chrome.storage.local.set(values, () => {
+        const error = chrome.runtime?.lastError;
+        if (error) {
+          console.warn('[GPT-Voyager] announcement storage write failed:', error.message);
+          resolve(false);
+        } else {
+          resolve(true);
+        }
+      });
     } catch {
-      resolve();
+      resolve(false);
     }
   });
+}
+
+async function writeCache(entry: AnnouncementCacheEntry): Promise<boolean> {
+  return writeLocal({ [StorageKeys.ANNOUNCEMENT_CACHE_V2]: entry });
 }
 
 async function readFlag(key: string): Promise<string | null> {
   return new Promise((resolve) => {
     try {
-      chrome.storage?.local?.get([key], (res) => {
+      if (!chrome.storage?.local?.get) return resolve(null);
+      chrome.storage.local.get([key], (res) => {
         const v = res?.[key];
         resolve(typeof v === 'string' && v.length > 0 ? v : null);
       });
@@ -134,14 +132,8 @@ async function readFlag(key: string): Promise<string | null> {
   });
 }
 
-async function writeFlag(key: string, value: string): Promise<void> {
-  return new Promise((resolve) => {
-    try {
-      chrome.storage?.local?.set({ [key]: value }, () => resolve());
-    } catch {
-      resolve();
-    }
-  });
+async function writeFlag(key: string, value: string): Promise<boolean> {
+  return writeLocal({ [key]: value });
 }
 
 /**
@@ -154,7 +146,8 @@ async function writeFlag(key: string, value: string): Promise<void> {
 async function readTimestamp(key: string): Promise<number> {
   return new Promise((resolve) => {
     try {
-      chrome.storage?.local?.get([key], (res) => {
+      if (!chrome.storage?.local?.get) return resolve(0);
+      chrome.storage.local.get([key], (res) => {
         const v = res?.[key];
         resolve(typeof v === 'number' && isFinite(v) ? v : 0);
       });
@@ -164,15 +157,16 @@ async function readTimestamp(key: string): Promise<number> {
   });
 }
 
-async function writeTimestamp(key: string, value: number): Promise<void> {
-  return new Promise((resolve) => {
-    try {
-      chrome.storage?.local?.set({ [key]: value }, () => resolve());
-    } catch {
-      resolve();
-    }
-  });
+async function writeTimestamp(key: string, value: number): Promise<boolean> {
+  return writeLocal({ [key]: value });
 }
+
+// A tiny, bounded fallback for this content-script lifetime only. It never
+// rewrites user data and cannot promise persistence across a full page reload.
+let sessionSeenId: string | null = null;
+let sessionBubbleShownFor: string | null = null;
+let sessionLastBubbleAt = 0;
+let sessionLastSeenAt = 0;
 
 /**
  * Fetch the remote feed via plain GET. The cache-buster strategy is:
@@ -188,13 +182,18 @@ async function writeTimestamp(key: string, value: number): Promise<void> {
  */
 async function fetchRemote(force: boolean): Promise<RemoteAnnouncementFile | null> {
   const cacheBuster = force ? `f${Date.now()}` : `b${Math.floor(Date.now() / CDN_BUST_WINDOW_MS)}`;
-  const url = `${ANNOUNCEMENT_JSON_URL}?t=${cacheBuster}`;
+  const url = `${ANNOUNCEMENT_I18N_JSON_URL}?t=${cacheBuster}`;
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), 10000);
   try {
-    const res = await fetch(url, { credentials: 'omit', cache: 'no-cache' });
+    const res = await fetch(url, {
+      credentials: 'omit',
+      cache: 'no-cache',
+      signal: controller.signal,
+    });
     if (!res.ok) {
-      // 404 is meaningful — the feed file hasn't been published yet.
-      // Don't treat it as a hard error; just cache "no current".
-      if (res.status === 404) return { v: 1, current: null };
+      // Missing V2 or a partially published resource is not a withdrawal.
+      // Only a valid v=2/current=null payload may clear the cached announcement.
       return null;
     }
     const json = (await res.json()) as unknown;
@@ -202,21 +201,30 @@ async function fetchRemote(force: boolean): Promise<RemoteAnnouncementFile | nul
     return json;
   } catch {
     return null;
+  } finally {
+    globalThis.clearTimeout(timeout);
   }
 }
 
 export interface AnnouncementSnapshot {
   current: RemoteAnnouncement | null;
+  status: 'ready' | 'empty' | 'stale' | 'unavailable';
   /** True iff the bubble should currently auto-pop. */
   shouldPopBubble: boolean;
   /** True iff the button's "unread" indicator dot should be lit. */
   hasUnread: boolean;
 }
 
-async function evaluate(payload: RemoteAnnouncementFile | null): Promise<AnnouncementSnapshot> {
-  const current = payload?.current ?? null;
+async function evaluate(
+  payload: RemoteAnnouncementFile | null,
+  failed = false,
+): Promise<AnnouncementSnapshot> {
+  await initI18n();
+  const language = getCachedLanguage();
+  const current = payload?.current ? localizeAnnouncement(payload.current, language) : null;
+  const status = failed ? (current ? 'stale' : 'unavailable') : current ? 'ready' : 'empty';
   if (!current) {
-    return { current: null, shouldPopBubble: false, hasUnread: false };
+    return { current: null, status, shouldPopBubble: false, hasUnread: false };
   }
   const [seenId, bubbleShownFor, lastBubbleAt, lastSeenAt] = await Promise.all([
     readFlag(StorageKeys.ANNOUNCEMENT_SEEN_ID),
@@ -227,8 +235,12 @@ async function evaluate(payload: RemoteAnnouncementFile | null): Promise<Announc
   const now = Date.now();
 
   // ---- Detection layer (id-based) ----------------------------------
-  const idsSayShouldPop = current.id !== seenId && current.id !== bubbleShownFor;
-  const idsSayHasUnread = current.id !== seenId;
+  const idsSayShouldPop =
+    current.id !== seenId &&
+    current.id !== bubbleShownFor &&
+    current.id !== sessionSeenId &&
+    current.id !== sessionBubbleShownFor;
+  const idsSayHasUnread = current.id !== seenId && current.id !== sessionSeenId;
 
   // ---- HARD GUARDS (timestamp-based, id-agnostic) ------------------
   // These are absolute ceilings: even if the id-based detection above
@@ -236,11 +248,13 @@ async function evaluate(payload: RemoteAnnouncementFile | null): Promise<Announc
   // reverse never applies — guards can only suppress, never force.
   // This makes the user-protection contract robust against any future
   // detection bug.
-  const bubbleCooldownActive = now - lastBubbleAt < BUBBLE_HARD_COOLDOWN_MS;
-  const dotCooldownActive = now - lastSeenAt < DOT_HARD_COOLDOWN_MS;
+  const bubbleCooldownActive =
+    now - Math.max(lastBubbleAt, sessionLastBubbleAt) < BUBBLE_HARD_COOLDOWN_MS;
+  const dotCooldownActive = now - Math.max(lastSeenAt, sessionLastSeenAt) < DOT_HARD_COOLDOWN_MS;
 
   return {
     current,
+    status,
     shouldPopBubble: idsSayShouldPop && !bubbleCooldownActive,
     hasUnread: idsSayHasUnread && !dotCooldownActive,
   };
@@ -249,6 +263,7 @@ async function evaluate(payload: RemoteAnnouncementFile | null): Promise<Announc
 const listeners = new Set<Listener>();
 let lastSnapshot: AnnouncementSnapshot = {
   current: null,
+  status: 'unavailable',
   shouldPopBubble: false,
   hasUnread: false,
 };
@@ -266,27 +281,56 @@ function notify(snapshot: AnnouncementSnapshot) {
   }
 }
 
-/** Public API — call this on storage changes / manual refresh. */
-export async function refreshSnapshot(force = false): Promise<AnnouncementSnapshot> {
-  const cache = await readCache();
-  const fresh = cache && !force && Date.now() - cache.fetchedAt < CACHE_TTL_MS;
-  let payload: RemoteAnnouncementFile | null;
-  if (fresh) {
-    payload = cache!.payload;
-  } else {
-    const remote = await fetchRemote(force);
-    if (remote) {
-      payload = remote;
-      await writeCache({ fetchedAt: Date.now(), payload });
-    } else {
-      // Remote fetch failed — keep using cache if we have one (so a flaky
-      // network doesn't make the button flicker between states).
-      payload = cache?.payload ?? null;
-    }
+let remoteRequest: Promise<RemoteAnnouncementFile | null> | null = null;
+let refreshGeneration = 0;
+let latestRefresh: Promise<AnnouncementSnapshot> | null = null;
+let lastFetchFailed = false;
+
+function fetchShared(force: boolean): Promise<RemoteAnnouncementFile | null> {
+  if (!remoteRequest) {
+    remoteRequest = (async () => {
+      const remote = await fetchRemote(force);
+      lastFetchFailed = !remote;
+      if (remote) await writeCache({ fetchedAt: Date.now(), payload: remote });
+      return remote;
+    })().finally(() => {
+      remoteRequest = null;
+    });
   }
-  const snapshot = await evaluate(payload);
-  notify(snapshot);
-  return snapshot;
+  return remoteRequest;
+}
+
+/**
+ * One remote request is shared by simultaneous callers. Newer refreshes win;
+ * an older language/result cannot overwrite the latest choice or withdrawal.
+ */
+export function refreshSnapshot(force = false): Promise<AnnouncementSnapshot> {
+  const generation = ++refreshGeneration;
+  const promise = (async (): Promise<AnnouncementSnapshot> => {
+    const cache = await readCache();
+    const fresh = cache && !force && !remoteRequest && Date.now() - cache.fetchedAt < CACHE_TTL_MS;
+    let fetched = false;
+    let payload: RemoteAnnouncementFile | null;
+    let failed = lastFetchFailed;
+    if (fresh) {
+      payload = cache.payload;
+    } else {
+      const remote = await fetchShared(force);
+      failed = !remote;
+      fetched = !!remote;
+      payload = remote ?? cache?.payload ?? null;
+    }
+    const snapshot = await evaluate(payload, failed);
+    if (generation !== refreshGeneration && latestRefresh) {
+      // A newer language-only refresh must not discard a successful forced
+      // fetch. Re-evaluate the newest stored feed, never the older local copy.
+      return fetched ? refreshSnapshot() : latestRefresh;
+    }
+    notify(snapshot);
+    return snapshot;
+  })();
+  latestRefresh = promise;
+  return promise;
 }
 
 export function getLastSnapshot(): AnnouncementSnapshot {
@@ -295,7 +339,8 @@ export function getLastSnapshot(): AnnouncementSnapshot {
 
 /**
  * Mark the bubble as having auto-popped for `id`. Idempotent — calling
- * twice for the same id is a no-op storage-wise.
+ * twice for the same id is a no-op storage-wise. Returns true only if the
+ * persisted flag is present or both writes succeeded; false means session-only.
  *
  * Refreshes the snapshot synchronously after the write so any in-tab
  * listener (e.g., applyUnreadState in the bootstrap) sees the new
@@ -303,16 +348,31 @@ export function getLastSnapshot(): AnnouncementSnapshot {
  * Belt-and-suspenders with the existing onChanged listener — both
  * fire applySnapshot, second one is a no-op.
  */
-export async function markBubbleShown(id: string): Promise<void> {
-  // Two writes: the id-keyed flag (existing detection layer) AND the
-  // id-agnostic timestamp ceiling (hard cooldown). The cooldown wins
-  // ANY contention with the id-based logic — even if a new id arrives
-  // tomorrow, the bubble stays silent for the full 14-day window.
-  await Promise.all([
+export async function markBubbleShown(id: string): Promise<boolean> {
+  if (sessionBubbleShownFor === id) {
+    await refreshSnapshot();
+    return false;
+  }
+  if ((await readFlag(StorageKeys.ANNOUNCEMENT_BUBBLE_SHOWN_FOR)) === id) {
+    await refreshSnapshot();
+    return true;
+  }
+  const now = Date.now();
+  // Protect this runtime while asynchronous writes are pending, and retain
+  // that protection if persistence is rejected. No automatic write retry.
+  sessionBubbleShownFor = id;
+  sessionLastBubbleAt = now;
+  const results = await Promise.all([
     writeFlag(StorageKeys.ANNOUNCEMENT_BUBBLE_SHOWN_FOR, id),
-    writeTimestamp(StorageKeys.ANNOUNCEMENT_LAST_BUBBLE_AT, Date.now()),
+    writeTimestamp(StorageKeys.ANNOUNCEMENT_LAST_BUBBLE_AT, now),
   ]);
+  const persisted = results.every(Boolean);
+  if (persisted && sessionBubbleShownFor === id && sessionLastBubbleAt === now) {
+    sessionBubbleShownFor = null;
+    sessionLastBubbleAt = 0;
+  }
   await refreshSnapshot();
+  return persisted;
 }
 
 /**
@@ -325,25 +385,30 @@ export async function markBubbleShown(id: string): Promise<void> {
  * timing (which was previously prone to dropping the unread-state
  * update if ChatGPT remounted the header in the same frame).
  */
-export async function markSeen(id: string): Promise<void> {
-  // Four writes (parallel): the two id-keyed flags (existing detection),
-  // plus BOTH hard-cooldown timestamps. Explicit dismiss arms both
-  // ceilings:
-  //   - LAST_BUBBLE_AT (14 d): no bubble pops for 2 weeks regardless
-  //     of new ids — user told us they "saw it", honour that.
-  //   - LAST_SEEN_AT (24 h): no red dot for the next day even if a
-  //     brand-new id arrives — "I just dealt with this, leave me alone".
-  // Both ceilings are belt-and-suspenders on top of SEEN_ID. If
-  // SEEN_ID ever gets dropped or de-synced from current.id, the
-  // timestamps still hold the line for their respective windows.
+/** Returns true only when all four existing ID/cooldown writes persisted. */
+export async function markSeen(id: string): Promise<boolean> {
   const now = Date.now();
-  await Promise.all([
+  sessionSeenId = id;
+  sessionBubbleShownFor = id;
+  sessionLastBubbleAt = now;
+  sessionLastSeenAt = now;
+  const results = await Promise.all([
     writeFlag(StorageKeys.ANNOUNCEMENT_SEEN_ID, id),
     writeFlag(StorageKeys.ANNOUNCEMENT_BUBBLE_SHOWN_FOR, id),
     writeTimestamp(StorageKeys.ANNOUNCEMENT_LAST_BUBBLE_AT, now),
     writeTimestamp(StorageKeys.ANNOUNCEMENT_LAST_SEEN_AT, now),
   ]);
+  const persisted = results.every(Boolean);
+  if (persisted && sessionSeenId === id && sessionLastSeenAt === now) {
+    sessionSeenId = null;
+    sessionLastSeenAt = 0;
+    if (sessionBubbleShownFor === id && sessionLastBubbleAt === now) {
+      sessionBubbleShownFor = null;
+      sessionLastBubbleAt = 0;
+    }
+  }
   await refreshSnapshot();
+  return persisted;
 }
 
 export function subscribe(cb: Listener): () => void {
@@ -368,7 +433,7 @@ export function installAnnouncementWatchers(
     if (
       changes[StorageKeys.ANNOUNCEMENT_SEEN_ID] ||
       changes[StorageKeys.ANNOUNCEMENT_BUBBLE_SHOWN_FOR] ||
-      changes[StorageKeys.ANNOUNCEMENT_CACHE_V1] ||
+      changes[StorageKeys.ANNOUNCEMENT_CACHE_V2] ||
       changes[StorageKeys.ANNOUNCEMENT_LAST_BUBBLE_AT] ||
       changes[StorageKeys.ANNOUNCEMENT_LAST_SEEN_AT]
     ) {
@@ -421,7 +486,15 @@ export function installAnnouncementWatchers(
 /** Test-only: reset module state. */
 export function __resetAnnouncementServiceForTests(): void {
   listeners.clear();
-  lastSnapshot = { current: null, shouldPopBubble: false, hasUnread: false };
+  refreshGeneration++;
+  sessionSeenId = null;
+  sessionBubbleShownFor = null;
+  sessionLastBubbleAt = 0;
+  sessionLastSeenAt = 0;
+  remoteRequest = null;
+  latestRefresh = null;
+  lastFetchFailed = false;
+  lastSnapshot = { current: null, status: 'unavailable', shouldPopBubble: false, hasUnread: false };
   installed = false;
   if (pollTimer !== null) {
     window.clearInterval(pollTimer);

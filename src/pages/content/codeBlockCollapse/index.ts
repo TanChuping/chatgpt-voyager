@@ -255,6 +255,7 @@ export function stopCodeBlockCollapse(): void {
   for (const host of [...managedHosts]) removeEnhancement(host);
   if (languageChangeListener) {
     chrome.storage?.onChanged?.removeListener(languageChangeListener);
+      window.removeEventListener('voyager:language-changed', onLocaleDictionaryReady);
     languageChangeListener = null;
   }
 }
@@ -284,6 +285,11 @@ export function startCodeBlockCollapse(): () => void {
     });
   };
   chrome.storage?.onChanged?.addListener(languageChangeListener);
+  window.addEventListener('voyager:language-changed', onLocaleDictionaryReady);
 
   return stopCodeBlockCollapse;
+}
+
+function onLocaleDictionaryReady(): void {
+  languageChangeListener?.({ [StorageKeys.LANGUAGE]: { newValue: 'ready' } }, 'sync');
 }

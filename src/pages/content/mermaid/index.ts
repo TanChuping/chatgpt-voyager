@@ -1,3 +1,4 @@
+import { getTranslationSync, getTranslationSyncUnsafe } from '@/utils/i18n';
 /**
  * Lazily loaded Mermaid instance.
  * Mermaid is dynamically imported to reduce initial content script bundle size.
@@ -357,19 +358,23 @@ const openFullscreen = (svgHtml: string) => {
 
   const zoomInBtn = document.createElement('button');
   zoomInBtn.innerHTML = '+';
-  zoomInBtn.title = 'Zoom In';
+  zoomInBtn.title = getTranslationSync('mermaidZoomIn');
+  zoomInBtn.dataset.gvLocaleTitle = 'mermaidZoomIn';
 
   const zoomOutBtn = document.createElement('button');
   zoomOutBtn.innerHTML = '-';
-  zoomOutBtn.title = 'Zoom Out';
+  zoomOutBtn.title = getTranslationSync('mermaidZoomOut');
+  zoomOutBtn.dataset.gvLocaleTitle = 'mermaidZoomOut';
 
   const resetBtn = document.createElement('button');
-  resetBtn.innerHTML = 'reset';
-  resetBtn.title = 'Reset';
+  resetBtn.textContent = getTranslationSync('mermaidReset');
+  resetBtn.title = getTranslationSync('mermaidReset');
+  resetBtn.dataset.gvLocaleTitle = 'mermaidReset';
 
   const closeBtn = document.createElement('button');
   closeBtn.innerHTML = 'x';
-  closeBtn.title = 'Close (ESC)';
+  closeBtn.title = getTranslationSync('mermaidClose');
+  closeBtn.dataset.gvLocaleTitle = 'mermaidClose';
 
   toolbar.appendChild(zoomInBtn);
   toolbar.appendChild(zoomOutBtn);
@@ -384,7 +389,8 @@ const openFullscreen = (svgHtml: string) => {
   // Hint
   const hint = document.createElement('div');
   hint.className = 'gv-mermaid-modal-hint';
-  hint.textContent = 'Scroll to zoom - Drag to pan - ESC to close';
+  hint.textContent = getTranslationSync('mermaidHint');
+  hint.dataset.gvLocaleText = 'mermaidHint';
 
   modal.appendChild(toolbar);
   modal.appendChild(content);
@@ -649,12 +655,12 @@ const renderMermaid = async (
       }
 
       const diagramBtn = document.createElement('button');
-      diagramBtn.textContent = 'Diagram';
+      diagramBtn.textContent = getTranslationSync('mermaidDiagram');
       diagramBtn.className = 'active';
       diagramBtn.dataset.view = 'diagram';
 
       const codeBtn = document.createElement('button');
-      codeBtn.textContent = '</> Code';
+      codeBtn.textContent = '</> ' + getTranslationSync('mermaidCode');
       codeBtn.dataset.view = 'code';
 
       toggleContainer.appendChild(diagramBtn);
@@ -900,7 +906,20 @@ function removeMermaidDom(): void {
   });
 }
 
+function refreshMermaidLanguage(): void {
+  document.querySelectorAll<HTMLElement>('.gv-mermaid-toggle [data-view]').forEach((button) => {
+    button.textContent = button.dataset.view === 'diagram' ? getTranslationSync('mermaidDiagram') : '</> ' + getTranslationSync('mermaidCode');
+  });
+  document.querySelectorAll<HTMLElement>('.gv-mermaid-modal [data-gv-locale-title]').forEach((button) => {
+    button.title = getTranslationSyncUnsafe(button.dataset.gvLocaleTitle!);
+    button.setAttribute('aria-label', button.title);
+    if (button.dataset.gvLocaleTitle === 'mermaidReset') button.textContent = button.title;
+  });
+  document.querySelectorAll<HTMLElement>('.gv-mermaid-modal [data-gv-locale-text]').forEach((el) => { el.textContent = getTranslationSyncUnsafe(el.dataset.gvLocaleText!); });
+}
+
 export function stopMermaid(): void {
+  window.removeEventListener('voyager:language-changed', refreshMermaidLanguage);
   started = false;
   lifecycleGeneration += 1;
   mermaidEnabled = false;
@@ -920,6 +939,7 @@ export function stopMermaid(): void {
 export const startMermaid = (): (() => void) => {
   if (started) return stopMermaid;
   started = true;
+  window.addEventListener('voyager:language-changed', refreshMermaidLanguage);
   const generation = ++lifecycleGeneration;
   // Check if Mermaid rendering is enabled in settings
   chrome.storage?.sync?.get({ gvMermaidEnabled: true }, (result) => {

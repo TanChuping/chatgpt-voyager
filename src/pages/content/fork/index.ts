@@ -12,7 +12,7 @@ import { StorageKeys } from '@/core/types/common';
 import { isExtensionContextInvalidatedError } from '@/core/utils/extensionContext';
 import { generateUniqueId } from '@/core/utils/hash';
 
-import { getTranslationSync } from '../../../utils/i18n';
+import { getTranslation, getTranslationSync } from '../../../utils/i18n';
 import { ForkNodesService } from './ForkNodesService';
 import { buildBranchDisplayNodes, resolveForkPlan } from './branching';
 import { collectForkChatPairs } from './chatPairs';
@@ -312,7 +312,7 @@ function getConversationTitle(): string {
     );
     if (link?.textContent?.trim()) return link.textContent.trim();
   }
-  return document.title || 'Untitled';
+  return document.title || getTranslationSync('conversation_untitled');
 }
 
 function ensureTurnId(el: HTMLElement, index: number): string {
@@ -405,30 +405,6 @@ function collectSidebarConversationIds(): Set<string> {
     if (id) ids.add(id);
   });
   return ids;
-}
-
-async function getPreferredLanguage(lifecycle: ForkLifecycle): Promise<string | undefined> {
-  if (!isLifecycleActive(lifecycle)) return undefined;
-  try {
-    const syncResult = await browser.storage.sync.get(StorageKeys.LANGUAGE);
-    if (!isLifecycleActive(lifecycle)) return undefined;
-    const syncLanguage = syncResult?.[StorageKeys.LANGUAGE];
-    if (typeof syncLanguage === 'string' && syncLanguage.trim()) return syncLanguage;
-  } catch {
-    // Ignore sync storage failures.
-  }
-
-  if (!isLifecycleActive(lifecycle)) return undefined;
-  try {
-    const localResult = await browser.storage.local.get(StorageKeys.LANGUAGE);
-    if (!isLifecycleActive(lifecycle)) return undefined;
-    const localLanguage = localResult?.[StorageKeys.LANGUAGE];
-    if (typeof localLanguage === 'string' && localLanguage.trim()) return localLanguage;
-  } catch {
-    // Ignore local storage failures.
-  }
-
-  return undefined;
 }
 
 async function checkConversationExists(
@@ -696,9 +672,9 @@ async function executeFork(
   }
 
   // Async work: resolve language and fork group (safe now, window already opened)
-  const preferredLanguage = await getPreferredLanguage(lifecycle);
+  await getTranslation('forkContextPrefix');
   if (!isLifecycleActive(lifecycle)) return;
-  const markdownWithContext = composeForkInputWithContext(markdown, preferredLanguage);
+  const markdownWithContext = composeForkInputWithContext(markdown);
 
   let forkGroupId = generateUniqueId('fork');
   let sourceForkIndex = 0;
@@ -1293,6 +1269,7 @@ export function startFork(): () => void {
     dismissConfirm();
     document.removeEventListener('click', onDocumentClick);
     browser.storage.onChanged.removeListener(onStorageChanged);
+    window.removeEventListener('voyager:language-changed', updateForkButtonTexts);
 
     // Remove injected elements
     document.querySelectorAll(`.${FORK_BTN_CLASS}`).forEach((el) => el.remove());
@@ -1341,6 +1318,7 @@ export function startFork(): () => void {
 
     // Language and fork-node changes
     browser.storage.onChanged.addListener(onStorageChanged);
+    window.addEventListener('voyager:language-changed', updateForkButtonTexts);
   } catch (error) {
     cleanup();
     throw error;

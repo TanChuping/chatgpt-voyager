@@ -1,0 +1,2093 @@
+{
+  "extName": {
+    "message": "GPT-Voyager"
+  },
+  "announcementButton": {
+    "message": "お知らせ"
+  },
+  "announcementDetail": {
+    "message": "詳細を見る"
+  },
+  "announcementClose": {
+    "message": "閉じる"
+  },
+  "announcementEmptyTitle": {
+    "message": "お知らせはありません"
+  },
+  "announcementEmptyBody": {
+    "message": "現在、拡張機能からのお知らせはありません。また後でご確認ください。"
+  },
+  "announcementVersionChipHint": {
+    "message": "クリックしてお知らせを表示"
+  },
+  "singleConvExportButton": {
+    "message": "この会話を書き出す"
+  },
+  "singleConvExportButtonTooltip": {
+    "message": "拡張機能のポップアップで選んだ形式でこの会話を書き出します"
+  },
+  "singleConvExportOptions": {
+    "message": "会話の書き出し"
+  },
+  "singleConvExportFormat": {
+    "message": "書き出し形式"
+  },
+  "singleConvExportFormatHint": {
+    "message": "ChatGPT の「共有」横にあるダウンロードボタンの形式を選びます。簡略版では Code Interpreter のコードブロック、ツール出力、ツール呼び出し前のモデルの説明を除き、あなたのメッセージ、最終回答、タイムスタンプだけを残します。"
+  },
+  "singleConvExportFormatMarkdown": {
+    "message": "標準 Markdown"
+  },
+  "singleConvExportFormatMarkdownHint": {
+    "message": "情報を省略せず、Code Interpreter のコード、ツール出力、途中の説明を含めます。"
+  },
+  "singleConvExportFormatMarkdownSimple": {
+    "message": "簡略 Markdown"
+  },
+  "singleConvExportFormatJson": {
+    "message": "標準 JSON"
+  },
+  "singleConvExportFormatJsonHint": {
+    "message": "API のマッピングから作成する完全な線形 JSON です。アーカイブや後続ツールでの処理に適しています。"
+  },
+  "singleConvExportFormatJsonSimple": {
+    "message": "簡略 JSON"
+  },
+  "singleConvExportFormatHtml": {
+    "message": "HTML（簡略）"
+  },
+  "singleConvExportFormatSimpleHint": {
+    "message": "あなたのメッセージ、モデルの最終回答、タイムスタンプのみです。"
+  },
+  "singleConvExportMenuWhole": {
+    "message": "会話全体"
+  },
+  "singleConvExportSelectButton": {
+    "message": "選んで書き出す"
+  },
+  "singleConvExportSelectButtonTooltip": {
+    "message": "書き出すメッセージを選び、選択分だけをダウンロードします（拡張機能のポップアップで選んだ形式を使用）"
+  },
+  "singleConvExportSelectTitle": {
+    "message": "書き出すメッセージを選択"
+  },
+  "singleConvExportSelectAll": {
+    "message": "すべて選択"
+  },
+  "singleConvExportSelectNone": {
+    "message": "選択を解除"
+  },
+  "singleConvExportSelectUser": {
+    "message": "自分のメッセージのみ"
+  },
+  "singleConvExportSelectAI": {
+    "message": "ChatGPT のみ"
+  },
+  "singleConvExportSelectSelected": {
+    "message": "選択済み"
+  },
+  "singleConvExportSelectDo": {
+    "message": "書き出す"
+  },
+  "singleConvExportSelectCancel": {
+    "message": "キャンセル"
+  },
+  "singleConvExportSelectEmpty": {
+    "message": "書き出すメッセージを少なくとも 1 件選んでください。"
+  },
+  "singleConvExportSelectNotReady": {
+    "message": "この会話はまだ完全に読み込まれていません。上にスクロールして以前のメッセージを読み込み、再試行してください。"
+  },
+  "singleConvExportGenerating": {
+    "message": "ChatGPT の生成が終わってから書き出してください。"
+  },
+  "extDescription": {
+    "message": "ChatGPT 用のタイムライン、フォルダー、数式コピー、会話書き出し、一時チャットの引き継ぎ、プロンプト、フォント、Mermaid。"
+  },
+  "scrollMode": {
+    "message": "タイムラインのスクロール方式"
+  },
+  "flow": {
+    "message": "スムーズ"
+  },
+  "jump": {
+    "message": "ジャンプ"
+  },
+  "hideOuterContainer": {
+    "message": "タイムラインの枠を非表示"
+  },
+  "draggableTimeline": {
+    "message": "タイムラインをドラッグ可能にする"
+  },
+  "pinTimelinePreview": {
+    "message": "タイムラインのプレビューを固定"
+  },
+  "pinTimelinePreviewHint": {
+    "message": "見出しの閲覧中もタイムラインのプレビューを開いたままにします。"
+  },
+  "enableMarkerLevel": {
+    "message": "見出しレベル"
+  },
+  "enableMarkerLevelHint": {
+    "message": "会話のタイムラインに見出しの階層を表示します。"
+  },
+  "experimentalLabel": {
+    "message": "試験的機能"
+  },
+  "resetPosition": {
+    "message": "位置をリセット"
+  },
+  "resetTimelinePosition": {
+    "message": "タイムラインの位置をリセット"
+  },
+  "language": {
+    "message": "言語"
+  },
+  "pm_title": {
+    "message": "Prompt Manager"
+  },
+  "pm_add": {
+    "message": "追加"
+  },
+  "pm_search_placeholder": {
+    "message": "プロンプト、タグ、内容を検索"
+  },
+  "pm_import": {
+    "message": "読み込む"
+  },
+  "pm_export": {
+    "message": "書き出す"
+  },
+  "pm_prompt_placeholder": {
+    "message": "プロンプト本文"
+  },
+  "pm_tags_placeholder": {
+    "message": "タグ（カンマ区切り）"
+  },
+  "pm_save": {
+    "message": "保存"
+  },
+  "pm_cancel": {
+    "message": "キャンセル"
+  },
+  "pm_all_tags": {
+    "message": "すべてのタグ"
+  },
+  "pm_empty": {
+    "message": "プロンプトはまだありません"
+  },
+  "pm_copy": {
+    "message": "コピー"
+  },
+  "pm_copied": {
+    "message": "コピーしました"
+  },
+  "pm_inserted": {
+    "message": "挿入しました"
+  },
+  "pm_delete": {
+    "message": "削除"
+  },
+  "pm_delete_confirm": {
+    "message": "このプロンプトを削除しますか？"
+  },
+  "pm_lock": {
+    "message": "ロック"
+  },
+  "pm_unlock": {
+    "message": "ロック解除"
+  },
+  "pm_import_invalid": {
+    "message": "読み込みファイルが無効です"
+  },
+  "pm_import_empty": {
+    "message": "読み込みファイルにプロンプトがありません"
+  },
+  "pm_import_success": {
+    "message": "{count} 件のプロンプトを読み込みました"
+  },
+  "pm_duplicate": {
+    "message": "同じプロンプトがすでにあります。既存のプロンプトを編集してください。"
+  },
+  "pm_save_failed": {
+    "message": "保存に失敗しました。下書きは保持されています。拡張機能のストレージを確認して再試行してください。"
+  },
+  "pm_deleted": {
+    "message": "削除しました"
+  },
+  "pm_edit": {
+    "message": "編集"
+  },
+  "pm_expand": {
+    "message": "展開"
+  },
+  "pm_collapse": {
+    "message": "折りたたむ"
+  },
+  "pm_saved": {
+    "message": "保存しました"
+  },
+  "pm_settings": {
+    "message": "設定"
+  },
+  "pm_settings_tooltip": {
+    "message": "Prompt Manager の設定を開く"
+  },
+  "pm_settings_fallback": {
+    "message": "Prompt Manager を設定するには拡張機能の設定を開いてください。"
+  },
+  "pm_backup": {
+    "message": "バックアップ"
+  },
+  "pm_backup_tooltip": {
+    "message": "プロンプトと設定のローカルバックアップを書き出します。"
+  },
+  "pm_backup_cancelled": {
+    "message": "バックアップをキャンセルしました"
+  },
+  "pm_backup_error": {
+    "message": "バックアップに失敗しました"
+  },
+  "pm_backup_hint_options": {
+    "message": "ローカルの Prompt Manager データを書き出すか読み込みます。"
+  },
+  "pm_backup_step1": {
+    "message": "ChatGPT を開きます。"
+  },
+  "pm_backup_step2": {
+    "message": "Prompt Manager を開きます。"
+  },
+  "pm_backup_note": {
+    "message": "ローカルバックアップは、書き出さない限りこのデバイス内に保存されます。"
+  },
+  "pm_theme_light": {
+    "message": "ライト"
+  },
+  "pm_view_compact": {
+    "message": "コンパクト"
+  },
+  "pm_view_comfortable": {
+    "message": "ゆったり"
+  },
+  "pm_name_placeholder": {
+    "message": "プロンプト名"
+  },
+  "pm_theme_dark": {
+    "message": "ダーク"
+  },
+  "extensionVersion": {
+    "message": "バージョン"
+  },
+  "newVersionAvailable": {
+    "message": "新しいバージョンがあります"
+  },
+  "currentVersionLabel": {
+    "message": "現在のバージョン"
+  },
+  "latestVersionLabel": {
+    "message": "最新バージョン"
+  },
+  "updateNow": {
+    "message": "今すぐ更新"
+  },
+  "safariUpdateNotSynced": {
+    "message": "Safari の更新状況は同期されていません。"
+  },
+  "officialDocs": {
+    "message": "ドキュメント"
+  },
+  "exportChatJson": {
+    "message": "会話を書き出す"
+  },
+  "folder_title": {
+    "message": "フォルダー"
+  },
+  "folder_create": {
+    "message": "新しいフォルダー"
+  },
+  "folder_name_prompt": {
+    "message": "フォルダー名："
+  },
+  "folder_rename_prompt": {
+    "message": "フォルダー名を変更："
+  },
+  "folder_delete_confirm": {
+    "message": "このフォルダーを削除し、保存された会話の登録を取り除きますか？"
+  },
+  "folder_create_subfolder": {
+    "message": "新しいサブフォルダー"
+  },
+  "folder_rename": {
+    "message": "名前を変更"
+  },
+  "folder_change_color": {
+    "message": "色を変更"
+  },
+  "folder_delete": {
+    "message": "削除"
+  },
+  "folder_color_default": {
+    "message": "デフォルト"
+  },
+  "folder_color_red": {
+    "message": "赤"
+  },
+  "folder_color_orange": {
+    "message": "オレンジ"
+  },
+  "folder_color_yellow": {
+    "message": "黄"
+  },
+  "folder_color_green": {
+    "message": "緑"
+  },
+  "folder_color_blue": {
+    "message": "青"
+  },
+  "folder_color_purple": {
+    "message": "紫"
+  },
+  "folder_color_pink": {
+    "message": "ピンク"
+  },
+  "folder_color_custom": {
+    "message": "カスタム"
+  },
+  "folder_empty": {
+    "message": "フォルダーはまだありません"
+  },
+  "folder_pin": {
+    "message": "フォルダーを固定"
+  },
+  "folder_unpin": {
+    "message": "フォルダーの固定を解除"
+  },
+  "folder_remove_conversation": {
+    "message": "フォルダーから削除"
+  },
+  "conversation_more": {
+    "message": "その他の操作"
+  },
+  "conversation_move_to_folder": {
+    "message": "フォルダーに移動"
+  },
+  "conversation_rename": {
+    "message": "チャット名を変更"
+  },
+  "conversation_move_to_folder_title": {
+    "message": "フォルダーに移動"
+  },
+  "chatWidth": {
+    "message": "チャットの幅"
+  },
+  "chatWidthNarrow": {
+    "message": "狭い"
+  },
+  "chatWidthWide": {
+    "message": "広い"
+  },
+  "chatFontSize": {
+    "message": "チャットの文字サイズ"
+  },
+  "codeFontSize": {
+    "message": "コードブロックの文字サイズ"
+  },
+  "chatFontSizeSmall": {
+    "message": "小"
+  },
+  "chatFontSizeLarge": {
+    "message": "大"
+  },
+  "chatLineHeight": {
+    "message": "チャットの行間"
+  },
+  "chatLineHeightTight": {
+    "message": "狭い"
+  },
+  "chatLineHeightLoose": {
+    "message": "広い"
+  },
+  "chatParagraphSpacing": {
+    "message": "段落の間隔"
+  },
+  "chatParagraphSpacingCompact": {
+    "message": "コンパクト"
+  },
+  "chatParagraphSpacingSpacious": {
+    "message": "広い"
+  },
+  "chatFontFamily": {
+    "message": "チャットのフォント"
+  },
+  "chatFontFamilyDefault": {
+    "message": "デフォルト（ChatGPT）"
+  },
+  "chatFontFamilyClaude": {
+    "message": "Claude 風（Tiempos）"
+  },
+  "chatFontFamilyGemini": {
+    "message": "Gemini 風（Google Sans）"
+  },
+  "chatFontFamilyCustom": {
+    "message": "カスタム"
+  },
+  "chatFontFamilyNoneImported": {
+    "message": "未読み込み"
+  },
+  "chatFontFamilyHint": {
+    "message": "元のフォントが未インストールの場合、プリセットはシステムフォントを使います。確実に表示するには、下で .woff2/.woff/.ttf/.otf を読み込んでください。コードブロックは等幅のままです。"
+  },
+  "chatFontFamilyImport": {
+    "message": "フォントを読み込む…"
+  },
+  "chatFontFamilyClear": {
+    "message": "カスタムフォントを削除"
+  },
+  "sidebarWidth": {
+    "message": "サイドバーの幅"
+  },
+  "sidebarWidthNarrow": {
+    "message": "狭い"
+  },
+  "sidebarWidthWide": {
+    "message": "広い"
+  },
+  "formula_copied": {
+    "message": "数式をコピーしました。"
+  },
+  "formula_copy_failed": {
+    "message": "数式をコピーできませんでした。"
+  },
+  "formulaCopyFormat": {
+    "message": "数式のコピー形式"
+  },
+  "formulaCopyFormatLatex": {
+    "message": "LaTeX"
+  },
+  "formulaCopyFormatUnicodeMath": {
+    "message": "MathML / Word"
+  },
+  "formulaCopyFormatHint": {
+    "message": "数式をコピーする形式を選びます。"
+  },
+  "formulaCopyFormatNoDollar": {
+    "message": "ドル記号なしの LaTeX"
+  },
+  "formulaCopyFormatDesmos": {
+    "message": "Desmos / 計算機"
+  },
+  "formulaCopyFormatNotion": {
+    "message": "Notion ($$)"
+  },
+  "folder_search_placeholder": {
+    "message": "フォルダーとチャットを検索"
+  },
+  "folder_search_expand": {
+    "message": "検索を展開"
+  },
+  "folder_search_collapse": {
+    "message": "検索を折りたたむ"
+  },
+  "folder_expand": {
+    "message": "フォルダーを展開"
+  },
+  "folder_collapse": {
+    "message": "フォルダーを折りたたむ"
+  },
+  "folder_search_mode_folder": {
+    "message": "フォルダーのみ"
+  },
+  "folder_search_empty": {
+    "message": "一致するフォルダーやチャットはありません"
+  },
+  "folder_settings": {
+    "message": "フォルダーの設定"
+  },
+  "folder_sort": {
+    "message": "チャットの順序"
+  },
+  "folder_sort_manual": {
+    "message": "手動"
+  },
+  "folder_sort_recent": {
+    "message": "最近開いた順"
+  },
+  "folder_item_font_size": {
+    "message": "文字サイズ"
+  },
+  "folder_item_font_size_decrease": {
+    "message": "小さく"
+  },
+  "folder_item_font_size_increase": {
+    "message": "大きく"
+  },
+  "folder_hide_section": {
+    "message": "フォルダーの内容を非表示"
+  },
+  "folder_show_section": {
+    "message": "フォルダーの内容を表示"
+  },
+  "folder_export": {
+    "message": "フォルダーを書き出す"
+  },
+  "folder_import_export": {
+    "message": "フォルダーの読み込み / 書き出し"
+  },
+  "folder_cloud_upload": {
+    "message": "フォルダーをクラウドにアップロード"
+  },
+  "folder_cloud_sync": {
+    "message": "フォルダーのクラウド同期"
+  },
+  "folder_manage_in_library": {
+    "message": "ライブラリで管理"
+  },
+  "folder_import": {
+    "message": "フォルダーを読み込む"
+  },
+  "folder_import_title": {
+    "message": "フォルダーを読み込む"
+  },
+  "folder_import_strategy": {
+    "message": "読み込み方法"
+  },
+  "folder_import_merge": {
+    "message": "既存のフォルダーと統合"
+  },
+  "folder_import_overwrite": {
+    "message": "既存のフォルダーを上書き"
+  },
+  "folder_import_select_file": {
+    "message": "JSON ファイルを選択"
+  },
+  "folder_import_success": {
+    "message": "{folders} 個のフォルダーと {conversations} 件の会話を読み込みました。"
+  },
+  "folder_import_success_skipped": {
+    "message": "{folders} 個のフォルダーと {conversations} 件の会話を読み込み、{skipped} 件をスキップしました。"
+  },
+  "folder_import_error": {
+    "message": "読み込みに失敗しました：{error}"
+  },
+  "folder_export_success": {
+    "message": "フォルダーを書き出しました。"
+  },
+  "folder_import_invalid_format": {
+    "message": "フォルダーのバックアップファイルが無効です。"
+  },
+  "folder_import_confirm_overwrite": {
+    "message": "既存のフォルダーが上書きされます。続行しますか？"
+  },
+  "folder_import_paste_json": {
+    "message": "JSON を貼り付け"
+  },
+  "folder_import_paste_placeholder": {
+    "message": "ここに JSON を貼り付け…"
+  },
+  "export_dialog_title": {
+    "message": "チャットを書き出す"
+  },
+  "export_dialog_select": {
+    "message": "書き出し形式を選択"
+  },
+  "export_dialog_warning": {
+    "message": "一部の内容は表示どおりに書き出されない場合があります。"
+  },
+  "export_dialog_safari_cmdp_hint": {
+    "message": "Safari では Command+P で PDF に出力できます。"
+  },
+  "export_toast_safari_pdf_ready": {
+    "message": "印刷ダイアログの準備ができました。"
+  },
+  "export_dialog_safari_markdown_hint": {
+    "message": "書き出しダイアログから Markdown で書き出せます。"
+  },
+  "export_format_json_description": {
+    "message": "構造化 JSON で書き出し"
+  },
+  "export_format_markdown_description": {
+    "message": "読みやすい Markdown で書き出し"
+  },
+  "export_format_pdf_description": {
+    "message": "印刷用 PDF で書き出し"
+  },
+  "editInputWidth": {
+    "message": "入力欄の幅"
+  },
+  "editInputWidthNarrow": {
+    "message": "狭い"
+  },
+  "editInputWidthWide": {
+    "message": "広い"
+  },
+  "timelineOptions": {
+    "message": "タイムライン"
+  },
+  "enableTimeline": {
+    "message": "タイムラインを有効にする"
+  },
+  "enableTimelineDescription": {
+    "message": "右側にドット式ナビゲーションを表示します。オフにすると、ドット、プレビュー、ピンの UI がすべて非表示になります。"
+  },
+  "folderOptions": {
+    "message": "フォルダーのオプション"
+  },
+  "enableFolderFeature": {
+    "message": "フォルダーを有効にする"
+  },
+  "enableFolderFloatingMode": {
+    "message": "フローティングフォルダーパネル"
+  },
+  "enableFolderFloatingModeHint": {
+    "message": "フォルダーをサイドバーではなくフローティングパネルに表示します。"
+  },
+  "hideArchivedConversations": {
+    "message": "アーカイブ済みの会話を非表示"
+  },
+  "hideArchivedNudgeTitle": {
+    "message": "アーカイブ済みの会話を非表示"
+  },
+  "hideArchivedNudgeBody": {
+    "message": "アーカイブ済みの会話をフォルダー一覧に表示しません。"
+  },
+  "hideArchivedNudgeEnable": {
+    "message": "有効にする"
+  },
+  "hideArchivedNudgeDismiss": {
+    "message": "閉じる"
+  },
+  "hideArchivedNudgeFootnote": {
+    "message": "この設定は後で変更できます。"
+  },
+  "floatingModeNudgeTitle": {
+    "message": "フローティングフォルダーパネル"
+  },
+  "floatingModeNudgeBody": {
+    "message": "フローティングパネルからフォルダーを開きます。"
+  },
+  "floatingModeNudgeEnable": {
+    "message": "有効にする"
+  },
+  "floatingModeNudgeDismiss": {
+    "message": "閉じる"
+  },
+  "floatingPanelTitle": {
+    "message": "フォルダー"
+  },
+  "floatingPanelClose": {
+    "message": "閉じる"
+  },
+  "floatingPanelEmpty": {
+    "message": "フォルダーはまだありません"
+  },
+  "floatingPanelUntitled": {
+    "message": "無題"
+  },
+  "floatingFabLabel": {
+    "message": "フォルダーを開く"
+  },
+  "conversation_star": {
+    "message": "会話をお気に入りに追加"
+  },
+  "conversation_unstar": {
+    "message": "会話のお気に入りを解除"
+  },
+  "conversation_untitled": {
+    "message": "無題の会話"
+  },
+  "folderManager_dataLossWarning": {
+    "message": "警告：フォルダーデータを読み込めませんでした。詳細はブラウザーのコンソールを確認してください。"
+  },
+  "backupOptions": {
+    "message": "バックアップのオプション"
+  },
+  "backupEnabled": {
+    "message": "バックアップを有効にする"
+  },
+  "backupNow": {
+    "message": "今すぐバックアップ"
+  },
+  "backupSelectFolder": {
+    "message": "バックアップ先フォルダーを選択"
+  },
+  "backupFolderSelected": {
+    "message": "バックアップ先を選択しました"
+  },
+  "backupIncludePrompts": {
+    "message": "プロンプトを含める"
+  },
+  "backupIncludeFolders": {
+    "message": "フォルダーを含める"
+  },
+  "backupIntervalLabel": {
+    "message": "バックアップの頻度"
+  },
+  "backupIntervalManual": {
+    "message": "手動"
+  },
+  "backupIntervalDaily": {
+    "message": "毎日"
+  },
+  "backupIntervalWeekly": {
+    "message": "毎週"
+  },
+  "backupLastBackup": {
+    "message": "前回のバックアップ"
+  },
+  "backupNever": {
+    "message": "未バックアップ"
+  },
+  "backupSuccess": {
+    "message": "バックアップしました"
+  },
+  "backupError": {
+    "message": "バックアップに失敗しました"
+  },
+  "backupNotSupported": {
+    "message": "このブラウザーはバックアップに対応していません"
+  },
+  "backupSelectFolderFirst": {
+    "message": "先にバックアップ先フォルダーを選んでください"
+  },
+  "backupUserCancelled": {
+    "message": "バックアップをキャンセルしました"
+  },
+  "backupConfigSaved": {
+    "message": "バックアップ設定を保存しました"
+  },
+  "backupPermissionDenied": {
+    "message": "バックアップの権限が拒否されました"
+  },
+  "backupConfigureInOptions": {
+    "message": "拡張機能のオプションでバックアップを設定"
+  },
+  "openOptionsPage": {
+    "message": "オプションページを開く"
+  },
+  "optionsPageSubtitle": {
+    "message": "拡張機能のオプション"
+  },
+  "optionsComingSoon": {
+    "message": "今後さらにオプションを追加予定です。"
+  },
+  "backupDataAccessNotice": {
+    "message": "バックアップデータへのアクセス"
+  },
+  "backupDataAccessHint": {
+    "message": "選択したバックアップ先フォルダーへのアクセスを許可してください。"
+  },
+  "promptManagerOptions": {
+    "message": "Prompt Manager"
+  },
+  "hidePromptManager": {
+    "message": "Prompt Manager を非表示"
+  },
+  "hidePromptManagerHint": {
+    "message": "ChatGPT 上の Prompt Manager の入口を非表示にします。"
+  },
+  "promptInsertOnClick": {
+    "message": "クリックでプロンプトを挿入"
+  },
+  "promptInsertOnClickHint": {
+    "message": "選択したプロンプトをすぐに入力欄に挿入します。"
+  },
+  "customWebsites": {
+    "message": "カスタムサイト"
+  },
+  "customWebsitesPlaceholder": {
+    "message": "サイトの URL を入力"
+  },
+  "customWebsitesHint": {
+    "message": "拡張機能を使うサイトを追加します。"
+  },
+  "addWebsite": {
+    "message": "サイトを追加"
+  },
+  "removeWebsite": {
+    "message": "サイトを削除"
+  },
+  "invalidUrl": {
+    "message": "URL が無効です"
+  },
+  "websiteAdded": {
+    "message": "サイトを追加しました"
+  },
+  "websiteRemoved": {
+    "message": "サイトを削除しました"
+  },
+  "permissionDenied": {
+    "message": "権限が拒否されました"
+  },
+  "permissionRequestFailed": {
+    "message": "権限を要求できませんでした"
+  },
+  "customWebsitesNote": {
+    "message": "カスタムサイトでは、そのサイトへのアクセス権限が必要です。"
+  },
+  "starredHistory": {
+    "message": "お気に入り履歴"
+  },
+  "viewStarredHistory": {
+    "message": "お気に入りのメッセージ"
+  },
+  "noStarredMessages": {
+    "message": "お気に入りのメッセージはありません"
+  },
+  "removeFromStarred": {
+    "message": "お気に入りから削除"
+  },
+  "justNow": {
+    "message": "たった今"
+  },
+  "hoursAgo": {
+    "message": "時間前"
+  },
+  "yesterday": {
+    "message": "昨日"
+  },
+  "daysAgo": {
+    "message": "日前"
+  },
+  "loading": {
+    "message": "読み込み中…"
+  },
+  "keyboardShortcuts": {
+    "message": "キーボードショートカット"
+  },
+  "enableShortcuts": {
+    "message": "ショートカットを有効にする"
+  },
+  "previousNode": {
+    "message": "前のノード"
+  },
+  "nextNode": {
+    "message": "次のノード"
+  },
+  "firstNode": {
+    "message": "最初のノード"
+  },
+  "lastNode": {
+    "message": "最後のノード"
+  },
+  "shortcutKey": {
+    "message": "キー"
+  },
+  "shortcutModifiers": {
+    "message": "修飾キー"
+  },
+  "resetShortcuts": {
+    "message": "ショートカットをリセット"
+  },
+  "shortcutsResetSuccess": {
+    "message": "ショートカットをリセットしました"
+  },
+  "shortcutsDescription": {
+    "message": "タイムライン移動のショートカットを設定します。"
+  },
+  "modifierNone": {
+    "message": "なし"
+  },
+  "modifierAlt": {
+    "message": "Alt"
+  },
+  "modifierCtrl": {
+    "message": "Ctrl"
+  },
+  "modifierShift": {
+    "message": "Shift"
+  },
+  "modifierMeta": {
+    "message": "Meta"
+  },
+  "preventAutoScroll": {
+    "message": "自動スクロールを防ぐ"
+  },
+  "preventAutoScrollHint": {
+    "message": "新しい内容が表示されても現在の閲覧位置を保ちます。"
+  },
+  "cloudSync": {
+    "message": "クラウド同期"
+  },
+  "cloudSyncDescription": {
+    "message": "クラウドのデータをアップロードまたは統合します。"
+  },
+  "syncModeDisabled": {
+    "message": "無効"
+  },
+  "syncModeManual": {
+    "message": "手動"
+  },
+  "syncServerPort": {
+    "message": "同期サーバーのポート"
+  },
+  "syncNow": {
+    "message": "今すぐ同期"
+  },
+  "lastSynced": {
+    "message": "前回の同期"
+  },
+  "neverSynced": {
+    "message": "未同期"
+  },
+  "lastUploaded": {
+    "message": "前回のアップロード"
+  },
+  "neverUploaded": {
+    "message": "未アップロード"
+  },
+  "syncSuccess": {
+    "message": "同期しました"
+  },
+  "syncError": {
+    "message": "同期に失敗しました"
+  },
+  "syncInProgress": {
+    "message": "同期中…"
+  },
+  "uploadInProgress": {
+    "message": "アップロード中…"
+  },
+  "uploadSuccess": {
+    "message": "アップロードしました"
+  },
+  "downloadInProgress": {
+    "message": "ダウンロード中…"
+  },
+  "downloadMergeSuccess": {
+    "message": "ダウンロードして統合しました"
+  },
+  "syncUpload": {
+    "message": "アップロード"
+  },
+  "syncMerge": {
+    "message": "ダウンロードして統合"
+  },
+  "syncMode": {
+    "message": "同期モード"
+  },
+  "minutesAgo": {
+    "message": "分前"
+  },
+  "syncNoData": {
+    "message": "同期するデータがありません"
+  },
+  "syncUploadFailed": {
+    "message": "アップロードに失敗しました"
+  },
+  "syncDownloadFailed": {
+    "message": "ダウンロードに失敗しました"
+  },
+  "syncAuthFailed": {
+    "message": "同期の認証に失敗しました"
+  },
+  "signOut": {
+    "message": "ログアウト"
+  },
+  "signInWithGoogle": {
+    "message": "Google でログイン"
+  },
+  "nanobananaOptions": {
+    "message": "Nanobanana のオプション"
+  },
+  "nanobananaDownloadLabel": {
+    "message": "Nanobanana の画像をダウンロード"
+  },
+  "nanobananaDownloadHint": {
+    "message": "Nanobanana で生成した画像のオリジナルをダウンロードします。"
+  },
+  "nanobananaPreviewLabel": {
+    "message": "Nanobanana の画像をプレビュー"
+  },
+  "nanobananaPreviewHint": {
+    "message": "Nanobanana で生成した画像をプレビューします。"
+  },
+  "nanobananaDownloadTooltip": {
+    "message": "元の画像をダウンロード"
+  },
+  "deepResearchDownload": {
+    "message": "ディープリサーチのレポートをダウンロード"
+  },
+  "deepResearchDownloadTooltip": {
+    "message": "このディープリサーチのレポートをダウンロード"
+  },
+  "folder_uncategorized": {
+    "message": "未分類"
+  },
+  "timelineLevelTitle": {
+    "message": "タイムラインの階層"
+  },
+  "timelineLevel1": {
+    "message": "レベル 1"
+  },
+  "timelineLevel2": {
+    "message": "レベル 2"
+  },
+  "timelineLevel3": {
+    "message": "レベル 3"
+  },
+  "timelineCollapse": {
+    "message": "折りたたむ"
+  },
+  "timelineExpand": {
+    "message": "展開"
+  },
+  "timelinePreviewSearch": {
+    "message": "メッセージを検索…"
+  },
+  "timelinePreviewNoResults": {
+    "message": "結果はありません"
+  },
+  "timelinePreviewNoMessages": {
+    "message": "メッセージはありません"
+  },
+  "timelineUnmountedTooltip": {
+    "message": "メッセージは未読み込みです。移動すると内容が表示されます"
+  },
+  "quoteReply": {
+    "message": "引用して返信"
+  },
+  "inputCollapseOptions": {
+    "message": "入力欄"
+  },
+  "enableInputCollapse": {
+    "message": "入力欄を折りたたむ"
+  },
+  "enableInputCollapseHint": {
+    "message": "入力欄にフォーカスがないときはコンパクトなバーに折りたたみます。"
+  },
+  "inputCollapseShortcutHint": {
+    "message": "{modifier}+I で入力欄の折りたたみを切り替えます。"
+  },
+  "inputCollapsePlaceholder": {
+    "message": "ChatGPT にメッセージを送信"
+  },
+  "allowCollapseWhenNotEmpty": {
+    "message": "入力済みでも折りたたむ"
+  },
+  "allowCollapseWhenNotEmptyHint": {
+    "message": "文字が入力されていても入力欄を折りたためます。"
+  },
+  "inputVimMode": {
+    "message": "入力欄の Vim モード"
+  },
+  "inputVimModeHint": {
+    "message": "入力欄で i と Escape を使い、挿入モードとノーマルモードを切り替えます。"
+  },
+  "plainTextInput": {
+    "message": "プレーンテキスト入力"
+  },
+  "plainTextInputHint": {
+    "message": "編集中は Markdown の記号をそのまま表示し、送信後は通常どおり描画します。"
+  },
+  "ctrlEnterSend": {
+    "message": "{modifier}+Enter で送信"
+  },
+  "ctrlEnterSendHint": {
+    "message": "{modifier}+Enter で送信し、Enter で改行します。"
+  },
+  "safariEnterFix": {
+    "message": "Safari の Enter キー修正"
+  },
+  "safariEnterFixHint": {
+    "message": "Safari の Enter キー動作の互換モードです。"
+  },
+  "draftAutoSave": {
+    "message": "下書きを自動保存"
+  },
+  "draftAutoSaveHint": {
+    "message": "会話に戻ったときに未送信の文章を復元します。"
+  },
+  "batch_delete_confirm": {
+    "message": "{count} 件の会話を削除しますか？"
+  },
+  "batch_delete_in_progress": {
+    "message": "削除中…（{current}/{total}）"
+  },
+  "batch_delete_success": {
+    "message": "{count} 件の会話を削除しました。"
+  },
+  "batch_delete_partial": {
+    "message": "{success} 件を削除し、{failed} 件に失敗しました。"
+  },
+  "batch_delete_limit_reached": {
+    "message": "選択上限に達しました：{max}。"
+  },
+  "batch_delete_button": {
+    "message": "選択項目を削除"
+  },
+  "batch_delete_match_patterns": {
+    "message": "delete,confirm,yes,ok,remove,削除,確認,はい,決定"
+  },
+  "generalOptions": {
+    "message": "一般"
+  },
+  "enableTabTitleUpdate": {
+    "message": "タブのタイトルを更新"
+  },
+  "enableTabTitleUpdateHint": {
+    "message": "ブラウザーのタブのタイトルを現在の会話に合わせます。"
+  },
+  "enableMermaidRendering": {
+    "message": "Mermaid の図"
+  },
+  "enableMermaidRenderingHint": {
+    "message": "Mermaid のコードブロックを図として表示します。"
+  },
+  "enableQuoteReply": {
+    "message": "引用して返信"
+  },
+  "enableQuoteReplyHint": {
+    "message": "選択した文章を引用のコンテキストとして返信します。"
+  },
+  "contextSync": {
+    "message": "コンテキスト同期"
+  },
+  "contextSyncDescription": {
+    "message": "コンテキストを IDE と同期します。"
+  },
+  "syncToIDE": {
+    "message": "IDE に同期"
+  },
+  "ideOnline": {
+    "message": "IDE はオンライン"
+  },
+  "ideOffline": {
+    "message": "IDE はオフライン"
+  },
+  "syncing": {
+    "message": "同期中…"
+  },
+  "checkServer": {
+    "message": "サーバーを確認"
+  },
+  "capturing": {
+    "message": "取得中…"
+  },
+  "syncedSuccess": {
+    "message": "同期しました。"
+  },
+  "downloadingOriginal": {
+    "message": "元のファイルをダウンロード中…"
+  },
+  "downloadingOriginalLarge": {
+    "message": "大きな元ファイルをダウンロード中…"
+  },
+  "downloadLargeWarning": {
+    "message": "大きなファイルのダウンロード"
+  },
+  "downloadProcessing": {
+    "message": "ダウンロードを処理中…"
+  },
+  "downloadSuccess": {
+    "message": "ダウンロードを開始しました…"
+  },
+  "downloadError": {
+    "message": "ダウンロードに失敗しました"
+  },
+  "recentsHide": {
+    "message": "最近のチャットを非表示"
+  },
+  "recentsShow": {
+    "message": "最近のチャットを表示"
+  },
+  "gemsHide": {
+    "message": "GPT を非表示"
+  },
+  "gemsShow": {
+    "message": "GPT を表示"
+  },
+  "notebooksHide": {
+    "message": "ノートブックを非表示"
+  },
+  "notebooksShow": {
+    "message": "ノートブックを表示"
+  },
+  "setAsDefaultModel": {
+    "message": "デフォルトモデルに設定"
+  },
+  "cancelDefaultModel": {
+    "message": "デフォルトモデルを解除"
+  },
+  "defaultModelSet": {
+    "message": "デフォルトモデルを設定しました：$1"
+  },
+  "defaultModelCleared": {
+    "message": "デフォルトモデルを解除しました"
+  },
+  "railToggle_enable": {
+    "message": "アイコンレールの切り替え"
+  },
+  "driveAutoAllow": {
+    "message": "Google Drive を自動許可"
+  },
+  "driveAutoAllowHint": {
+    "message": "ChatGPT の Google Drive ツール承認カードで「常に許可」を自動クリックします。ファイルのアップロードも対象です。初期設定はオフです。ページが動作中ならバックグラウンドタブでも機能します。"
+  },
+  "quotaRing_enable": {
+    "message": "利用枠リングを表示"
+  },
+  "quotaRing_description": {
+    "message": "入力欄とサイドバーに Codex / Work の利用枠を表示します。"
+  },
+  "quotaRing_title": {
+    "message": "Codex / Work の残り利用枠"
+  },
+  "quotaRing_chatNote": {
+    "message": "（Chat の会話ではこの利用枠を消費しません）"
+  },
+  "quotaRing_waiting": {
+    "message": "利用状況の更新を待機中"
+  },
+  "quotaRing_remaining": {
+    "message": "残り {percent}%"
+  },
+  "quotaRing_weekly": {
+    "message": "週の上限"
+  },
+  "quotaRing_fiveHour": {
+    "message": "5 時間の上限"
+  },
+  "quotaRing_window": {
+    "message": "{hours} 時間の上限"
+  },
+  "quotaRing_review": {
+    "message": "コードレビュー"
+  },
+  "quotaRing_additional": {
+    "message": "追加の利用枠"
+  },
+  "quotaRing_reset": {
+    "message": "リセット：{time}"
+  },
+  "quotaRing_updated": {
+    "message": "更新：{time}"
+  },
+  "quotaRing_stale": {
+    "message": "前回の利用状況 · 更新待ち"
+  },
+  "quotaRing_credits": {
+    "message": "クレジット：{balance}"
+  },
+  "quotaRing_unlimited": {
+    "message": "無制限"
+  },
+  "quotaRing_noPercentage": {
+    "message": "割合の上限は報告されていません"
+  },
+  "railToggle_description": {
+    "message": "サイドバーの ChatGPT タイトル横に ◀ ボタンを追加します。左側の新しいアイコンレール（ホーム、履歴、アバターなど）を折りたたみ、もう一度クリックすると再表示できます。"
+  },
+  "railToggle_hide": {
+    "message": "アイコンレールを非表示"
+  },
+  "railToggle_show": {
+    "message": "アイコンレールを表示"
+  },
+  "sidebarAutoHide": {
+    "message": "サイドバーを自動的に隠す"
+  },
+  "sidebarAutoHideHint": {
+    "message": "ポインターを左端に動かすまでサイドバーを折りたたみます。"
+  },
+  "sidebarFullHide": {
+    "message": "サイドバーを完全に隠す"
+  },
+  "sidebarFullHideHint": {
+    "message": "自動非表示が有効なとき、サイドバーを完全に隠します。"
+  },
+  "folderSpacing": {
+    "message": "フォルダーの間隔"
+  },
+  "folderSpacingCompact": {
+    "message": "コンパクト"
+  },
+  "folderSpacingSpacious": {
+    "message": "広い"
+  },
+  "folderTreeIndent": {
+    "message": "フォルダーツリーの字下げ"
+  },
+  "folderTreeIndentCompact": {
+    "message": "コンパクト"
+  },
+  "folderTreeIndentSpacious": {
+    "message": "広い"
+  },
+  "export_select_mode_select_all": {
+    "message": "すべて選択"
+  },
+  "export_select_mode_count": {
+    "message": "{count} 件選択中"
+  },
+  "export_select_mode_toggle": {
+    "message": "メッセージを選択"
+  },
+  "export_select_mode_select_below": {
+    "message": "これより下のメッセージを選択"
+  },
+  "export_select_mode_empty": {
+    "message": "書き出すメッセージを少なくとも 1 件選んでください。"
+  },
+  "export_format_image_description": {
+    "message": "PNG 画像として書き出し"
+  },
+  "export_image_progress": {
+    "message": "画像を生成中…"
+  },
+  "deepResearchSaveReport": {
+    "message": "レポートを保存"
+  },
+  "deepResearchSaveReportTooltip": {
+    "message": "この調査レポートを書き出す"
+  },
+  "export_fontsize_label": {
+    "message": "文字サイズ"
+  },
+  "export_fontsize_preview": {
+    "message": "プレビューの文章"
+  },
+  "export_image_width_label": {
+    "message": "画像の幅"
+  },
+  "export_image_width_narrow": {
+    "message": "狭い"
+  },
+  "export_image_width_medium": {
+    "message": "中"
+  },
+  "export_image_width_wide": {
+    "message": "広い"
+  },
+  "export_error_generic": {
+    "message": "書き出しに失敗しました：{error}"
+  },
+  "export_error_refresh_retry": {
+    "message": "書き出しに失敗しました。ページを更新して再試行してください。"
+  },
+  "export_md_include_source_confirm": {
+    "message": "Markdown のソースを含めますか？"
+  },
+  "deepResearch_exportedAt": {
+    "message": "書き出し日時"
+  },
+  "deepResearch_totalPhases": {
+    "message": "フェーズ総数"
+  },
+  "deepResearch_thinkingPhase": {
+    "message": "思考フェーズ"
+  },
+  "deepResearch_researchedWebsites": {
+    "message": "調査したサイト"
+  },
+  "visualEffect": {
+    "message": "視覚効果"
+  },
+  "visualEffectHint": {
+    "message": "軽量なページ効果を選びます。"
+  },
+  "visualEffectOff": {
+    "message": "オフ"
+  },
+  "visualEffectSnow": {
+    "message": "雪"
+  },
+  "visualEffectSakura": {
+    "message": "桜"
+  },
+  "visualEffectRain": {
+    "message": "雨"
+  },
+  "forkConversation": {
+    "message": "分岐"
+  },
+  "forkConfirm": {
+    "message": "ここから会話を分岐しますか？"
+  },
+  "forkConfirmBtn": {
+    "message": "分岐する"
+  },
+  "forkCancel": {
+    "message": "キャンセル"
+  },
+  "forkBranch": {
+    "message": "分岐"
+  },
+  "forkOriginal": {
+    "message": "元の会話"
+  },
+  "forkCurrent": {
+    "message": "現在の会話"
+  },
+  "forkPreparing": {
+    "message": "分岐を準備中…"
+  },
+  "forkPasteHint": {
+    "message": "Enter を押して送信し、分岐を作成してください"
+  },
+  "forkDeleteData": {
+    "message": "分岐データを削除"
+  },
+  "forkDeleteDataConfirm": {
+    "message": "保存された分岐データをすべて削除しますか？"
+  },
+  "enableForkFeature": {
+    "message": "会話を分岐"
+  },
+  "enableForkFeatureHint": {
+    "message": "会話の選んだ位置から新しい分岐を作成します。"
+  },
+  "enableAccountIsolation": {
+    "message": "厳密な分離を有効にする"
+  },
+  "enableAccountIsolationHint": {
+    "message": "アカウントごとにデータを分離します。"
+  },
+  "currentPlatform": {
+    "message": "現在のプラットフォーム"
+  },
+  "export_select_mode_only_user": {
+    "message": "ユーザーのメッセージのみ"
+  },
+  "export_select_mode_only_ai": {
+    "message": "アシスタントのメッセージのみ"
+  },
+  "aiOrgCopyButton": {
+    "message": "AI 整理用の情報をコピー"
+  },
+  "aiOrgCopied": {
+    "message": "コピーしました"
+  },
+  "aiOrgError": {
+    "message": "整理データをコピーできませんでした。"
+  },
+  "aiOrgCopyHint": {
+    "message": "フォルダー構造をコンテキストとしてコピーします。"
+  },
+  "aiOrgCurrentFolders": {
+    "message": "現在のフォルダー"
+  },
+  "aiOrgUnfiledConversations": {
+    "message": "未分類の会話"
+  },
+  "aiOrgEmpty": {
+    "message": "空"
+  },
+  "aiOrgInstructions": {
+    "message": "指示"
+  },
+  "showMessageTimestamps": {
+    "message": "メッセージの時刻を表示"
+  },
+  "showMessageTimestampsHint": {
+    "message": "メッセージの横にタイムスタンプを表示します。"
+  },
+  "moveSectionUp": {
+    "message": "上に移動"
+  },
+  "moveSectionDown": {
+    "message": "下に移動"
+  },
+  "folderAsProject_enable": {
+    "message": "フォルダーの指示"
+  },
+  "folderAsProject_description": {
+    "message": "フォルダーに再利用できる指示を付け、チャットに挿入します。"
+  },
+  "folderHeaderButton_enable": {
+    "message": "会話ヘッダーのショートカット"
+  },
+  "folderHeaderButton_description": {
+    "message": "現在の会話の左上にフォルダーと名前変更のショートカットを表示します。"
+  },
+  "folderBelowProjects": {
+    "message": "フォルダーをプロジェクトの下に配置"
+  },
+  "folderBelowProjects_description": {
+    "message": "フォルダー一覧を上部の固定位置から「プロジェクト」の下、「最近のチャット」の上に移動し、チャット一覧と一緒にスクロールさせます。"
+  },
+  "folderAsProject_noFolder": {
+    "message": "フォルダーなし"
+  },
+  "folderAsProject_setInstructions": {
+    "message": "指示を設定"
+  },
+  "folderAsProject_editInstructions": {
+    "message": "指示を編集"
+  },
+  "folderAsProject_expand": {
+    "message": "展開"
+  },
+  "folderAsProject_collapse": {
+    "message": "折りたたむ"
+  },
+  "canvasExportCopyMarkdown": {
+    "message": "Canvas の Markdown をコピー"
+  },
+  "canvasExportCopyMarkdownTooltip": {
+    "message": "現在の Canvas を Markdown としてコピーします。"
+  },
+  "canvasExportCopied": {
+    "message": "Canvas の Markdown をコピーしました。"
+  },
+  "canvasExportEmpty": {
+    "message": "Canvas の内容が見つかりません。"
+  },
+  "canvasExportFailed": {
+    "message": "Canvas の Markdown をコピーできませんでした。"
+  },
+  "floatingPanelCreateFolder": {
+    "message": "新しいフォルダー"
+  },
+  "floatingPanelCreateSubfolder": {
+    "message": "新しいサブフォルダー"
+  },
+  "floatingPanelFolderNamePlaceholder": {
+    "message": "フォルダー名"
+  },
+  "floatingPanelRenameFolder": {
+    "message": "フォルダー名を変更"
+  },
+  "floatingPanelDeleteFolder": {
+    "message": "削除"
+  },
+  "floatingPanelDeleteConfirm": {
+    "message": "このフォルダーを削除しますか？"
+  },
+  "floatingPanelCancel": {
+    "message": "キャンセル"
+  },
+  "floatingPanelSave": {
+    "message": "保存"
+  },
+  "floatingPanelPinFolder": {
+    "message": "固定"
+  },
+  "floatingPanelUnpinFolder": {
+    "message": "固定を解除"
+  },
+  "floatingPanelRemoveConversation": {
+    "message": "会話を取り除く"
+  },
+  "floatingPanelStarConversation": {
+    "message": "お気に入りに追加"
+  },
+  "floatingPanelUnstarConversation": {
+    "message": "お気に入りを解除"
+  },
+  "floatingPanelColor": {
+    "message": "色"
+  },
+  "floatingPanelExpandFolder": {
+    "message": "展開"
+  },
+  "floatingPanelCollapseFolder": {
+    "message": "折りたたむ"
+  },
+  "floatingPanelCloudUpload": {
+    "message": "クラウドにアップロード"
+  },
+  "floatingPanelCloudSync": {
+    "message": "クラウド同期"
+  },
+  "floatingPanelGestureHint": {
+    "message": "名前をダブルクリックして変更、右クリックでメニューを開く"
+  },
+  "folder_new_chat_in_folder": {
+    "message": "フォルダー内に新しいチャット"
+  },
+  "pm_backup_step3": {
+    "message": "読み込みまたは書き出しを使います。"
+  },
+  "starProject": {
+    "message": "プロジェクトをお気に入りに追加"
+  },
+  "supportMysteryButton": {
+    "message": "謎のボタン"
+  },
+  "folder_remove_conversation_confirm": {
+    "message": "この会話をフォルダーから取り除きますか？"
+  },
+  "aiOrgInstructionsBody": {
+    "message": "現在のフォルダー構造をコンテキストとして使ってください。"
+  },
+  "folderAsProject_selectFolder": {
+    "message": "フォルダーを選択"
+  },
+  "floatingPanelMoveHint": {
+    "message": "ドラッグして移動"
+  },
+  "conversation_saved_to_root": {
+    "message": "ルートに保存しました"
+  },
+  "folder_default_name": {
+    "message": "新しいフォルダー"
+  },
+  "conversation_added_to_folder": {
+    "message": "フォルダーに追加しました"
+  },
+  "folder_export_in_progress": {
+    "message": "フォルダーを書き出し中…"
+  },
+  "folder_import_in_progress": {
+    "message": "フォルダーを読み込み中…"
+  },
+  "mermaidRendering": {
+    "message": "Mermaid の図"
+  },
+  "mermaidRenderingHint": {
+    "message": "Mermaid のコードブロックを図として表示します。"
+  },
+  "longCodeBlockCollapse": {
+    "message": "長いコードブロックの折りたたみ"
+  },
+  "longCodeBlockCollapseHint": {
+    "message": "ChatGPT の長いコードブロックに展開 / 折りたたみボタンを追加します。"
+  },
+  "responseCompleteNotification": {
+    "message": "返信完了の通知"
+  },
+  "responseCompleteNotificationHint": {
+    "message": "ChatGPT の返信が完了するとシステム通知を表示します。クリックするとその会話に戻ります。"
+  },
+  "responseCompleteNotificationTitle": {
+    "message": "ChatGPT の返信が完了しました"
+  },
+  "responseCompleteNotificationMessage": {
+    "message": "返信が届きました。"
+  },
+  "codeBlockExpand": {
+    "message": "コードブロックを展開"
+  },
+  "codeBlockCollapse": {
+    "message": "コードブロックを折りたたむ"
+  },
+  "quoteReplyHint": {
+    "message": "選択した文章を引用のコンテキストとして返信します。"
+  },
+  "inputCollapseWhenNotEmpty": {
+    "message": "入力済みの入力欄を折りたたむ"
+  },
+  "inputCollapseWhenNotEmptyHint": {
+    "message": "文字が入力されていても入力欄を折りたためます。"
+  },
+  "enableFloatingFolderPanel": {
+    "message": "フローティングフォルダーパネル"
+  },
+  "enableFolders": {
+    "message": "フォルダー"
+  },
+  "layoutOptions": {
+    "message": "レイアウト"
+  },
+  "inputOptions": {
+    "message": "入力"
+  },
+  "markdownOptions": {
+    "message": "Markdown"
+  },
+  "appearanceOptions": {
+    "message": "外観"
+  },
+  "gentleDarkMode": {
+    "message": "やさしいダークモード"
+  },
+  "gentleDarkModeHint": {
+    "message": "ダークモードで ChatGPT の真っ黒な背景をやわらかい濃いグレーに置き換え、目にやさしい表示にします。"
+  },
+  "favoritesSidebarTitle": {
+    "message": "お気に入り"
+  },
+  "favoritesCurrentSectionTitle": {
+    "message": "この会話"
+  },
+  "favoritesAllSectionTitle": {
+    "message": "すべてのお気に入り"
+  },
+  "favoritesViewFlat": {
+    "message": "時刻順"
+  },
+  "favoritesViewGrouped": {
+    "message": "会話ごと"
+  },
+  "favoritesEmptyAll": {
+    "message": "お気に入りのメッセージはまだありません。タイムラインのプレビューで ★ をクリックすると追加できます。"
+  },
+  "favoritesEmptyCurrent": {
+    "message": "この会話にはお気に入りがまだありません。"
+  },
+  "favoritesRemove": {
+    "message": "お気に入りから削除"
+  },
+  "favoritesJumpDialogTitle": {
+    "message": "別の会話に移動しますか？"
+  },
+  "favoritesJumpDialogBody": {
+    "message": "現在の会話を離れると別のチャットを読み込みます。一時チャットの場合、その内容は失われます。入力欄の未送信テキストは下書き自動保存機能で保存されますが、続行前に必ず確認してください。"
+  },
+  "favoritesJumpDialogConfirm": {
+    "message": "移動"
+  },
+  "favoritesJumpDialogCancel": {
+    "message": "キャンセル"
+  },
+  "favoritesJumpDialogTargetLabel": {
+    "message": "移動先："
+  },
+  "favoritesUntitledConversation": {
+    "message": "無題の会話"
+  },
+  "tempChatRegretButton": {
+    "message": "一時チャットを引き継ぐ"
+  },
+  "tempChatRegretButtonTooltip": {
+    "message": "この一時チャットを続き用のプロンプトにまとめ、新しい通常の会話に引き継ぎます。最上部までスクロールして全メッセージを読み込み、一時モードを自動で終了してから入力欄にプロンプトを貼り付けます。内容を確認して送信してください。"
+  },
+  "tempChatRegretConfirmTitle": {
+    "message": "一時チャットの引き継ぎ"
+  },
+  "tempChatRegretConfirmBodyHead": {
+    "message": "現在の一時チャットを続き用のプロンプトとして取り出し、新しい通常の会話へ引き継ぎます。"
+  },
+  "tempChatRegretConfirmBodyDetail": {
+    "message": "数秒かかります。上までスクロールして全履歴を読み込み（現在約 {count}+ 件を表示済み）、一時モードを終了して続き用のプロンプトを入力欄に貼り付けます。その間はページを操作しないでください。"
+  },
+  "tempChatRegretConfirmBodyFooter": {
+    "message": "送信するかどうかはあなたが決めます。確認できるようプロンプトは入力欄に残ります。"
+  },
+  "tempChatRegretConfirmCancel": {
+    "message": "キャンセル"
+  },
+  "tempChatRegretConfirmContinue": {
+    "message": "続行"
+  },
+  "tempChatRegretOverlayHint": {
+    "message": "ページを操作しないでください"
+  },
+  "tempChatRegretMsgLoading": {
+    "message": "履歴のメッセージを読み込み中…"
+  },
+  "tempChatRegretMsgLoaded": {
+    "message": "{count} 件のメッセージを読み込みました…"
+  },
+  "tempChatRegretMsgExtracting": {
+    "message": "会話を抽出中…"
+  },
+  "tempChatRegretMsgLeavingTemp": {
+    "message": "一時モードを終了中…"
+  },
+  "tempChatRegretMsgFillingInline": {
+    "message": "続き用プロンプトを入力中…"
+  },
+  "tempChatRegretMsgFillingAttachment": {
+    "message": "指示を入力し .txt をアップロード中…"
+  },
+  "tempChatRegretErrNotInTempMode": {
+    "message": "一時チャットモードではありません"
+  },
+  "tempChatRegretErrNoMessages": {
+    "message": "この一時チャットにはまだメッセージがありません"
+  },
+  "tempChatRegretErrExtractFailed": {
+    "message": "DOM からメッセージを抽出できませんでした（ChatGPT のレイアウトが変わった可能性があります）"
+  },
+  "tempChatRegretErrCantLeaveTemp": {
+    "message": "一時モードを終了できませんでした。一時チャットのアイコンを手動でオフにして再試行してください"
+  },
+  "tempChatRegretErrInputNotFound": {
+    "message": "入力欄が見つかりません。プロンプトはクリップボードにコピーしました"
+  },
+  "tempChatRegretErrFailed": {
+    "message": "操作に失敗しました"
+  },
+  "tempChatRegretErrPartial": {
+    "message": "一部の挿入に失敗しました。入力欄を確認してください（クリップボードにもコピー済み）"
+  },
+  "tempChatRegretOkInline": {
+    "message": "続き用のプロンプトを用意しました（{count} 件のメッセージ）。送信して続けてください。"
+  },
+  "tempChatRegretOkAttachment": {
+    "message": "引き継ぎの準備ができました：指示と {filename}（{count} 件のメッセージ）。送信して続けてください。"
+  },
+  "tempChatRegretDirectiveTitle": {
+    "message": "[一時チャットからの引き継ぎ]"
+  },
+  "tempChatRegretDirectiveInlineBody": {
+    "message": "以下は一時モードでの会話全文です（**Markdown のソース**であり、太字、コードブロック、リスト、数式、見出しなどを元の構文で保持しています）。同じ人格、口調、知識の状態、コンテキストを引き継いで、そのまま続けてください。\n\n手順 1：つなぎとして、下記の最後のアシスタントメッセージを一字一句そのまま、**正しい Markdown の書式を完全に適用して**繰り返してください。**見た目が単なるテキストだからといってプレーンテキストに落とさないでください**。元は Markdown です。その後は止まり、私の次のメッセージを待ってください。\n\n以後の返信でも、元の会話のアシスタントの書式に合わせて Markdown を使い続けてください。"
+  },
+  "tempChatRegretDirectiveAttachmentBody": {
+    "message": "一時モードでの会話全文は**添付の .txt ファイル**にあります（## User / ## Assistant で区切られています）。\n\n**注意：拡張子が `.txt` なのはアップロードの制限によるもので、内容は Markdown のソースです**。太字、コードブロック、リスト、数式、見出しなどは元の Markdown 構文で含まれています。Markdown として読んでください。\n\n同じ人格、口調、知識の状態、コンテキストを引き継いで、そのまま続けてください。\n\n手順 1：つなぎとして、添付内の最後のアシスタントメッセージを一字一句そのまま、**正しい Markdown の書式を完全に適用して**繰り返してください。**ファイルが .txt だからといってプレーンテキストに落とさないでください**。元は Markdown です。その後は止まり、私の次のメッセージを待ってください。\n\n以後の返信でも、元の会話のアシスタントの書式に合わせて Markdown を使い続けてください。"
+  },
+  "tempChatRegretTranscriptStart": {
+    "message": "—— 会話 ——"
+  },
+  "tempChatRegretTranscriptEnd": {
+    "message": "—— 終わり ——"
+  },
+  "responseImageCopy": {
+    "message": "返信を画像としてコピー"
+  },
+  "responseImageCopied": {
+    "message": "返信の画像をコピーしました"
+  },
+  "responseImageDownloaded": {
+    "message": "返信の画像をダウンロードしました（Safari のクリップボード制限）"
+  },
+  "responseImageFailed": {
+    "message": "返信の画像をコピーできませんでした"
+  },
+  "responseImageUnsupported": {
+    "message": "このブラウザーは画像のクリップボードへのコピーに対応していません"
+  },
+  "responseImageMissing": {
+    "message": "返信の内容が見つかりません"
+  },
+  "exportConversationMissing": {
+    "message": "選択した会話が見つかりません。先に会話を開いてから書き出してください。"
+  },
+  "exportConversationOpenFailed": {
+    "message": "書き出し用に会話を開けませんでした。再試行してください。"
+  },
+  "exportTooManyAttempts": {
+    "message": "試行回数が多すぎるため、書き出しを停止しました。"
+  },
+  "exportFailed": {
+    "message": "書き出しに失敗しました。再試行してください。"
+  },
+  "exportIncompleteConversation": {
+    "message": "GPT-Voyager は会話全体を確実に読み込めませんでした。このチャットを開いたまま再試行してください。"
+  },
+  "exportRecommended": {
+    "message": "おすすめ"
+  },
+  "exportImageLabel": {
+    "message": "画像"
+  },
+  "exportDocumentLabel": {
+    "message": "文書"
+  },
+  "exportConversationLabel": {
+    "message": "会話"
+  },
+  "exportNoContent": {
+    "message": "内容なし"
+  },
+  "exportUserLabel": {
+    "message": "ユーザー"
+  },
+  "exportAssistantLabel": {
+    "message": "アシスタント"
+  },
+  "exportSource": {
+    "message": "GPT-Voyager から書き出し"
+  },
+  "exportTurns": {
+    "message": "{count} ターンの会話"
+  },
+  "exportDateLabel": {
+    "message": "日付"
+  },
+  "exportConversationIdLabel": {
+    "message": "会話 ID"
+  },
+  "exportSourceUrlLabel": {
+    "message": "出典"
+  },
+  "exportImageUnavailable": {
+    "message": "Safari の書き出しで画像を表示できません：{label}"
+  },
+  "exportSearchImage": {
+    "message": "検索結果の画像"
+  },
+  "exportGeneratedImage": {
+    "message": "生成された画像"
+  },
+  "exportResearchReport": {
+    "message": "ディープリサーチのレポート"
+  },
+  "shortcutPressKey": {
+    "message": "キーを押してください…"
+  },
+  "shortcutEscapeCancel": {
+    "message": "Esc でキャンセル"
+  },
+  "toggleDarkMode": {
+    "message": "ダークモードを切り替え"
+  },
+  "switchToLight": {
+    "message": "ライトモードに切り替え"
+  },
+  "switchToDark": {
+    "message": "ダークモードに切り替え"
+  },
+  "sidePanel": {
+    "message": "サイドパネル"
+  },
+  "wechatLabel": {
+    "message": "WeChat"
+  },
+  "alipayLabel": {
+    "message": "Alipay"
+  },
+  "wechatQr": {
+    "message": "WeChat の QR コード"
+  },
+  "alipayQr": {
+    "message": "Alipay の QR コード"
+  },
+  "mermaidZoomIn": {
+    "message": "拡大"
+  },
+  "mermaidZoomOut": {
+    "message": "縮小"
+  },
+  "mermaidReset": {
+    "message": "リセット"
+  },
+  "mermaidClose": {
+    "message": "閉じる（Esc）"
+  },
+  "mermaidHint": {
+    "message": "スクロールで拡大縮小 · ドラッグで移動 · Esc で閉じる"
+  },
+  "mermaidDiagram": {
+    "message": "図"
+  },
+  "mermaidCode": {
+    "message": "コード"
+  },
+  "timelineTogglePreview": {
+    "message": "プレビューパネルを切り替え"
+  },
+  "timelinePreviousPin": {
+    "message": "このメッセージの前のピン"
+  },
+  "timelineNextPin": {
+    "message": "このメッセージの次のピン"
+  },
+  "timelinePinText": {
+    "message": "現在の会話の文章にピンを付ける"
+  },
+  "timelineDeletePin": {
+    "message": "選択したピンを削除"
+  },
+  "newChat": {
+    "message": "新しいチャット"
+  },
+  "forkContextPrefix": {
+    "message": "# 分岐のコンテキスト\n分岐した会話を続けています。\n- 以下は分岐点までの会話履歴です。\n- 最後の「User」メッセージから新しい分岐として続けてください。\n- 履歴を書き直さず、次のアシスタントの返信だけを返してください。\n"
+  },
+  "forkHistoryHeading": {
+    "message": "会話履歴"
+  },
+  "exportLoadingHistory": {
+    "message": "会話履歴を読み込み中（{count}）…"
+  },
+  "exportUpdatingCache": {
+    "message": "会話キャッシュを更新中…"
+  },
+  "exportCheckingCache": {
+    "message": "会話キャッシュを確認中…"
+  },
+  "multi_select_count": {
+    "message": "{count} 件選択中"
+  },
+  "batch_remove_from_folder_confirm": {
+    "message": "このフォルダーから {count} 件の会話を取り除きますか？"
+  },
+  "multi_select_exit": {
+    "message": "選択モードを終了"
+  },
+  "folderManager_dataRecoveredFromBackup": {
+    "message": "ローカルバックアップからフォルダーデータを復元しました。"
+  },
+  "folder_import_invalid_version": {
+    "message": "このフォルダーバックアップのバージョンには対応していません。"
+  },
+  "folder_import_missing_data": {
+    "message": "このバックアップには必要なフォルダーデータがありません。"
+  },
+  "folder_import_corrupted_data": {
+    "message": "フォルダーバックアップに無効なデータが含まれています。"
+  },
+  "folder_import_save_failed": {
+    "message": "読み込んだフォルダーを保存できませんでした。拡張機能のストレージを確認して再試行してください。"
+  },
+  "announcementUnavailableTitle": {
+    "message": "お知らせを利用できません"
+  },
+  "announcementUnavailableBody": {
+    "message": "お知らせを読み込めませんでした。後でもう一度お試しください。"
+  },
+  "announcementTranslationFallback": {
+    "message": "この翻訳は利用できません。{language}で表示します。"
+  },
+  "announcementCached": {
+    "message": "最後に保存したお知らせを表示しています。最新の内容を読み込めませんでした。"
+  },
+  "exportTurn": {
+    "message": "ターン {count}"
+  },
+  "exportTurnsLabel": {
+    "message": "ターン"
+  },
+  "exportGeneratedOn": {
+    "message": "生成日：{date}"
+  },
+  "exportCreatedLabel": {
+    "message": "作成日時"
+  },
+  "exportExportedLabel": {
+    "message": "書き出し日時"
+  },
+  "exportAttachmentsLabel": {
+    "message": "添付ファイル"
+  },
+  "exportIncludesImages": {
+    "message": "このターンにはアップロードされた画像があります"
+  },
+  "exportYouLabel": {
+    "message": "あなた"
+  },
+  "exportSystemLabel": {
+    "message": "システム"
+  },
+  "exportToolLabel": {
+    "message": "ツール"
+  },
+  "customWebsiteAlreadyAdded": {
+    "message": "このウェブサイトはすでに追加されています。"
+  },
+  "customFontUnsupported": {
+    "message": "{fileName}：対応していないフォント形式です。woff2、woff、ttf、otf のいずれかを使用してください。"
+  },
+  "customFontTooLarge": {
+    "message": "{fileName}：ファイルが大きすぎます（{size} KB > 4 MB）。"
+  },
+  "customFontImported": {
+    "message": "{fontName}（{size} KB）をインポートしました。"
+  },
+  "customFontImportFailed": {
+    "message": "フォントのインポートに失敗しました：{error}"
+  },
+  "settingsSaveFailed": {
+    "message": "この設定を保存できませんでした。もう一度お試しください。"
+  },
+  "pm_backup_complete": {
+    "message": "バックアップ完了 — プロンプト：{promptCount}、フォルダー：{folderCount}。"
+  },
+  "pm_backup_download_complete": {
+    "message": "バックアップをダウンロードしました：{fileName} — プロンプト：{promptCount}、フォルダー：{folderCount}。"
+  },
+  "tempChatRegretErrCollectionTimeout": {
+    "message": "会話の更新が完了する前に、収集がタイムアウトしました。"
+  },
+  "tempChatRegretErrHistoryTimeout": {
+    "message": "会話履歴の読み込みが完了する前に、収集がタイムアウトしました。"
+  },
+  "tempChatRegretErrCollectionStopped": {
+    "message": "会話の収集が途中で停止しました（{count} 件のメッセージを取得）。"
+  },
+  "export_image_render_failed": {
+    "message": "画像の描画に失敗しました（{width} × {height}）"
+  }
+}

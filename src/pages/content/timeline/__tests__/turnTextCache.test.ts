@@ -442,7 +442,7 @@ describe('TurnTextCache', () => {
       setSpy.mockRestore();
     });
 
-    it('evicts oldest conversations when localStorage exceeds the conversation cap', () => {
+    it('evicts oldest conversations when localStorage exceeds the conversation cap', async () => {
       vi.useRealTimers();
       // Seed 85 fake conversation cache entries with ascending lastSeenAt
       for (let i = 0; i < 85; i++) {
@@ -470,6 +470,7 @@ describe('TurnTextCache', () => {
       // Loading a fresh conversation should trigger eviction down to MAX (80).
       const cache = new TurnTextCache();
       cache.setConversation('gpt:conv:current');
+      await cache.hydrate();
 
       const after = enumerateStorageKeys().filter((k) => k.startsWith(STORAGE_PREFIX)).length;
       // 80 cap, plus the newly-bound conversation is exempt from eviction
@@ -483,7 +484,7 @@ describe('TurnTextCache', () => {
       expect(localStorage.getItem(`${STORAGE_PREFIX}gpt:conv:bulk-0`)).toBeNull();
     });
 
-    it('never evicts the conversation we are about to load', () => {
+    it('never evicts the conversation we are about to load', async () => {
       vi.useRealTimers();
       // Seed the active conversation with `lastSeenAt: 0` (oldest), plus 85 newer ones.
       localStorage.setItem(
@@ -522,6 +523,7 @@ describe('TurnTextCache', () => {
       }
       const cache = new TurnTextCache();
       cache.setConversation('gpt:conv:active');
+      await cache.hydrate();
       // The active conversation must NOT have been evicted despite being
       // the oldest by lastSeenAt.
       expect(localStorage.getItem(`${STORAGE_PREFIX}gpt:conv:active`)).not.toBeNull();

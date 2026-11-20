@@ -1,55 +1,43 @@
-/**
- * Schema for the remote announcement feed (announcements.json).
- *
- * Single-current-announcement model. To re-pop the bubble for everyone,
- * bump `current.id` (the id is the only "is this new?" signal — the rest
- * of the fields are content that can change freely).
- *
- * Stored at:
- *   https://raw.githubusercontent.com/TanChuping/chatgpt-voyager-support/refs/heads/main/announcements.json
- *
- * Add a `history` array later if/when we want to render a "past
- * announcements" list inside the modal. The schema bump (`v: 2`) would
- * be backwards-compatible — `current` stays at top level, parsers that
- * only know v=1 can keep working.
- */
-export interface RemoteAnnouncement {
-  /** Stable, unique id — bumping this re-pops the bubble for every user. */
-  id: string;
-  /** Optional version label shown next to the title in the modal. */
-  version?: string;
-  /** Bubble + modal title. Keep under ~60 chars; bubble truncates. */
+import type { AppLanguage } from '@/utils/language';
+
+/** Text in one language. Metadata and the read/dedupe ID are shared. */
+export interface AnnouncementTranslation {
   title: string;
-  /** ISO 8601 timestamp. Shown in the modal header. Optional. */
-  publishedAt?: string;
-  /**
-   * Short preview text shown inside the bubble. Renderer truncates to
-   * ~80 chars with an ellipsis — the editor should still strive to keep
-   * this short.
-   */
   summary: string;
-  /**
-   * Full announcement body. Rendered as sanitized Markdown inside the
-   * modal. Images via `![](url)` work; links open in a new tab.
-   */
   bodyMarkdown: string;
-  /**
-   * Optional hero image rendered above the markdown body in the modal.
-   * Should be a stable public URL (e.g. raw.githubusercontent.com path
-   * under the support repo's `support-assets/` folder).
-   */
+}
+
+export interface AnnouncementMetadata {
+  id: string;
+  version?: string;
+  publishedAt?: string;
   primaryImageUrl?: string;
 }
 
-export interface RemoteAnnouncementFile {
-  v: 1;
-  current: RemoteAnnouncement | null;
+/**
+ * V2 has its own URL and cache key. The old root announcements.json remains
+ * v=1 with string fields: old clients explicitly reject every other version.
+ * The publisher requires all seven locales in this single atomic payload;
+ * readers tolerate a missing locale and select one complete fallback.
+ */
+export interface MultilingualAnnouncement extends AnnouncementMetadata {
+  locales: Partial<Record<AppLanguage, AnnouncementTranslation>>;
 }
 
-/** In-memory cache wrapper persisted in chrome.storage.local. */
+export interface RemoteAnnouncementFile {
+  v: 2;
+  current: MultilingualAnnouncement | null;
+}
+
+/** A single visible language, with the source retained for in-modal selection. */
+export interface RemoteAnnouncement extends AnnouncementMetadata, AnnouncementTranslation {
+  locales?: MultilingualAnnouncement['locales'];
+  language?: AppLanguage;
+  requestedLanguage?: AppLanguage;
+}
+
+/** Exactly one V2 feed is retained; V1 and user-owned data are untouched. */
 export interface AnnouncementCacheEntry {
-  /** Epoch ms when we last fetched successfully. */
   fetchedAt: number;
-  /** The parsed remote payload — `null` means "fetched but no current announcement". */
-  payload: RemoteAnnouncementFile | null;
+  payload: RemoteAnnouncementFile;
 }

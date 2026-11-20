@@ -110,9 +110,10 @@ function bootstrapContentScript(): void {
     coreDelayResolvers.clear();
   };
 
-  const startChatGptBootstrap = () => {
+  const startChatGptBootstrap = async () => {
     initKaTeXConfig();
-    void initI18n().catch((error) => reportFeatureError('i18n', error));
+    await initI18n().catch((error) => reportFeatureError('i18n', error));
+    if (closed) return;
 
     core = startCoreFeatures(
       [
@@ -254,7 +255,7 @@ function bootstrapContentScript(): void {
   window.addEventListener('error', onWindowError);
   addPageExitListener(shutdown);
 
-  if (isChatGPTSite()) startChatGptBootstrap();
+  if (isChatGPTSite()) void startChatGptBootstrap();
   else startCustomWebsiteBootstrap();
 }
 

@@ -117,7 +117,10 @@ export class TimelinePreviewPanel {
     this.onSearchChange?.('');
   }
 
+  private onLocaleDictionaryReady = () => this.updateTranslatedText();
+
   destroy(): void {
+    window.removeEventListener('voyager:language-changed', this.onLocaleDictionaryReady);
     if (this.searchDebounceTimer) {
       clearTimeout(this.searchDebounceTimer);
       this.searchDebounceTimer = null;
@@ -155,7 +158,7 @@ export class TimelinePreviewPanel {
     // Toggle button 鈥?fixed position to the left of the timeline bar
     this.toggleBtn = document.createElement('button');
     this.toggleBtn.className = 'timeline-preview-toggle';
-    this.toggleBtn.setAttribute('aria-label', 'Toggle preview panel');
+    this.toggleBtn.setAttribute('aria-label', getTranslationSync('timelineTogglePreview'));
     this.toggleBtn.setAttribute('aria-pressed', 'false');
     this.toggleBtn.innerHTML = LIST_ICON_SVG;
     this.toggleBtn.addEventListener('click', (e) => {
@@ -226,9 +229,11 @@ export class TimelinePreviewPanel {
       }
     };
     browser.storage.onChanged.addListener(this.onStorageChanged);
+    window.addEventListener('voyager:language-changed', this.onLocaleDictionaryReady);
   }
 
   private updateTranslatedText(): void {
+    this.toggleBtn?.setAttribute('aria-label', getTranslationSync('timelineTogglePreview'));
     this.applyDirection();
     if (this.searchInput) {
       this.searchInput.placeholder = getTranslationSync('timelinePreviewSearch');

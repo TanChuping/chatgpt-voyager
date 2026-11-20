@@ -18,8 +18,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { StorageKeys } from '@/core/types/common';
+import { APP_LANGUAGES, type AppLanguage } from '@/utils/language';
 
 import type { RemoteAnnouncementFile } from '../types';
+
+const languageState = vi.hoisted(() => ({ current: 'en' as AppLanguage }));
+vi.mock('@/utils/i18n', () => ({
+  initI18n: async () => {},
+  getCachedLanguage: () => languageState.current,
+}));
 
 // chrome.storage shim — same shape we used for chatFontFamily tests.
 type StorageListener = (
@@ -29,6 +36,7 @@ type StorageListener = (
 const sync: Record<string, unknown> = {};
 const local: Record<string, unknown> = {};
 const listeners: StorageListener[] = [];
+const writes: Array<{ area: string; items: Record<string, unknown> }> = [];
 
 function fire(area: 'sync' | 'local', changes: Record<string, unknown>) {
   const p: Record<string, { newValue?: unknown }> = {};
@@ -45,6 +53,7 @@ function fire(area: 'sync' | 'local', changes: Record<string, unknown>) {
         queueMicrotask(() => cb(out));
       },
       set: (items: Record<string, unknown>, cb?: () => void) => {
+        writes.push({ area: 'sync', items });
         Object.assign(sync, items);
         fire('sync', items);
         if (cb) queueMicrotask(cb);
@@ -57,6 +66,7 @@ function fire(area: 'sync' | 'local', changes: Record<string, unknown>) {
         queueMicrotask(() => cb(out));
       },
       set: (items: Record<string, unknown>, cb?: () => void) => {
+        writes.push({ area: 'local', items });
         Object.assign(local, items);
         fire('local', items);
         if (cb) queueMicrotask(cb);
@@ -89,6 +99,7 @@ const fetchSpy = vi.fn(async () => {
 // the right references.
 const {
   refreshSnapshot,
+  installAnnouncementWatchers,
   markBubbleShown,
   markSeen,
   getLastSnapshot,
@@ -102,12 +113,20 @@ function setRemote(file: RemoteAnnouncementFile | null) {
 }
 
 const sample = (id: string): RemoteAnnouncementFile => ({
-  v: 1,
+  v: 2,
   current: {
     id,
-    title: `Title ${id}`,
-    summary: 'A short summary.',
-    bodyMarkdown: '# Body',
+    publishedAt: '2026-10-03T13:51:43.019Z',
+    locales: Object.fromEntries(
+      APP_LANGUAGES.map((language) => [
+        language,
+        {
+          title: `Title ${id} ${language}`,
+          summary: `Summary ${language}`,
+          bodyMarkdown: `# Body ${language}`,
+        },
+      ]),
+    ),
   },
 });
 
@@ -115,6 +134,8 @@ beforeEach(() => {
   for (const k of Object.keys(sync)) delete sync[k];
   for (const k of Object.keys(local)) delete local[k];
   listeners.length = 0;
+  writes.length = 0;
+  languageState.current = 'en';
   __resetAnnouncementServiceForTests();
   fetchSpy.mockClear();
   mockResponse = null;
@@ -173,18 +194,20 @@ describe('AnnouncementService — dedupe state machine', () => {
   });
 
   it('feed with current: null → no bubble, no dot', async () => {
-    setRemote({ v: 1, current: null });
+    setRemote({ v: 2, current: null });
     const snap = await refreshSnapshot();
     expect(snap.current).toBeNull();
     expect(snap.shouldPopBubble).toBe(false);
     expect(snap.hasUnread).toBe(false);
   });
 
-  it('404 → treated as no current; cache stored', async () => {
+  it('404 without cache → unavailable; no fake withdrawal cache', async () => {
     mockStatus = 404;
     const snap = await refreshSnapshot();
     expect(snap.current).toBeNull();
     expect(snap.shouldPopBubble).toBe(false);
+    expect(snap.status).toBe('unavailable');
+    expect(local[StorageKeys.ANNOUNCEMENT_CACHE_V2]).toBeUndefined();
   });
 
   it('malformed JSON → falls back to cache; does not crash or flip flags', async () => {
@@ -216,7 +239,7 @@ describe('AnnouncementService — dedupe state machine', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
-  it('markSeen also marks bubble as shown so a same-id refresh doesn\'t re-pop', async () => {
+  it("markSeen also marks bubble as shown so a same-id refresh doesn't re-pop", async () => {
     setRemote(sample('A'));
     await refreshSnapshot();
     await markSeen('A');
@@ -229,8 +252,8 @@ describe('AnnouncementService — dedupe state machine', () => {
 
   it('rejects payload missing required fields (id / title / summary / bodyMarkdown)', async () => {
     mockResponse = {
-      v: 1,
-      current: { id: 'X', title: 'no summary' },
+      v: 2,
+      current: { id: 'X', locales: { en: { title: 'no summary' } } },
     } as unknown as RemoteAnnouncementFile;
     const snap = await refreshSnapshot();
     expect(snap.current).toBeNull();
@@ -239,7 +262,7 @@ describe('AnnouncementService — dedupe state machine', () => {
 
   it('rejects payload with wrong schema version', async () => {
     mockResponse = {
-      v: 2,
+      v: 1,
       current: sample('A').current,
     } as unknown as RemoteAnnouncementFile;
     const snap = await refreshSnapshot();
@@ -445,5 +468,225 @@ describe('AnnouncementService — dedupe state machine', () => {
     // Sanity: second refresh is also exactly one more call.
     await refreshSnapshot();
     expect(calls).toBe(2);
+  });
+});
+
+describe('V2 language, failure and storage compatibility', () => {
+  it('uses the independent V2 URL and one bounded cache key', async () => {
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    expect(fetchSpy.mock.calls[0][0]).toMatch(/\/i18n\/announcements\.json\?t=/);
+    expect(Object.keys(local)).toEqual([StorageKeys.ANNOUNCEMENT_CACHE_V2]);
+  });
+
+  it.each(APP_LANGUAGES)(
+    'initial content follows %s while the ID stays shared',
+    async (language) => {
+      languageState.current = language;
+      setRemote(sample('A'));
+      const snapshot = await refreshSnapshot();
+      expect(snapshot.current).toMatchObject({
+        id: 'A',
+        language,
+        requestedLanguage: language,
+        title: `Title A ${language}`,
+        summary: `Summary ${language}`,
+        bodyMarkdown: `# Body ${language}`,
+      });
+    },
+  );
+
+  it('seven-language switching does not change seen, bubble, cooldown or preference writes', async () => {
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    await markSeen('A');
+    const before = JSON.stringify(local);
+    writes.length = 0;
+    for (const language of [...APP_LANGUAGES, ...APP_LANGUAGES].reverse()) {
+      languageState.current = language;
+      const snapshot = await refreshSnapshot();
+      expect(snapshot.current?.language).toBe(language);
+      expect(snapshot.hasUnread).toBe(false);
+      expect(snapshot.shouldPopBubble).toBe(false);
+    }
+    expect(JSON.stringify(local)).toBe(before);
+    expect(writes).toEqual([]);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not reinterpret or rewrite an old V1 cache and private values', async () => {
+    const original = {
+      [StorageKeys.ANNOUNCEMENT_CACHE_V1]: {
+        fetchedAt: Date.now(),
+        payload: {
+          v: 1,
+          current: { id: 'old', title: '旧 / old', summary: '原文', bodyMarkdown: '# legacy' },
+        },
+      },
+      folders: [{ id: 'f1', name: '自取名称 & <tag>', items: ['conversation-1'] }],
+      favorites: [{ text: 'Keep my original text 日本語', id: 'star' }],
+      prompts: [{ title: 'My prompt', body: '{{Do not translate}}' }],
+      backupData: { raw: 'arbitrary synthetic legacy data' },
+      privateValue: { a: [0, false, 'unchanged'] },
+    };
+    Object.assign(local, original);
+    sync[StorageKeys.LANGUAGE] = 'zh';
+    const before = JSON.stringify(original);
+    setRemote(sample('new'));
+    await refreshSnapshot();
+    for (const language of APP_LANGUAGES) {
+      languageState.current = language;
+      await refreshSnapshot();
+    }
+    expect(
+      JSON.stringify(Object.fromEntries(Object.keys(original).map((key) => [key, local[key]]))),
+    ).toBe(before);
+    expect(sync).toEqual({ [StorageKeys.LANGUAGE]: 'zh' });
+    expect(
+      writes.every(
+        ({ area, items }) =>
+          area === 'local' &&
+          Object.keys(items).every((key) => key === StorageKeys.ANNOUNCEMENT_CACHE_V2),
+      ),
+    ).toBe(true);
+  });
+
+  it('missing locale falls back as a complete unit with the same ID and metadata', async () => {
+    const file = sample('A');
+    delete file.current!.locales.ja;
+    languageState.current = 'ja';
+    setRemote(file);
+    const snapshot = await refreshSnapshot();
+    expect(snapshot.current).toMatchObject({
+      id: 'A',
+      requestedLanguage: 'ja',
+      language: 'en',
+      title: 'Title A en',
+      summary: 'Summary en',
+      bodyMarkdown: '# Body en',
+      publishedAt: '2026-10-03T13:51:43.019Z',
+    });
+  });
+
+  it('missing V2 resource preserves previous complete cache without pretending withdrawal', async () => {
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    const before = JSON.stringify(local[StorageKeys.ANNOUNCEMENT_CACHE_V2]);
+    mockStatus = 404;
+    const snapshot = await refreshSnapshot(true);
+    expect(snapshot.status).toBe('stale');
+    expect(snapshot.current?.id).toBe('A');
+    expect(JSON.stringify(local[StorageKeys.ANNOUNCEMENT_CACHE_V2])).toBe(before);
+    expect(local[StorageKeys.ANNOUNCEMENT_SEEN_ID]).toBeUndefined();
+  });
+
+  it('offline without cache shows unavailable and writes no read flags', async () => {
+    fetchSpy.mockRejectedValueOnce(new TypeError('offline'));
+    const snapshot = await refreshSnapshot(true);
+    expect(snapshot.status).toBe('unavailable');
+    expect(snapshot.current).toBeNull();
+    expect(writes).toEqual([]);
+  });
+
+  it('an explicit V2 withdrawal clears only V2 content, preserving acknowledgment flags', async () => {
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    await markSeen('A');
+    const flags = Object.fromEntries(
+      Object.entries(local).filter(([key]) => key !== StorageKeys.ANNOUNCEMENT_CACHE_V2),
+    );
+    setRemote({ v: 2, current: null });
+    const snapshot = await refreshSnapshot(true);
+    expect(snapshot).toMatchObject({
+      current: null,
+      status: 'empty',
+      hasUnread: false,
+      shouldPopBubble: false,
+    });
+    expect(
+      Object.fromEntries(
+        Object.entries(local).filter(([key]) => key !== StorageKeys.ANNOUNCEMENT_CACHE_V2),
+      ),
+    ).toEqual(flags);
+    expect(local[StorageKeys.ANNOUNCEMENT_CACHE_V2]).toMatchObject({
+      payload: { v: 2, current: null },
+    });
+  });
+
+  it('concurrent refreshes coalesce and late results use the final language choice', async () => {
+    let complete!: (value: Response) => void;
+    fetchSpy.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    languageState.current = 'ja';
+    const first = refreshSnapshot(true);
+    await vi.waitFor(() => expect(complete).toBeTypeOf('function'));
+    languageState.current = 'ru';
+    const second = refreshSnapshot(true);
+    await Promise.resolve();
+    complete(new Response(JSON.stringify(sample('A')), { status: 200 }));
+    const snapshots = await Promise.all([first, second]);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(snapshots.every((snapshot) => snapshot.current?.language === 'ru')).toBe(true);
+    expect(getLastSnapshot().current?.language).toBe('ru');
+  });
+});
+
+describe('forced refresh and language overlap', () => {
+  it('a cached language refresh cannot discard a successful newer remote announcement', async () => {
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    let complete!: (value: Response) => void;
+    fetchSpy.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const forced = refreshSnapshot(true);
+    await vi.waitFor(() => expect(complete).toBeTypeOf('function'));
+    languageState.current = 'de';
+    const languageRefresh = refreshSnapshot();
+    complete(new Response(JSON.stringify(sample('B')), { status: 200 }));
+    const results = await Promise.all([forced, languageRefresh]);
+    expect(
+      results.every(
+        (snapshot) => snapshot.current?.id === 'B' && snapshot.current.language === 'de',
+      ),
+    ).toBe(true);
+    expect(getLastSnapshot().current).toMatchObject({ id: 'B', language: 'de' });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('real service storage watcher integration', () => {
+  it('cache writes and acknowledgment refreshes settle without re-fetch loops', async () => {
+    const observed = vi.fn();
+    installAnnouncementWatchers(observed);
+    setRemote(sample('A'));
+    const snapshot = await refreshSnapshot();
+    expect(snapshot.current?.id).toBe('A');
+    await markBubbleShown('A');
+    await markSeen('A');
+    expect(getLastSnapshot().hasUnread).toBe(false);
+    expect(getLastSnapshot().shouldPopBubble).toBe(false);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(observed.mock.calls.length).toBeLessThan(12);
+  });
+});
+
+describe('duplicate bubble intent', () => {
+  it('an already shown ID does not extend its cooldown or rewrite flags', async () => {
+    setRemote(sample('A'));
+    await refreshSnapshot();
+    await markBubbleShown('A');
+    const before = JSON.stringify(local);
+    writes.length = 0;
+    await markBubbleShown('A');
+    expect(JSON.stringify(local)).toBe(before);
+    expect(writes).toEqual([]);
   });
 });

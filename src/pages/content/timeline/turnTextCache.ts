@@ -335,6 +335,10 @@ export class TurnTextCache {
    */
   private async evictOldConversations(): Promise<void> {
     try {
+      // This legacy backend stores each conversation cache in one localStorage
+      // key. If even the total key count is within the limit, eviction cannot
+      // be needed. Larger stores still use the existing prefix/LRU policy.
+      if (localStorage.length <= MAX_CONVERSATIONS) return;
       const entries: Array<{ key: string; convId: string; mostRecent: number }> = [];
       const stored = await listTimelinePrivateItems(STORAGE_PREFIX);
       for (const [k, raw] of stored) {

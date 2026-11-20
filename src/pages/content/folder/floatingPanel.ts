@@ -102,6 +102,38 @@ function t(key: string): string {
   return getTranslationSyncUnsafe(key);
 }
 
+type LocalizedTarget = 'textContent' | 'aria-label' | 'title' | 'placeholder';
+const localizedElements = new WeakMap<
+  HTMLElement,
+  Map<LocalizedTarget, { key: string; suffix: string }>
+>();
+
+// Store keys, not dictionary values. Updating only these nodes leaves user names,
+// inline drafts, focus and the expanded tree intact when a dictionary becomes ready.
+function localize(
+  element: HTMLElement,
+  key: string,
+  target: LocalizedTarget = 'textContent',
+  suffix = '',
+): void {
+  let bindings = localizedElements.get(element);
+  if (!bindings) {
+    bindings = new Map();
+    localizedElements.set(element, bindings);
+    element.setAttribute('data-gv-locale', '');
+  }
+  bindings.set(target, { key, suffix });
+  refreshLocalizedElement(element);
+}
+
+function refreshLocalizedElement(element: HTMLElement): void {
+  localizedElements.get(element)?.forEach(({ key, suffix }, target) => {
+    const value = t(key) + suffix;
+    if (target === 'textContent') element.textContent = value;
+    else element.setAttribute(target, value);
+  });
+}
+
 function clampPos(pos: FloatingPanelPos, width: number, height: number): FloatingPanelPos {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -215,8 +247,8 @@ function createIconButton(
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `${FLOATING_PANEL_CLASS}__icon-button ${FLOATING_PANEL_CLASS}__icon-button--${modifier}`;
-  button.setAttribute('aria-label', t(labelKey));
-  button.title = t(labelKey);
+  localize(button, labelKey, 'aria-label');
+  localize(button, labelKey, 'title');
   button.textContent = text;
   button.addEventListener('click', onClick);
   return button;
@@ -284,7 +316,7 @@ function createHintRow(key: string, iconText: string): HTMLElement {
 
   const text = document.createElement('span');
   text.className = `${FLOATING_PANEL_CLASS}__move-hint-text`;
-  text.textContent = t(key);
+  localize(text, key);
 
   row.appendChild(icon);
   row.appendChild(text);
@@ -345,7 +377,7 @@ function createInlineForm(
   const input = document.createElement('input');
   input.type = 'text';
   input.className = `${FLOATING_PANEL_CLASS}__inline-input`;
-  input.placeholder = t(placeholderKey);
+  localize(input, placeholderKey, 'placeholder');
   input.value = initialValue;
   input.maxLength = MAX_FOLDER_NAME_LENGTH;
 
@@ -405,7 +437,7 @@ function renderFolderTree(container: HTMLElement, context: RenderContext): void 
     empty.className = `${FLOATING_PANEL_CLASS}__empty`;
     const label = document.createElement('div');
     label.className = `${FLOATING_PANEL_CLASS}__empty-label`;
-    label.textContent = t('floatingPanelEmpty');
+    localize(label, 'floatingPanelEmpty');
     empty.appendChild(createEmptyFolderIcon());
     empty.appendChild(label);
     container.appendChild(empty);
@@ -484,9 +516,10 @@ function renderFolderNode(folder: Folder, context: RenderContext, depth: number)
   const caret = document.createElement('button');
   caret.type = 'button';
   caret.className = `${FLOATING_PANEL_CLASS}__caret`;
-  caret.setAttribute(
+  localize(
+    caret,
+    isExpanded ? 'floatingPanelCollapseFolder' : 'floatingPanelExpandFolder',
     'aria-label',
-    t(isExpanded ? 'floatingPanelCollapseFolder' : 'floatingPanelExpandFolder'),
   );
   caret.textContent = isExpanded ? '▾' : '▸';
 
@@ -672,7 +705,7 @@ function renderConversationRow(
       `.${FLOATING_PANEL_CLASS}__inline-input`,
     );
     renameInput?.removeAttribute('maxlength');
-    renameInput?.setAttribute('aria-label', `${t('conversation_rename')}: ${conv.title}`);
+    if (renameInput) localize(renameInput, 'conversation_rename', 'aria-label', `: ${conv.title}`);
     renameInput?.addEventListener('input', () => {
       conversationEditor.draft = renameInput.value;
     });
@@ -684,7 +717,8 @@ function renderConversationRow(
   title.type = 'button';
   title.className = `${FLOATING_PANEL_CLASS}__conv-title`;
   title.id = `${FLOATING_PANEL_CLASS}__conv-title-${folderId}-${conv.conversationId}`;
-  title.textContent = conv.title || t('floatingPanelUntitled');
+  if (conv.title && (conv.customTitle || !/^untitled$/i.test(conv.title.trim()))) title.textContent = conv.title;
+  else localize(title, 'floatingPanelUntitled');
   title.title = conv.title || '';
   title.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -755,7 +789,7 @@ function createMenuButton(labelKey: string, onClick: (e: MouseEvent) => void): H
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `${FLOATING_PANEL_CLASS}__menu-item`;
-  button.textContent = t(labelKey);
+  localize(button, labelKey);
   button.addEventListener('click', onClick);
   return button;
 }
@@ -844,7 +878,7 @@ function renderContextMenu(container: HTMLElement, context: RenderContext): void
 
   const colorTitle = document.createElement('div');
   colorTitle.className = `${FLOATING_PANEL_CLASS}__color-title`;
-  colorTitle.textContent = t('floatingPanelColor');
+  localize(colorTitle, 'floatingPanelColor');
 
   const swatches = document.createElement('div');
   swatches.className = `${FLOATING_PANEL_CLASS}__color-swatches`;
@@ -857,8 +891,8 @@ function renderContextMenu(container: HTMLElement, context: RenderContext): void
       swatch.classList.add(`${FLOATING_PANEL_CLASS}__color-swatch--active`);
     }
     swatch.style.backgroundColor = getFolderColor(color.id, isDarkMode());
-    swatch.setAttribute('aria-label', t(color.nameKey));
-    swatch.title = t(color.nameKey);
+    localize(swatch, color.nameKey, 'aria-label');
+    localize(swatch, color.nameKey, 'title');
     swatch.addEventListener('click', (e) => {
       e.stopPropagation();
       context.setContextMenu(null);
@@ -917,14 +951,14 @@ export function mountFloatingPanel({
   const panel = document.createElement('div');
   panel.className = FLOATING_PANEL_CLASS;
   panel.setAttribute('role', 'dialog');
-  panel.setAttribute('aria-label', t('floatingPanelTitle'));
+  localize(panel, 'floatingPanelTitle', 'aria-label');
 
   const header = document.createElement('div');
   header.className = `${FLOATING_PANEL_CLASS}__header`;
 
   const title = document.createElement('div');
   title.className = `${FLOATING_PANEL_CLASS}__title`;
-  title.textContent = t('floatingPanelTitle');
+  localize(title, 'floatingPanelTitle');
 
   const headerActions = document.createElement('div');
   headerActions.className = `${FLOATING_PANEL_CLASS}__header-actions`;
@@ -939,7 +973,7 @@ export function mountFloatingPanel({
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = `${FLOATING_PANEL_CLASS}__close`;
-  closeBtn.setAttribute('aria-label', t('floatingPanelClose'));
+  localize(closeBtn, 'floatingPanelClose', 'aria-label');
   closeBtn.textContent = '×';
 
   header.appendChild(title);
@@ -1088,6 +1122,16 @@ export function mountFloatingPanel({
   };
   render();
 
+  const onLanguageReady = () => {
+    const scrollTop = body.scrollTop;
+    const scrollLeft = body.scrollLeft;
+    refreshLocalizedElement(panel);
+    panel.querySelectorAll<HTMLElement>('[data-gv-locale]').forEach(refreshLocalizedElement);
+    body.scrollTop = scrollTop;
+    body.scrollLeft = scrollLeft;
+  };
+  window.addEventListener('voyager:language-changed', onLanguageReady);
+
   const onResize = () => {
     const clamped = clampPos(
       { x: panel.offsetLeft, y: panel.offsetTop },
@@ -1118,6 +1162,7 @@ export function mountFloatingPanel({
   const destroy = () => {
     if (destroyed) return;
     destroyed = true;
+    window.removeEventListener('voyager:language-changed', onLanguageReady);
     window.removeEventListener('resize', onResize);
     document.removeEventListener('click', onDocumentClick);
     resizeObserver?.disconnect();

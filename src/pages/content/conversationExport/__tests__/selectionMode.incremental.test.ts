@@ -5,6 +5,11 @@ import {
   getConversationCaptureService,
 } from '@/features/conversationApi/ConversationCaptureService';
 import type { ApiConversation } from '@/features/conversationApi/types';
+import enMessages from '@/locales/en/messages.json';
+import frMessages from '@/locales/fr/messages.json';
+import { installEnglishLocale } from '@/tests/localeFixture';
+import { extractMessageDictionary } from '@/utils/localeMessages';
+import { installTranslations } from '@/utils/translations';
 
 import { enterSelectionMode, exitSelectionMode } from '../selectionMode';
 
@@ -56,6 +61,7 @@ function host(id: string, role: 'user' | 'assistant', text: string): HTMLElement
 
 describe('incremental selection mode', () => {
   beforeEach(() => {
+    installEnglishLocale();
     document.body.innerHTML = '';
     __resetConversationCaptureServiceForTests();
     getConversationCaptureService().ingest(CONV_ID, api());
@@ -68,6 +74,7 @@ describe('incremental selection mode', () => {
   afterEach(() => {
     exitSelectionMode();
     document.body.innerHTML = '';
+    vi.restoreAllMocks();
   });
 
   it('adds selectors for user-scrolled messages and keeps an active role policy', async () => {
@@ -115,6 +122,87 @@ describe('incremental selection mode', () => {
     content.appendChild(document.createElement('span'));
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it('relabels the active toolbar and checkboxes without losing the selected role policy', async () => {
+    const added = vi.spyOn(window, 'addEventListener');
+    const removed = vi.spyOn(window, 'removeEventListener');
+    enterSelectionMode(CONV_ID);
+    const toolbar = document.querySelector<HTMLElement>('.gv-export-pick-bar')!;
+    const buttons = Array.from(toolbar.querySelectorAll<HTMLButtonElement>('button'));
+    const checkboxes = Array.from(document.querySelectorAll<HTMLButtonElement>('.gv-export-pick-checkbox'));
+    buttons[2].click(); // Keep selecting user messages, including future mounted messages.
+    checkboxes[0].focus();
+    installTranslations(extractMessageDictionary(frMessages));
+    expect(buttons[2].textContent).toBe(enMessages.singleConvExportSelectUser.message);
+    window.dispatchEvent(new CustomEvent('voyager:language-changed'));
+
+    expect(document.querySelector('.gv-export-pick-bar')).toBe(toolbar);
+    expect(document.activeElement).toBe(checkboxes[0]);
+    expect(toolbar.querySelector('.gv-export-pick-bar__title')!.textContent).toBe(
+      frMessages.singleConvExportSelectTitle.message,
+    );
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      frMessages.singleConvExportSelectAll.message,
+      frMessages.singleConvExportSelectNone.message,
+      frMessages.singleConvExportSelectUser.message,
+      frMessages.singleConvExportSelectAI.message,
+      frMessages.singleConvExportSelectDo.message,
+      frMessages.singleConvExportSelectCancel.message,
+    ]);
+    expect(checkboxes.map((checkbox) => checkbox.getAttribute('aria-pressed'))).toEqual(['true', 'false']);
+    for (const checkbox of checkboxes) {
+      expect(checkbox.getAttribute('aria-label')).toBe(frMessages.singleConvExportSelectTitle.message);
+      expect(checkbox.title).toBe(frMessages.singleConvExportSelectTitle.message);
+    }
+    expect(toolbar.querySelector('.gv-export-pick-bar__count')!.textContent).toBe(
+      `${frMessages.singleConvExportSelectSelected.message}: 1`,
+    );
+
+    const newUserId = '77777777-7777-7777-7777-777777777777';
+    document.body.append(host(newUserId, 'user', 'after switching language'));
+    await vi.waitFor(() => {
+      expect(document.querySelector<HTMLButtonElement>(
+        `[data-message-id="${newUserId}"] .gv-export-pick-checkbox`,
+      )?.dataset.selected).toBe('true');
+    });
+    expect(toolbar.querySelector('.gv-export-pick-bar__count')!.textContent).toBe(
+      `${frMessages.singleConvExportSelectSelected.message}: 2`,
+    );
+    buttons[1].click();
+    expect(checkboxes[0].getAttribute('aria-pressed')).toBe('false');
+    expect(buttons[4].disabled).toBe(true);
+
+    const languageCall = added.mock.calls.find(([event]) => event === 'voyager:language-changed')!;
+    exitSelectionMode();
+    expect(removed).toHaveBeenCalledWith('voyager:language-changed', languageCall[1]);
+    installEnglishLocale();
+    window.dispatchEvent(new CustomEvent('voyager:language-changed'));
+    expect(buttons[2].textContent).toBe(frMessages.singleConvExportSelectUser.message);
+    expect(document.querySelector('.gv-export-pick-bar')).toBeNull();
+    expect(document.querySelectorAll('.gv-export-pick-checkbox')).toHaveLength(0);
+  });
+
+  it('relabels the generation guard while preserving a selected assistant response', () => {
+    enterSelectionMode(CONV_ID);
+    document.body.insertAdjacentHTML('beforeend', '<button data-testid="stop-button">Stop</button>');
+    const assistant = document.querySelector<HTMLButtonElement>(
+      '[data-message-author-role="assistant"] .gv-export-pick-checkbox',
+    )!;
+    assistant.click();
+    const exportButton = document.querySelector<HTMLButtonElement>('.gv-export-pick-bar__btn--primary')!;
+    expect(exportButton.disabled).toBe(true);
+    expect(exportButton.title).toBe(enMessages.singleConvExportGenerating.message);
+
+    installTranslations(extractMessageDictionary(frMessages));
+    window.dispatchEvent(new CustomEvent('voyager:language-changed'));
+
+    expect(exportButton.disabled).toBe(true);
+    expect(exportButton.title).toBe(frMessages.singleConvExportGenerating.message);
+    expect(assistant.getAttribute('aria-pressed')).toBe('true');
+    assistant.click();
+    expect(assistant.getAttribute('aria-pressed')).toBe('false');
+    expect(exportButton.title).toBe('');
   });
 
   it.each([

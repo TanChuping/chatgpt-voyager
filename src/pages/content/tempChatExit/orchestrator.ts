@@ -66,6 +66,20 @@ interface TurnSnapshot extends ExtractedTurn {
   order: number;
 }
 
+/** Keep technical diagnostics intact; localize only our own visible failure details. */
+class TempChatCollectionError extends Error {
+  constructor(
+    message: string,
+    readonly translationKey:
+      | 'tempChatRegretErrCollectionTimeout'
+      | 'tempChatRegretErrHistoryTimeout'
+      | 'tempChatRegretErrCollectionStopped',
+    readonly count?: number,
+  ) {
+    super(message);
+  }
+}
+
 let fallbackIdentitySequence = 0;
 const fallbackIdentities = new WeakMap<HTMLElement, { role: TurnRole; id: string }>();
 
@@ -259,7 +273,10 @@ async function waitForStableBottom(
     previousSignature = signature;
     samples += 1;
     if (samples >= maximumSamples) {
-      throw new Error('conversation did not settle before the collection timeout');
+      throw new TempChatCollectionError(
+        'conversation did not settle before the collection timeout',
+        'tempChatRegretErrCollectionTimeout',
+      );
     }
   }
 }
@@ -309,7 +326,10 @@ export async function collectAllTempChatTurns(
       target.scrollTop = 0;
       samples += 1;
       if (samples >= maximumSamples) {
-        throw new Error('conversation history did not settle before the collection timeout');
+        throw new TempChatCollectionError(
+          'conversation history did not settle before the collection timeout',
+          'tempChatRegretErrHistoryTimeout',
+        );
       }
     }
 
@@ -334,12 +354,20 @@ export async function collectAllTempChatTurns(
     onProgress(collected.size);
     let maximum = Math.max(0, target.scrollHeight - target.clientHeight);
     if (target.scrollTop < maximum - 2) {
-      throw new Error(`conversation collection stopped early (${collected.size} messages found)`);
+      throw new TempChatCollectionError(
+        `conversation collection stopped early (${collected.size} messages found)`,
+        'tempChatRegretErrCollectionStopped',
+        collected.size,
+      );
     }
     await waitForStableBottom(target, collected, onProgress);
     maximum = Math.max(0, target.scrollHeight - target.clientHeight);
     if (target.scrollTop < maximum - 2) {
-      throw new Error(`conversation collection stopped early (${collected.size} messages found)`);
+      throw new TempChatCollectionError(
+        `conversation collection stopped early (${collected.size} messages found)`,
+        'tempChatRegretErrCollectionStopped',
+        collected.size,
+      );
     }
   } finally {
     target.scrollTop = Math.min(
@@ -917,7 +945,10 @@ export async function runTempChatRegret(): Promise<void> {
     } catch (err) {
       overlay.destroy();
       console.error('[GPT-Voyager] temp-chat regret failed', err);
-      const msg = (err as Error)?.message ?? String(err);
+      const msg =
+        err instanceof TempChatCollectionError
+          ? t(err.translationKey, err.count === undefined ? undefined : { count: err.count })
+          : (err as Error)?.message ?? String(err);
       showToast(`${t('tempChatRegretErrFailed')}: ${msg}`, 'error');
     }
   } finally {

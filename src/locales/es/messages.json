@@ -1,0 +1,2093 @@
+{
+  "extName": {
+    "message": "GPT-Voyager"
+  },
+  "announcementButton": {
+    "message": "Anuncios"
+  },
+  "announcementDetail": {
+    "message": "Ver detalles"
+  },
+  "announcementClose": {
+    "message": "Cerrar"
+  },
+  "announcementEmptyTitle": {
+    "message": "No hay anuncios"
+  },
+  "announcementEmptyBody": {
+    "message": "Por ahora no hay anuncios de la extensión. Vuelve más tarde."
+  },
+  "announcementVersionChipHint": {
+    "message": "Haz clic para ver los anuncios"
+  },
+  "singleConvExportButton": {
+    "message": "Exportar esta conversación"
+  },
+  "singleConvExportButtonTooltip": {
+    "message": "Exportar esta conversación en el formato elegido en la ventana de la extensión"
+  },
+  "singleConvExportOptions": {
+    "message": "Exportación de conversaciones"
+  },
+  "singleConvExportFormat": {
+    "message": "Formato de exportación"
+  },
+  "singleConvExportFormatHint": {
+    "message": "Elige el formato del botón de descarga junto a «Compartir» en ChatGPT. Las variantes simplificadas eliminan los bloques de Code Interpreter, las salidas de herramientas y la narración previa del modelo; conservan solo tus mensajes, la respuesta final y las marcas de tiempo."
+  },
+  "singleConvExportFormatMarkdown": {
+    "message": "Markdown estándar"
+  },
+  "singleConvExportFormatMarkdownHint": {
+    "message": "Sin pérdida de información. Incluye código de Code Interpreter, salidas de herramientas y narración intermedia."
+  },
+  "singleConvExportFormatMarkdownSimple": {
+    "message": "Markdown simplificado"
+  },
+  "singleConvExportFormatJson": {
+    "message": "JSON estándar"
+  },
+  "singleConvExportFormatJsonHint": {
+    "message": "JSON lineal completo a partir del mapa de la API. Ideal para archivar o procesar con otras herramientas."
+  },
+  "singleConvExportFormatJsonSimple": {
+    "message": "JSON simplificado"
+  },
+  "singleConvExportFormatHtml": {
+    "message": "HTML (simplificado)"
+  },
+  "singleConvExportFormatSimpleHint": {
+    "message": "Solo tus mensajes, la respuesta final del modelo y las marcas de tiempo."
+  },
+  "singleConvExportMenuWhole": {
+    "message": "Toda la conversación"
+  },
+  "singleConvExportSelectButton": {
+    "message": "Seleccionar y exportar"
+  },
+  "singleConvExportSelectButtonTooltip": {
+    "message": "Elige los mensajes que deseas exportar y descarga solo los seleccionados, en el formato elegido en la ventana de la extensión"
+  },
+  "singleConvExportSelectTitle": {
+    "message": "Marca los mensajes que deseas exportar"
+  },
+  "singleConvExportSelectAll": {
+    "message": "Seleccionar todo"
+  },
+  "singleConvExportSelectNone": {
+    "message": "Quitar selección"
+  },
+  "singleConvExportSelectUser": {
+    "message": "Solo tus mensajes"
+  },
+  "singleConvExportSelectAI": {
+    "message": "Solo ChatGPT"
+  },
+  "singleConvExportSelectSelected": {
+    "message": "Seleccionados"
+  },
+  "singleConvExportSelectDo": {
+    "message": "Exportar"
+  },
+  "singleConvExportSelectCancel": {
+    "message": "Cancelar"
+  },
+  "singleConvExportSelectEmpty": {
+    "message": "Selecciona al menos un mensaje para exportar."
+  },
+  "singleConvExportSelectNotReady": {
+    "message": "Esta conversación aún no se ha cargado por completo. Desplázate hacia arriba para cargar los mensajes anteriores y vuelve a intentarlo."
+  },
+  "singleConvExportGenerating": {
+    "message": "Espera a que ChatGPT termine de generar la respuesta antes de exportar."
+  },
+  "extDescription": {
+    "message": "Para ChatGPT: cronología, carpetas, copia LaTeX, exportación, continuidad del chat temporal, prompts, fuentes y Mermaid."
+  },
+  "scrollMode": {
+    "message": "Desplazamiento de la cronología"
+  },
+  "flow": {
+    "message": "Fluido"
+  },
+  "jump": {
+    "message": "Saltar"
+  },
+  "hideOuterContainer": {
+    "message": "Ocultar el contenedor de la cronología"
+  },
+  "draggableTimeline": {
+    "message": "Cronología arrastrable"
+  },
+  "pinTimelinePreview": {
+    "message": "Fijar la vista previa de la cronología"
+  },
+  "pinTimelinePreviewHint": {
+    "message": "Mantener abierta la vista previa de la cronología al recorrer los encabezados."
+  },
+  "enableMarkerLevel": {
+    "message": "Niveles de encabezados"
+  },
+  "enableMarkerLevelHint": {
+    "message": "Mostrar niveles de encabezados anidados en la cronología de la conversación."
+  },
+  "experimentalLabel": {
+    "message": "Experimental"
+  },
+  "resetPosition": {
+    "message": "Restablecer posición"
+  },
+  "resetTimelinePosition": {
+    "message": "Restablecer la posición de la cronología"
+  },
+  "language": {
+    "message": "Idioma"
+  },
+  "pm_title": {
+    "message": "Prompt Manager"
+  },
+  "pm_add": {
+    "message": "Añadir"
+  },
+  "pm_search_placeholder": {
+    "message": "Buscar prompts, etiquetas o contenido"
+  },
+  "pm_import": {
+    "message": "Importar"
+  },
+  "pm_export": {
+    "message": "Exportar"
+  },
+  "pm_prompt_placeholder": {
+    "message": "Texto del prompt"
+  },
+  "pm_tags_placeholder": {
+    "message": "Etiquetas separadas por comas"
+  },
+  "pm_save": {
+    "message": "Guardar"
+  },
+  "pm_cancel": {
+    "message": "Cancelar"
+  },
+  "pm_all_tags": {
+    "message": "Todas las etiquetas"
+  },
+  "pm_empty": {
+    "message": "Aún no hay prompts"
+  },
+  "pm_copy": {
+    "message": "Copiar"
+  },
+  "pm_copied": {
+    "message": "Copiado"
+  },
+  "pm_inserted": {
+    "message": "Insertado"
+  },
+  "pm_delete": {
+    "message": "Eliminar"
+  },
+  "pm_delete_confirm": {
+    "message": "¿Eliminar este prompt?"
+  },
+  "pm_lock": {
+    "message": "Bloquear"
+  },
+  "pm_unlock": {
+    "message": "Desbloquear"
+  },
+  "pm_import_invalid": {
+    "message": "Archivo de importación no válido"
+  },
+  "pm_import_empty": {
+    "message": "No se encontraron prompts en el archivo"
+  },
+  "pm_import_success": {
+    "message": "Prompts importados: {count}"
+  },
+  "pm_duplicate": {
+    "message": "Este texto de prompt ya existe. Edita el prompt existente."
+  },
+  "pm_save_failed": {
+    "message": "No se pudo guardar. Tu borrador se ha conservado. Comprueba el almacenamiento de la extensión y vuelve a intentarlo."
+  },
+  "pm_deleted": {
+    "message": "Eliminado"
+  },
+  "pm_edit": {
+    "message": "Editar"
+  },
+  "pm_expand": {
+    "message": "Expandir"
+  },
+  "pm_collapse": {
+    "message": "Contraer"
+  },
+  "pm_saved": {
+    "message": "Guardado"
+  },
+  "pm_settings": {
+    "message": "Ajustes"
+  },
+  "pm_settings_tooltip": {
+    "message": "Abrir los ajustes de Prompt Manager"
+  },
+  "pm_settings_fallback": {
+    "message": "Abre los ajustes de la extensión para configurar Prompt Manager."
+  },
+  "pm_backup": {
+    "message": "Copia de seguridad"
+  },
+  "pm_backup_tooltip": {
+    "message": "Exportar una copia local de los prompts y los ajustes."
+  },
+  "pm_backup_cancelled": {
+    "message": "Copia de seguridad cancelada"
+  },
+  "pm_backup_error": {
+    "message": "Error al crear la copia de seguridad"
+  },
+  "pm_backup_hint_options": {
+    "message": "Exportar o importar los datos locales de Prompt Manager."
+  },
+  "pm_backup_step1": {
+    "message": "Abre ChatGPT."
+  },
+  "pm_backup_step2": {
+    "message": "Abre Prompt Manager."
+  },
+  "pm_backup_note": {
+    "message": "Las copias locales permanecen en este dispositivo salvo que las exportes."
+  },
+  "pm_theme_light": {
+    "message": "Claro"
+  },
+  "pm_view_compact": {
+    "message": "Compacto"
+  },
+  "pm_view_comfortable": {
+    "message": "Cómodo"
+  },
+  "pm_name_placeholder": {
+    "message": "Nombre del prompt"
+  },
+  "pm_theme_dark": {
+    "message": "Oscuro"
+  },
+  "extensionVersion": {
+    "message": "Versión"
+  },
+  "newVersionAvailable": {
+    "message": "Nueva versión disponible"
+  },
+  "currentVersionLabel": {
+    "message": "Versión actual"
+  },
+  "latestVersionLabel": {
+    "message": "Última versión"
+  },
+  "updateNow": {
+    "message": "Actualizar ahora"
+  },
+  "safariUpdateNotSynced": {
+    "message": "El estado de actualización de Safari no está sincronizado."
+  },
+  "officialDocs": {
+    "message": "Documentación"
+  },
+  "exportChatJson": {
+    "message": "Exportar conversación"
+  },
+  "folder_title": {
+    "message": "Carpetas"
+  },
+  "folder_create": {
+    "message": "Nueva carpeta"
+  },
+  "folder_name_prompt": {
+    "message": "Nombre de la carpeta:"
+  },
+  "folder_rename_prompt": {
+    "message": "Renombrar carpeta:"
+  },
+  "folder_delete_confirm": {
+    "message": "¿Eliminar esta carpeta y quitar las conversaciones guardadas en ella?"
+  },
+  "folder_create_subfolder": {
+    "message": "Nueva subcarpeta"
+  },
+  "folder_rename": {
+    "message": "Renombrar"
+  },
+  "folder_change_color": {
+    "message": "Cambiar color"
+  },
+  "folder_delete": {
+    "message": "Eliminar"
+  },
+  "folder_color_default": {
+    "message": "Predeterminado"
+  },
+  "folder_color_red": {
+    "message": "Rojo"
+  },
+  "folder_color_orange": {
+    "message": "Naranja"
+  },
+  "folder_color_yellow": {
+    "message": "Amarillo"
+  },
+  "folder_color_green": {
+    "message": "Verde"
+  },
+  "folder_color_blue": {
+    "message": "Azul"
+  },
+  "folder_color_purple": {
+    "message": "Morado"
+  },
+  "folder_color_pink": {
+    "message": "Rosa"
+  },
+  "folder_color_custom": {
+    "message": "Personalizado"
+  },
+  "folder_empty": {
+    "message": "Aún no hay carpetas"
+  },
+  "folder_pin": {
+    "message": "Fijar carpeta"
+  },
+  "folder_unpin": {
+    "message": "Desfijar carpeta"
+  },
+  "folder_remove_conversation": {
+    "message": "Quitar de la carpeta"
+  },
+  "conversation_more": {
+    "message": "Más acciones"
+  },
+  "conversation_move_to_folder": {
+    "message": "Mover a una carpeta"
+  },
+  "conversation_rename": {
+    "message": "Renombrar chat"
+  },
+  "conversation_move_to_folder_title": {
+    "message": "Mover a una carpeta"
+  },
+  "chatWidth": {
+    "message": "Anchura del chat"
+  },
+  "chatWidthNarrow": {
+    "message": "Estrecho"
+  },
+  "chatWidthWide": {
+    "message": "Ancho"
+  },
+  "chatFontSize": {
+    "message": "Tamaño del texto del chat"
+  },
+  "codeFontSize": {
+    "message": "Tamaño del texto en bloques de código"
+  },
+  "chatFontSizeSmall": {
+    "message": "Pequeño"
+  },
+  "chatFontSizeLarge": {
+    "message": "Grande"
+  },
+  "chatLineHeight": {
+    "message": "Interlineado del chat"
+  },
+  "chatLineHeightTight": {
+    "message": "Ajustado"
+  },
+  "chatLineHeightLoose": {
+    "message": "Amplio"
+  },
+  "chatParagraphSpacing": {
+    "message": "Espaciado entre párrafos"
+  },
+  "chatParagraphSpacingCompact": {
+    "message": "Compacto"
+  },
+  "chatParagraphSpacingSpacious": {
+    "message": "Espacioso"
+  },
+  "chatFontFamily": {
+    "message": "Fuente del chat"
+  },
+  "chatFontFamilyDefault": {
+    "message": "Predeterminada (ChatGPT)"
+  },
+  "chatFontFamilyClaude": {
+    "message": "Estilo Claude (Tiempos)"
+  },
+  "chatFontFamilyGemini": {
+    "message": "Estilo Gemini (Google Sans)"
+  },
+  "chatFontFamilyCustom": {
+    "message": "Personalizada"
+  },
+  "chatFontFamilyNoneImported": {
+    "message": "Ninguna importada"
+  },
+  "chatFontFamilyHint": {
+    "message": "Si la fuente original no está instalada, los ajustes usan fuentes del sistema. Importa un archivo .woff2/.woff/.ttf/.otf abajo para garantizar su visualización. Los bloques de código siguen siendo monoespaciados."
+  },
+  "chatFontFamilyImport": {
+    "message": "Importar fuente…"
+  },
+  "chatFontFamilyClear": {
+    "message": "Quitar fuente personalizada"
+  },
+  "sidebarWidth": {
+    "message": "Anchura de la barra lateral"
+  },
+  "sidebarWidthNarrow": {
+    "message": "Estrecha"
+  },
+  "sidebarWidthWide": {
+    "message": "Ancha"
+  },
+  "formula_copied": {
+    "message": "Fórmula copiada."
+  },
+  "formula_copy_failed": {
+    "message": "No se pudo copiar la fórmula."
+  },
+  "formulaCopyFormat": {
+    "message": "Formato de copia de fórmulas"
+  },
+  "formulaCopyFormatLatex": {
+    "message": "LaTeX"
+  },
+  "formulaCopyFormatUnicodeMath": {
+    "message": "MathML / Word"
+  },
+  "formulaCopyFormatHint": {
+    "message": "Elige cómo se copian las fórmulas."
+  },
+  "formulaCopyFormatNoDollar": {
+    "message": "LaTeX sin signos de dólar"
+  },
+  "formulaCopyFormatDesmos": {
+    "message": "Desmos / calculadoras"
+  },
+  "formulaCopyFormatNotion": {
+    "message": "Notion ($$)"
+  },
+  "folder_search_placeholder": {
+    "message": "Buscar carpetas y chats"
+  },
+  "folder_search_expand": {
+    "message": "Expandir búsqueda"
+  },
+  "folder_search_collapse": {
+    "message": "Contraer búsqueda"
+  },
+  "folder_expand": {
+    "message": "Expandir carpeta"
+  },
+  "folder_collapse": {
+    "message": "Contraer carpeta"
+  },
+  "folder_search_mode_folder": {
+    "message": "Solo carpetas"
+  },
+  "folder_search_empty": {
+    "message": "No hay carpetas ni chats coincidentes"
+  },
+  "folder_settings": {
+    "message": "Ajustes de carpetas"
+  },
+  "folder_sort": {
+    "message": "Orden de los chats"
+  },
+  "folder_sort_manual": {
+    "message": "Manual"
+  },
+  "folder_sort_recent": {
+    "message": "Abiertos recientemente"
+  },
+  "folder_item_font_size": {
+    "message": "Tamaño de fuente"
+  },
+  "folder_item_font_size_decrease": {
+    "message": "Reducir"
+  },
+  "folder_item_font_size_increase": {
+    "message": "Aumentar"
+  },
+  "folder_hide_section": {
+    "message": "Ocultar el contenido de las carpetas"
+  },
+  "folder_show_section": {
+    "message": "Mostrar el contenido de las carpetas"
+  },
+  "folder_export": {
+    "message": "Exportar carpetas"
+  },
+  "folder_import_export": {
+    "message": "Importar / exportar carpetas"
+  },
+  "folder_cloud_upload": {
+    "message": "Subir carpetas a la nube"
+  },
+  "folder_cloud_sync": {
+    "message": "Sincronización de carpetas en la nube"
+  },
+  "folder_manage_in_library": {
+    "message": "Gestionar en la biblioteca"
+  },
+  "folder_import": {
+    "message": "Importar carpetas"
+  },
+  "folder_import_title": {
+    "message": "Importar carpetas"
+  },
+  "folder_import_strategy": {
+    "message": "Método de importación"
+  },
+  "folder_import_merge": {
+    "message": "Combinar con las carpetas existentes"
+  },
+  "folder_import_overwrite": {
+    "message": "Sobrescribir las carpetas existentes"
+  },
+  "folder_import_select_file": {
+    "message": "Seleccionar archivo JSON"
+  },
+  "folder_import_success": {
+    "message": "Importación completada: {folders} carpetas y {conversations} conversaciones."
+  },
+  "folder_import_success_skipped": {
+    "message": "Importación completada: {folders} carpetas y {conversations} conversaciones. Omitidos: {skipped}."
+  },
+  "folder_import_error": {
+    "message": "Error de importación: {error}"
+  },
+  "folder_export_success": {
+    "message": "Carpetas exportadas."
+  },
+  "folder_import_invalid_format": {
+    "message": "Archivo de copia de carpetas no válido."
+  },
+  "folder_import_confirm_overwrite": {
+    "message": "Se sobrescribirán las carpetas existentes. ¿Continuar?"
+  },
+  "folder_import_paste_json": {
+    "message": "Pegar JSON"
+  },
+  "folder_import_paste_placeholder": {
+    "message": "Pega el JSON aquí…"
+  },
+  "export_dialog_title": {
+    "message": "Exportar chat"
+  },
+  "export_dialog_select": {
+    "message": "Elegir formato de exportación"
+  },
+  "export_dialog_warning": {
+    "message": "Parte del contenido puede no exportarse exactamente como se muestra."
+  },
+  "export_dialog_safari_cmdp_hint": {
+    "message": "Usa Command+P para imprimir en PDF en Safari."
+  },
+  "export_toast_safari_pdf_ready": {
+    "message": "El diálogo de impresión está listo."
+  },
+  "export_dialog_safari_markdown_hint": {
+    "message": "La exportación Markdown está disponible en el diálogo de exportación."
+  },
+  "export_format_json_description": {
+    "message": "Exportación JSON estructurada"
+  },
+  "export_format_markdown_description": {
+    "message": "Exportación Markdown legible"
+  },
+  "export_format_pdf_description": {
+    "message": "Exportación PDF lista para imprimir"
+  },
+  "editInputWidth": {
+    "message": "Anchura del cuadro de texto"
+  },
+  "editInputWidthNarrow": {
+    "message": "Estrecho"
+  },
+  "editInputWidthWide": {
+    "message": "Ancho"
+  },
+  "timelineOptions": {
+    "message": "Cronología"
+  },
+  "enableTimeline": {
+    "message": "Activar cronología"
+  },
+  "enableTimelineDescription": {
+    "message": "Mostrar la navegación por puntos a la derecha. Al desactivarla se eliminan los puntos, la vista previa y los controles de chinchetas."
+  },
+  "folderOptions": {
+    "message": "Opciones de carpetas"
+  },
+  "enableFolderFeature": {
+    "message": "Activar carpetas"
+  },
+  "enableFolderFloatingMode": {
+    "message": "Panel flotante de carpetas"
+  },
+  "enableFolderFloatingModeHint": {
+    "message": "Mostrar carpetas en un panel flotante en lugar de la barra lateral."
+  },
+  "hideArchivedConversations": {
+    "message": "Ocultar conversaciones archivadas"
+  },
+  "hideArchivedNudgeTitle": {
+    "message": "Ocultar conversaciones archivadas"
+  },
+  "hideArchivedNudgeBody": {
+    "message": "No mostrar las conversaciones archivadas en la lista de carpetas."
+  },
+  "hideArchivedNudgeEnable": {
+    "message": "Activar"
+  },
+  "hideArchivedNudgeDismiss": {
+    "message": "Descartar"
+  },
+  "hideArchivedNudgeFootnote": {
+    "message": "Puedes cambiarlo después en los ajustes."
+  },
+  "floatingModeNudgeTitle": {
+    "message": "Panel flotante de carpetas"
+  },
+  "floatingModeNudgeBody": {
+    "message": "Abrir carpetas desde un panel flotante."
+  },
+  "floatingModeNudgeEnable": {
+    "message": "Activar"
+  },
+  "floatingModeNudgeDismiss": {
+    "message": "Descartar"
+  },
+  "floatingPanelTitle": {
+    "message": "Carpetas"
+  },
+  "floatingPanelClose": {
+    "message": "Cerrar"
+  },
+  "floatingPanelEmpty": {
+    "message": "Aún no hay carpetas"
+  },
+  "floatingPanelUntitled": {
+    "message": "Sin título"
+  },
+  "floatingFabLabel": {
+    "message": "Abrir carpetas"
+  },
+  "conversation_star": {
+    "message": "Añadir conversación a favoritos"
+  },
+  "conversation_unstar": {
+    "message": "Quitar conversación de favoritos"
+  },
+  "conversation_untitled": {
+    "message": "Conversación sin título"
+  },
+  "folderManager_dataLossWarning": {
+    "message": "Advertencia: no se pudieron cargar los datos de las carpetas. Consulta la consola del navegador para ver los detalles."
+  },
+  "backupOptions": {
+    "message": "Opciones de copia de seguridad"
+  },
+  "backupEnabled": {
+    "message": "Activar copias de seguridad"
+  },
+  "backupNow": {
+    "message": "Crear copia ahora"
+  },
+  "backupSelectFolder": {
+    "message": "Elegir carpeta de copias"
+  },
+  "backupFolderSelected": {
+    "message": "Carpeta de copias seleccionada"
+  },
+  "backupIncludePrompts": {
+    "message": "Incluir prompts"
+  },
+  "backupIncludeFolders": {
+    "message": "Incluir carpetas"
+  },
+  "backupIntervalLabel": {
+    "message": "Frecuencia de copias"
+  },
+  "backupIntervalManual": {
+    "message": "Manual"
+  },
+  "backupIntervalDaily": {
+    "message": "Diaria"
+  },
+  "backupIntervalWeekly": {
+    "message": "Semanal"
+  },
+  "backupLastBackup": {
+    "message": "Última copia"
+  },
+  "backupNever": {
+    "message": "Sin copias previas"
+  },
+  "backupSuccess": {
+    "message": "Copia creada"
+  },
+  "backupError": {
+    "message": "Error al crear la copia"
+  },
+  "backupNotSupported": {
+    "message": "Este navegador no admite copias de seguridad"
+  },
+  "backupSelectFolderFirst": {
+    "message": "Primero elige una carpeta de copias"
+  },
+  "backupUserCancelled": {
+    "message": "Copia cancelada"
+  },
+  "backupConfigSaved": {
+    "message": "Ajustes de copia guardados"
+  },
+  "backupPermissionDenied": {
+    "message": "Permiso de copia denegado"
+  },
+  "backupConfigureInOptions": {
+    "message": "Configurar copias en las opciones de la extensión"
+  },
+  "openOptionsPage": {
+    "message": "Abrir página de opciones"
+  },
+  "optionsPageSubtitle": {
+    "message": "Opciones de la extensión"
+  },
+  "optionsComingSoon": {
+    "message": "Próximamente habrá más opciones."
+  },
+  "backupDataAccessNotice": {
+    "message": "Acceso a los datos de copia"
+  },
+  "backupDataAccessHint": {
+    "message": "Permite el acceso a la carpeta de copias seleccionada."
+  },
+  "promptManagerOptions": {
+    "message": "Prompt Manager"
+  },
+  "hidePromptManager": {
+    "message": "Ocultar Prompt Manager"
+  },
+  "hidePromptManagerHint": {
+    "message": "Ocultar el acceso a Prompt Manager en ChatGPT."
+  },
+  "promptInsertOnClick": {
+    "message": "Insertar prompt al hacer clic"
+  },
+  "promptInsertOnClickHint": {
+    "message": "Insertar un prompt inmediatamente al seleccionarlo."
+  },
+  "customWebsites": {
+    "message": "Sitios personalizados"
+  },
+  "customWebsitesPlaceholder": {
+    "message": "Introduce la dirección del sitio"
+  },
+  "customWebsitesHint": {
+    "message": "Añade sitios en los que quieras usar la extensión."
+  },
+  "addWebsite": {
+    "message": "Añadir sitio"
+  },
+  "removeWebsite": {
+    "message": "Quitar sitio"
+  },
+  "invalidUrl": {
+    "message": "URL no válida"
+  },
+  "websiteAdded": {
+    "message": "Sitio añadido"
+  },
+  "websiteRemoved": {
+    "message": "Sitio eliminado"
+  },
+  "permissionDenied": {
+    "message": "Permiso denegado"
+  },
+  "permissionRequestFailed": {
+    "message": "Error al solicitar permiso"
+  },
+  "customWebsitesNote": {
+    "message": "Los sitios personalizados necesitan permiso de acceso."
+  },
+  "starredHistory": {
+    "message": "Historial de favoritos"
+  },
+  "viewStarredHistory": {
+    "message": "Mensajes favoritos"
+  },
+  "noStarredMessages": {
+    "message": "No hay mensajes favoritos"
+  },
+  "removeFromStarred": {
+    "message": "Quitar de favoritos"
+  },
+  "justNow": {
+    "message": "Ahora mismo"
+  },
+  "hoursAgo": {
+    "message": "h antes"
+  },
+  "yesterday": {
+    "message": "Ayer"
+  },
+  "daysAgo": {
+    "message": "días antes"
+  },
+  "loading": {
+    "message": "Cargando…"
+  },
+  "keyboardShortcuts": {
+    "message": "Atajos de teclado"
+  },
+  "enableShortcuts": {
+    "message": "Activar atajos"
+  },
+  "previousNode": {
+    "message": "Nodo anterior"
+  },
+  "nextNode": {
+    "message": "Nodo siguiente"
+  },
+  "firstNode": {
+    "message": "Primer nodo"
+  },
+  "lastNode": {
+    "message": "Último nodo"
+  },
+  "shortcutKey": {
+    "message": "Tecla"
+  },
+  "shortcutModifiers": {
+    "message": "Teclas modificadoras"
+  },
+  "resetShortcuts": {
+    "message": "Restablecer atajos"
+  },
+  "shortcutsResetSuccess": {
+    "message": "Atajos restablecidos"
+  },
+  "shortcutsDescription": {
+    "message": "Configura los atajos para navegar por la cronología."
+  },
+  "modifierNone": {
+    "message": "Ninguna"
+  },
+  "modifierAlt": {
+    "message": "Alt"
+  },
+  "modifierCtrl": {
+    "message": "Ctrl"
+  },
+  "modifierShift": {
+    "message": "Shift"
+  },
+  "modifierMeta": {
+    "message": "Meta"
+  },
+  "preventAutoScroll": {
+    "message": "Evitar desplazamiento automático"
+  },
+  "preventAutoScrollHint": {
+    "message": "Mantener tu posición de lectura cuando aparezca contenido nuevo."
+  },
+  "cloudSync": {
+    "message": "Sincronización en la nube"
+  },
+  "cloudSyncDescription": {
+    "message": "Subir o combinar datos de la nube."
+  },
+  "syncModeDisabled": {
+    "message": "Desactivada"
+  },
+  "syncModeManual": {
+    "message": "Manual"
+  },
+  "syncServerPort": {
+    "message": "Puerto del servidor de sincronización"
+  },
+  "syncNow": {
+    "message": "Sincronizar ahora"
+  },
+  "lastSynced": {
+    "message": "Última sincronización"
+  },
+  "neverSynced": {
+    "message": "Nunca sincronizado"
+  },
+  "lastUploaded": {
+    "message": "Última subida"
+  },
+  "neverUploaded": {
+    "message": "Nunca subido"
+  },
+  "syncSuccess": {
+    "message": "Sincronización completada"
+  },
+  "syncError": {
+    "message": "Error de sincronización"
+  },
+  "syncInProgress": {
+    "message": "Sincronizando…"
+  },
+  "uploadInProgress": {
+    "message": "Subiendo…"
+  },
+  "uploadSuccess": {
+    "message": "Subida completada"
+  },
+  "downloadInProgress": {
+    "message": "Descargando…"
+  },
+  "downloadMergeSuccess": {
+    "message": "Descarga y combinación completadas"
+  },
+  "syncUpload": {
+    "message": "Subir"
+  },
+  "syncMerge": {
+    "message": "Descargar y combinar"
+  },
+  "syncMode": {
+    "message": "Modo de sincronización"
+  },
+  "minutesAgo": {
+    "message": "min antes"
+  },
+  "syncNoData": {
+    "message": "No hay datos para sincronizar"
+  },
+  "syncUploadFailed": {
+    "message": "Error de subida"
+  },
+  "syncDownloadFailed": {
+    "message": "Error de descarga"
+  },
+  "syncAuthFailed": {
+    "message": "Error de autenticación de sincronización"
+  },
+  "signOut": {
+    "message": "Cerrar sesión"
+  },
+  "signInWithGoogle": {
+    "message": "Iniciar sesión con Google"
+  },
+  "nanobananaOptions": {
+    "message": "Opciones de Nanobanana"
+  },
+  "nanobananaDownloadLabel": {
+    "message": "Descargar imágenes de Nanobanana"
+  },
+  "nanobananaDownloadHint": {
+    "message": "Descargar las imágenes originales generadas por Nanobanana."
+  },
+  "nanobananaPreviewLabel": {
+    "message": "Vista previa de imágenes de Nanobanana"
+  },
+  "nanobananaPreviewHint": {
+    "message": "Mostrar una vista previa de las imágenes generadas por Nanobanana."
+  },
+  "nanobananaDownloadTooltip": {
+    "message": "Descargar imagen original"
+  },
+  "deepResearchDownload": {
+    "message": "Descargar informe de investigación a fondo"
+  },
+  "deepResearchDownloadTooltip": {
+    "message": "Descargar este informe de investigación a fondo"
+  },
+  "folder_uncategorized": {
+    "message": "Sin clasificar"
+  },
+  "timelineLevelTitle": {
+    "message": "Niveles de cronología"
+  },
+  "timelineLevel1": {
+    "message": "Nivel 1"
+  },
+  "timelineLevel2": {
+    "message": "Nivel 2"
+  },
+  "timelineLevel3": {
+    "message": "Nivel 3"
+  },
+  "timelineCollapse": {
+    "message": "Contraer"
+  },
+  "timelineExpand": {
+    "message": "Expandir"
+  },
+  "timelinePreviewSearch": {
+    "message": "Buscar mensajes…"
+  },
+  "timelinePreviewNoResults": {
+    "message": "Sin resultados"
+  },
+  "timelinePreviewNoMessages": {
+    "message": "No hay mensajes"
+  },
+  "timelineUnmountedTooltip": {
+    "message": "Mensaje sin cargar; el contenido aparecerá al saltar a él"
+  },
+  "quoteReply": {
+    "message": "Responder citando"
+  },
+  "inputCollapseOptions": {
+    "message": "Cuadro de texto"
+  },
+  "enableInputCollapse": {
+    "message": "Contraer el cuadro de texto"
+  },
+  "enableInputCollapseHint": {
+    "message": "Contraer el cuadro de texto a una barra compacta cuando no tiene el foco."
+  },
+  "inputCollapseShortcutHint": {
+    "message": "{modifier}+I alterna el estado contraído del cuadro de texto."
+  },
+  "inputCollapsePlaceholder": {
+    "message": "Escribe a ChatGPT"
+  },
+  "allowCollapseWhenNotEmpty": {
+    "message": "Contraer aunque contenga texto"
+  },
+  "allowCollapseWhenNotEmptyHint": {
+    "message": "Permitir que el cuadro de texto se contraiga aunque contenga texto."
+  },
+  "inputVimMode": {
+    "message": "Modo Vim en el cuadro de texto"
+  },
+  "inputVimModeHint": {
+    "message": "Usa i y Escape para alternar entre los modos de inserción y normal en el cuadro de texto."
+  },
+  "plainTextInput": {
+    "message": "Entrada de texto sin formato"
+  },
+  "plainTextInputHint": {
+    "message": "Conservar los caracteres Markdown al editar y renderizarlos normalmente tras enviar."
+  },
+  "ctrlEnterSend": {
+    "message": "Enviar con {modifier}+Enter"
+  },
+  "ctrlEnterSendHint": {
+    "message": "Usa {modifier}+Enter para enviar y Enter para insertar un salto de línea."
+  },
+  "safariEnterFix": {
+    "message": "Corrección de Enter en Safari"
+  },
+  "safariEnterFixHint": {
+    "message": "Modo de compatibilidad del comportamiento de Enter en Safari."
+  },
+  "draftAutoSave": {
+    "message": "Guardar borradores automáticamente"
+  },
+  "draftAutoSaveHint": {
+    "message": "Restaurar el texto no enviado al volver a un chat."
+  },
+  "batch_delete_confirm": {
+    "message": "¿Eliminar estas conversaciones ({count})?"
+  },
+  "batch_delete_in_progress": {
+    "message": "Eliminando… ({current}/{total})"
+  },
+  "batch_delete_success": {
+    "message": "Conversaciones eliminadas: {count}."
+  },
+  "batch_delete_partial": {
+    "message": "Eliminados: {success}; errores: {failed}."
+  },
+  "batch_delete_limit_reached": {
+    "message": "Límite de selección alcanzado: {max}."
+  },
+  "batch_delete_button": {
+    "message": "Eliminar selección"
+  },
+  "batch_delete_match_patterns": {
+    "message": "delete,confirm,yes,ok,remove,eliminar,confirmar,sí,aceptar,quitar"
+  },
+  "generalOptions": {
+    "message": "General"
+  },
+  "enableTabTitleUpdate": {
+    "message": "Actualizar título de la pestaña"
+  },
+  "enableTabTitleUpdateHint": {
+    "message": "Hacer que el título de la pestaña refleje la conversación actual."
+  },
+  "enableMermaidRendering": {
+    "message": "Diagramas Mermaid"
+  },
+  "enableMermaidRenderingHint": {
+    "message": "Renderizar los bloques de código Mermaid como diagramas."
+  },
+  "enableQuoteReply": {
+    "message": "Responder citando"
+  },
+  "enableQuoteReplyHint": {
+    "message": "Responder usando el texto seleccionado como contexto citado."
+  },
+  "contextSync": {
+    "message": "Sincronización de contexto"
+  },
+  "contextSyncDescription": {
+    "message": "Sincronizar el contexto con un IDE."
+  },
+  "syncToIDE": {
+    "message": "Sincronizar con IDE"
+  },
+  "ideOnline": {
+    "message": "IDE conectado"
+  },
+  "ideOffline": {
+    "message": "IDE desconectado"
+  },
+  "syncing": {
+    "message": "Sincronizando…"
+  },
+  "checkServer": {
+    "message": "Comprobar servidor"
+  },
+  "capturing": {
+    "message": "Capturando…"
+  },
+  "syncedSuccess": {
+    "message": "Sincronizado."
+  },
+  "downloadingOriginal": {
+    "message": "Descargando original…"
+  },
+  "downloadingOriginalLarge": {
+    "message": "Descargando original de gran tamaño…"
+  },
+  "downloadLargeWarning": {
+    "message": "Descarga de gran tamaño"
+  },
+  "downloadProcessing": {
+    "message": "Procesando descarga…"
+  },
+  "downloadSuccess": {
+    "message": "Descarga iniciada…"
+  },
+  "downloadError": {
+    "message": "Error de descarga"
+  },
+  "recentsHide": {
+    "message": "Ocultar chats recientes"
+  },
+  "recentsShow": {
+    "message": "Mostrar chats recientes"
+  },
+  "gemsHide": {
+    "message": "Ocultar GPTs"
+  },
+  "gemsShow": {
+    "message": "Mostrar GPTs"
+  },
+  "notebooksHide": {
+    "message": "Ocultar cuadernos"
+  },
+  "notebooksShow": {
+    "message": "Mostrar cuadernos"
+  },
+  "setAsDefaultModel": {
+    "message": "Establecer como modelo predeterminado"
+  },
+  "cancelDefaultModel": {
+    "message": "Quitar modelo predeterminado"
+  },
+  "defaultModelSet": {
+    "message": "Modelo predeterminado establecido: $1"
+  },
+  "defaultModelCleared": {
+    "message": "Modelo predeterminado quitado"
+  },
+  "railToggle_enable": {
+    "message": "Interruptor de la barra de iconos"
+  },
+  "driveAutoAllow": {
+    "message": "Permitir Google Drive automáticamente"
+  },
+  "driveAutoAllowHint": {
+    "message": "Pulsar automáticamente «Permitir siempre» en las tarjetas de autorización de Google Drive de ChatGPT, incluidas las subidas de archivos. Desactivado por defecto. Funciona en pestañas en segundo plano mientras la página siga ejecutándose."
+  },
+  "quotaRing_enable": {
+    "message": "Mostrar anillo de cuota"
+  },
+  "quotaRing_description": {
+    "message": "Mostrar la cuota de Codex / Work en el cuadro de texto y la barra lateral."
+  },
+  "quotaRing_title": {
+    "message": "Cuota restante de Codex / Work"
+  },
+  "quotaRing_chatNote": {
+    "message": "(Las conversaciones de Chat no consumen esta cuota)"
+  },
+  "quotaRing_waiting": {
+    "message": "Esperando actualización de uso"
+  },
+  "quotaRing_remaining": {
+    "message": "Queda el {percent}%"
+  },
+  "quotaRing_weekly": {
+    "message": "Límite semanal"
+  },
+  "quotaRing_fiveHour": {
+    "message": "Límite de 5 horas"
+  },
+  "quotaRing_window": {
+    "message": "Límite de {hours} h"
+  },
+  "quotaRing_review": {
+    "message": "Revisión de código"
+  },
+  "quotaRing_additional": {
+    "message": "Cuota adicional"
+  },
+  "quotaRing_reset": {
+    "message": "Se restablece: {time}"
+  },
+  "quotaRing_updated": {
+    "message": "Actualizado: {time}"
+  },
+  "quotaRing_stale": {
+    "message": "Último uso conocido · esperando actualización"
+  },
+  "quotaRing_credits": {
+    "message": "Créditos: {balance}"
+  },
+  "quotaRing_unlimited": {
+    "message": "Sin límite"
+  },
+  "quotaRing_noPercentage": {
+    "message": "No se ha indicado un límite porcentual"
+  },
+  "railToggle_description": {
+    "message": "Añade un botón ◀ junto al título de ChatGPT en la barra lateral para plegar la nueva barra de iconos de la izquierda (inicio, historial, avatar…). Haz clic de nuevo para restaurarla."
+  },
+  "railToggle_hide": {
+    "message": "Ocultar barra de iconos"
+  },
+  "railToggle_show": {
+    "message": "Mostrar barra de iconos"
+  },
+  "sidebarAutoHide": {
+    "message": "Ocultar automáticamente la barra lateral"
+  },
+  "sidebarAutoHideHint": {
+    "message": "Contraer la barra lateral hasta que el puntero se acerque al borde izquierdo."
+  },
+  "sidebarFullHide": {
+    "message": "Ocultar por completo la barra lateral"
+  },
+  "sidebarFullHideHint": {
+    "message": "Ocultar completamente la barra lateral cuando esté activada la ocultación automática."
+  },
+  "folderSpacing": {
+    "message": "Espaciado entre carpetas"
+  },
+  "folderSpacingCompact": {
+    "message": "Compacto"
+  },
+  "folderSpacingSpacious": {
+    "message": "Espacioso"
+  },
+  "folderTreeIndent": {
+    "message": "Sangría del árbol de carpetas"
+  },
+  "folderTreeIndentCompact": {
+    "message": "Compacta"
+  },
+  "folderTreeIndentSpacious": {
+    "message": "Amplia"
+  },
+  "export_select_mode_select_all": {
+    "message": "Seleccionar todo"
+  },
+  "export_select_mode_count": {
+    "message": "Seleccionados: {count}"
+  },
+  "export_select_mode_toggle": {
+    "message": "Seleccionar mensaje"
+  },
+  "export_select_mode_select_below": {
+    "message": "Seleccionar los mensajes de abajo"
+  },
+  "export_select_mode_empty": {
+    "message": "Selecciona al menos un mensaje para exportar."
+  },
+  "export_format_image_description": {
+    "message": "Exportación a imagen PNG"
+  },
+  "export_image_progress": {
+    "message": "Generando imagen…"
+  },
+  "deepResearchSaveReport": {
+    "message": "Guardar informe"
+  },
+  "deepResearchSaveReportTooltip": {
+    "message": "Exportar este informe de investigación"
+  },
+  "export_fontsize_label": {
+    "message": "Tamaño de fuente"
+  },
+  "export_fontsize_preview": {
+    "message": "Texto de vista previa"
+  },
+  "export_image_width_label": {
+    "message": "Anchura de imagen"
+  },
+  "export_image_width_narrow": {
+    "message": "Estrecha"
+  },
+  "export_image_width_medium": {
+    "message": "Media"
+  },
+  "export_image_width_wide": {
+    "message": "Ancha"
+  },
+  "export_error_generic": {
+    "message": "Error de exportación: {error}"
+  },
+  "export_error_refresh_retry": {
+    "message": "Error de exportación. Actualiza la página y vuelve a intentarlo."
+  },
+  "export_md_include_source_confirm": {
+    "message": "¿Incluir el Markdown original?"
+  },
+  "deepResearch_exportedAt": {
+    "message": "Exportado el"
+  },
+  "deepResearch_totalPhases": {
+    "message": "Total de fases"
+  },
+  "deepResearch_thinkingPhase": {
+    "message": "Fase de razonamiento"
+  },
+  "deepResearch_researchedWebsites": {
+    "message": "Sitios investigados"
+  },
+  "visualEffect": {
+    "message": "Efecto visual"
+  },
+  "visualEffectHint": {
+    "message": "Elige un efecto ligero para la página."
+  },
+  "visualEffectOff": {
+    "message": "Desactivado"
+  },
+  "visualEffectSnow": {
+    "message": "Nieve"
+  },
+  "visualEffectSakura": {
+    "message": "Flores de cerezo"
+  },
+  "visualEffectRain": {
+    "message": "Lluvia"
+  },
+  "forkConversation": {
+    "message": "Crear rama"
+  },
+  "forkConfirm": {
+    "message": "¿Crear una rama de la conversación desde aquí?"
+  },
+  "forkConfirmBtn": {
+    "message": "Crear rama"
+  },
+  "forkCancel": {
+    "message": "Cancelar"
+  },
+  "forkBranch": {
+    "message": "Rama"
+  },
+  "forkOriginal": {
+    "message": "Original"
+  },
+  "forkCurrent": {
+    "message": "Actual"
+  },
+  "forkPreparing": {
+    "message": "Preparando rama…"
+  },
+  "forkPasteHint": {
+    "message": "Pulsa Enter para enviar y crear la rama"
+  },
+  "forkDeleteData": {
+    "message": "Eliminar datos de ramas"
+  },
+  "forkDeleteDataConfirm": {
+    "message": "¿Eliminar todos los datos de ramas guardados?"
+  },
+  "enableForkFeature": {
+    "message": "Ramas de conversación"
+  },
+  "enableForkFeatureHint": {
+    "message": "Crear una rama nueva desde un punto elegido de la conversación."
+  },
+  "enableAccountIsolation": {
+    "message": "Activar aislamiento estricto"
+  },
+  "enableAccountIsolationHint": {
+    "message": "Aislar los datos por cuenta."
+  },
+  "currentPlatform": {
+    "message": "Plataforma actual"
+  },
+  "export_select_mode_only_user": {
+    "message": "Solo mensajes del usuario"
+  },
+  "export_select_mode_only_ai": {
+    "message": "Solo mensajes del asistente"
+  },
+  "aiOrgCopyButton": {
+    "message": "Copiar organización para la IA"
+  },
+  "aiOrgCopied": {
+    "message": "Copiado"
+  },
+  "aiOrgError": {
+    "message": "No se pudieron copiar los datos de organización."
+  },
+  "aiOrgCopyHint": {
+    "message": "Copiar la estructura de carpetas como contexto."
+  },
+  "aiOrgCurrentFolders": {
+    "message": "Carpetas actuales"
+  },
+  "aiOrgUnfiledConversations": {
+    "message": "Conversaciones sin carpeta"
+  },
+  "aiOrgEmpty": {
+    "message": "Vacío"
+  },
+  "aiOrgInstructions": {
+    "message": "Instrucciones"
+  },
+  "showMessageTimestamps": {
+    "message": "Mostrar marcas de tiempo"
+  },
+  "showMessageTimestampsHint": {
+    "message": "Mostrar las marcas de tiempo junto a los mensajes."
+  },
+  "moveSectionUp": {
+    "message": "Subir"
+  },
+  "moveSectionDown": {
+    "message": "Bajar"
+  },
+  "folderAsProject_enable": {
+    "message": "Instrucciones de carpeta"
+  },
+  "folderAsProject_description": {
+    "message": "Asociar instrucciones reutilizables a una carpeta e insertarlas en los chats."
+  },
+  "folderHeaderButton_enable": {
+    "message": "Atajos en el encabezado de conversación"
+  },
+  "folderHeaderButton_description": {
+    "message": "Mostrar atajos de carpeta y cambio de nombre en la esquina superior izquierda de la conversación actual."
+  },
+  "folderBelowProjects": {
+    "message": "Colocar carpetas debajo de Proyectos"
+  },
+  "folderBelowProjects_description": {
+    "message": "Mueve las carpetas de su posición fija superior a debajo de Proyectos y encima de Recientes, para que se desplacen con la lista de chats."
+  },
+  "folderAsProject_noFolder": {
+    "message": "Sin carpeta"
+  },
+  "folderAsProject_setInstructions": {
+    "message": "Establecer instrucciones"
+  },
+  "folderAsProject_editInstructions": {
+    "message": "Editar instrucciones"
+  },
+  "folderAsProject_expand": {
+    "message": "Expandir"
+  },
+  "folderAsProject_collapse": {
+    "message": "Contraer"
+  },
+  "canvasExportCopyMarkdown": {
+    "message": "Copiar Markdown de Canvas"
+  },
+  "canvasExportCopyMarkdownTooltip": {
+    "message": "Copiar el Canvas actual como Markdown."
+  },
+  "canvasExportCopied": {
+    "message": "Markdown de Canvas copiado."
+  },
+  "canvasExportEmpty": {
+    "message": "No se encontró contenido de Canvas."
+  },
+  "canvasExportFailed": {
+    "message": "No se pudo copiar el Markdown de Canvas."
+  },
+  "floatingPanelCreateFolder": {
+    "message": "Nueva carpeta"
+  },
+  "floatingPanelCreateSubfolder": {
+    "message": "Nueva subcarpeta"
+  },
+  "floatingPanelFolderNamePlaceholder": {
+    "message": "Nombre de carpeta"
+  },
+  "floatingPanelRenameFolder": {
+    "message": "Renombrar carpeta"
+  },
+  "floatingPanelDeleteFolder": {
+    "message": "Eliminar"
+  },
+  "floatingPanelDeleteConfirm": {
+    "message": "¿Eliminar esta carpeta?"
+  },
+  "floatingPanelCancel": {
+    "message": "Cancelar"
+  },
+  "floatingPanelSave": {
+    "message": "Guardar"
+  },
+  "floatingPanelPinFolder": {
+    "message": "Fijar"
+  },
+  "floatingPanelUnpinFolder": {
+    "message": "Desfijar"
+  },
+  "floatingPanelRemoveConversation": {
+    "message": "Quitar conversación"
+  },
+  "floatingPanelStarConversation": {
+    "message": "Añadir a favoritos"
+  },
+  "floatingPanelUnstarConversation": {
+    "message": "Quitar de favoritos"
+  },
+  "floatingPanelColor": {
+    "message": "Color"
+  },
+  "floatingPanelExpandFolder": {
+    "message": "Expandir"
+  },
+  "floatingPanelCollapseFolder": {
+    "message": "Contraer"
+  },
+  "floatingPanelCloudUpload": {
+    "message": "Subir a la nube"
+  },
+  "floatingPanelCloudSync": {
+    "message": "Sincronizar con la nube"
+  },
+  "floatingPanelGestureHint": {
+    "message": "Doble clic en el nombre para renombrar; clic derecho para abrir el menú"
+  },
+  "folder_new_chat_in_folder": {
+    "message": "Nuevo chat en la carpeta"
+  },
+  "pm_backup_step3": {
+    "message": "Usa la importación o exportación."
+  },
+  "starProject": {
+    "message": "Añadir proyecto a favoritos"
+  },
+  "supportMysteryButton": {
+    "message": "Botón misterioso"
+  },
+  "folder_remove_conversation_confirm": {
+    "message": "¿Quitar esta conversación de la carpeta?"
+  },
+  "aiOrgInstructionsBody": {
+    "message": "Usa la estructura actual de carpetas como contexto."
+  },
+  "folderAsProject_selectFolder": {
+    "message": "Seleccionar carpeta"
+  },
+  "floatingPanelMoveHint": {
+    "message": "Arrastra para mover"
+  },
+  "conversation_saved_to_root": {
+    "message": "Guardado en la raíz"
+  },
+  "folder_default_name": {
+    "message": "Nueva carpeta"
+  },
+  "conversation_added_to_folder": {
+    "message": "Añadido a la carpeta"
+  },
+  "folder_export_in_progress": {
+    "message": "Exportando carpetas…"
+  },
+  "folder_import_in_progress": {
+    "message": "Importando carpetas…"
+  },
+  "mermaidRendering": {
+    "message": "Diagramas Mermaid"
+  },
+  "mermaidRenderingHint": {
+    "message": "Renderizar los bloques de código Mermaid como diagramas."
+  },
+  "longCodeBlockCollapse": {
+    "message": "Contraer bloques de código largos"
+  },
+  "longCodeBlockCollapseHint": {
+    "message": "Añadir un botón para expandir o contraer los bloques de código largos de ChatGPT."
+  },
+  "responseCompleteNotification": {
+    "message": "Notificación de respuesta finalizada"
+  },
+  "responseCompleteNotificationHint": {
+    "message": "Mostrar una notificación del sistema cuando ChatGPT termine una respuesta. Al hacer clic vuelves a esa conversación."
+  },
+  "responseCompleteNotificationTitle": {
+    "message": "Respuesta de ChatGPT finalizada"
+  },
+  "responseCompleteNotificationMessage": {
+    "message": "La respuesta está lista."
+  },
+  "codeBlockExpand": {
+    "message": "Expandir bloque de código"
+  },
+  "codeBlockCollapse": {
+    "message": "Contraer bloque de código"
+  },
+  "quoteReplyHint": {
+    "message": "Responder usando el texto seleccionado como contexto citado."
+  },
+  "inputCollapseWhenNotEmpty": {
+    "message": "Contraer el cuadro con texto"
+  },
+  "inputCollapseWhenNotEmptyHint": {
+    "message": "Permitir que el cuadro de texto se contraiga aunque contenga texto."
+  },
+  "enableFloatingFolderPanel": {
+    "message": "Panel flotante de carpetas"
+  },
+  "enableFolders": {
+    "message": "Carpetas"
+  },
+  "layoutOptions": {
+    "message": "Diseño"
+  },
+  "inputOptions": {
+    "message": "Entrada"
+  },
+  "markdownOptions": {
+    "message": "Markdown"
+  },
+  "appearanceOptions": {
+    "message": "Apariencia"
+  },
+  "gentleDarkMode": {
+    "message": "Modo oscuro suave"
+  },
+  "gentleDarkModeHint": {
+    "message": "En modo oscuro, sustituye el fondo negro puro de ChatGPT por grises oscuros suaves para una apariencia menos dura."
+  },
+  "favoritesSidebarTitle": {
+    "message": "Favoritos"
+  },
+  "favoritesCurrentSectionTitle": {
+    "message": "Esta conversación"
+  },
+  "favoritesAllSectionTitle": {
+    "message": "Todos los favoritos"
+  },
+  "favoritesViewFlat": {
+    "message": "Por fecha"
+  },
+  "favoritesViewGrouped": {
+    "message": "Por conversación"
+  },
+  "favoritesEmptyAll": {
+    "message": "Aún no hay mensajes favoritos. Haz clic en ★ en la vista previa de la cronología para añadir uno."
+  },
+  "favoritesEmptyCurrent": {
+    "message": "Aún no hay favoritos en esta conversación."
+  },
+  "favoritesRemove": {
+    "message": "Quitar favorito"
+  },
+  "favoritesJumpDialogTitle": {
+    "message": "¿Saltar a otra conversación?"
+  },
+  "favoritesJumpDialogBody": {
+    "message": "Al salir se cargará otro chat. Si estás en un chat temporal, su contenido se perderá. El guardado automático de borradores conserva el texto sin enviar, pero revísalo antes de continuar."
+  },
+  "favoritesJumpDialogConfirm": {
+    "message": "Saltar"
+  },
+  "favoritesJumpDialogCancel": {
+    "message": "Cancelar"
+  },
+  "favoritesJumpDialogTargetLabel": {
+    "message": "Destino:"
+  },
+  "favoritesUntitledConversation": {
+    "message": "Conversación sin título"
+  },
+  "tempChatRegretButton": {
+    "message": "Recuperar chat temporal"
+  },
+  "tempChatRegretButtonTooltip": {
+    "message": "Capturar este chat temporal como prompt de continuación para una nueva conversación permanente: se desplaza hasta arriba para cargar todos los mensajes, sale del modo temporal y pega el prompt en el cuadro de texto para que lo revises y envíes."
+  },
+  "tempChatRegretConfirmTitle": {
+    "message": "Recuperar el chat temporal"
+  },
+  "tempChatRegretConfirmBodyHead": {
+    "message": "Se capturará el chat temporal actual como prompt de continuación para trasladarlo a una nueva conversación permanente."
+  },
+  "tempChatRegretConfirmBodyDetail": {
+    "message": "Tardará unos segundos: se desplazará arriba para cargar todo el historial (~{count}+ mensajes ya visibles), saldrá del modo temporal y pegará el prompt de continuación. No interactúes con la página durante el proceso."
+  },
+  "tempChatRegretConfirmBodyFooter": {
+    "message": "Tú decides si enviarlo; el prompt quedará en el cuadro de texto para que lo revises."
+  },
+  "tempChatRegretConfirmCancel": {
+    "message": "Cancelar"
+  },
+  "tempChatRegretConfirmContinue": {
+    "message": "Continuar"
+  },
+  "tempChatRegretOverlayHint": {
+    "message": "No interactúes con la página"
+  },
+  "tempChatRegretMsgLoading": {
+    "message": "Cargando historial de mensajes…"
+  },
+  "tempChatRegretMsgLoaded": {
+    "message": "Mensajes cargados: {count}…"
+  },
+  "tempChatRegretMsgExtracting": {
+    "message": "Extrayendo conversación…"
+  },
+  "tempChatRegretMsgLeavingTemp": {
+    "message": "Saliendo del modo temporal…"
+  },
+  "tempChatRegretMsgFillingInline": {
+    "message": "Insertando prompt de continuación…"
+  },
+  "tempChatRegretMsgFillingAttachment": {
+    "message": "Insertando instrucciones y subiendo .txt…"
+  },
+  "tempChatRegretErrNotInTempMode": {
+    "message": "No estás en modo de chat temporal"
+  },
+  "tempChatRegretErrNoMessages": {
+    "message": "Este chat temporal aún no tiene mensajes"
+  },
+  "tempChatRegretErrExtractFailed": {
+    "message": "No se pudieron extraer mensajes del DOM (puede que el diseño de ChatGPT haya cambiado)"
+  },
+  "tempChatRegretErrCantLeaveTemp": {
+    "message": "No se pudo salir del modo temporal. Desactiva manualmente el icono de chat temporal y vuelve a intentarlo"
+  },
+  "tempChatRegretErrInputNotFound": {
+    "message": "No se encontró el cuadro de texto. El prompt se ha copiado al portapapeles"
+  },
+  "tempChatRegretErrFailed": {
+    "message": "La operación ha fallado"
+  },
+  "tempChatRegretErrPartial": {
+    "message": "Parte del contenido no se pudo insertar. Comprueba el cuadro de texto (también se copió al portapapeles)"
+  },
+  "tempChatRegretOkInline": {
+    "message": "El prompt de continuación está listo ({count} mensajes). Pulsa enviar para continuar."
+  },
+  "tempChatRegretOkAttachment": {
+    "message": "La continuación está lista: instrucciones y {filename} ({count} mensajes). Pulsa enviar para continuar."
+  },
+  "tempChatRegretDirectiveTitle": {
+    "message": "[Continuación de un chat temporal]"
+  },
+  "tempChatRegretDirectiveInlineBody": {
+    "message": "A continuación está nuestra conversación completa del modo temporal (**código fuente Markdown**: negrita, bloques de código, listas, fórmulas, encabezados, etc., conservados con su sintaxis original). Adopta la misma personalidad, tono, estado de conocimiento y contexto, y continúa sin interrupciones.\n\nPaso 1: repite literalmente el ÚLTIMO mensaje del asistente que aparece abajo **con todo el formato Markdown correcto**, como enlace. **No lo conviertas en texto sin formato porque el medio parezca plano**; el original era Markdown. Después detente y espera mi siguiente mensaje.\n\nSigue usando Markdown en todas las respuestas posteriores, manteniendo los hábitos de formato del asistente en la conversación original."
+  },
+  "tempChatRegretDirectiveAttachmentBody": {
+    "message": "La conversación completa del modo temporal está en el **archivo .txt adjunto** (dividido en secciones ## User / ## Assistant).\n\n**Nota: la extensión `.txt` se usa solo por las restricciones de subida; el contenido es código fuente Markdown**. Negrita, bloques de código, listas, fórmulas, encabezados, etc., conservan su sintaxis Markdown original. Léelo como Markdown.\n\nAdopta la misma personalidad, tono, estado de conocimiento y contexto, y continúa sin interrupciones.\n\nPaso 1: repite literalmente el ÚLTIMO mensaje del asistente del adjunto **con todo el formato Markdown correcto**, como enlace. **No lo conviertas en texto sin formato porque el archivo sea .txt**; el original es Markdown. Después detente y espera mi siguiente mensaje.\n\nSigue usando Markdown en todas las respuestas posteriores, manteniendo los hábitos de formato del asistente en la conversación original."
+  },
+  "tempChatRegretTranscriptStart": {
+    "message": "—— Conversación ——"
+  },
+  "tempChatRegretTranscriptEnd": {
+    "message": "—— Fin ——"
+  },
+  "responseImageCopy": {
+    "message": "Copiar respuesta como imagen"
+  },
+  "responseImageCopied": {
+    "message": "Imagen de respuesta copiada"
+  },
+  "responseImageDownloaded": {
+    "message": "Imagen de respuesta descargada (limitación del portapapeles de Safari)"
+  },
+  "responseImageFailed": {
+    "message": "No se pudo copiar la imagen de respuesta"
+  },
+  "responseImageUnsupported": {
+    "message": "Este navegador no admite copiar imágenes al portapapeles"
+  },
+  "responseImageMissing": {
+    "message": "No se pudo localizar el contenido de la respuesta"
+  },
+  "exportConversationMissing": {
+    "message": "No se pudo localizar la conversación seleccionada. Ábrela primero y luego expórtala."
+  },
+  "exportConversationOpenFailed": {
+    "message": "No se pudo abrir la conversación seleccionada para exportarla. Vuelve a intentarlo."
+  },
+  "exportTooManyAttempts": {
+    "message": "Exportación detenida: se detectaron demasiados intentos."
+  },
+  "exportFailed": {
+    "message": "Error de exportación. Vuelve a intentarlo."
+  },
+  "exportIncompleteConversation": {
+    "message": "GPT-Voyager no pudo cargar de forma fiable la conversación completa. Mantén este chat abierto y vuelve a intentarlo."
+  },
+  "exportRecommended": {
+    "message": "Recomendado"
+  },
+  "exportImageLabel": {
+    "message": "Imagen"
+  },
+  "exportDocumentLabel": {
+    "message": "Documento"
+  },
+  "exportConversationLabel": {
+    "message": "Conversación"
+  },
+  "exportNoContent": {
+    "message": "Sin contenido"
+  },
+  "exportUserLabel": {
+    "message": "Usuario"
+  },
+  "exportAssistantLabel": {
+    "message": "Asistente"
+  },
+  "exportSource": {
+    "message": "Exportado desde GPT-Voyager"
+  },
+  "exportTurns": {
+    "message": "Turnos de conversación: {count}"
+  },
+  "exportDateLabel": {
+    "message": "Fecha"
+  },
+  "exportConversationIdLabel": {
+    "message": "ID de conversación"
+  },
+  "exportSourceUrlLabel": {
+    "message": "Fuente"
+  },
+  "exportImageUnavailable": {
+    "message": "Imagen no disponible en la exportación de Safari: {label}"
+  },
+  "exportSearchImage": {
+    "message": "Imagen de resultados de búsqueda"
+  },
+  "exportGeneratedImage": {
+    "message": "Imagen generada"
+  },
+  "exportResearchReport": {
+    "message": "Informe de investigación a fondo"
+  },
+  "shortcutPressKey": {
+    "message": "Pulsa una tecla…"
+  },
+  "shortcutEscapeCancel": {
+    "message": "Pulsa Esc para cancelar"
+  },
+  "toggleDarkMode": {
+    "message": "Alternar modo oscuro"
+  },
+  "switchToLight": {
+    "message": "Cambiar al modo claro"
+  },
+  "switchToDark": {
+    "message": "Cambiar al modo oscuro"
+  },
+  "sidePanel": {
+    "message": "Panel lateral"
+  },
+  "wechatLabel": {
+    "message": "WeChat"
+  },
+  "alipayLabel": {
+    "message": "Alipay"
+  },
+  "wechatQr": {
+    "message": "Código QR de WeChat"
+  },
+  "alipayQr": {
+    "message": "Código QR de Alipay"
+  },
+  "mermaidZoomIn": {
+    "message": "Acercar"
+  },
+  "mermaidZoomOut": {
+    "message": "Alejar"
+  },
+  "mermaidReset": {
+    "message": "Restablecer"
+  },
+  "mermaidClose": {
+    "message": "Cerrar (Esc)"
+  },
+  "mermaidHint": {
+    "message": "Desplaza para ampliar · Arrastra para mover · Esc para cerrar"
+  },
+  "mermaidDiagram": {
+    "message": "Diagrama"
+  },
+  "mermaidCode": {
+    "message": "Código"
+  },
+  "timelineTogglePreview": {
+    "message": "Alternar panel de vista previa"
+  },
+  "timelinePreviousPin": {
+    "message": "Chincheta anterior en este mensaje"
+  },
+  "timelineNextPin": {
+    "message": "Siguiente chincheta en este mensaje"
+  },
+  "timelinePinText": {
+    "message": "Fijar texto en la conversación actual"
+  },
+  "timelineDeletePin": {
+    "message": "Eliminar chincheta seleccionada"
+  },
+  "newChat": {
+    "message": "Nuevo chat"
+  },
+  "forkContextPrefix": {
+    "message": "# Contexto de la rama\nEstás continuando una conversación ramificada.\n- La sección siguiente contiene el historial hasta el punto de ramificación.\n- Continúa desde el último mensaje de «User» como una rama nueva.\n- No reescribas el historial; proporciona solo la siguiente respuesta del asistente.\n"
+  },
+  "forkHistoryHeading": {
+    "message": "Historial de conversación"
+  },
+  "exportLoadingHistory": {
+    "message": "Cargando historial de conversación ({count})…"
+  },
+  "exportUpdatingCache": {
+    "message": "Actualizando caché de conversación…"
+  },
+  "exportCheckingCache": {
+    "message": "Comprobando caché de conversación…"
+  },
+  "multi_select_count": {
+    "message": "Seleccionados: {count}"
+  },
+  "batch_remove_from_folder_confirm": {
+    "message": "¿Quitar estas conversaciones ({count}) de la carpeta?"
+  },
+  "multi_select_exit": {
+    "message": "Salir del modo de selección"
+  },
+  "folderManager_dataRecoveredFromBackup": {
+    "message": "Datos de carpetas recuperados de una copia local."
+  },
+  "folder_import_invalid_version": {
+    "message": "Versión de copia de carpetas no compatible."
+  },
+  "folder_import_missing_data": {
+    "message": "Faltan datos de carpetas necesarios en esta copia."
+  },
+  "folder_import_corrupted_data": {
+    "message": "La copia de carpetas contiene datos no válidos."
+  },
+  "folder_import_save_failed": {
+    "message": "No se pudieron guardar las carpetas importadas. Comprueba el almacenamiento de la extensión y vuelve a intentarlo."
+  },
+  "announcementUnavailableTitle": {
+    "message": "Anuncios no disponibles"
+  },
+  "announcementUnavailableBody": {
+    "message": "No se pudieron cargar los anuncios. Vuelve a intentarlo más tarde."
+  },
+  "announcementTranslationFallback": {
+    "message": "Esta traducción no está disponible. Se muestra {language}."
+  },
+  "announcementCached": {
+    "message": "Se muestra el último anuncio guardado. No se pudo cargar la versión más reciente."
+  },
+  "exportTurn": {
+    "message": "Turno {count}"
+  },
+  "exportTurnsLabel": {
+    "message": "Turnos"
+  },
+  "exportGeneratedOn": {
+    "message": "Generado el {date}"
+  },
+  "exportCreatedLabel": {
+    "message": "Creado"
+  },
+  "exportExportedLabel": {
+    "message": "Exportado"
+  },
+  "exportAttachmentsLabel": {
+    "message": "Adjuntos"
+  },
+  "exportIncludesImages": {
+    "message": "Este turno incluye imágenes subidas"
+  },
+  "exportYouLabel": {
+    "message": "Tú"
+  },
+  "exportSystemLabel": {
+    "message": "Sistema"
+  },
+  "exportToolLabel": {
+    "message": "Herramienta"
+  },
+  "customWebsiteAlreadyAdded": {
+    "message": "Este sitio web ya se ha añadido."
+  },
+  "customFontUnsupported": {
+    "message": "{fileName}: Formato de fuente no compatible. Usa woff2, woff, ttf u otf."
+  },
+  "customFontTooLarge": {
+    "message": "{fileName}: El archivo es demasiado grande ({size} KB > 4 MB)."
+  },
+  "customFontImported": {
+    "message": "Se importó {fontName} ({size} KB)."
+  },
+  "customFontImportFailed": {
+    "message": "No se pudo importar la fuente: {error}"
+  },
+  "settingsSaveFailed": {
+    "message": "No se pudo guardar este ajuste. Inténtalo de nuevo."
+  },
+  "pm_backup_complete": {
+    "message": "Copia de seguridad completada — prompts: {promptCount}; carpetas: {folderCount}."
+  },
+  "pm_backup_download_complete": {
+    "message": "Copia de seguridad descargada: {fileName} — prompts: {promptCount}; carpetas: {folderCount}."
+  },
+  "tempChatRegretErrCollectionTimeout": {
+    "message": "Se agotó el tiempo de recopilación antes de que terminara de actualizarse la conversación."
+  },
+  "tempChatRegretErrHistoryTimeout": {
+    "message": "Se agotó el tiempo de recopilación antes de que terminara de cargarse el historial de la conversación."
+  },
+  "tempChatRegretErrCollectionStopped": {
+    "message": "La recopilación de la conversación se detuvo antes de completarse ({count} mensajes encontrados)."
+  },
+  "export_image_render_failed": {
+    "message": "No se pudo renderizar la imagen ({width} × {height})"
+  }
+}

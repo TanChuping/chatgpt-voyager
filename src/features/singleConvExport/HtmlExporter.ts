@@ -1,3 +1,4 @@
+import { getTranslationSync, getCachedLanguage } from '@/utils/i18n';
 /**
  * Simplified HTML exporter.
  *
@@ -48,12 +49,12 @@ function attachmentsHtml(attachments: LinearAttachment[]): string {
       return `<li>${name}${mime}</li>`;
     })
     .join('');
-  return `<div class="attachments"><div class="attachments-label">Attachments</div><ul>${items}</ul></div>`;
+  return `<div class="attachments"><div class="attachments-label">${escapeHtml(getTranslationSync('exportAttachmentsLabel'))}</div><ul>${items}</ul></div>`;
 }
 
 function messageHtml(message: LinearMessage): string {
   const roleClass = message.role === 'user' ? 'user' : 'assistant';
-  const roleLabel = message.role === 'user' ? 'You' : 'ChatGPT';
+  const roleLabel = message.role === 'user' ? getTranslationSync('exportYouLabel') : 'ChatGPT';
   const ts = formatTimestamp(message.createTime);
   const tsHtml = ts ? `<time datetime="${escapeHtml(ts)}">${escapeHtml(ts)}</time>` : '';
   const attach = attachmentsHtml(message.attachments);
@@ -133,17 +134,17 @@ const STYLE = `
 
 export function toHtml(linear: LinearConversation): string {
   const filtered = filterForSimple(linear);
-  const title = escapeHtml(filtered.title || 'Untitled conversation');
+  const title = escapeHtml(filtered.title || getTranslationSync('conversation_untitled'));
   const created = formatTimestamp(filtered.createTime);
   const metaParts: string[] = [];
-  if (created) metaParts.push(`Created: ${escapeHtml(created)}`);
-  metaParts.push(`Exported: ${escapeHtml(new Date().toISOString())}`);
+  if (created) metaParts.push(`${getTranslationSync('exportCreatedLabel')}: ${escapeHtml(created)}`);
+  metaParts.push(`${getTranslationSync('exportExportedLabel')}: ${escapeHtml(new Date().toISOString())}`);
   const meta = metaParts.join(' &middot; ');
 
   const messages = filtered.messages.map(messageHtml).join('\n');
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${getCachedLanguage()}">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -205,20 +206,20 @@ export async function toHtmlBlobParts(
     yieldToMain: partialOptions.yieldToMain ?? defaultYieldToMain,
   };
   const filtered = filterForSimple(linear);
-  const title = escapeHtml(filtered.title || 'Untitled conversation');
+  const title = escapeHtml(filtered.title || getTranslationSync('conversation_untitled'));
   const created = formatTimestamp(filtered.createTime);
   const metaParts: string[] = [];
-  if (created) metaParts.push(`Created: ${escapeHtml(created)}`);
-  metaParts.push(`Exported: ${escapeHtml(new Date().toISOString())}`);
+  if (created) metaParts.push(`${getTranslationSync('exportCreatedLabel')}: ${escapeHtml(created)}`);
+  metaParts.push(`${getTranslationSync('exportExportedLabel')}: ${escapeHtml(new Date().toISOString())}`);
   const meta = metaParts.join(' &middot; ');
   const parts: BlobPart[] = [
-    `<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8" />\n<meta name="viewport" content="width=device-width, initial-scale=1" />\n<title>${title}</title>\n<style>${STYLE}</style>\n</head>\n<body>\n<main>\n  <h1>${title}</h1>\n  <p class="meta">${meta}</p>\n`,
+    `<!DOCTYPE html>\n<html lang="${getCachedLanguage()}">\n<head>\n<meta charset="UTF-8" />\n<meta name="viewport" content="width=device-width, initial-scale=1" />\n<title>${title}</title>\n<style>${STYLE}</style>\n</head>\n<body>\n<main>\n  <h1>${title}</h1>\n  <p class="meta">${meta}</p>\n`,
   ];
   const chunkCounter = { value: 0 };
 
   for (const message of filtered.messages) {
     const roleClass = message.role === 'user' ? 'user' : 'assistant';
-    const roleLabel = message.role === 'user' ? 'You' : 'ChatGPT';
+    const roleLabel = message.role === 'user' ? getTranslationSync('exportYouLabel') : 'ChatGPT';
     const timestamp = formatTimestamp(message.createTime);
     const timestampHtml = timestamp
       ? `<time datetime="${escapeHtml(timestamp)}">${escapeHtml(timestamp)}</time>`
