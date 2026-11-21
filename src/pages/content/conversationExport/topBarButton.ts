@@ -308,6 +308,7 @@ function toggleExportMenu(anchor: HTMLElement, generation: number): void {
             await exportPreparedConversation(prepared, fmt);
           }
         } catch (error) {
+          if (!isActiveGeneration(generation) || window.location.pathname !== currentPath) return;
           console.warn('[GPT-Voyager] export: unable to prepare complete conversation', error);
           alert(
             getTranslationSync('exportIncompleteConversation'),

@@ -2087,7 +2087,184 @@
   "tempChatRegretErrCollectionStopped": {
     "message": "对话收集提前停止（已找到 {count} 条消息）。"
   },
+  "textHighlights": {
+    "message": "文本高亮"
+  },
+  "textHighlightsDescription": {
+    "message": "选择 ChatGPT 消息中的文字，即可添加高亮和备注。"
+  },
+  "textHighlightAdd": {
+    "message": "高亮"
+  },
+  "textHighlightEdit": {
+    "message": "编辑高亮"
+  },
+  "textHighlightColor": {
+    "message": "颜色"
+  },
+  "textHighlightYellow": {
+    "message": "黄色"
+  },
+  "textHighlightGreen": {
+    "message": "绿色"
+  },
+  "textHighlightBlue": {
+    "message": "蓝色"
+  },
+  "textHighlightPink": {
+    "message": "粉色"
+  },
+  "textHighlightNote": {
+    "message": "备注（可选）"
+  },
+  "textHighlightSave": {
+    "message": "保存"
+  },
+  "textHighlightDelete": {
+    "message": "删除"
+  },
+  "textHighlightCancel": {
+    "message": "取消"
+  },
+  "textHighlightStorageError": {
+    "message": "无法保存高亮。"
+  },
   "export_image_render_failed": {
     "message": "图片渲染失败（{width} × {height}）"
+  },
+  "highlightHistoryTitle": {
+    "message": "高亮"
+  },
+  "highlightHistoryDisabled": {
+    "message": "请在设置中开启文本高亮后查看记录。"
+  },
+  "highlightHistoryOpenSettings": {
+    "message": "打开设置"
+  },
+  "highlightHistoryEmpty": {
+    "message": "暂无高亮记录。"
+  },
+  "highlightHistoryJumpFailed": {
+    "message": "未能在对话中找到此高亮。"
+  },
+  "highlightHistoryMore": {
+    "message": "显示更多"
+  },
+  "localTransferTitle": {
+    "message": "本地备份与导入"
+  },
+  "transferPins": {
+    "message": "钉住的文字"
+  },
+  "transferPrompts": {
+    "message": "提示词"
+  },
+  "transferOpenChat": {
+    "message": "请打开或刷新一个 ChatGPT 标签页以连接。"
+  },
+  "transferFormat": {
+    "message": "导出格式"
+  },
+  "transferFull": {
+    "message": "GPT-Voyager 完整备份"
+  },
+  "transferFormatsHelp": {
+    "message": "GPT-Voyager 备份包含文件夹、收藏、钉住的文字、高亮和提示词。Voyager 格式可用于手动交换文件夹或提示词。"
+  },
+  "transferExported": {
+    "message": "已开始下载备份。"
+  },
+  "transferChoose": {
+    "message": "选择 JSON 文件"
+  },
+  "transferMatch": {
+    "message": "导出时的 ChatGPT 账号与当前账号一致。备份可能包含此浏览器中其他账号留下的数据。"
+  },
+  "transferUnknown": {
+    "message": "无法核验账号。请确认此文件适用于本机的 GPT-Voyager 数据。"
+  },
+  "transferItems": {
+    "message": "类别"
+  },
+  "transferLocal": {
+    "message": "本地"
+  },
+  "transferIncoming": {
+    "message": "文件中"
+  },
+  "transferAdded": {
+    "message": "新增"
+  },
+  "transferDuplicates": {
+    "message": "重复"
+  },
+  "transferConflicts": {
+    "message": "冲突"
+  },
+  "transferMerge": {
+    "message": "合并"
+  },
+  "transferReplace": {
+    "message": "替换"
+  },
+  "transferMergeHelp": {
+    "message": "完全相同的条目会跳过，不同的条目会保留。同一个对话轮次的收藏只保留一条。"
+  },
+  "transferReplaceHelp": {
+    "message": "只替换选中的类别。空类别会清除对应的本地数据。写入前会在本地保存恢复副本，可在此下载。"
+  },
+  "transferApplyMerge": {
+    "message": "合并选中类别"
+  },
+  "transferApplyReplace": {
+    "message": "替换选中类别"
+  },
+  "transferRecovery": {
+    "message": "下载恢复副本"
+  },
+  "transferDone": {
+    "message": "导入完成。如有需要，请刷新其他已打开的 ChatGPT 标签页。"
+  },
+  "transferMismatch": {
+    "message": "此备份导出时使用的是另一个已识别的 ChatGPT 账号，无法导入。仅凭对话没有重合，不能判定账号不匹配。"
+  },
+  "transferWrongSite": {
+    "message": "此备份来自其他网站。请选择 ChatGPT 备份。"
+  },
+  "transferUnsupported": {
+    "message": "不支持此类 Voyager 备份。请选择文件夹或提示词的 JSON 文件。"
+  },
+  "transferInvalid": {
+    "message": "此 JSON 文件无效，或使用了不支持的备份格式。"
+  },
+  "transferChanged": {
+    "message": "连接、账号或本地数据已变化，请重新选择文件进行预览。"
+  },
+  "transferBackupFailed": {
+    "message": "无法保存或读取本地恢复副本。"
+  },
+  "transferReadFailed": {
+    "message": "无法读取本地数据。请刷新 ChatGPT 页面后重试。"
+  },
+  "transferDiverged": {
+    "message": "本地的两份文件夹数据不一致，导入已停止。请先备份两份数据并处理差异，再重试。"
+  },
+  "transferWriteFailed": {
+    "message": "导入结果未能保存。请检查本地数据后再重试。"
+  },
+  "transferRollbackFailed": {
+    "message": "导入失败，且无法完整恢复原有数据。请检查本地数据。如有恢复副本，可用它恢复。"
+  },
+  "transferPromptsOnly": {
+    "message": "仅提示词"
+  },
+  "transferSettingsArchive": {
+    "message": "归档（含设置）"
+  },
+  "transferReviewTitle": {
+    "message": "确认导入备份"
+  },
+  "transferClose": {
+    "message": "关闭"
   }
 }

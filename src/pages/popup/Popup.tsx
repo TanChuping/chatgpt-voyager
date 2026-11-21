@@ -359,6 +359,34 @@ export default function Popup() {
     };
   }, []);
   const [showStarredHistory, setShowStarredHistory] = useState(false);
+  const [highlightFocusRequest, setHighlightFocusRequest] = useState(0);
+  useEffect(() => {
+    const key = 'gvFocusHighlightSettings';
+    let mounted = true;
+    const receive = (time: unknown) => {
+      if (!mounted || typeof time !== 'number' || Math.abs(Date.now() - time) > 15000) return;
+      setShowStarredHistory(false);
+      setHighlightFocusRequest(time);
+    };
+    const changed = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area === (chrome.storage.session ? 'session' : 'local')) receive(changes[key]?.newValue);
+    };
+    chrome.storage.onChanged.addListener(changed);
+    void (chrome.storage.session ?? browser.storage.local).get(key).then(result => receive(result[key])).catch(() => {});
+    return () => { mounted = false; chrome.storage.onChanged.removeListener(changed); };
+  }, []);
+  useLayoutEffect(() => {
+    if (!highlightFocusRequest || showStarredHistory) return;
+    const target = document.getElementById('text-highlights');
+    const row = target?.closest<HTMLElement>('.gv-row');
+    if (!target || !row) return;
+    row.scrollIntoView({ block: 'center' });
+    target.focus({ preventScroll: true });
+    const anim = row.animate?.([{ backgroundColor: 'transparent' }, { backgroundColor: 'var(--gv-accent-soft-2)' }, { backgroundColor: 'transparent' }],
+      { duration: 650, iterations: 2, easing: 'ease-in-out' });
+    void (chrome.storage.session ?? browser.storage.local).remove('gvFocusHighlightSettings');
+    return () => anim?.cancel();
+  }, [highlightFocusRequest, showStarredHistory]);
   const [extVersion, setExtVersion] = useState('');
 
   const [timelineEnabled, setTimelineEnabled] = useState(true);
@@ -420,6 +448,7 @@ export default function Popup() {
   const [plainTextInput, setPlainTextInput] = useState(false);
   const [draftAutoSave, setDraftAutoSave] = useState(false);
   const [preventAutoScroll, setPreventAutoScroll] = useState(false);
+  const [textHighlights, setTextHighlights] = useState(false);
   const [quoteReply, setQuoteReply] = useState(true);
   const [responseCompleteNotification, setResponseCompleteNotification] = useState(true);
 
@@ -598,6 +627,7 @@ export default function Popup() {
         [StorageKeys.PLAIN_TEXT_INPUT_ENABLED]: false,
         [StorageKeys.DRAFT_AUTO_SAVE]: false,
         [StorageKeys.PREVENT_AUTO_SCROLL_ENABLED]: false,
+        [StorageKeys.TEXT_HIGHLIGHTS_ENABLED]: false,
         [StorageKeys.QUOTE_REPLY_ENABLED]: true,
         [StorageKeys.RESPONSE_COMPLETE_NOTIFICATION_ENABLED]: true,
         gvFormulaCopyFormat: 'latex',
@@ -713,6 +743,7 @@ export default function Popup() {
         setPlainTextInput(result[StorageKeys.PLAIN_TEXT_INPUT_ENABLED] === true);
         setDraftAutoSave(result[StorageKeys.DRAFT_AUTO_SAVE] === true);
         setPreventAutoScroll(result[StorageKeys.PREVENT_AUTO_SCROLL_ENABLED] === true);
+        setTextHighlights(result[StorageKeys.TEXT_HIGHLIGHTS_ENABLED] === true);
         setQuoteReply(result[StorageKeys.QUOTE_REPLY_ENABLED] !== false);
         setResponseCompleteNotification(
           result[StorageKeys.RESPONSE_COMPLETE_NOTIFICATION_ENABLED] !== false,
@@ -1476,6 +1507,15 @@ export default function Popup() {
               }
             />
             <ToggleRow
+              id="text-highlights"
+              title={t('textHighlights')}
+              description={t('textHighlightsDescription')}
+              checked={textHighlights}
+              onChange={(value) =>
+                updateToggle(setTextHighlights, StorageKeys.TEXT_HIGHLIGHTS_ENABLED, value, textHighlights)
+              }
+            />
+            <ToggleRow
               id="quote-reply"
               title={t('quoteReply')}
               description={t('quoteReplyHint')}
@@ -1724,6 +1764,9 @@ export default function Popup() {
       </div>
 
       <footer className="gv-footer">
+        <button type="button" className="gv-footer-link gv-transfer-launch" onClick={() => void chrome.runtime.openOptionsPage()}>
+          {t('localTransferTitle')}
+        </button>
         <span className="gv-version">{extVersion ? `v${extVersion}` : 'GPT-Voyager'}</span>
         <div className="flex min-w-0 items-center gap-0.5">
           <a

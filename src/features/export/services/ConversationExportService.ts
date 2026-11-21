@@ -1,4 +1,3 @@
-import { getTranslationSync } from '@/utils/i18n';
 /**
  * Conversation Export Service
  * Unified service for exporting conversations in multiple formats
@@ -6,6 +5,7 @@ import { getTranslationSync } from '@/utils/i18n';
  */
 
 import { isSafari } from '@/core/utils/browser';
+import { getTranslationSync } from '@/utils/i18n';
 
 import {
   EmptyImageRenderError,
@@ -409,37 +409,32 @@ export class ConversationExportService {
       return normalizedFilename;
     }
 
-    // Load JSZip on demand — only markdown exports that actually bundle images
-    // reach this branch, so the ~95 kB library stays out of the eager content
-    // bundle and off every page load.
-    const { default: JSZip } = await import('jszip');
-    const zip = new JSZip();
-    const assetsFolder = zip.folder('assets');
-    const mapping = new Map<string, string>();
-
     const fetchedByOrder = await Promise.all(
       imageUrls.map(async (url) => {
         // For Google images, request original size (=s0) instead of the display thumbnail
         const fetchUrl = this.toOriginalSizeUrl(url);
         const fetched = await this.fetchImageForMarkdownPackaging(fetchUrl);
-        if (!fetched) return null;
-        return {
-          url,
-          blob: fetched.blob,
-          contentType: fetched.contentType,
-        };
+        if (!fetched?.blob.size) return null;
+        const extension = this.pickImageExtension(fetched.contentType, url);
+        if (!extension) return null;
+        const base64 = await this.blobToBase64Payload(fetched.blob);
+        return base64 ? { url, extension, base64 } : null;
       }),
     );
+    const images = fetchedByOrder.filter((image) => image !== null);
+    if (images.length === 0) {
+      MarkdownFormatter.download(markdown, normalizedFilename);
+      return normalizedFilename;
+    }
 
-    let index = 1;
-    for (const item of fetchedByOrder) {
-      if (!item) continue;
-      const extension = this.pickImageExtension(item.contentType, item.url);
-      const fileName = `img-${String(index++).padStart(3, '0')}.${extension}`;
-      const base64Payload = await this.blobToBase64Payload(item.blob);
-      if (!base64Payload) continue;
-      assetsFolder?.file(fileName, base64Payload, { base64: true });
-      mapping.set(item.url, `assets/${fileName}`);
+    const { default: JSZip } = await import('jszip');
+    const zip = new JSZip();
+    const assetsFolder = zip.folder('assets');
+    const mapping = new Map<string, string>();
+    for (const [index, image] of images.entries()) {
+      const fileName = `img-${String(index + 1).padStart(3, '0')}.${image.extension}`;
+      assetsFolder?.file(fileName, image.base64, { base64: true });
+      mapping.set(image.url, `assets/${fileName}`);
     }
 
     const packagedMarkdown = MarkdownFormatter.rewriteImageUrls(markdown, mapping);
@@ -479,7 +474,8 @@ export class ConversationExportService {
     return url.includes('=') ? url + '-s0' : url + '=s0';
   }
 
-  private static pickImageExtension(contentType: string | null, url: string): string {
+  private static pickImageExtension(contentType: string | null, url: string): string | null {
+    const mimeType = contentType?.split(';', 1)[0].trim().toLowerCase();
     const byType: Record<string, string> = {
       'image/png': 'png',
       'image/jpeg': 'jpg',
@@ -487,11 +483,12 @@ export class ConversationExportService {
       'image/webp': 'webp',
       'image/gif': 'gif',
       'image/svg+xml': 'svg',
+      'image/avif': 'avif',
     };
-    if (contentType && byType[contentType]) return byType[contentType];
-    const match = url.split('?')[0].match(/\.(png|jpg|jpeg|gif|webp|svg)$/i);
+    if (mimeType && mimeType !== 'application/octet-stream') return byType[mimeType] ?? null;
+    const match = url.split(/[?#]/, 1)[0].match(/\.(png|jpg|jpeg|gif|webp|svg|avif)$/i);
     if (match) return match[1].toLowerCase() === 'jpeg' ? 'jpg' : match[1].toLowerCase();
-    return 'bin';
+    return null;
   }
 
   private static blobToBase64Payload(blob: Blob): Promise<string | null> {

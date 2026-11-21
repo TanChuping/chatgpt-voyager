@@ -1,0 +1,201 @@
+.gv-hl-panel {
+  position: fixed;
+  z-index: 2147483000;
+  max-width: calc(100vw - 16px);
+  color: var(--timeline-tooltip-text);
+  font: 12px/1.4 var(--timeline-font);
+  isolation: isolate;
+}
+.gv-hl-panel [hidden],
+.gv-hl-panel[hidden] {
+  display: none;
+}
+.gv-hl-panel *,
+.gv-hl-panel *::after {
+  box-sizing: border-box;
+}
+.gv-hl-panel button {
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.gv-hl-panel .gv-hl-chip,
+.gv-hl-card {
+  background: var(--timeline-tooltip-bg);
+  background: color-mix(in srgb, var(--timeline-tooltip-bg) 92%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 1px 3px #0001,
+    0 5px 16px -5px #0003;
+  border: 1px solid var(--timeline-tooltip-border);
+  border-radius: 11px;
+  transform-origin: 18px 0;
+  animation: gv-hl-reveal 150ms var(--timeline-spring-snap);
+}
+.gv-hl-panel .gv-hl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 2px 8px;
+  font-weight: 550;
+}
+.gv-hl-chip svg {
+  width: 13px;
+  height: 13px;
+}
+.gv-hl-card {
+  width: max-content;
+  max-width: calc(100vw - 16px);
+  overflow: auto;
+  max-height: calc(100dvh - 16px);
+}
+.gv-hl-bar,
+.gv-hl-palette {
+  display: flex;
+  align-items: center;
+}
+.gv-hl-bar {
+  gap: 2px;
+  padding: 4px;
+}
+.gv-hl-palette {
+  padding-inline: 1px 5px;
+  margin-inline-end: 3px;
+  position: relative;
+}
+.gv-hl-palette::after {
+  content: '';
+  position: absolute;
+  inset-inline-end: 0;
+  top: 5px;
+  bottom: 5px;
+  width: 1px;
+  background: currentColor;
+  opacity: 0.14;
+}
+.gv-hl-swatch,
+.gv-hl-bar button {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border: 0;
+  padding: 0;
+  border-radius: 7px;
+  background: transparent;
+}
+.gv-hl-swatch {
+  position: relative;
+  cursor: pointer;
+}
+.gv-hl-swatch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.gv-hl-sample {
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  color: #292727;
+  background: var(--hl-ink);
+  box-shadow: inset 0 0 0 1px #0000000c;
+  transition:
+    transform 150ms var(--timeline-spring-snap),
+    box-shadow 120ms;
+}
+.gv-hl-swatch:hover .gv-hl-sample {
+  transform: scale(1.12);
+}
+.gv-hl-swatch:active .gv-hl-sample {
+  transform: scale(0.91);
+}
+.gv-hl-swatch input:checked + .gv-hl-sample {
+  box-shadow:
+    0 0 0 2px var(--timeline-tooltip-bg),
+    0 0 0 3px var(--hl-ink);
+}
+.gv-hl-sample svg {
+  width: 10px;
+  height: 10px;
+  stroke-width: 2.6;
+  opacity: 0;
+}
+.gv-hl-swatch input:checked + .gv-hl-sample svg {
+  opacity: 1;
+}
+.gv-hl-panel button:focus-visible,
+.gv-hl-swatch input:focus-visible + .gv-hl-sample {
+  outline: 2px solid var(--timeline-dot-active-color);
+  outline-offset: 2px;
+}
+.gv-hl-bar button {
+  transition:
+    transform 150ms var(--timeline-spring-snap),
+    background 120ms;
+}
+.gv-hl-bar button:hover,
+.gv-hl-bar button[aria-expanded='true'] {
+  background: var(--timeline-hover);
+}
+.gv-hl-bar button:active {
+  transform: scale(0.91);
+}
+.gv-hl-bar .gv-hl-save {
+  color: var(--timeline-dot-active-color);
+  background: var(--timeline-accent-soft);
+}
+.gv-hl-bar .gv-hl-delete:hover {
+  color: #c55059;
+}
+.gv-hl-panel .gv-hl-note {
+  display: block;
+  width: calc(100% - 12px);
+  min-height: 44px;
+  margin: 0 6px 6px;
+  padding: 5px;
+  border: none;
+  border-top: 1px solid var(--timeline-tooltip-border);
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  resize: vertical;
+}
+.gv-hl-panel .gv-hl-note[hidden] {
+  display: none;
+}
+.gv-hl-panel .gv-hl-note:focus-visible {
+  border-color: var(--timeline-dot-active-color);
+}
+.gv-hl-panel [role='alert'] {
+  background: var(--timeline-tooltip-bg);
+  padding: 4px;
+}
+@keyframes gv-hl-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(2px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gv-hl-panel *,
+  .gv-hl-panel *::after {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}

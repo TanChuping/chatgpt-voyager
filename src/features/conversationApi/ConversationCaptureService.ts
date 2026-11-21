@@ -29,10 +29,15 @@ export interface CaptureEntry {
   complete: boolean;
 }
 
-interface PagedState {
+interface ParsedPage {
   linear: LinearConversation;
-  /** `has_previous_page` of the page that currently forms the head. */
-  headHasPrevious: boolean;
+  startCursor: string | null;
+  hasPrevious: boolean;
+}
+
+interface PagedState {
+  latest: ParsedPage | null;
+  older: Map<string, ParsedPage>;
 }
 
 function isConversationPage(raw: unknown): raw is ApiConversationPage {
@@ -164,8 +169,12 @@ export class ConversationCaptureService {
       console.warn('[GPT-Voyager] conversation parser failed', err);
       return null;
     }
-    this.paged.delete(convId);
-    return this.commit(convId, api, linear, hasCompleteConversationMapping(api));
+    const complete = hasCompleteConversationMapping(api);
+    if (page && !this.paged.has(convId)) {
+      this.paged.set(convId, { latest: null, older: new Map() });
+    }
+    if (!complete && this.isComplete(convId)) return this.entries.get(convId) ?? null;
+    return this.commit(convId, api, linear, complete);
   }
 
   private ingestPage(
@@ -173,34 +182,72 @@ export class ConversationCaptureService {
     api: ApiConversationPage,
     page: CapturePageInfo,
   ): CaptureEntry | null {
-    let pageLinear: LinearConversation;
+    let incoming: ParsedPage;
     try {
-      pageLinear = walkMessagesPage(api);
+      incoming = {
+        linear: walkMessagesPage(api),
+        startCursor: api.page_info?.start_cursor || api.messages[0]?.id || null,
+        hasPrevious: api.page_info?.has_previous_page !== false,
+      };
     } catch (err) {
       console.warn('[GPT-Voyager] conversation page parser failed', err);
       return null;
     }
-    const previous = this.paged.get(convId);
-    const merged = mergeConversationPage(
-      previous?.linear.messages ?? [],
-      pageLinear.messages,
-      page,
-    );
-    const hasPrevious = api.page_info?.has_previous_page !== false;
-    const headHasPrevious = merged.replacedHead
-      ? hasPrevious
-      : (previous?.headHasPrevious ?? hasPrevious);
-    // Older pages carry no conversation metadata; keep the latest page's.
-    const meta = page.kind === 'latest' || !previous ? pageLinear : previous.linear;
-    const linear: LinearConversation = {
-      id: meta.id || previous?.linear.id || convId,
-      title: meta.title,
-      createTime: meta.createTime ?? previous?.linear.createTime ?? null,
-      updateTime: meta.updateTime ?? previous?.linear.updateTime ?? null,
-      messages: merged.messages,
+    const state = this.paged.get(convId) ?? { latest: null, older: new Map() };
+    this.paged.set(convId, state);
+    if (page.kind === 'before') {
+      if (!page.before) return this.entries.get(convId) ?? null;
+      state.older.set(page.before, incoming);
+    } else {
+      state.latest = incoming;
+    }
+
+    // An older response is useful only when its request cursor connects it to
+    // the latest page. A first-page response alone may have missing pages
+    // between it and the current tail. Raw cursors can refer to hidden nodes.
+    if (!state.latest) return null;
+    const pages = [state.latest];
+    const seen = new Set<string>();
+    let head = state.latest;
+    while (head.hasPrevious) {
+      const cursor = head.startCursor;
+      if (!cursor || seen.has(cursor)) break;
+      seen.add(cursor);
+      const older = state.older.get(cursor);
+      if (!older) break;
+      pages.push(older);
+      head = older;
+    }
+    const complete = !head.hasPrevious;
+
+    const chain = new Map<string, LinearMessage>();
+    for (const item of pages.reverse()) {
+      for (const message of item.linear.messages) chain.set(message.messageId, message);
+    }
+    const linear = {
+      ...state.latest.linear,
+      id: state.latest.linear.id || convId,
+      messages: Array.from(chain.values()),
     };
-    this.paged.set(convId, { linear, headHasPrevious });
-    return this.commit(convId, api, linear, !headHasPrevious);
+
+    const existing = this.entries.get(convId);
+    if (
+      !complete &&
+      existing?.complete &&
+      !isConversationPage(existing.api) &&
+      linear.messages.every((message) =>
+        existing.linear.messages.some((known) => known.messageId === message.messageId),
+      )
+    ) {
+      // A native tail-page replay for the same branch cannot shorten a
+      // separately verified full mapping.
+      return existing;
+    }
+    return this.commit(convId, api, linear, complete);
+  }
+
+  hasPagedCapture(convId: string): boolean {
+    return this.paged.has(convId);
   }
 
   private commit(
@@ -210,11 +257,15 @@ export class ConversationCaptureService {
     complete: boolean,
   ): CaptureEntry {
     const reconciled = this.reconciledLinear.get(convId);
-    if (reconciled && isCaptureAtLeastAsFresh(reconciled, linear)) {
-      this.reconciledLinear.delete(convId);
+    if (reconciled) {
+      const firstKnownId = complete ? visibleMessageIds(linear)[0] : undefined;
+      const missesBeginning =
+        firstKnownId && !reconciled.messages.some((message) => message.messageId === firstKnownId);
+      if (missesBeginning || isCaptureAtLeastAsFresh(reconciled, linear)) {
+        this.reconciledLinear.delete(convId);
+      }
     }
-    const effectiveLinear = this.reconciledLinear.get(convId) ?? linear;
-    const entry: CaptureEntry = { api, linear: effectiveLinear, capturedAt: Date.now(), complete };
+    const entry: CaptureEntry = { api, linear, capturedAt: Date.now(), complete };
     this.entries.set(convId, entry);
     for (const cb of this.listeners) {
       try {

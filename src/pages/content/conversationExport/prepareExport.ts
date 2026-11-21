@@ -30,61 +30,95 @@ export async function prepareWholeConversationExport(
   options: PrepareWholeExportOptions = {},
 ): Promise<LinearConversation> {
   const capture = getConversationCaptureService();
-  let cached = capture.getLatest(convId);
+  const currentPath = location.pathname;
+  const isCurrent = () => location.pathname === currentPath;
+  const ensureCurrent = () => {
+    if (!isCurrent()) throw new DOMException('Conversation changed during export.', 'AbortError');
+  };
   let live = collectLiveConversationMessages();
   options.onStage?.('checking', live.length);
-  const paginated = !!findActiveConversationRoot()?.querySelector('[data-gv-thread-anchor]');
-  // ChatGPT 2026-09 pages history in as the user scrolls up, so a matching
-  // tail no longer proves the capture holds the whole conversation.
-  let complete = capture.isComplete(convId);
-  if (!complete) {
-    options.onStage?.('rebuilding', live.length);
-    await requestFullConversationCapture(convId);
-    cached = capture.getLatest(convId);
-    live = collectLiveConversationMessages();
-    complete = capture.isComplete(convId);
-  }
-  const reconciliation = reconcileExportTail(cached, live);
+  const isPaginated = () =>
+    capture.hasPagedCapture(convId) ||
+    Boolean(
+      findActiveConversationRoot()?.querySelector('[data-turn-key], [data-gv-thread-anchor]'),
+    );
 
-  if (complete && reconciliation.kind === 'fresh' && cached) return cached;
-
-  if (complete && reconciliation.kind === 'incremental' && cached) {
+  const reconcileCompleteCapture = (mounted: typeof live): LinearConversation | null => {
+    if (!capture.isComplete(convId)) return null;
+    const cached = capture.getLatest(convId);
+    if (!cached || cached.messages.length === 0) return null;
+    const reconciliation = reconcileExportTail(cached, mounted);
+    if (reconciliation.kind === 'fresh') return cached;
+    if (reconciliation.kind !== 'incremental') return null;
     options.onStage?.('incremental', reconciliation.changed.length);
-    const merged = mergeLiveConversationMessages(cached, live);
-    return capture.updateLatest(convId, merged);
+    return capture.updateLatest(convId, mergeLiveConversationMessages(cached, mounted));
+  };
+
+  if (!isPaginated() && capture.isComplete(convId)) {
+    const prepared = reconcileCompleteCapture(live);
+    if (prepared) return prepared;
   }
 
   options.onStage?.('rebuilding', live.length);
-  // 2026-09 layout (thread-mirror anchors present): the paginated capture is
-  // the source of truth, so hydrate until it is complete rather than walking
-  // every row of a thread that can be hundreds of screens tall.
+  // Fetch a verified complete mapping in parallel with native paging. It
+  // supplies a second way to identify the first real message when Chrome did
+  // not capture the entire native cursor chain (for example from page cache).
+  const request = capture.isComplete(convId) ? null : requestFullConversationCapture(convId);
+  if (!isPaginated() && request) {
+    await request;
+    ensureCurrent();
+    live = collectLiveConversationMessages();
+    if (!isPaginated()) {
+      const prepared = reconcileCompleteCapture(live);
+      if (prepared) return prepared;
+    }
+  }
+
+  const paginated = isPaginated();
+  const oldestIsLoaded = () => {
+    if (!capture.isComplete(convId)) return false;
+    const messages = capture.getLatest(convId)?.messages;
+    const oldest =
+      messages?.find((message) => message.role === 'user') ??
+      messages?.find((message) => message.role === 'assistant');
+    if (!oldest) return false;
+    const root = findActiveConversationRoot();
+    if (!root) return false;
+    for (const element of root.querySelectorAll('[data-message-id], [data-gv-thread-anchor]')) {
+      if (
+        element.getAttribute('data-message-id') === oldest.messageId ||
+        element.getAttribute('data-gv-thread-anchor') === oldest.messageId
+      )
+        return true;
+    }
+    return false;
+  };
+
   const hydration = await hydrateConversationHistory({
     onProgress: ({ discovered }) => options.onStage?.('rebuilding', discovered),
-    isComplete: paginated ? () => capture.isComplete(convId) : undefined,
+    isComplete: paginated ? oldestIsLoaded : undefined,
+    oldestLoadedId: paginated
+      ? () =>
+          findActiveConversationRoot()
+            ?.querySelector('[data-gv-thread-anchor]')
+            ?.getAttribute('data-gv-thread-anchor') ??
+          collectLiveConversationMessages()[0]?.message.messageId ??
+          null
+      : undefined,
+    isCurrent,
   });
+  ensureCurrent();
   if (!hydration.reachedTop) {
     throw new Error('Unable to reach the beginning of the conversation safely.');
   }
 
-  live = hydration.messages;
-  cached = capture.getLatest(convId);
-  if (live.length === 0 && !cached) {
-    throw new Error('No exportable conversation messages were found.');
+  const prepared = reconcileCompleteCapture(paginated ? live : hydration.messages);
+  if (prepared) return prepared;
+  if (paginated || hydration.messages.length === 0) {
+    throw new Error('Unable to verify all messages of the current conversation.');
   }
 
-  // A network capture may have arrived while ChatGPT hydrated history. Prefer
-  // it when its latest-five tail is now consistent; otherwise rebuild the
-  // current user-facing branch from what was actually mounted. Scrolling to
-  // the top pages the rest of a 2026-09 conversation in, so the capture is
-  // normally complete by now.
-  if (cached && capture.isComplete(convId)) {
-    const afterHydration = reconcileExportTail(cached, live);
-    if (afterHydration.kind === 'fresh') return cached;
-    if (afterHydration.kind === 'incremental') {
-      return capture.updateLatest(convId, mergeLiveConversationMessages(cached, live));
-    }
-  }
-
-  const rebuilt = rebuildConversationFromLive(cached, convId, currentTitle(), live);
+  const cached = capture.getLatest(convId);
+  const rebuilt = rebuildConversationFromLive(cached, convId, currentTitle(), hydration.messages);
   return capture.updateLatest(convId, rebuilt, { force: true });
 }

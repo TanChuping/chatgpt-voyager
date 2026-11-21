@@ -6,8 +6,8 @@ import { JSDOM } from 'jsdom';
 import JSZip from 'jszip';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { installEnglishLocale } from '@/tests/localeFixture';
 import frMessages from '@/locales/fr/messages.json';
+import { installEnglishLocale } from '@/tests/localeFixture';
 import { getTranslationSync } from '@/utils/i18n';
 import { extractMessageDictionary } from '@/utils/localeMessages';
 import { installTranslations } from '@/utils/translations';
@@ -441,6 +441,57 @@ describe('ConversationExportService', () => {
   });
 
   describe('markdown zip packaging', () => {
+    it('downloads a Markdown file when no usable image can be embedded', async () => {
+      const imageUrl = 'https://example.com/chart.png';
+      vi.spyOn(
+        ConversationExportService as unknown as {
+          fetchImageForMarkdownPackaging: (url: unknown) => Promise<unknown>;
+        },
+        'fetchImageForMarkdownPackaging',
+      ).mockResolvedValue({
+        blob: new Blob(['<!doctype html><p>Sign in</p>'], { type: 'text/html' }),
+        contentType: 'text/html; charset=utf-8',
+      });
+      const download = vi.spyOn(MarkdownFormatter, 'download').mockImplementation(() => {});
+      const markdown = `![图表](${imageUrl})`;
+      const result = await (
+        ConversationExportService as unknown as Record<string, (...args: unknown[]) => unknown>
+      ).downloadMarkdownOrZip(markdown, '试验.v2.md', 'chat.md');
+
+      expect(result).toBe('试验.v2.md');
+      expect(download).toHaveBeenCalledWith(markdown, '试验.v2.md');
+    });
+
+    it('downloads a readable ZIP with an SVG asset and matching Markdown link', async () => {
+      const imageUrl = 'https://example.com/chart';
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg"><title>图表</title></svg>';
+      vi.spyOn(
+        ConversationExportService as unknown as {
+          fetchImageForMarkdownPackaging: (url: unknown) => Promise<unknown>;
+        },
+        'fetchImageForMarkdownPackaging',
+      ).mockResolvedValue({
+        blob: new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }),
+        contentType: 'image/svg+xml; charset=utf-8',
+      });
+      const result = await (
+        ConversationExportService as unknown as Record<string, (...args: unknown[]) => unknown>
+      ).downloadMarkdownOrZip(`![图表](${imageUrl})`, '试验.v2.md', 'chat.md');
+
+      expect(result).toBe('试验.v2.zip');
+      const [[blob]] = vi.mocked(URL.createObjectURL).mock.calls;
+      expect((blob as Blob).type).toBe('application/zip');
+      const bytes = await new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as ArrayBuffer);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsArrayBuffer(blob as Blob);
+      });
+      const zip = await JSZip.loadAsync(bytes);
+      expect(await zip.file('chat.md')?.async('string')).toBe('![图表](assets/img-001.svg)');
+      expect(await zip.file('assets/img-001.svg')?.async('string')).toBe(svg);
+    });
+
     it('degrades image markdown to text placeholders on Safari instead of zip packaging', async () => {
       setUserAgentVendor(
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',

@@ -129,6 +129,28 @@ describe('ChatGPT 2026-09 DOM compatibility shim', () => {
     expect(document.getElementById('header-trigger')?.hasAttribute('data-testid')).toBe(false);
   });
 
+  it('recognizes the native titlebar ellipsis and labels actions without their shortcut hints', () => {
+    const header = document.querySelector('header')!;
+    header.setAttribute('data-app-shell-titlebar', '');
+    header.innerHTML = `<div data-app-shell-main-titlebar><div class="ms-auto"><button id="native-more" aria-haspopup="menu">
+      <svg><use href="/assets/icons.svg#codex-icon-ellipsis-horizontal-light-16"></use></svg>
+      </button></div><div data-gv-header-actions><button id="export" aria-haspopup="menu"></button></div></div>`;
+    const menu = document.createElement('div');
+    menu.setAttribute('role', 'menu');
+    menu.setAttribute('aria-labelledby', 'native-more');
+    menu.innerHTML =
+      '<div role="group"><div role="menuitem"><span class="truncate">重命名</span><span aria-hidden="true">R</span></div></div>';
+    document.body.append(menu);
+    syncChatGptDomCompat();
+    expect(document.getElementById('native-more')?.dataset.testid).toBe(
+      'conversation-options-button',
+    );
+    expect(document.getElementById('export')?.dataset.testid).toBeUndefined();
+    expect(menu.querySelector('[role="menuitem"]')?.getAttribute('data-testid')).toBe(
+      'rename-chat-menu-item',
+    );
+  });
+
   it('recognizes the November title dropdown as the conversation menu owner', () => {
     document.querySelector('header')!.innerHTML = `
       <div data-app-shell-main-titlebar><div data-app-shell-header-toolbar>

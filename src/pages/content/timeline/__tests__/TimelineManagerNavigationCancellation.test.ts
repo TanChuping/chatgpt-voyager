@@ -12,6 +12,8 @@ type Navigation = {
   scheduleScrollSync: () => void;
   recalculateAndRenderMarkers: () => void;
   setupEventListeners: () => void;
+  handleStarredMessageNavigation: () => void;
+  markerMap: Map<string, { id: string; element: HTMLElement }>;
   refreshForThreadChange: () => void;
   refreshCriticalElementsFromDocument: () => boolean;
   ui: { timelineBar: HTMLElement | null };
@@ -57,6 +59,7 @@ describe('timeline navigation ownership', () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    history.replaceState(null, '', '/');
     document.body.innerHTML = '';
   });
 
@@ -153,6 +156,53 @@ describe('timeline navigation ownership', () => {
     nav.refreshForThreadChange();
     vi.advanceTimersByTime(700);
     expect(scroller.scrollTop).toBe(2300);
+    manager.destroy();
+  });
+
+  it('discards a pending favorite when the reader wheels over a body-level overlay', () => {
+    const { manager, nav, scroller, target } = harness();
+    nav.ui.timelineBar = document.createElement('div');
+    nav.setupEventListeners();
+    history.replaceState({ route: 7 }, '', '/?x=1#gv-turn-old');
+    nav.handleStarredMessageNavigation();
+    vi.advanceTimersByTime(450); // Target is still in an unloaded page.
+    document.body.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 60 }));
+    nav.markerMap.set('old', { id: 'old', element: target(500) });
+    scroller.scrollTop = 8000;
+    vi.advanceTimersByTime(6000);
+    expect(scroller.scrollTop).toBe(8000);
+    expect(location.hash).toBe('');
+    expect(location.search).toBe('?x=1');
+    expect(history.state).toEqual({ route: 7 });
+    manager.destroy();
+  });
+
+  it('opens only the latest favorite when it mounts and preserves the router state', () => {
+    const { manager, nav, scroller, target } = harness();
+    history.replaceState({ route: 7 }, '', '/#gv-turn-old');
+    nav.handleStarredMessageNavigation();
+    history.replaceState({ route: 8 }, '', '/#gv-turn-new');
+    nav.handleStarredMessageNavigation();
+    vi.advanceTimersByTime(400);
+    nav.markerMap.set('new', { id: 'new', element: target(700) });
+    vi.advanceTimersByTime(5000);
+    expect(scroller.scrollTop).toBe(700);
+    expect(location.hash).toBe('');
+    expect(history.state).toEqual({ route: 8 });
+    manager.destroy();
+  });
+
+  it('honors a wheel event before initialization handles the entry fragment', () => {
+    const { manager, nav, scroller, target } = harness();
+    nav.ui.timelineBar = document.createElement('div');
+    nav.setupEventListeners();
+    history.replaceState(null, '', '/#gv-turn-old');
+    scroller.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 70 }));
+    scroller.scrollTop = 7500;
+    nav.markerMap.set('old', { id: 'old', element: target(500) });
+    nav.handleStarredMessageNavigation();
+    vi.advanceTimersByTime(3000);
+    expect(scroller.scrollTop).toBe(7500);
     manager.destroy();
   });
 });

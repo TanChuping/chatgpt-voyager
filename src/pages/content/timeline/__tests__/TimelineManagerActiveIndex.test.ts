@@ -335,6 +335,8 @@ describe('TimelineManager active marker', () => {
     internal.lastUserScrollAt = performance.now();
     internal.previewPanel = { isOpen: true, destroy: vi.fn() } as never;
 
+    expect(internal.shouldConfirmMarkerOrderChange(['older', 'm0', 'm1', 'm2'])).toBe(false);
+
     const nextIds = ['m0', 'inserted', 'm1', 'm2'];
     expect(internal.shouldConfirmMarkerOrderChange(nextIds)).toBe(true);
     internal.pendingMarkerOrderSignature = nextIds.join('|');

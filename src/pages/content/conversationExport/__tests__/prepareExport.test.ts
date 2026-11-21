@@ -73,7 +73,7 @@ describe('whole export preparation', () => {
     vi.mocked(requestFullConversationCapture).mockReset().mockResolvedValue(false);
   });
 
-  it('uses a complete API capture before attempting to scroll a paginated conversation', async () => {
+  it('still loads a paginated thread to the top when the complete API mapping is available', async () => {
     const capture = getConversationCaptureService();
     const whole = api(6);
     const tail = Object.values(whole.mapping)
@@ -101,10 +101,32 @@ describe('whole export preparation', () => {
       capture.ingest(CONV_ID, whole);
       return true;
     });
+    hydrateMock.mockImplementation(async (options) => {
+      await Promise.resolve();
+      expect(capture.isComplete(CONV_ID)).toBe(true);
+      expect(options?.isComplete?.()).toBe(false);
+      const firstId = Object.keys(whole.mapping)[0];
+      document.body.insertAdjacentHTML(
+        'afterbegin',
+        `<div data-gv-thread-anchor="${firstId}"></div>`,
+      );
+      expect(options?.isComplete?.()).toBe(true);
+      return { messages: collectLiveConversationMessages(), reachedTop: true };
+    });
     const result = await prepareWholeConversationExport(CONV_ID);
     expect(result.messages).toHaveLength(6);
     expect(requestFullConversationCapture).toHaveBeenCalledWith(CONV_ID);
-    expect(hydrateMock).not.toHaveBeenCalled();
+    expect(hydrateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses to export a cached paginated conversation when native history never reaches the top', async () => {
+    const capture = getConversationCaptureService();
+    capture.ingest(CONV_ID, api(6));
+    document.body.innerHTML = '<div data-turn-key="latest"></div>';
+    hydrateMock.mockResolvedValue({ messages: [], reachedTop: false });
+    await expect(prepareWholeConversationExport(CONV_ID)).rejects.toThrow('beginning');
+    expect(hydrateMock).toHaveBeenCalledTimes(1);
+    expect(requestFullConversationCapture).not.toHaveBeenCalled();
   });
 
   it('requests full history even when the initial API capture or thread anchors are not ready', async () => {

@@ -35,44 +35,34 @@
     return sh - st - ch > 150;
   }
 
-  function isScrollingDownTo(el, args) {
-    if (args.length === 0) return false;
-    let targetY = undefined;
-    if (args.length === 1 && args[0] && typeof args[0] === 'object') {
-      if ('top' in args[0]) targetY = args[0].top;
-    } else if (args.length >= 2) {
-      targetY = args[1];
-    }
-
-    if (targetY === undefined) return false;
-    const currentScrollTop = getScrollTop(el);
-    return targetY > currentScrollTop;
+  function verticalArgument(args) {
+    if (args.length === 1 && args[0] && typeof args[0] === 'object') return args[0].top;
+    if (args.length >= 2) return args[1];
+    return undefined;
   }
 
-  function isScrollingDownBy(args) {
-    if (args.length === 0) return false;
-    if (args.length === 1 && args[0] && typeof args[0] === 'object') {
-      return args[0].top > 0;
-    } else if (args.length >= 2) {
-      return args[1] > 0;
+  function shouldBlockPosition(el, targetY) {
+    if (targetY === undefined) return false;
+    const current = getScrollTop(el);
+    if (!(targetY > current)) return false;
+    if (el instanceof Element && el.classList.contains('thread-scroll-container')) {
+      // When ChatGPT prepends or remeasures virtual rows, it adds their height
+      // to scrollTop so the same paragraph stays under the reader's eyes.
+      // Only suppress a request to follow the conversation all the way down.
+      const bottom = current < 0 ? 0 : getScrollHeight(el) - getClientHeight(el);
+      return bottom - current > 150 && targetY >= bottom - 1;
     }
-    return false;
+    return isScrolledUp(el);
   }
 
   function shouldBlockScrollTo(el, args) {
-    if (!isEnabled()) return false;
-    if (isScrolledUp(el) && isScrollingDownTo(el, args)) {
-      return true;
-    }
-    return false;
+    return isEnabled() && shouldBlockPosition(el, verticalArgument(args));
   }
 
   function shouldBlockScrollBy(el, args) {
     if (!isEnabled()) return false;
-    if (isScrolledUp(el) && isScrollingDownBy(args)) {
-      return true;
-    }
-    return false;
+    const delta = verticalArgument(args);
+    return delta > 0 && shouldBlockPosition(el, getScrollTop(el) + Number(delta));
   }
 
   const originalWindowScrollTo = window.scrollTo;
@@ -138,12 +128,7 @@
     Object.defineProperty(Element.prototype, 'scrollTop', {
       get: originalScrollTopDescriptor.get,
       set: function (value) {
-        if (isEnabled() && isScrolledUp(this)) {
-          const currentVal = originalScrollTopDescriptor.get.call(this);
-          if (value > currentVal) {
-            return;
-          }
-        }
+        if (isEnabled() && shouldBlockPosition(this, value)) return;
         return originalScrollTopDescriptor.set.call(this, value);
       },
     });

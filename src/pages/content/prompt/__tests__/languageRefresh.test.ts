@@ -104,6 +104,20 @@ describe('Prompt Manager mounted labels follow the ready dictionary', () => {
     };
   }
 
+  it('asks for the scope before importing or exporting and keeps the settings archive under export', async () => {
+    const { panel } = await mount();
+    const menu = panel.querySelector<HTMLElement>('.gv-pm-transfer-menu')!;
+    const archive = menu.querySelector<HTMLButtonElement>('.gv-pm-backup-btn')!;
+    expect(menu.hidden).toBe(true);
+    panel.querySelector<HTMLButtonElement>('.gv-pm-import-btn')!.click();
+    expect(menu.hidden).toBe(false);
+    expect(archive.hidden).toBe(true);
+    panel.querySelector<HTMLButtonElement>('.gv-pm-export-btn')!.click();
+    expect(archive.hidden).toBe(false);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(menu.hidden).toBe(true);
+  });
+
   async function select(language: HTMLSelectElement, value: 'ru' | 'fr') {
     language.value = value;
     language.dispatchEvent(new Event('change', { bubbles: true }));
@@ -140,6 +154,7 @@ describe('Prompt Manager mounted labels follow the ready dictionary', () => {
     expect(panel.querySelector<HTMLButtonElement>('.gv-pm-backup-btn')!.title).toBe(fr.pm_backup_tooltip.message);
     expect(panel.querySelector<HTMLButtonElement>('.gv-pm-settings')!.title).toBe(fr.pm_settings_tooltip.message);
     expect(panel.querySelector<HTMLButtonElement>('.gv-pm-favorites-btn')!.title).toBe(fr.favoritesSidebarTitle.message);
+    expect(panel.querySelector<HTMLButtonElement>('.gv-pm-highlights-btn')!.title).toBe(fr.highlightHistoryTitle.message);
     expect(panel.querySelector<HTMLButtonElement>('.gv-pm-support-btn')!.title).toBe(fr.supportMysteryButton.message);
 
     trigger.click();

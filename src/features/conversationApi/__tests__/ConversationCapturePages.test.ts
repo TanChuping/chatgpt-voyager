@@ -83,6 +83,39 @@ describe('ConversationCaptureService — paginated captures', () => {
     );
   });
 
+  it('buffers an out-of-order first page until the missing middle page joins the cursor chain', () => {
+    const svc = new ConversationCaptureService();
+    svc.ingest('conv-paged', page(7, 8, true), { kind: 'latest' });
+    svc.ingest('conv-paged', page(1, 3, false), { kind: 'before', before: id(4) });
+    expect(svc.isComplete('conv-paged')).toBe(false);
+    expect(texts(svc.getLatest('conv-paged')!.messages)).toEqual(
+      texts(walkMessagesPage(page(7, 8, true)).messages),
+    );
+
+    const middle = page(4, 6, true);
+    middle.messages[0].metadata = { is_visually_hidden_from_conversation: true };
+    svc.ingest('conv-paged', middle, { kind: 'before', before: id(7) });
+    expect(svc.isComplete('conv-paged')).toBe(true);
+    expect(texts(svc.getLatest('conv-paged')!.messages)).toEqual([
+      'message 1',
+      'message 2',
+      'message 3',
+      'message 5',
+      'message 6',
+      'message 7',
+      'message 8',
+    ]);
+  });
+
+  it('does not treat an orphaned cold-start page with a terminal flag as a full branch', () => {
+    const svc = new ConversationCaptureService();
+    svc.ingest('conv-paged', page(1, 4, false), { kind: 'before', before: id(5) });
+    expect(svc.isComplete('conv-paged')).toBe(false);
+    expect(svc.getLatest('conv-paged')).toBeNull();
+    svc.ingest('conv-paged', page(5, 8, true), { kind: 'latest' });
+    expect(svc.isComplete('conv-paged')).toBe(true);
+  });
+
   it('keeps title and completeness when the latest page is re-fetched', () => {
     const svc = new ConversationCaptureService();
     svc.ingest('conv-paged', page(5, 8, true, 'Title'), { kind: 'latest' });

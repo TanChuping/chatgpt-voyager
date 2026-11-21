@@ -38,6 +38,7 @@ import { startPromptManager } from './prompt/index';
 import { startChatGptDomCompat } from './shared/domCompat';
 import { exposeDomHealthCheck } from './shared/domHealth';
 import { startTimeline } from './timeline/index';
+import { registerTransferPort } from '@/features/localTransfer/port';
 
 const CHATGPT_HOSTS = new Set(['chatgpt.com', 'chat.openai.com']);
 const CORE_STAGE_DELAY_MS = 50;
@@ -75,6 +76,12 @@ function bootstrapContentScript(): void {
 
   let closed = false;
   let core: StartedCoreFeatures | null = null;
+  const stopTransferPort = isChatGPTSite() && window.top === window
+    ? registerTransferPort(async () => {
+        if (!core) return false;
+        const manager = await core.getResult<Awaited<ReturnType<typeof startFolderManager>>>('folder');
+        return !manager?.hasPendingFolderEdits();
+      }) : null;
   let lazyRuntime: LazyFeatureRuntime | null = null;
   let storageRouter: BootstrapStorageRouter | null = null;
   let pageRouter: PageSignalRouter | null = null;
@@ -234,6 +241,7 @@ function bootstrapContentScript(): void {
   const shutdown = () => {
     if (closed) return;
     closed = true;
+    stopTransferPort?.();
     businessDemandRouter?.stop();
     pageRouter?.stop();
     storageRouter?.stop();

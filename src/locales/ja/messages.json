@@ -2087,7 +2087,184 @@
   "tempChatRegretErrCollectionStopped": {
     "message": "会話の収集が途中で停止しました（{count} 件のメッセージを取得）。"
   },
+  "textHighlights": {
+    "message": "テキストのハイライト"
+  },
+  "textHighlightsDescription": {
+    "message": "ChatGPT のメッセージ内のテキストを選択してハイライトし、メモを追加できます。"
+  },
+  "textHighlightAdd": {
+    "message": "ハイライト"
+  },
+  "textHighlightEdit": {
+    "message": "ハイライトを編集"
+  },
+  "textHighlightColor": {
+    "message": "色"
+  },
+  "textHighlightYellow": {
+    "message": "黄色"
+  },
+  "textHighlightGreen": {
+    "message": "緑"
+  },
+  "textHighlightBlue": {
+    "message": "青"
+  },
+  "textHighlightPink": {
+    "message": "ピンク"
+  },
+  "textHighlightNote": {
+    "message": "メモ（任意）"
+  },
+  "textHighlightSave": {
+    "message": "保存"
+  },
+  "textHighlightDelete": {
+    "message": "削除"
+  },
+  "textHighlightCancel": {
+    "message": "キャンセル"
+  },
+  "textHighlightStorageError": {
+    "message": "ハイライトを保存できませんでした。"
+  },
   "export_image_render_failed": {
     "message": "画像の描画に失敗しました（{width} × {height}）"
+  },
+  "highlightHistoryTitle": {
+    "message": "ハイライト"
+  },
+  "highlightHistoryDisabled": {
+    "message": "ハイライトを表示するには、設定でテキストのハイライトを有効にしてください。"
+  },
+  "highlightHistoryOpenSettings": {
+    "message": "設定を開く"
+  },
+  "highlightHistoryEmpty": {
+    "message": "保存したハイライトはありません。"
+  },
+  "highlightHistoryJumpFailed": {
+    "message": "会話内でこのハイライトが見つかりませんでした。"
+  },
+  "highlightHistoryMore": {
+    "message": "さらに表示"
+  },
+  "localTransferTitle": {
+    "message": "ローカルバックアップとインポート"
+  },
+  "transferPins": {
+    "message": "テキストピン"
+  },
+  "transferPrompts": {
+    "message": "プロンプト"
+  },
+  "transferOpenChat": {
+    "message": "ChatGPT タブを開くか再読み込みして接続してください。"
+  },
+  "transferFormat": {
+    "message": "エクスポート形式"
+  },
+  "transferFull": {
+    "message": "GPT-Voyager の完全バックアップ"
+  },
+  "transferFormatsHelp": {
+    "message": "GPT-Voyager のバックアップには、フォルダー、お気に入り、テキストピン、ハイライト、プロンプトが含まれます。Voyager 形式ではフォルダーまたはプロンプトを手動でやり取りできます。"
+  },
+  "transferExported": {
+    "message": "バックアップのダウンロードを開始しました。"
+  },
+  "transferChoose": {
+    "message": "JSON ファイルを選択"
+  },
+  "transferMatch": {
+    "message": "エクスポート時と現在の ChatGPT アカウントは一致しています。このブラウザの別のアカウントで保存したデータが含まれる場合があります。"
+  },
+  "transferUnknown": {
+    "message": "アカウントを確認できません。このファイルが端末内の GPT-Voyager データに対応するか確認してください。"
+  },
+  "transferItems": {
+    "message": "カテゴリ"
+  },
+  "transferLocal": {
+    "message": "ローカル"
+  },
+  "transferIncoming": {
+    "message": "ファイル内"
+  },
+  "transferAdded": {
+    "message": "新規"
+  },
+  "transferDuplicates": {
+    "message": "重複"
+  },
+  "transferConflicts": {
+    "message": "競合"
+  },
+  "transferMerge": {
+    "message": "統合"
+  },
+  "transferReplace": {
+    "message": "置換"
+  },
+  "transferMergeHelp": {
+    "message": "完全に同じ項目はスキップし、異なる項目は保持します。同じターンのお気に入りは 1 件だけ保持します。"
+  },
+  "transferReplaceHelp": {
+    "message": "選択したカテゴリのみを置き換えます。空のカテゴリは対応するローカルデータを消去します。書き込み前に復元用コピーをローカルに保存し、ここからダウンロードできます。"
+  },
+  "transferApplyMerge": {
+    "message": "選択したカテゴリを統合"
+  },
+  "transferApplyReplace": {
+    "message": "選択したカテゴリを置換"
+  },
+  "transferRecovery": {
+    "message": "復元用コピーをダウンロード"
+  },
+  "transferDone": {
+    "message": "インポートが完了しました。必要に応じて、他の ChatGPT タブを再読み込みしてください。"
+  },
+  "transferMismatch": {
+    "message": "別の識別済み ChatGPT アカウントでエクスポートされたバックアップのため、インポートできません。会話の重複がないだけでは、アカウントの不一致とは判断しません。"
+  },
+  "transferWrongSite": {
+    "message": "このバックアップは別のサイトのものです。ChatGPT のバックアップを選択してください。"
+  },
+  "transferUnsupported": {
+    "message": "この種類の Voyager バックアップには対応していません。フォルダーまたはプロンプトの JSON ファイルを使用してください。"
+  },
+  "transferInvalid": {
+    "message": "JSON ファイルが無効か、未対応のバックアップ形式です。"
+  },
+  "transferChanged": {
+    "message": "接続先、アカウント、またはローカルデータが変わりました。もう一度ファイルを選んでプレビューしてください。"
+  },
+  "transferBackupFailed": {
+    "message": "ローカルの復元用コピーを保存または取得できませんでした。"
+  },
+  "transferReadFailed": {
+    "message": "ローカルデータを読み込めません。ChatGPT を再読み込みしてから、もう一度お試しください。"
+  },
+  "transferDiverged": {
+    "message": "ローカルにある 2 つのフォルダーデータが一致せず、インポートを停止しました。両方をバックアップし、差分を解消してから再試行してください。"
+  },
+  "transferWriteFailed": {
+    "message": "インポート結果を保存できませんでした。ローカルデータを確認してから再試行してください。"
+  },
+  "transferRollbackFailed": {
+    "message": "インポートに失敗し、以前のデータを完全には復元できませんでした。ローカルデータを確認し、復元用コピーがあれば使用してください。"
+  },
+  "transferPromptsOnly": {
+    "message": "プロンプトのみ"
+  },
+  "transferSettingsArchive": {
+    "message": "設定を含むアーカイブ"
+  },
+  "transferReviewTitle": {
+    "message": "バックアップのインポートを確認"
+  },
+  "transferClose": {
+    "message": "閉じる"
   }
 }

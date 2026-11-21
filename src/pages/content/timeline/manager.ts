@@ -1,3 +1,4 @@
+import { LOCAL_TRANSFER_STAR_REVISION } from '@/features/localTransfer/starRevision';
 import {
   type AccountScope,
   accountIsolationService,
@@ -257,6 +258,7 @@ export class TimelineManager {
   private scrollAnimationLockUntil = 0;
   private navigationGeneration = 0;
   private navigationTimers = new Set<number>();
+  private pendingStarredHash: string | null = null;
   private navigationAnchor: { element: HTMLElement; id?: string | null } | null = null;
   private onNavigationInterrupt: ((event: Event) => void) | null = null;
   private lastScrollContainerRefreshAt = 0;
@@ -934,19 +936,25 @@ export class TimelineManager {
     }
   }
 
-  private applySharedStarredData(data?: StarredMessagesData | null): void {
+  private applySharedStarredData(data?: StarredMessagesData | null, old?: StarredMessagesData, imported = false): void {
     if (!this.conversationId) return;
 
     const rawMessages = data?.messages?.[this.conversationId];
     const conversationMessages = Array.isArray(rawMessages) ? rawMessages : [];
-    const nextSet = new Set(conversationMessages.map((message) => String(message.turnId)));
+    const key = this.getStarsStorageKey();
+    const nextSet = (key && this.parseTimelineStarIds(localStorage.getItem(key))) || new Set<string>();
+    const sharedIds = new Set(conversationMessages.map(message => String(message.turnId)));
+    for (const previous of (!imported && old?.messages?.[this.conversationId]) || []) {
+      if (!sharedIds.has(previous.turnId)) nextSet.delete(previous.turnId);
+    }
+    for (const id of sharedIds) nextSet.add(id);
 
     // Update starredAt map from shared data
     for (const msg of conversationMessages) {
       if (msg.starredAt) this.starredAtMap.set(String(msg.turnId), msg.starredAt);
     }
 
-    this.applyStarredIdSet(nextSet);
+    this.applyStarredIdSet(nextSet, !imported);
   }
 
   private async syncStarredFromService(): Promise<void> {
@@ -971,14 +979,16 @@ export class TimelineManager {
         }
       }
 
-      const nextSet = new Set(messages.map((message) => String(message.turnId)));
+      // Stars made by older clients can exist only in the conversation's host storage.
+      const nextSet = new Set(this.starred);
+      for (const message of messages) nextSet.add(String(message.turnId));
 
       // Update starredAt map from service data
       for (const msg of messages) {
         if (msg.starredAt) this.starredAtMap.set(String(msg.turnId), msg.starredAt);
       }
 
-      this.applyStarredIdSet(nextSet);
+      this.applyStarredIdSet(nextSet, false);
     } catch (error) {
       console.warn('[Timeline] Failed to sync starred messages from shared storage:', error);
     }
@@ -2435,6 +2445,15 @@ export class TimelineManager {
 
   private shouldDeferMarkerRecalculation(): boolean {
     if (this.markers.length === 0) return false;
+    // Native paging prepends stable mirror anchors. The old anchors keep their
+    // identity and order, even while the reader continues to scroll upward.
+    const first = this.markers[0].element;
+    const layer = first?.parentElement;
+    if (layer?.isConnected && layer.hasAttribute('data-gv-thread-anchor-layer')) {
+      const added = layer.childElementCount - this.markers.length;
+      if (added > 0 && layer.children[added] === first &&
+          this.markers.every((marker, i) => layer.children[added + i] === marker.element)) return false;
+    }
     if (this.isScrollInteractionActive()) return true;
     if (!this.lastUserScrollAt) return false;
     const now =
@@ -2504,9 +2523,9 @@ export class TimelineManager {
     // delay navigation to (and timestamp recording for) the freshly-appeared
     // turn by a full confirmation cycle. Commit those immediately; only genuine
     // reordering or removal of existing turn ids needs the debounce below.
-    const isAppendOnly =
-      nextIds.length > currentIds.length && currentIds.every((id, index) => nextIds[index] === id);
-    if (isAppendOnly) return false;
+    const added = nextIds.length - currentIds.length;
+    if (added > 0 && (currentIds.every((id, index) => nextIds[index] === id) ||
+        currentIds.every((id, index) => nextIds[added + index] === id))) return false;
 
     const signature = nextIds.join('|');
     if (this.pendingMarkerOrderSignature === signature && !this.isScrollInteractionActive()) {
@@ -2653,14 +2672,37 @@ export class TimelineManager {
   }
 
   private setupEventListeners(): void {
+    const reloadStoredMarks = (event: StorageEvent) => {
+      if (!event.key || (event.key !== this.getPinsStorageKey() && event.key !== this.getStarsStorageKey())) return;
+      const value = localStorage.getItem(event.key);
+      applyTimelinePrivateStorageChange(event.key, value);
+      if (event.key === this.getPinsStorageKey()) {
+        void this.loadTextPins().then(() => {
+          if (this.isCurrentContext()) {
+            this.renderTextPinBadges();
+            this.updatePinControlsState();
+          }
+        });
+      } else {
+        const ids = value === null ? new Set<string>() : this.parseTimelineStarIds(value);
+        if (ids) this.applyStarredIdSet(ids, false);
+      }
+    };
+    window.addEventListener('storage', reloadStoredMarks);
+    this.eventBusUnsubscribers.push(() => window.removeEventListener('storage', reloadStoredMarks));
     this.onNavigationInterrupt = (event: Event) => {
-      if ((!this.isScrolling && !this.navigationAnchor) || !(event.target instanceof Node)) return;
-      if (
-        !this.conversationContainer?.contains(event.target) &&
-        !this.scrollContainer?.contains(event.target) &&
-        !this.ui.timelineBar?.contains(event.target)
-      )
-        return;
+      // Input can precede the hashchange event or arrive while init awaits storage.
+      if (!this.pendingStarredHash && location.hash.startsWith('#gv-turn-')) {
+        this.pendingStarredHash = location.hash;
+      }
+      if (!this.isScrolling && !this.navigationAnchor && !this.pendingStarredHash) return;
+      // Overlays and the scrollbar can receive input outside the thread subtree.
+      // Once the reader takes control, no queued jump may reclaim the viewport.
+      if (event.type !== 'keydown') this.navigationQueue.length = 0;
+      this.consumeStarredHash();
+      if (this.isScrolling && this.scrollContainer?.scrollTo) {
+        this.scrollContainer.scrollTo({ top: this.scrollContainer.scrollTop, behavior: 'instant' });
+      }
       this.cancelNavigation();
       this.activeLockUntil = 0;
       this.scheduleScrollSync();
@@ -3013,7 +3055,11 @@ export class TimelineManager {
 
           const starredChange = changes[StorageKeys.TIMELINE_STARRED_MESSAGES];
           if (starredChange) {
-            this.applySharedStarredData(starredChange.newValue as StarredMessagesData | null);
+            this.applySharedStarredData(
+              starredChange.newValue as StarredMessagesData | null,
+              starredChange.oldValue as StarredMessagesData | undefined,
+              Boolean(changes[LOCAL_TRANSFER_STAR_REVISION]) || starredChange.newValue === undefined,
+            );
           }
 
           const timelineHierarchyChange = changes[this.timelineHierarchyStorageKey];
@@ -3117,6 +3163,7 @@ export class TimelineManager {
 
   private cancelNavigation(): void {
     this.navigationGeneration++;
+    this.pendingStarredHash = null;
     this.navigationAnchor = null;
     for (const timer of this.navigationTimers) window.clearTimeout(timer);
     this.navigationTimers.clear();
@@ -6549,75 +6596,42 @@ export class TimelineManager {
     return true;
   }
 
-  /**
-   * Handle starred message navigation with optimized performance
-   * Strategy: Quick check if markers ready, otherwise retry with exponential backoff
-   */
-  private handleStarredMessageNavigation(): void {
-    try {
-      const hash = window.location.hash;
-      if (!hash.startsWith('#gv-turn-')) return;
-
-      const turnId = hash.replace('#gv-turn-', '');
-      if (!turnId) return;
-
-      console.log('[Timeline] Handling starred message navigation, turnId:', turnId);
-
-      let attempts = 0;
-      const maxAttempts = 20;
-
-      const checkAndScroll = (): boolean => {
-        if (this.markers.length === 0) return false;
-
-        const marker = this.markerMap.get(turnId);
-        if (marker && marker.element) {
-          console.log('[Timeline] Found target marker, scrolling');
-
-          // Minimal delay for DOM readiness
-          const liveElement = marker.element;
-          setTimeout(() => {
-            this.smoothScrollTo(liveElement, 800, marker.id);
-
-            // Clear hash after scroll completes
-            setTimeout(() => {
-              window.history.replaceState(
-                null,
-                '',
-                window.location.pathname + window.location.search,
-              );
-            }, 900);
-          }, 100);
-          return true;
-        }
-        return false;
-      };
-
-      // Optimized retry logic with exponential backoff
-      const retry = () => {
-        if (checkAndScroll()) return;
-
-        attempts++;
-        if (attempts >= maxAttempts) {
-          console.warn('[Timeline] Failed to find starred message');
-          window.history.replaceState(null, '', window.location.pathname + window.location.search);
-          return;
-        }
-
-        // Exponential backoff: 100ms, 200ms, 300ms, 300ms, 300ms...
-        const delay = Math.min(attempts * 100, 300);
-        setTimeout(retry, delay);
-      };
-
-      // Quick first attempt if markers might be ready
-      if (this.markers.length > 0) {
-        if (checkAndScroll()) return;
-      }
-
-      // Start retry sequence with minimal initial delay
-      setTimeout(retry, 200);
-    } catch (error) {
-      console.error('[Timeline] Failed to handle starred message navigation:', error);
+  private consumeStarredHash(): void {
+    if (this.pendingStarredHash && location.hash === this.pendingStarredHash) {
+      history.replaceState(history.state, '', location.pathname + location.search);
     }
+    this.pendingStarredHash = null;
+  }
+
+  private handleStarredMessageNavigation(): void {
+    const hash = location.hash;
+    if (!hash.startsWith('#gv-turn-')) return;
+    const turnId = hash.slice('#gv-turn-'.length);
+    if (!turnId) return;
+
+    this.cancelNavigation();
+    this.pendingStarredHash = hash;
+    let attempts = 0;
+    const tryJump = () => {
+      if (location.hash !== hash) {
+        this.pendingStarredHash = null;
+        return;
+      }
+      const marker = this.markerMap.get(turnId);
+      if (marker?.element.isConnected) {
+        this.consumeStarredHash();
+        this.smoothScrollTo(marker.element, 800, marker.id);
+        return;
+      }
+      if (++attempts >= 20) {
+        this.consumeStarredHash();
+        return;
+      }
+      this.navigationTimer(tryJump, Math.min(attempts * 100, 300));
+    };
+    // Wait for the current render. Wheel input, teardown and newer jumps all
+    // cancel this timer (including retries while native history is loading).
+    this.navigationTimer(tryJump, 100);
   }
 
   destroy(): void {

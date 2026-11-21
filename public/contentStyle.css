@@ -9022,6 +9022,23 @@ body.gv-rtl .gv-pm-trigger {
   min-width: 0;
 }
 
+.gv-pm-footer-secondary { position: relative; }
+.gv-pm-transfer-menu {
+  position: absolute;
+  bottom: calc(100% + 5px);
+  z-index: 4;
+  display: grid;
+  padding: 4px;
+  min-width: max-content;
+  border-radius: 10px;
+  border: 1px solid var(--gv-line);
+  background: var(--gv-bg);
+  box-shadow: 0 4px 18px #0002;
+}
+.gv-pm-transfer-menu[hidden], .gv-pm-transfer-menu button[hidden] { display: none; }
+.gv-pm-footer .gv-pm-transfer-menu button { justify-content: flex-start; width: 100%; }
+.gv-pm-footer .gv-pm-transfer-menu .gv-pm-backup-btn { border-top: 1px solid var(--gv-line); }
+
 .gv-pm-import-input {
   display: none;
 }
@@ -9108,7 +9125,7 @@ body.gv-rtl .gv-pm-trigger {
   transform: rotate(-16deg) scale(1.12);
 }
 
-.gv-pm-footer .gv-pm-favorites-btn {
+.gv-pm-footer :is(.gv-pm-favorites-btn, .gv-pm-highlights-btn) {
   margin-left: auto;
   gap: 5px;
 }
@@ -9121,12 +9138,12 @@ body.gv-rtl .gv-pm-trigger {
   transition: transform 460ms var(--gv-spring-snap);
 }
 
-.gv-pm-favorites-btn:hover .gv-pm-favorites-btn__icon,
-.gv-pm-favorites-btn.active .gv-pm-favorites-btn__icon {
+:is(.gv-pm-favorites-btn, .gv-pm-highlights-btn):hover .gv-pm-favorites-btn__icon,
+:is(.gv-pm-favorites-btn, .gv-pm-highlights-btn).active .gv-pm-favorites-btn__icon {
   transform: rotate(-12deg) scale(1.1);
 }
 
-.gv-pm-footer .gv-pm-favorites-btn.active {
+.gv-pm-footer :is(.gv-pm-favorites-btn, .gv-pm-highlights-btn).active {
   color: var(--gv-fg);
   background: var(--gv-hover);
 }

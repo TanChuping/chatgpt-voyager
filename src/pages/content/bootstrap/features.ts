@@ -30,6 +30,7 @@ export const BOOTSTRAP_SETTING_KEYS = [
   StorageKeys.PREVENT_AUTO_SCROLL_ENABLED,
   StorageKeys.DRIVE_AUTO_ALLOW_ENABLED,
   StorageKeys.QUOTE_REPLY_ENABLED,
+  StorageKeys.TEXT_HIGHLIGHTS_ENABLED,
   StorageKeys.MERMAID_ENABLED,
   StorageKeys.FORK_ENABLED,
   StorageKeys.FOLDER_PROJECT_ENABLED,
@@ -107,6 +108,15 @@ export function createLazyFeatureDefinitions(
   dependencies: LazyFeatureDependencies,
 ): LazyFeatureDefinition[] {
   return [
+    {
+      id: 'text-highlights',
+      initial: 'immediate',
+      isEnabled: (settings) => isTrue(settings, StorageKeys.TEXT_HIGHLIGHTS_ENABLED),
+      load: async () => {
+        const module = await import('../textHighlights/index');
+        return { start: module.startTextHighlights };
+      },
+    },
     {
       id: 'drive-auto-allow',
       initial: 'immediate',

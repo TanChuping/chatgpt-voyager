@@ -3,6 +3,8 @@ import browser from 'webextension-polyfill';
 
 import { StorageKeys } from '@/core/types/common';
 import { isFirefox } from '@/core/utils/browser';
+import { canonicalJson, isTransferStarredData } from '@/features/localTransfer/model';
+import { LOCAL_TRANSFER_STAR_REVISION } from '@/features/localTransfer/starRevision';
 import type { ForkNode, ForkNodesData } from '@/pages/content/fork/forkTypes';
 import type { StarredMessage, StarredMessagesData } from '@/pages/content/timeline/starredTypes';
 import { getTranslation } from '@/utils/i18n';
@@ -370,6 +372,38 @@ class StarredMessagesManager {
     await chrome.storage.local.set({ [StorageKeys.TIMELINE_STARRED_MESSAGES]: data });
   }
 
+  async compareAndSetForTransfer(payload: unknown): Promise<boolean> {
+    if (
+      !payload ||
+      typeof payload !== 'object' ||
+      !('expected' in payload) ||
+      !('next' in payload)
+    ) {
+      throw new Error('invalid_starred_transfer');
+    }
+    const { expected, next } = payload;
+    if (
+      (expected !== null && !isTransferStarredData(expected)) ||
+      (next !== null && !isTransferStarredData(next))
+    ) {
+      throw new Error('invalid_starred_transfer');
+    }
+    return this.serialize(async () => {
+      const key = StorageKeys.TIMELINE_STARRED_MESSAGES;
+      const read = async () => (await chrome.storage.local.get(key))[key];
+      if (canonicalJson(await read()) !== canonicalJson(expected ?? undefined)) return false;
+      if (next === null) await chrome.storage.local.remove(key);
+      else {
+        await chrome.storage.local.set({ [key]: next, [LOCAL_TRANSFER_STAR_REVISION]: crypto.randomUUID() });
+        await chrome.storage.local.remove(LOCAL_TRANSFER_STAR_REVISION);
+      }
+      if (canonicalJson(await read()) !== canonicalJson(next ?? undefined)) {
+        throw new Error('starred_transfer_verify_failed');
+      }
+      return true;
+    });
+  }
+
   async addStarredMessage(message: StarredMessage): Promise<boolean> {
     return this.serialize(async () => {
       const data = await this.getFromStorage();
@@ -600,6 +634,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       if (message && message.type && message.type.startsWith('gv.starred.')) {
         switch (message.type) {
+          case 'gv.starred.transferCompareAndSet':
+            if (
+              sender.id !== chrome.runtime.id ||
+              sender.frameId !== 0 ||
+              typeof sender.tab?.id !== 'number' ||
+              !normalizeChatGptUrl(sender.url)
+            ) {
+              throw new Error('invalid_starred_transfer_sender');
+            }
+            sendResponse({
+              ok: true,
+              applied: await starredMessagesManager.compareAndSetForTransfer(message.payload),
+            });
+            return;
           case 'gv.starred.add':
             sendResponse({
               ok: true,
@@ -688,7 +736,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
       }
 
+      if (message?.type === 'gv.reviewPickedBackup') {
+        if (sender.id !== chrome.runtime.id || sender.frameId !== 0 || !normalizeChatGptUrl(sender.url) ||
+            !sender.tab?.id || sender.tab.incognito || !/^[0-9a-f-]{36}$/.test(message.ticket)) {
+          sendResponse({ok:false});
+          return;
+        }
+        const url = new URL(chrome.runtime.getURL('src/pages/options/index.html'));
+        url.searchParams.set('review', message.ticket);
+        url.searchParams.set('source', String(sender.tab.id));
+        await chrome.windows.create({url:url.href,type:'popup',focused:true,width:740,height:660});
+        sendResponse({ok:true});
+        return;
+      }
       if (message?.type === 'gv.openPopup') {
+        if (message.focus === 'text-highlights' && normalizeChatGptUrl(sender.url)) {
+          await (chrome.storage.session ?? chrome.storage.local).set({
+            gvFocusHighlightSettings: Date.now(),
+          });
+        }
         sendResponse(await openSettingsSurface());
         return;
       }

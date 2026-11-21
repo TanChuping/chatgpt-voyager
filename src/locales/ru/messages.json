@@ -2087,7 +2087,184 @@
   "tempChatRegretErrCollectionStopped": {
     "message": "Сбор диалога завершился преждевременно (найдено сообщений: {count})."
   },
+  "textHighlights": {
+    "message": "Выделение текста"
+  },
+  "textHighlightsDescription": {
+    "message": "Выберите текст сообщения ChatGPT, чтобы выделить его цветом и добавить заметку."
+  },
+  "textHighlightAdd": {
+    "message": "Выделить"
+  },
+  "textHighlightEdit": {
+    "message": "Изменить выделение"
+  },
+  "textHighlightColor": {
+    "message": "Цвет"
+  },
+  "textHighlightYellow": {
+    "message": "Жёлтый"
+  },
+  "textHighlightGreen": {
+    "message": "Зелёный"
+  },
+  "textHighlightBlue": {
+    "message": "Синий"
+  },
+  "textHighlightPink": {
+    "message": "Розовый"
+  },
+  "textHighlightNote": {
+    "message": "Заметка (необязательно)"
+  },
+  "textHighlightSave": {
+    "message": "Сохранить"
+  },
+  "textHighlightDelete": {
+    "message": "Удалить"
+  },
+  "textHighlightCancel": {
+    "message": "Отмена"
+  },
+  "textHighlightStorageError": {
+    "message": "Не удалось сохранить выделение."
+  },
   "export_image_render_failed": {
     "message": "Не удалось сформировать изображение ({width} × {height})"
+  },
+  "highlightHistoryTitle": {
+    "message": "Выделения"
+  },
+  "highlightHistoryDisabled": {
+    "message": "Включите выделение текста в настройках, чтобы просмотреть свои выделения."
+  },
+  "highlightHistoryOpenSettings": {
+    "message": "Открыть настройки"
+  },
+  "highlightHistoryEmpty": {
+    "message": "Сохранённых выделений пока нет."
+  },
+  "highlightHistoryJumpFailed": {
+    "message": "Не удалось найти это выделение в чате."
+  },
+  "highlightHistoryMore": {
+    "message": "Показать ещё"
+  },
+  "localTransferTitle": {
+    "message": "Локальная резервная копия и импорт"
+  },
+  "transferPins": {
+    "message": "Закреплённые фрагменты"
+  },
+  "transferPrompts": {
+    "message": "Промпты"
+  },
+  "transferOpenChat": {
+    "message": "Откройте или обновите вкладку ChatGPT для подключения."
+  },
+  "transferFormat": {
+    "message": "Формат экспорта"
+  },
+  "transferFull": {
+    "message": "Полная резервная копия GPT-Voyager"
+  },
+  "transferFormatsHelp": {
+    "message": "Резервная копия GPT-Voyager содержит папки, избранное, закреплённые фрагменты, выделения и промпты. Форматы Voyager подходят для ручного обмена папками или промптами."
+  },
+  "transferExported": {
+    "message": "Скачивание резервной копии началось."
+  },
+  "transferChoose": {
+    "message": "Выбрать файл JSON"
+  },
+  "transferMatch": {
+    "message": "Аккаунт ChatGPT, из которого сделан экспорт, совпадает с текущим. Копия может включать данные других аккаунтов в этом браузере."
+  },
+  "transferUnknown": {
+    "message": "Не удалось проверить аккаунт. Убедитесь, что файл соответствует вашим локальным данным GPT-Voyager."
+  },
+  "transferItems": {
+    "message": "Категория"
+  },
+  "transferLocal": {
+    "message": "Локально"
+  },
+  "transferIncoming": {
+    "message": "В файле"
+  },
+  "transferAdded": {
+    "message": "Новые"
+  },
+  "transferDuplicates": {
+    "message": "Дубликаты"
+  },
+  "transferConflicts": {
+    "message": "Конфликты"
+  },
+  "transferMerge": {
+    "message": "Объединить"
+  },
+  "transferReplace": {
+    "message": "Заменить"
+  },
+  "transferMergeHelp": {
+    "message": "Полные дубликаты пропускаются, а различающиеся элементы сохраняются. Для каждого хода диалога сохраняется одна запись в избранном."
+  },
+  "transferReplaceHelp": {
+    "message": "Заменяются только выбранные категории. Пустая категория удалит соответствующие локальные данные. Перед записью создаётся локальная копия для восстановления, которую можно скачать здесь."
+  },
+  "transferApplyMerge": {
+    "message": "Объединить выбранное"
+  },
+  "transferApplyReplace": {
+    "message": "Заменить выбранное"
+  },
+  "transferRecovery": {
+    "message": "Скачать копию для восстановления"
+  },
+  "transferDone": {
+    "message": "Импорт завершён. При необходимости обновите другие открытые вкладки ChatGPT."
+  },
+  "transferMismatch": {
+    "message": "Копия экспортирована из другого распознанного аккаунта ChatGPT. Импорт заблокирован. Отсутствие общих чатов само по себе не указывает на несовпадение аккаунтов."
+  },
+  "transferWrongSite": {
+    "message": "Эта копия относится к другому сайту. Выберите резервную копию ChatGPT."
+  },
+  "transferUnsupported": {
+    "message": "Этот тип копии Voyager не поддерживается. Выберите файл JSON с папками или промптами."
+  },
+  "transferInvalid": {
+    "message": "Файл JSON повреждён или использует неподдерживаемый формат резервной копии."
+  },
+  "transferChanged": {
+    "message": "Изменилось подключение, аккаунт или локальные данные. Выберите файл ещё раз для предварительного просмотра."
+  },
+  "transferBackupFailed": {
+    "message": "Не удалось сохранить или получить локальную копию для восстановления."
+  },
+  "transferReadFailed": {
+    "message": "Не удалось прочитать локальные данные. Обновите страницу ChatGPT и повторите попытку."
+  },
+  "transferDiverged": {
+    "message": "Две локальные копии папок различаются. Импорт остановлен. Сохраните обе копии и устраните расхождения, прежде чем повторить попытку."
+  },
+  "transferWriteFailed": {
+    "message": "Не удалось сохранить результат импорта. Проверьте локальные данные перед повторной попыткой."
+  },
+  "transferRollbackFailed": {
+    "message": "Импорт завершился ошибкой, и предыдущее состояние восстановлено не полностью. Проверьте локальные данные и воспользуйтесь копией для восстановления, если она есть."
+  },
+  "transferPromptsOnly": {
+    "message": "Только промпты"
+  },
+  "transferSettingsArchive": {
+    "message": "Архив с настройками"
+  },
+  "transferReviewTitle": {
+    "message": "Подтверждение импорта"
+  },
+  "transferClose": {
+    "message": "Закрыть"
   }
 }

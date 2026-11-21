@@ -1,4 +1,4 @@
-﻿import browser from 'webextension-polyfill';
+import browser from 'webextension-polyfill';
 
 import {
   createChevronRightIcon,
@@ -4704,6 +4704,11 @@ export class FolderManager {
       };
 
       const inspectCandidates = (): void => {
+        // A native popover can already exist, acquire its menu items later,
+        // and open via aria-expanded without inserting another menu node.
+        const controls = trigger.getAttribute('aria-controls');
+        const controlledMenu = controls && document.getElementById(controls);
+        if (controlledMenu && controlledMenu.matches('[role="menu"]')) candidates.add(controlledMenu);
         for (const candidate of candidates) {
           if (isOwnedNativeConversationMenu(candidate, snapshot)) {
             finish(candidate);
@@ -4719,6 +4724,8 @@ export class FolderManager {
         }
 
         for (const mutation of mutations) {
+          const menu = mutation.target instanceof Element && mutation.target.closest<HTMLElement>('[role="menu"]');
+          if (menu) candidates.add(menu);
           mutation.addedNodes.forEach((node) => {
             findNativeConversationMenusInNode(node).forEach((menu) => candidates.add(menu));
           });
@@ -4739,6 +4746,7 @@ export class FolderManager {
         attributes: true,
         attributeFilter: [
           'aria-controls',
+          'data-testid',
           'aria-expanded',
           'aria-labelledby',
           'aria-hidden',
@@ -6861,6 +6869,10 @@ export class FolderManager {
     } catch (notificationError) {
       console.error('[FolderManager] Failed to show notification:', notificationError);
     }
+  }
+
+  hasPendingFolderEdits(): boolean {
+    return this.saveDirty || this.saveRequested || !!this.savePromise || this.pendingTitleUpdates.size > 0;
   }
 
   /**

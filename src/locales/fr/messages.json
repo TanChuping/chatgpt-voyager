@@ -2087,7 +2087,184 @@
   "tempChatRegretErrCollectionStopped": {
     "message": "La collecte de la conversation s’est arrêtée prématurément ({count} messages trouvés)."
   },
+  "textHighlights": {
+    "message": "Surlignages"
+  },
+  "textHighlightsDescription": {
+    "message": "Sélectionnez du texte dans un message ChatGPT pour le surligner et ajouter une note."
+  },
+  "textHighlightAdd": {
+    "message": "Surligner"
+  },
+  "textHighlightEdit": {
+    "message": "Modifier le surlignage"
+  },
+  "textHighlightColor": {
+    "message": "Couleur"
+  },
+  "textHighlightYellow": {
+    "message": "Jaune"
+  },
+  "textHighlightGreen": {
+    "message": "Vert"
+  },
+  "textHighlightBlue": {
+    "message": "Bleu"
+  },
+  "textHighlightPink": {
+    "message": "Rose"
+  },
+  "textHighlightNote": {
+    "message": "Note (facultative)"
+  },
+  "textHighlightSave": {
+    "message": "Enregistrer"
+  },
+  "textHighlightDelete": {
+    "message": "Supprimer"
+  },
+  "textHighlightCancel": {
+    "message": "Annuler"
+  },
+  "textHighlightStorageError": {
+    "message": "Impossible d’enregistrer le surlignage."
+  },
   "export_image_render_failed": {
     "message": "Échec du rendu de l’image ({width} × {height})"
+  },
+  "highlightHistoryTitle": {
+    "message": "Surlignages"
+  },
+  "highlightHistoryDisabled": {
+    "message": "Activez le surlignage du texte dans les paramètres pour afficher vos surlignages."
+  },
+  "highlightHistoryOpenSettings": {
+    "message": "Ouvrir les paramètres"
+  },
+  "highlightHistoryEmpty": {
+    "message": "Aucun surlignage enregistré."
+  },
+  "highlightHistoryJumpFailed": {
+    "message": "Ce surlignage est introuvable dans la conversation."
+  },
+  "highlightHistoryMore": {
+    "message": "Afficher plus"
+  },
+  "localTransferTitle": {
+    "message": "Sauvegarde locale et importation"
+  },
+  "transferPins": {
+    "message": "Textes épinglés"
+  },
+  "transferPrompts": {
+    "message": "Prompts"
+  },
+  "transferOpenChat": {
+    "message": "Ouvrez ou actualisez un onglet ChatGPT pour établir la connexion."
+  },
+  "transferFormat": {
+    "message": "Format d’exportation"
+  },
+  "transferFull": {
+    "message": "Sauvegarde complète de GPT-Voyager"
+  },
+  "transferFormatsHelp": {
+    "message": "La sauvegarde GPT-Voyager contient les dossiers, les favoris, les textes épinglés, les surlignages et les prompts. Les formats Voyager permettent d’échanger manuellement des dossiers ou des prompts."
+  },
+  "transferExported": {
+    "message": "Téléchargement de la sauvegarde lancé."
+  },
+  "transferChoose": {
+    "message": "Choisir un fichier JSON"
+  },
+  "transferMatch": {
+    "message": "Le compte ChatGPT utilisé pour l’export correspond au compte actuel. La sauvegarde peut contenir des données d’autres comptes de ce navigateur."
+  },
+  "transferUnknown": {
+    "message": "Le compte n’a pas pu être vérifié. Vérifiez que le fichier correspond à vos données GPT-Voyager locales."
+  },
+  "transferItems": {
+    "message": "Catégorie"
+  },
+  "transferLocal": {
+    "message": "Local"
+  },
+  "transferIncoming": {
+    "message": "Dans le fichier"
+  },
+  "transferAdded": {
+    "message": "Nouveaux"
+  },
+  "transferDuplicates": {
+    "message": "Doublons"
+  },
+  "transferConflicts": {
+    "message": "Conflits"
+  },
+  "transferMerge": {
+    "message": "Fusionner"
+  },
+  "transferReplace": {
+    "message": "Remplacer"
+  },
+  "transferMergeHelp": {
+    "message": "Les doublons exacts sont ignorés et les éléments différents sont conservés. Chaque tour ajouté aux favoris est conservé une seule fois."
+  },
+  "transferReplaceHelp": {
+    "message": "Seules les catégories sélectionnées sont remplacées. Une catégorie vide efface ses données locales. Une copie de récupération est enregistrée localement avant l’écriture et peut être téléchargée ici."
+  },
+  "transferApplyMerge": {
+    "message": "Fusionner la sélection"
+  },
+  "transferApplyReplace": {
+    "message": "Remplacer la sélection"
+  },
+  "transferRecovery": {
+    "message": "Télécharger la copie de récupération"
+  },
+  "transferDone": {
+    "message": "Importation terminée. Actualisez les autres onglets ChatGPT ouverts si nécessaire."
+  },
+  "transferMismatch": {
+    "message": "Cette sauvegarde a été exportée avec un autre compte ChatGPT identifié. L’importation est bloquée. L’absence de conversations communes ne suffit pas à établir une différence de compte."
+  },
+  "transferWrongSite": {
+    "message": "Cette sauvegarde concerne un autre site. Choisissez une sauvegarde ChatGPT."
+  },
+  "transferUnsupported": {
+    "message": "Ce type de sauvegarde Voyager est incompatible. Utilisez un fichier JSON de dossiers ou de prompts."
+  },
+  "transferInvalid": {
+    "message": "Ce fichier JSON est invalide ou utilise un format de sauvegarde incompatible."
+  },
+  "transferChanged": {
+    "message": "La connexion, le compte ou les données locales ont changé. Sélectionnez à nouveau le fichier pour actualiser l’aperçu."
+  },
+  "transferBackupFailed": {
+    "message": "Impossible d’enregistrer ou de récupérer la copie de récupération locale."
+  },
+  "transferReadFailed": {
+    "message": "Impossible de lire les données locales. Actualisez ChatGPT et réessayez."
+  },
+  "transferDiverged": {
+    "message": "Deux copies locales des dossiers diffèrent. L’importation a été interrompue. Sauvegardez les deux copies et résolvez leurs différences avant de réessayer."
+  },
+  "transferWriteFailed": {
+    "message": "Impossible d’enregistrer le résultat de l’importation. Vérifiez les données locales avant de réessayer."
+  },
+  "transferRollbackFailed": {
+    "message": "L’importation a échoué et les données antérieures n’ont pas pu être entièrement restaurées. Vérifiez les données locales et utilisez la copie de récupération si elle est disponible."
+  },
+  "transferPromptsOnly": {
+    "message": "Prompts uniquement"
+  },
+  "transferSettingsArchive": {
+    "message": "Archive avec réglages"
+  },
+  "transferReviewTitle": {
+    "message": "Confirmer l’importation"
+  },
+  "transferClose": {
+    "message": "Fermer"
   }
 }

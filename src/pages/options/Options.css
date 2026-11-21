@@ -1,8 +1,119 @@
-.container {
-  width: 100%;
-  height: 50vh;
-  font-size: 2rem;
+:root {
+  color-scheme: light dark;
+  --canvas: light-dark(#f6f6f8, #202022);
+  --surface: light-dark(#fff, #29292c);
+  --fg: light-dark(#202025, #ededee);
+  --muted: light-dark(#64646c, #b0b0b8);
+  --line: light-dark(#dedee3, #45454b);
+  --accent: light-dark(#6436b5, #c4a8ff);
+}
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--fg);
+  font:
+    14px/1.55 system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+}
+.gv-transfer {
+  max-width: 730px;
+  margin: 0 auto;
+  padding: 40px clamp(14px, 4vw, 36px) 50px;
+}
+.gv-transfer header,
+.gv-transfer-actions,
+.gv-transfer fieldset {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.gv-transfer header {
+  font-weight: 600;
+}
+.gv-transfer h1 {
+  font-size: clamp(23px, 4vw, 30px);
+  margin: 16px 0 20px;
+  letter-spacing: -0.03em;
+}
+.gv-transfer h2 {
+  font-size: 16px;
+  margin: 0 0 13px;
+}
+.gv-transfer p {
+  color: var(--muted);
+  margin: 12px 0 0;
+}
+.gv-transfer section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px;
+  margin-top: 16px;
+}
+.gv-transfer button,
+.gv-transfer select {
+  font: inherit;
+  color: inherit;
+  padding: 5px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  max-width: 100%;
+}
+.gv-transfer button {
+  cursor: pointer;
+}
+.gv-transfer button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.gv-transfer .gv-transfer-primary {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: transparent;
+}
+.gv-transfer .gv-transfer-destructive {
+  color: light-dark(#a52b39, #ffb1b5);
+  border-color: currentColor;
+}
+.gv-transfer table {
+  border-collapse: collapse;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.gv-transfer-table {
+  overflow: auto;
+  margin: 12px 0;
+}
+.gv-transfer th,
+.gv-transfer td {
+  font-size: 13px;
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: end;
+}
+.gv-transfer th:first-child {
+  text-align: start;
+}
+.gv-transfer input {
+  accent-color: var(--accent);
+  margin-inline: 0 6px;
+}
+.gv-transfer fieldset {
+  border: 0;
+  padding: 0;
+  margin: 14px 0 0;
+}
+.gv-transfer fieldset + p {
+  margin: 4px 0 12px;
+}
+.gv-transfer a {
+  color: var(--accent);
+}
+.gv-transfer :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

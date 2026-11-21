@@ -389,6 +389,18 @@
     background-color: var(--gv-hover);
   }
 
+  .gv-footer .gv-transfer-launch {
+    min-height: 26px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    border: 1px solid #b6b9c0;
+    background: linear-gradient(#f0f1f4, #ced1d7);
+    color: #30333a;
+    font-weight: 600;
+    box-shadow: inset 0 1px 0 #ffffffb3, 0 1px 2px #0002;
+  }
+  .gv-footer .gv-transfer-launch:hover { background: linear-gradient(#fafbfc, #d9dce2); color: #181a20; }
+  .gv-footer .gv-transfer-launch:active { background: #c8cbd2; }
   .gv-footer-link:active {
     transform: scale(0.95);
     background-color: var(--gv-press);

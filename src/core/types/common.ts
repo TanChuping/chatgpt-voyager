@@ -115,6 +115,7 @@ export const StorageKeys = {
   HIDE_PROMPT_MANAGER: 'gvHidePromptManager',
   MERMAID_ENABLED: 'gvMermaidEnabled',
   QUOTE_REPLY_ENABLED: 'gvQuoteReplyEnabled',
+  TEXT_HIGHLIGHTS_ENABLED: 'textHighlightsEnabled',
   RESPONSE_COMPLETE_NOTIFICATION_ENABLED: 'gvResponseCompleteNotificationEnabled',
 
   // Input behavior

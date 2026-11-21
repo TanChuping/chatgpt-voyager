@@ -44,11 +44,17 @@ export interface HistoryHydrationOptions {
    * is what the export reads).
    */
   isComplete?: () => boolean;
-  /** Upper bound on jump-to-top passes in that mode (defaults to 60). */
+  /** Stops an export from scrolling after the user switches conversations. */
+  isCurrent?: () => boolean;
+  /** Explicit pass budget for testing or advanced callers. */
   maxJumpPasses?: number;
+  maxIdleJumpPasses?: number;
+  /** Identity of the oldest loaded native exchange, even if its row is virtualized. */
+  oldestLoadedId?: () => string | null;
 }
 
-const DEFAULT_MAX_JUMP_PASSES = 60;
+const DEFAULT_MAX_PAGING_TIME_MS = 5 * 60 * 1000;
+const DEFAULT_MAX_IDLE_JUMP_PASSES = 25;
 
 /**
  * scrollTop range. The 2026-09 thread scroller is `flex-direction:
@@ -102,7 +108,14 @@ export async function hydrateConversationHistory(
     };
   }
 
+  const isCurrent = () =>
+    (options.isCurrent?.() ?? true) &&
+    (options.scrollContainer !== undefined || findConversationScrollContainer() === container);
+  const ensureCurrent = () => {
+    if (!isCurrent()) throw new DOMException('Conversation changed during export.', 'AbortError');
+  };
   const initialTop = container.scrollTop;
+  const initialHeight = container.scrollHeight;
   const initialDistanceFromBottom = Math.abs(scrollBounds(container).bottom - initialTop);
   const isAtTop = () => container.scrollTop <= scrollBounds(container).top + 2;
   let stableTopPasses = 0;
@@ -110,72 +123,92 @@ export async function hydrateConversationHistory(
   let previousHeight = container.scrollHeight;
   let reachedTop = false;
 
-  if (options.isComplete) {
-    for (let pass = 0; pass < (options.maxJumpPasses ?? DEFAULT_MAX_JUMP_PASSES); pass += 1) {
-      if (options.isComplete()) {
-        reachedTop = true;
-        break;
+  try {
+    ensureCurrent();
+    if (options.isComplete) {
+      const deadline = Date.now() + DEFAULT_MAX_PAGING_TIME_MS;
+      const knownHeads = new Set<string>();
+      const firstHead = options.oldestLoadedId?.();
+      if (firstHead) knownHeads.add(firstHead);
+      let idlePasses = 0;
+      for (
+        let pass = 0;
+        pass < (options.maxJumpPasses ?? Infinity) && Date.now() < deadline;
+        pass += 1
+      ) {
+        container.scrollTop = scrollBounds(container).top;
+        container.dispatchEvent(new Event('scroll', { bubbles: true }));
+        const height = container.scrollHeight;
+        await wait(options.topSettleDelayMs ?? DEFAULT_TOP_SETTLE_DELAY_MS);
+        ensureCurrent();
+        const count = mergeCollected(collected, collect());
+        options.onProgress?.({ discovered: count, step: pass + 1 });
+        // A completed response can arrive before its rows/layout are committed.
+        // Make one more pass if the page extended the scroller or moved us.
+        if (options.isComplete() && isAtTop() && container.scrollHeight === height) {
+          reachedTop = true;
+          break;
+        }
+        const oldest = options.oldestLoadedId?.();
+        if (oldest && !knownHeads.has(oldest)) {
+          knownHeads.add(oldest);
+          idlePasses = 0;
+        } else if (++idlePasses >= (options.maxIdleJumpPasses ?? DEFAULT_MAX_IDLE_JUMP_PASSES)) {
+          break;
+        }
       }
-      container.scrollTop = scrollBounds(container).top;
+    } else {
+      for (let step = 0; step < (options.maxSteps ?? DEFAULT_MAX_STEPS); step += 1) {
+        const atTop = isAtTop();
+        if (atTop && stableTopPasses >= STABLE_TOP_PASSES) {
+          reachedTop = true;
+          break;
+        }
+
+        if (!atTop) {
+          const distance = Math.max(Math.floor(container.clientHeight * 0.82), 640);
+          container.scrollTop = Math.max(
+            scrollBounds(container).top,
+            container.scrollTop - distance,
+          );
+          container.dispatchEvent(new Event('scroll', { bubbles: true }));
+        }
+
+        await wait(
+          isAtTop()
+            ? (options.topSettleDelayMs ?? DEFAULT_TOP_SETTLE_DELAY_MS)
+            : (options.settleDelayMs ?? DEFAULT_SETTLE_DELAY_MS),
+        );
+        ensureCurrent();
+        const count = mergeCollected(collected, collect());
+        options.onProgress?.({ discovered: count, step: step + 1 });
+
+        // A history page can expand the scroller before its rows mount.
+        const height = container.scrollHeight;
+        if (isAtTop() && count === previousCount && height === previousHeight) stableTopPasses += 1;
+        else stableTopPasses = 0;
+        previousCount = count;
+        previousHeight = height;
+      }
+
+      if (isAtTop() && stableTopPasses >= STABLE_TOP_PASSES) reachedTop = true;
+    }
+  } finally {
+    // Do not scroll a new conversation or a cached page after navigation.
+    if (isCurrent()) {
+      const bounds = scrollBounds(container);
+      if (initialDistanceFromBottom <= 2) {
+        container.scrollTop = bounds.bottom;
+      } else if (bounds.bottom === 0 && bounds.top < 0) {
+        // On column-reverse threads the same bottom-relative offset survives prepends.
+        container.scrollTop = Math.max(bounds.top, initialTop);
+      } else {
+        const addedHeight = Math.max(0, container.scrollHeight - initialHeight);
+        container.scrollTop = Math.min(initialTop + addedHeight, bounds.bottom);
+      }
       container.dispatchEvent(new Event('scroll', { bubbles: true }));
-      await wait(options.topSettleDelayMs ?? DEFAULT_TOP_SETTLE_DELAY_MS);
-      const count = mergeCollected(collected, collect());
-      options.onProgress?.({ discovered: count, step: pass + 1 });
-      // A stable viewport can still have an older page in flight. Only the
-      // captured has_previous_page=false proves paginated history is complete;
-      // keep following the growing top until that signal or the pass budget.
     }
-    if (options.isComplete()) reachedTop = true;
   }
-
-  for (
-    let step = 0;
-    !options.isComplete && step < (options.maxSteps ?? DEFAULT_MAX_STEPS);
-    step += 1
-  ) {
-    const atTop = isAtTop();
-    if (atTop && stableTopPasses >= STABLE_TOP_PASSES) {
-      reachedTop = true;
-      break;
-    }
-
-    if (!atTop) {
-      const distance = Math.max(Math.floor(container.clientHeight * 0.82), 640);
-      container.scrollTop = Math.max(scrollBounds(container).top, container.scrollTop - distance);
-      container.dispatchEvent(new Event('scroll', { bubbles: true }));
-    }
-
-    await wait(
-      isAtTop()
-        ? (options.topSettleDelayMs ?? DEFAULT_TOP_SETTLE_DELAY_MS)
-        : (options.settleDelayMs ?? DEFAULT_SETTLE_DELAY_MS),
-    );
-    const count = mergeCollected(collected, collect());
-    options.onProgress?.({ discovered: count, step: step + 1 });
-
-    // A history page landing above grows the scroller even before its rows
-    // are collected; that is not "stable at the top".
-    const height = container.scrollHeight;
-    if (isAtTop() && count === previousCount && height === previousHeight) stableTopPasses += 1;
-    else stableTopPasses = 0;
-    previousCount = count;
-    previousHeight = height;
-  }
-
-  if (!options.isComplete && isAtTop() && stableTopPasses >= STABLE_TOP_PASSES) reachedTop = true;
-
-  // Keep the export from unexpectedly abandoning the user's reading position.
-  const bounds = scrollBounds(container);
-  if (initialDistanceFromBottom <= Math.max(container.clientHeight, 1000)) {
-    container.scrollTop = bounds.bottom;
-  } else if (bounds.bottom === 0 && bounds.top < 0) {
-    // column-reverse: scrollTop is measured from the bottom, so the old value
-    // still points at the same content after older pages were prepended.
-    container.scrollTop = Math.max(bounds.top, initialTop);
-  } else {
-    container.scrollTop = Math.min(initialTop, bounds.bottom);
-  }
-  container.dispatchEvent(new Event('scroll', { bubbles: true }));
 
   // Rows mount and unmount while we scroll, so per-pass orders are not
   // comparable; re-rank by the final exchange order where it is known.

@@ -10,11 +10,7 @@ export function requestFullConversationCapture(convId: string): Promise<boolean>
     }
     function receive(event: MessageEvent): void {
       const payload = event.data?.payload;
-      if (
-        event.source !== window ||
-        event.origin !== location.origin ||
-        event.data?.__gvType !== 'gv-conv-full-result'
-      )
+      if (event.origin !== location.origin || event.data?.__gvType !== 'gv-conv-full-result')
         return;
       if (payload?.requestId !== requestId || payload?.convId !== convId) return;
       finish(payload.ok === true);

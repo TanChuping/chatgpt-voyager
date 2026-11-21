@@ -26,6 +26,21 @@ function conversation(text: string): LinearConversation {
 }
 
 describe('chunked HTML export', () => {
+  it('preserves Unicode code points across string parts in the downloaded Blob', async () => {
+    const text = 'a'.repeat(1023) + '𠮷😀尾';
+    const parts = await toHtmlBlobParts(conversation(text), { chunkSize: 1024 });
+    const blob = new Blob(parts, { type: 'text/html' });
+    const html = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(blob);
+    });
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    expect(doc.querySelector('meta[charset]')?.getAttribute('charset')).toBe('UTF-8');
+    expect(doc.querySelector('pre.content')?.textContent).toBe(text);
+  });
+
   it('escapes large content in bounded parts and yields to the main thread', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-12T00:00:00.000Z'));

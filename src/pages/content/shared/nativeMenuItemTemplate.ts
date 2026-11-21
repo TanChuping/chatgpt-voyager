@@ -231,6 +231,9 @@ export function cloneAppShellMenuItem(
   item.querySelector(APP_SHELL_ICON_SLOT_SELECTOR)?.replaceChildren(options.icon);
   const labels = item.querySelectorAll<HTMLElement>(APP_SHELL_LABEL_SELECTOR);
   const label = labels[labels.length - 1];
+  // Shortcut hints such as P belong to the copied native action.
+  const shortcut = label.nextElementSibling;
+  if (shortcut?.matches('[aria-hidden="true"], kbd')) shortcut.remove();
   label.textContent = options.label;
   label.setAttribute('data-gv-menu-label', '1');
   return item;

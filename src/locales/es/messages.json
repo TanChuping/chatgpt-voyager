@@ -2087,7 +2087,184 @@
   "tempChatRegretErrCollectionStopped": {
     "message": "La recopilación de la conversación se detuvo antes de completarse ({count} mensajes encontrados)."
   },
+  "textHighlights": {
+    "message": "Resaltados de texto"
+  },
+  "textHighlightsDescription": {
+    "message": "Selecciona texto en un mensaje de ChatGPT para resaltarlo y añadir una nota."
+  },
+  "textHighlightAdd": {
+    "message": "Resaltar"
+  },
+  "textHighlightEdit": {
+    "message": "Editar resaltado"
+  },
+  "textHighlightColor": {
+    "message": "Color"
+  },
+  "textHighlightYellow": {
+    "message": "Amarillo"
+  },
+  "textHighlightGreen": {
+    "message": "Verde"
+  },
+  "textHighlightBlue": {
+    "message": "Azul"
+  },
+  "textHighlightPink": {
+    "message": "Rosa"
+  },
+  "textHighlightNote": {
+    "message": "Nota (opcional)"
+  },
+  "textHighlightSave": {
+    "message": "Guardar"
+  },
+  "textHighlightDelete": {
+    "message": "Eliminar"
+  },
+  "textHighlightCancel": {
+    "message": "Cancelar"
+  },
+  "textHighlightStorageError": {
+    "message": "No se pudo guardar el resaltado."
+  },
   "export_image_render_failed": {
     "message": "No se pudo renderizar la imagen ({width} × {height})"
+  },
+  "highlightHistoryTitle": {
+    "message": "Resaltados"
+  },
+  "highlightHistoryDisabled": {
+    "message": "Activa el resaltado de texto en los ajustes para ver tus resaltados."
+  },
+  "highlightHistoryOpenSettings": {
+    "message": "Abrir ajustes"
+  },
+  "highlightHistoryEmpty": {
+    "message": "Aún no hay resaltados guardados."
+  },
+  "highlightHistoryJumpFailed": {
+    "message": "No se encontró este resaltado en la conversación."
+  },
+  "highlightHistoryMore": {
+    "message": "Mostrar más"
+  },
+  "localTransferTitle": {
+    "message": "Copia de seguridad local e importación"
+  },
+  "transferPins": {
+    "message": "Textos fijados"
+  },
+  "transferPrompts": {
+    "message": "Prompts"
+  },
+  "transferOpenChat": {
+    "message": "Abre o recarga una pestaña de ChatGPT para conectar."
+  },
+  "transferFormat": {
+    "message": "Formato de exportación"
+  },
+  "transferFull": {
+    "message": "Copia completa de GPT-Voyager"
+  },
+  "transferFormatsHelp": {
+    "message": "Las copias de GPT-Voyager incluyen carpetas, favoritos, textos fijados, resaltados y prompts. Los formatos Voyager permiten intercambiar carpetas o prompts manualmente."
+  },
+  "transferExported": {
+    "message": "Se inició la descarga de la copia de seguridad."
+  },
+  "transferChoose": {
+    "message": "Elegir archivo JSON"
+  },
+  "transferMatch": {
+    "message": "La cuenta de ChatGPT que se usó al exportar coincide con la actual. La copia puede incluir datos de otras cuentas de este navegador."
+  },
+  "transferUnknown": {
+    "message": "No se pudo verificar la cuenta. Comprueba que el archivo corresponde a tus datos locales de GPT-Voyager."
+  },
+  "transferItems": {
+    "message": "Categoría"
+  },
+  "transferLocal": {
+    "message": "Local"
+  },
+  "transferIncoming": {
+    "message": "En el archivo"
+  },
+  "transferAdded": {
+    "message": "Nuevos"
+  },
+  "transferDuplicates": {
+    "message": "Duplicados"
+  },
+  "transferConflicts": {
+    "message": "Conflictos"
+  },
+  "transferMerge": {
+    "message": "Combinar"
+  },
+  "transferReplace": {
+    "message": "Reemplazar"
+  },
+  "transferMergeHelp": {
+    "message": "Se omiten los duplicados exactos y se conservan los elementos distintos. Solo se conserva un favorito por turno."
+  },
+  "transferReplaceHelp": {
+    "message": "Solo se reemplazan las categorías seleccionadas. Si una categoría está vacía, se borran sus datos locales. Antes de guardar los cambios se crea una copia de recuperación local que puedes descargar aquí."
+  },
+  "transferApplyMerge": {
+    "message": "Combinar selección"
+  },
+  "transferApplyReplace": {
+    "message": "Reemplazar selección"
+  },
+  "transferRecovery": {
+    "message": "Descargar copia de recuperación"
+  },
+  "transferDone": {
+    "message": "Importación completada. Recarga las otras pestañas abiertas de ChatGPT si es necesario."
+  },
+  "transferMismatch": {
+    "message": "Esta copia se exportó con una cuenta de ChatGPT identificada diferente. Se ha bloqueado la importación. La ausencia de conversaciones en común por sí sola no indica que sean cuentas distintas."
+  },
+  "transferWrongSite": {
+    "message": "Esta copia pertenece a otro sitio. Elige una copia de ChatGPT."
+  },
+  "transferUnsupported": {
+    "message": "Este tipo de copia de Voyager no es compatible. Elige un archivo JSON de carpetas o prompts."
+  },
+  "transferInvalid": {
+    "message": "El archivo JSON no es válido o utiliza un formato de copia no compatible."
+  },
+  "transferChanged": {
+    "message": "Han cambiado la conexión, la cuenta o los datos locales. Vuelve a seleccionar el archivo para actualizar la vista previa."
+  },
+  "transferBackupFailed": {
+    "message": "No se pudo guardar ni recuperar la copia de recuperación local."
+  },
+  "transferReadFailed": {
+    "message": "No se pudieron leer los datos locales. Actualiza ChatGPT e inténtalo de nuevo."
+  },
+  "transferDiverged": {
+    "message": "Hay diferencias entre dos copias locales de las carpetas. Se ha detenido la importación. Haz una copia de ambas y resuelve las diferencias antes de volver a intentarlo."
+  },
+  "transferWriteFailed": {
+    "message": "No se pudo guardar el resultado de la importación. Comprueba los datos locales antes de volver a intentarlo."
+  },
+  "transferRollbackFailed": {
+    "message": "La importación falló y no se pudo restaurar por completo el estado anterior. Revisa los datos locales y usa la copia de recuperación si está disponible."
+  },
+  "transferPromptsOnly": {
+    "message": "Solo prompts"
+  },
+  "transferSettingsArchive": {
+    "message": "Archivo con ajustes"
+  },
+  "transferReviewTitle": {
+    "message": "Revisar importación"
+  },
+  "transferClose": {
+    "message": "Cerrar"
   }
 }

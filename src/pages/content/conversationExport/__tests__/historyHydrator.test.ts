@@ -138,6 +138,53 @@ describe('whole export history hydrator', () => {
     expect(container.scrollTop).toBe(-3000);
   });
 
+  it('actually visits the top and preserves a near-bottom reading offset even with an already-complete capture', async () => {
+    const container = document.createElement('div');
+    container.style.flexDirection = 'column-reverse';
+    Object.defineProperties(container, {
+      clientHeight: { value: 1000 },
+      scrollHeight: { value: 5000 },
+      scrollTop: { value: -300, writable: true },
+    });
+    const wait = vi.fn(async () => {
+      expect(container.scrollTop).toBe(-4000);
+    });
+    const result = await hydrateConversationHistory({
+      scrollContainer: container,
+      collect: () => [live('first', 1)],
+      wait,
+      isComplete: () => true,
+    });
+    expect(wait).toHaveBeenCalledTimes(1);
+    expect(result.reachedTop).toBe(true);
+    expect(container.scrollTop).toBe(-300);
+  });
+
+  it('stops scrolling after a conversation switch without restoring the old offset onto the new page', async () => {
+    const container = document.createElement('div');
+    Object.defineProperties(container, {
+      clientHeight: { value: 1000 },
+      scrollHeight: { value: 5000 },
+      scrollTop: { value: 3000, writable: true },
+    });
+    let current = true;
+    const collect = vi.fn(() => [live('old', 1)]);
+    await expect(
+      hydrateConversationHistory({
+        scrollContainer: container,
+        collect,
+        wait: async () => {
+          current = false;
+          container.scrollTop = 750;
+        },
+        isComplete: () => true,
+        isCurrent: () => current,
+      }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(collect).toHaveBeenCalledTimes(1);
+    expect(container.scrollTop).toBe(750);
+  });
+
   it('2026-09: reports failure when ChatGPT never completes the capture', async () => {
     const container = document.createElement('div');
     container.style.flexDirection = 'column-reverse';
@@ -153,6 +200,35 @@ describe('whole export history hydrator', () => {
       isComplete: () => false,
     });
     expect(result.reachedTop).toBe(false);
+  });
+
+  it('extends the idle limit only when an older native exchange arrives', async () => {
+    const container = document.createElement('div');
+    let height = 5000;
+    Object.defineProperties(container, {
+      clientHeight: { value: 1000 },
+      scrollHeight: { get: () => height },
+      scrollTop: { value: 4000, writable: true },
+    });
+    let oldest = 'latest';
+    let waits = 0;
+    const result = await hydrateConversationHistory({
+      scrollContainer: container,
+      collect: () => [live(oldest, 1)],
+      isComplete: () => false,
+      oldestLoadedId: () => oldest,
+      maxIdleJumpPasses: 3,
+      wait: async () => {
+        // Every pass relayouts. Only the two newly seen exchanges are progress.
+        height += 100;
+        waits += 1;
+        if (waits === 2) oldest = 'middle';
+        if (waits === 4) oldest = 'earlier';
+        if (waits === 6) oldest = 'middle';
+      },
+    });
+    expect(result.reachedTop).toBe(false);
+    expect(waits).toBe(7);
   });
 
   it('waits for a slow history page even when the mounted messages and height stay unchanged', async () => {

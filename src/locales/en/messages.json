@@ -2087,7 +2087,184 @@
   "tempChatRegretErrCollectionStopped": {
     "message": "Conversation collection stopped early ({count} messages found)."
   },
+  "textHighlights": {
+    "message": "Text highlights"
+  },
+  "textHighlightsDescription": {
+    "message": "Select text in a ChatGPT message to highlight it and add a note."
+  },
+  "textHighlightAdd": {
+    "message": "Highlight"
+  },
+  "textHighlightEdit": {
+    "message": "Edit highlight"
+  },
+  "textHighlightColor": {
+    "message": "Color"
+  },
+  "textHighlightYellow": {
+    "message": "Yellow"
+  },
+  "textHighlightGreen": {
+    "message": "Green"
+  },
+  "textHighlightBlue": {
+    "message": "Blue"
+  },
+  "textHighlightPink": {
+    "message": "Pink"
+  },
+  "textHighlightNote": {
+    "message": "Note (optional)"
+  },
+  "textHighlightSave": {
+    "message": "Save"
+  },
+  "textHighlightDelete": {
+    "message": "Delete"
+  },
+  "textHighlightCancel": {
+    "message": "Cancel"
+  },
+  "textHighlightStorageError": {
+    "message": "Could not save the highlight."
+  },
   "export_image_render_failed": {
     "message": "Image rendering failed ({width} × {height})"
+  },
+  "highlightHistoryTitle": {
+    "message": "Highlights"
+  },
+  "highlightHistoryDisabled": {
+    "message": "Enable text highlights in Settings to view your highlights here."
+  },
+  "highlightHistoryOpenSettings": {
+    "message": "Open settings"
+  },
+  "highlightHistoryEmpty": {
+    "message": "No saved highlights yet."
+  },
+  "highlightHistoryJumpFailed": {
+    "message": "Could not find this highlight in the conversation."
+  },
+  "highlightHistoryMore": {
+    "message": "Show more"
+  },
+  "localTransferTitle": {
+    "message": "Local backup and import"
+  },
+  "transferPins": {
+    "message": "Text pins"
+  },
+  "transferPrompts": {
+    "message": "Prompts"
+  },
+  "transferOpenChat": {
+    "message": "Open or refresh a ChatGPT tab to connect."
+  },
+  "transferFormat": {
+    "message": "Export format"
+  },
+  "transferFull": {
+    "message": "GPT-Voyager full backup"
+  },
+  "transferFormatsHelp": {
+    "message": "GPT-Voyager backups include folders, favorites, text pins, highlights, and prompts. The Voyager formats support manual interchange of folders or prompts."
+  },
+  "transferExported": {
+    "message": "Backup download started."
+  },
+  "transferChoose": {
+    "message": "Choose JSON file"
+  },
+  "transferMatch": {
+    "message": "The exporting ChatGPT account matches the current account. The backup may include data saved by other accounts in this browser."
+  },
+  "transferUnknown": {
+    "message": "The account could not be verified. Check that this file belongs with your local GPT-Voyager data."
+  },
+  "transferItems": {
+    "message": "Category"
+  },
+  "transferLocal": {
+    "message": "Local"
+  },
+  "transferIncoming": {
+    "message": "In file"
+  },
+  "transferAdded": {
+    "message": "New"
+  },
+  "transferDuplicates": {
+    "message": "Duplicates"
+  },
+  "transferConflicts": {
+    "message": "Conflicts"
+  },
+  "transferMerge": {
+    "message": "Merge"
+  },
+  "transferReplace": {
+    "message": "Replace"
+  },
+  "transferMergeHelp": {
+    "message": "Exact duplicates are skipped and different items are kept. Each favorited turn is kept once."
+  },
+  "transferReplaceHelp": {
+    "message": "Only selected categories are replaced. An empty category clears its local items. A recovery copy is saved locally before writing and can be downloaded here."
+  },
+  "transferApplyMerge": {
+    "message": "Merge selected"
+  },
+  "transferApplyReplace": {
+    "message": "Replace selected"
+  },
+  "transferRecovery": {
+    "message": "Download recovery copy"
+  },
+  "transferDone": {
+    "message": "Import complete. Refresh other open ChatGPT tabs if needed."
+  },
+  "transferMismatch": {
+    "message": "This backup was exported under a different known ChatGPT account. Import is blocked. A lack of overlapping conversations alone does not indicate an account mismatch."
+  },
+  "transferWrongSite": {
+    "message": "This backup is for a different site. Choose a ChatGPT backup."
+  },
+  "transferUnsupported": {
+    "message": "This Voyager backup category is unsupported. Use a folder or prompt JSON file."
+  },
+  "transferInvalid": {
+    "message": "This JSON file is invalid or uses an unsupported backup format."
+  },
+  "transferChanged": {
+    "message": "The connection, account, or local data changed. Select the file again for a fresh preview."
+  },
+  "transferBackupFailed": {
+    "message": "Could not save or retrieve the local recovery copy."
+  },
+  "transferReadFailed": {
+    "message": "Local data could not be read. Refresh ChatGPT and try again."
+  },
+  "transferDiverged": {
+    "message": "Two local folder copies differ. Import stopped. Back up both copies and resolve the difference before retrying."
+  },
+  "transferWriteFailed": {
+    "message": "The import could not be saved. Check the local data before retrying."
+  },
+  "transferRollbackFailed": {
+    "message": "The import failed and the previous state could not be fully restored. Check the local data and use the recovery copy if available."
+  },
+  "transferPromptsOnly": {
+    "message": "Prompts only"
+  },
+  "transferSettingsArchive": {
+    "message": "Archive with settings"
+  },
+  "transferReviewTitle": {
+    "message": "Review backup import"
+  },
+  "transferClose": {
+    "message": "Close"
   }
 }

@@ -96,7 +96,7 @@ function jumpToStarredInPage(turnId: string): void {
     }
     const base = window.location.pathname + window.location.search;
     if (window.location.hash) {
-      window.history.replaceState(null, '', base);
+      window.history.replaceState(window.history.state, '', base);
     }
     window.location.hash = `gv-turn-${turnId}`;
   } catch (error) {
@@ -878,7 +878,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
 
     // Backup button - primary action
     const backupBtn = createEl('button', 'gv-pm-backup-btn');
-    backupBtn.textContent = i18n.t('pm_backup');
+    backupBtn.textContent = i18n.t('transferSettingsArchive');
     backupBtn.title = i18n.t('pm_backup_tooltip');
 
     // Single inline row for all secondary footer actions. Backup used to
@@ -934,13 +934,98 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
 
     const supportPanel = createSupportPanel(i18n);
 
-    secondaryActions.appendChild(backupBtn);
+
     secondaryActions.appendChild(importBtn);
     secondaryActions.appendChild(exportBtn);
     secondaryActions.appendChild(settingsBtn);
 
+    const transferMenu = createEl('div', 'gv-pm-transfer-menu');
+    transferMenu.setAttribute('role', 'group');
+    transferMenu.hidden = true;
+    const promptsOnly = createEl('button', 'gv-pm-transfer-prompts');
+    const fullData = createEl('button', 'gv-pm-transfer-full');
+    transferMenu.append(promptsOnly, fullData, backupBtn);
+    secondaryActions.appendChild(transferMenu);
+    let transferTrigger: HTMLButtonElement | null = null;
+    function hideTransferMenu(restoreFocus = false) {
+      const previous = transferTrigger;
+      transferTrigger = null;
+      transferMenu.hidden = true;
+      previous?.setAttribute('aria-expanded', 'false');
+      if (restoreFocus) previous?.focus({ preventScroll: true });
+    }
+    for (const trigger of [importBtn, exportBtn]) {
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.addEventListener('click', () => {
+        if (transferTrigger === trigger) { hideTransferMenu(true); return; }
+        hideTransferMenu();
+        closeFavoritesPopover();
+        transferTrigger = trigger;
+        trigger.setAttribute('aria-expanded', 'true');
+        transferMenu.setAttribute('aria-label', trigger.textContent || '');
+        promptsOnly.textContent = i18n.t('transferPromptsOnly');
+        fullData.textContent = i18n.t('transferFull');
+        backupBtn.hidden = trigger !== exportBtn;
+        transferMenu.hidden = false;
+        transferMenu.style.left = Math.min(trigger.offsetLeft, Math.max(0, panel.clientWidth-transferMenu.offsetWidth-16))+'px';
+        promptsOnly.focus({ preventScroll:true });
+      });
+    }
+    function selectScope(){
+      const importing = transferTrigger === importBtn;
+      hideTransferMenu(true);
+      return importing;
+    }
+    promptsOnly.addEventListener('click', () => {
+      if(selectScope()) importInput.click();
+      else void exportPrompts();
+    });
+    fullData.addEventListener('click', async () => {
+      if (selectScope()) {
+        const picker = document.createElement('input');
+        picker.type = 'file'; picker.accept = '.json,application/json';
+        picker.addEventListener('change', async () => {
+          const file = picker.files?.[0];
+          if(!file) return;
+          const {offerFile,forgetFile}=await import('@/features/localTransfer/pickedFile');
+          const ticket=offerFile(file);
+          try {
+            const result=await browser.runtime.sendMessage({type:'gv.reviewPickedBackup',ticket}) as {ok?:boolean};
+            if (!result?.ok) throw new Error('review');
+          } catch {
+            forgetFile(ticket);
+            setNotice(i18n.t('transferOpenChat'), 'err');
+          }
+        },{once:true});
+        picker.click();
+        return;
+      }
+      try {
+        const [{ nativeExport },{ downloadJson }]=await Promise.all([
+          import('@/features/localTransfer/host'),import('@/features/localTransfer/download'),
+        ]);
+        const {filename,payload}=await nativeExport();
+        downloadJson(filename,payload);
+        setNotice(i18n.t('transferExported'),'ok');
+      } catch {setNotice(i18n.t('exportFailed'),'err');}
+    });
     const supportActions = createEl('div', 'gv-pm-footer-support');
     supportActions.appendChild(projectLink);
+    const highlightsBtn = favoritesBtn.cloneNode(true) as HTMLButtonElement;
+    highlightsBtn.classList.replace('gv-pm-favorites-btn', 'gv-pm-highlights-btn');
+    const highlightsLabel = highlightsBtn.querySelector('.gv-pm-favorites-btn__label')!;
+    const highlightsIcon = highlightsBtn.querySelector('svg')!;
+    highlightsIcon.setAttribute('fill', 'none');
+    highlightsIcon.setAttribute('stroke-width', '1.9');
+    highlightsIcon.innerHTML = '<path d="m13 5 6 6M4 18l3-6L17 2l5 5L12 17l-6 3-2-2ZM3 22h9"/>';
+    const refreshHighlightsLabel = () => {
+      const label = i18n.t('highlightHistoryTitle' as TranslationKey);
+      highlightsLabel.textContent = label;
+      highlightsBtn.title = label;
+      highlightsBtn.setAttribute('aria-label', label);
+    };
+    refreshHighlightsLabel();
+    supportActions.appendChild(highlightsBtn);
     supportActions.appendChild(favoritesBtn);
     supportActions.appendChild(supportPanel);
 
@@ -994,12 +1079,37 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
         await jumpToStarredCrossConversation(message);
       },
     });
+    const highlightsHistory = createEl('div');
     favoritesPopover.appendChild(favoritesSidebar.element);
+    favoritesPopover.appendChild(highlightsHistory);
     document.body.appendChild(favoritesPopover);
 
     let favoritesOpen = false;
+    let secondaryPane: 'favorites' | 'highlights' = 'favorites';
+    let highlightLoad = 0;
+    const loadHighlights = async () => {
+      const token = ++highlightLoad;
+      try {
+        const [{ renderHighlightHistory }, { [StorageKeys.TEXT_HIGHLIGHTS_ENABLED]: enabled }] =
+          await Promise.all([
+            import('../textHighlights/historyPanel'),
+            browser.storage.sync.get(StorageKeys.TEXT_HIGHLIGHTS_ENABLED),
+          ]);
+        if (token !== highlightLoad || !favoritesOpen || secondaryPane !== 'highlights') return;
+        renderHighlightHistory(highlightsHistory, enabled === true, () => {
+          closeFavoritesPopover();
+          void openSettings('text-highlights');
+        }, closePanel);
+        positionFavoritesPopover();
+      } catch {
+        if (token === highlightLoad && favoritesOpen && secondaryPane === 'highlights') {
+          highlightsHistory.textContent = i18n.t('textHighlightStorageError');
+        }
+      }
+    };
     const positionFavoritesPopover = () => {
-      const anchor = favoritesBtn.getBoundingClientRect();
+      const anchor = (secondaryPane === 'highlights' ? highlightsBtn : favoritesBtn)
+        .getBoundingClientRect();
       const popH = favoritesPopover.offsetHeight || 360;
       const popW = favoritesPopover.offsetWidth || 260;
       const pad = 8;
@@ -1012,28 +1122,44 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       favoritesPopover.style.top = `${top}px`;
       favoritesPopover.style.left = `${left}px`;
     };
-    const openFavoritesPopover = () => {
+    const openFavoritesPopover = (pane: 'favorites' | 'highlights') => {
+      secondaryPane = pane;
       favoritesOpen = true;
       favoritesPopover.classList.remove('gv-hidden');
-      favoritesBtn.classList.add('active');
-      favoritesBtn.setAttribute('aria-expanded', 'true');
-      void favoritesSidebar.refresh();
-      // Measure after the element is visible so offsetWidth/Height resolve.
+      const showHighlights = pane === 'highlights';
+      favoritesSidebar.element.style.display = showHighlights ? 'none' : '';
+      highlightsHistory.style.display = showHighlights ? '' : 'none';
+      favoritesBtn.classList.toggle('active', !showHighlights);
+      highlightsBtn.classList.toggle('active', showHighlights);
+      favoritesBtn.setAttribute('aria-expanded', String(!showHighlights));
+      highlightsBtn.setAttribute('aria-expanded', String(showHighlights));
+      favoritesPopover.setAttribute('aria-label', showHighlights ? highlightsBtn.title : favoritesBtn.title);
+      if (showHighlights) void loadHighlights();
+      else {
+        highlightsHistory.replaceChildren();
+        void favoritesSidebar.refresh();
+      }
       requestAnimationFrame(positionFavoritesPopover);
     };
     const closeFavoritesPopover = () => {
       favoritesOpen = false;
+      highlightLoad++;
       favoritesPopover.classList.add('gv-hidden');
+      highlightsHistory.replaceChildren();
       favoritesBtn.classList.remove('active');
+      highlightsBtn.classList.remove('active');
       favoritesBtn.setAttribute('aria-expanded', 'false');
+      highlightsBtn.setAttribute('aria-expanded', 'false');
     };
     favoritesBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (favoritesOpen) {
-        closeFavoritesPopover();
-      } else {
-        openFavoritesPopover();
-      }
+      if (favoritesOpen && secondaryPane === 'favorites') closeFavoritesPopover();
+      else openFavoritesPopover('favorites');
+    });
+    highlightsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (favoritesOpen && secondaryPane === 'highlights') closeFavoritesPopover();
+      else openFavoritesPopover('highlights');
     });
     // Dismiss on outside click and Escape, in line with the support popover.
     const onFavoritesOutsideClick = (e: MouseEvent) => {
@@ -1041,7 +1167,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       const target = e.target as Node | null;
       if (!target) return;
       if (favoritesPopover.contains(target)) return;
-      if (favoritesBtn.contains(target)) return;
+      if (favoritesBtn.contains(target) || highlightsBtn.contains(target)) return;
       closeFavoritesPopover();
     };
     const onFavoritesKeydown = (e: KeyboardEvent) => {
@@ -1656,6 +1782,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     }
 
     function closePanel(): void {
+      hideTransferMenu();
       open = false;
       supportPanel.dispatchEvent(new Event('gv-pm-close'));
       trigger.setAttribute('aria-expanded', 'false');
@@ -1706,9 +1833,10 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       titleText.textContent = 'GPT-Voyager';
       addBtn.textContent = i18n.t('pm_add');
       searchInput.placeholder = i18n.t('pm_search_placeholder');
+      hideTransferMenu();
       importBtn.textContent = i18n.t('pm_import');
       exportBtn.textContent = i18n.t('pm_export');
-      backupBtn.textContent = i18n.t('pm_backup');
+      backupBtn.textContent = i18n.t('transferSettingsArchive');
       backupBtn.title = i18n.t('pm_backup_tooltip');
       void i18n.get();
 
@@ -1725,6 +1853,8 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       favoritesBtn.title = i18n.t('favoritesSidebarTitle');
       favoritesBtn.setAttribute('aria-label', i18n.t('favoritesSidebarTitle'));
       favoritesSidebar.refreshLabels();
+      refreshHighlightsLabel();
+      if (favoritesOpen && secondaryPane === 'highlights') void loadHighlights();
       supportPanel.dispatchEvent(
         new CustomEvent<AppLanguage>('gv-pm-language-change', {
           detail: normalizeLanguage(langSel.value),
@@ -1835,6 +1965,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       if (!open) return;
       const target = ev.target as HTMLElement | null;
       if (!target) return;
+      if (transferTrigger && !transferMenu.contains(target) && !importBtn.contains(target) && !exportBtn.contains(target)) hideTransferMenu();
       if (target.closest(`#${ID.panel}`)) return;
       if (target.closest(`#${ID.trigger}`)) return;
       if (target.closest('.gv-pm-confirm')) return;
@@ -1857,7 +1988,10 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
     // Close on Escape
     const onWindowKeyDown = (ev: KeyboardEvent) => {
       if (!open) return;
-      if (ev.key === 'Escape') closePanel();
+      if (ev.key === 'Escape') {
+        if (transferTrigger) hideTransferMenu(true);
+        else closePanel();
+      }
     };
     window.addEventListener('keydown', onWindowKeyDown, { passive: true });
 
@@ -1935,6 +2069,8 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       changes: Record<string, browser.Storage.StorageChange>,
       area: string,
     ) => {
+      if (area === 'sync' && changes[StorageKeys.TEXT_HIGHLIGHTS_ENABLED] &&
+          favoritesOpen && secondaryPane === 'highlights') void loadHighlights();
       // Handle hide prompt manager setting changes
       if (area === 'sync' && changes?.gvHidePromptManager) {
         const shouldHide = changes.gvHidePromptManager.newValue === true;
@@ -1993,9 +2129,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       (addForm.querySelector('.gv-pm-input-text') as HTMLTextAreaElement)?.focus();
     });
 
-    settingsBtn.addEventListener('click', async (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
+    async function openSettings(focus?: 'text-highlights') {
       try {
         // Check if extension context is still valid
         if (!browser.runtime?.id) {
@@ -2008,7 +2142,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
         }
 
         // Send message to background to open popup
-        const response = (await browser.runtime.sendMessage({ type: 'gv.openPopup' })) as {
+        const response = (await browser.runtime.sendMessage({ type: 'gv.openPopup', ...(focus ? { focus } : {}) })) as {
           ok?: boolean;
         };
         if (!response?.ok) {
@@ -2033,6 +2167,11 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
           'err',
         );
       }
+    }
+    settingsBtn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      void openSettings();
     });
 
     (addForm.querySelector('.gv-pm-cancel') as HTMLButtonElement).addEventListener(
@@ -2080,7 +2219,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
 
     searchInput.addEventListener('input', () => renderList());
 
-    exportBtn.addEventListener('click', async () => {
+    async function exportPrompts() {
       try {
         const data = await readStorage<PromptItem[]>(STORAGE_KEYS.items, []);
         const payload = {
@@ -2100,10 +2239,11 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       } catch {
         setNotice(i18n.t('exportFailed'), 'err');
       }
-    });
+    }
 
     // Backup button handler - creates timestamp folder with all data
     backupBtn.addEventListener('click', async () => {
+      hideTransferMenu(true);
       try {
         // Read prompts
         const prompts = await readStorage<PromptItem[]>(STORAGE_KEYS.items, []);
@@ -2273,7 +2413,6 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
       }
     });
 
-    importBtn.addEventListener('click', () => importInput.click());
     importInput.addEventListener('change', async () => {
       const file = importInput.files && importInput.files[0];
       if (!file) return;
@@ -2382,6 +2521,7 @@ export async function startPromptManager(): Promise<{ destroy: () => void }> {
             unsubscribeStarRemoved();
             document.removeEventListener('click', onFavoritesOutsideClick, true);
             document.removeEventListener('keydown', onFavoritesKeydown, true);
+            closeFavoritesPopover();
             favoritesSidebar.destroy();
             favoritesPopover.remove();
           } catch {}

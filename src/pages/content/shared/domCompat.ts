@@ -130,13 +130,18 @@ function setTestIdIfFree(el: Element, testId: string): void {
  */
 function syncHeaderOptions(): void {
   if (!CONVERSATION_ROUTE_RE.test(location.pathname)) return;
-  // November: the conversation menu moved from the right-hand ellipsis into
-  // the title dropdown. It remains the owner of rename/move/export menu actions.
-  const titleMenu = document.querySelector(
-    'header [data-app-shell-main-titlebar] [data-app-shell-header-toolbar] button[aria-haspopup="menu"]:has(use[href*="#codex-icon-chevron-down-"])',
+  const header =
+    document.querySelector('[data-app-shell-active-page="true"] header[data-app-shell-titlebar]') ??
+    document.querySelector('header[data-app-shell-titlebar], header#page-header, header');
+  if (!header) return;
+  const ellipsis = header.querySelector(
+    '[data-app-shell-main-titlebar] button[aria-haspopup="menu"]:has(use[href*="#codex-icon-ellipsis-horizontal-"])',
   );
-  const triggers = document.querySelectorAll(HEADER_OPTIONS_SELECTOR);
-  const trigger = titleMenu ?? triggers[triggers.length - 1];
+  const titleMenu = header.querySelector(
+    '[data-app-shell-main-titlebar] [data-app-shell-header-toolbar] button[aria-haspopup="menu"]:has(use[href*="#codex-icon-chevron-down-"])',
+  );
+  const triggers = header.querySelectorAll(HEADER_OPTIONS_SELECTOR);
+  const trigger = ellipsis ?? titleMenu ?? triggers[triggers.length - 1];
   if (trigger) setTestIdIfFree(trigger, LEGACY_HEADER_OPTIONS_TESTID);
 }
 
@@ -172,8 +177,14 @@ function syncConversationMenu(menu: Element): void {
   if (!(testId === LEGACY_HEADER_OPTIONS_TESTID || /^history-item-\d+-options$/.test(testId))) {
     return;
   }
-  for (const item of Array.from(menu.querySelectorAll(':scope > [role="menuitem"]'))) {
-    const label = (item.textContent ?? '').replace(/\s+/g, ' ').trim();
+  for (const item of Array.from(menu.querySelectorAll('[role="menuitem"]'))) {
+    if (item.closest('[role="menu"]') !== menu) continue;
+    // The native label and its keyboard shortcut are sibling spans ("重命名" + "R").
+    const label = (
+      item.querySelector('.truncate:not(:has(.truncate))')?.textContent ??
+      item.textContent ??
+      ''
+    ).trim();
     const match = MENU_ITEM_LABELS.find(([, re]) => re.test(label));
     if (match) setTestIdIfFree(item, match[0]);
   }

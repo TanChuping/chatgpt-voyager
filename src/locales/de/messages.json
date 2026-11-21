@@ -2087,7 +2087,184 @@
   "tempChatRegretErrCollectionStopped": {
     "message": "Die Erfassung der Unterhaltung wurde vorzeitig beendet ({count} Nachrichten gefunden)."
   },
+  "textHighlights": {
+    "message": "Textmarkierungen"
+  },
+  "textHighlightsDescription": {
+    "message": "Wähle Text in einer ChatGPT-Nachricht aus, um ihn zu markieren und eine Notiz hinzuzufügen."
+  },
+  "textHighlightAdd": {
+    "message": "Markieren"
+  },
+  "textHighlightEdit": {
+    "message": "Markierung bearbeiten"
+  },
+  "textHighlightColor": {
+    "message": "Farbe"
+  },
+  "textHighlightYellow": {
+    "message": "Gelb"
+  },
+  "textHighlightGreen": {
+    "message": "Grün"
+  },
+  "textHighlightBlue": {
+    "message": "Blau"
+  },
+  "textHighlightPink": {
+    "message": "Rosa"
+  },
+  "textHighlightNote": {
+    "message": "Notiz (optional)"
+  },
+  "textHighlightSave": {
+    "message": "Speichern"
+  },
+  "textHighlightDelete": {
+    "message": "Löschen"
+  },
+  "textHighlightCancel": {
+    "message": "Abbrechen"
+  },
+  "textHighlightStorageError": {
+    "message": "Die Markierung konnte nicht gespeichert werden."
+  },
   "export_image_render_failed": {
     "message": "Bild konnte nicht gerendert werden ({width} × {height})"
+  },
+  "highlightHistoryTitle": {
+    "message": "Markierungen"
+  },
+  "highlightHistoryDisabled": {
+    "message": "Aktiviere die Textmarkierungen in den Einstellungen, um deine Markierungen zu sehen."
+  },
+  "highlightHistoryOpenSettings": {
+    "message": "Einstellungen öffnen"
+  },
+  "highlightHistoryEmpty": {
+    "message": "Noch keine gespeicherten Markierungen."
+  },
+  "highlightHistoryJumpFailed": {
+    "message": "Diese Markierung wurde in der Unterhaltung nicht gefunden."
+  },
+  "highlightHistoryMore": {
+    "message": "Mehr anzeigen"
+  },
+  "localTransferTitle": {
+    "message": "Lokale Sicherung und Import"
+  },
+  "transferPins": {
+    "message": "Angeheftete Texte"
+  },
+  "transferPrompts": {
+    "message": "Prompts"
+  },
+  "transferOpenChat": {
+    "message": "Öffne oder lade einen ChatGPT-Tab neu, um eine Verbindung herzustellen."
+  },
+  "transferFormat": {
+    "message": "Exportformat"
+  },
+  "transferFull": {
+    "message": "Vollständige GPT-Voyager-Sicherung"
+  },
+  "transferFormatsHelp": {
+    "message": "Eine GPT-Voyager-Sicherung enthält Ordner, Favoriten, Angeheftete Texte, Markierungen und Prompts. Die Voyager-Formate dienen dem manuellen Austausch von Ordnern oder Prompts."
+  },
+  "transferExported": {
+    "message": "Download der Sicherung gestartet."
+  },
+  "transferChoose": {
+    "message": "JSON-Datei auswählen"
+  },
+  "transferMatch": {
+    "message": "Das ChatGPT-Konto beim Export entspricht dem aktuellen Konto. Die Sicherung kann Daten anderer Konten in diesem Browser enthalten."
+  },
+  "transferUnknown": {
+    "message": "Das Konto konnte nicht überprüft werden. Prüfe, ob die Datei zu deinen lokalen GPT-Voyager-Daten gehört."
+  },
+  "transferItems": {
+    "message": "Kategorie"
+  },
+  "transferLocal": {
+    "message": "Lokal"
+  },
+  "transferIncoming": {
+    "message": "In der Datei"
+  },
+  "transferAdded": {
+    "message": "Neu"
+  },
+  "transferDuplicates": {
+    "message": "Duplikate"
+  },
+  "transferConflicts": {
+    "message": "Konflikte"
+  },
+  "transferMerge": {
+    "message": "Zusammenführen"
+  },
+  "transferReplace": {
+    "message": "Ersetzen"
+  },
+  "transferMergeHelp": {
+    "message": "Identische Einträge werden übersprungen, unterschiedliche bleiben erhalten. Pro Gesprächsrunde bleibt ein Favorit erhalten."
+  },
+  "transferReplaceHelp": {
+    "message": "Nur ausgewählte Kategorien werden ersetzt. Eine leere Kategorie löscht die zugehörigen lokalen Daten. Vor dem Schreiben wird eine Wiederherstellungskopie lokal gespeichert, die du hier herunterladen kannst."
+  },
+  "transferApplyMerge": {
+    "message": "Auswahl zusammenführen"
+  },
+  "transferApplyReplace": {
+    "message": "Auswahl ersetzen"
+  },
+  "transferRecovery": {
+    "message": "Wiederherstellungskopie herunterladen"
+  },
+  "transferDone": {
+    "message": "Import abgeschlossen. Lade andere offene ChatGPT-Tabs bei Bedarf neu."
+  },
+  "transferMismatch": {
+    "message": "Die Sicherung wurde mit einem anderen erkannten ChatGPT-Konto exportiert. Der Import ist gesperrt. Fehlende gemeinsame Unterhaltungen allein belegen keine Kontoabweichung."
+  },
+  "transferWrongSite": {
+    "message": "Diese Sicherung gehört zu einer anderen Website. Wähle eine ChatGPT-Sicherung."
+  },
+  "transferUnsupported": {
+    "message": "Diese Art von Voyager-Sicherung wird nicht unterstützt. Wähle eine JSON-Datei mit Ordnern oder Prompts."
+  },
+  "transferInvalid": {
+    "message": "Die JSON-Datei ist ungültig oder verwendet ein nicht unterstütztes Sicherungsformat."
+  },
+  "transferChanged": {
+    "message": "Die Verbindung, das Konto oder die lokalen Daten haben sich geändert. Wähle die Datei erneut für die Vorschau aus."
+  },
+  "transferBackupFailed": {
+    "message": "Die lokale Wiederherstellungskopie konnte nicht gespeichert oder abgerufen werden."
+  },
+  "transferReadFailed": {
+    "message": "Die lokalen Daten konnten nicht gelesen werden. Lade ChatGPT neu und versuche es erneut."
+  },
+  "transferDiverged": {
+    "message": "Zwei lokale Ordnerkopien weichen voneinander ab. Der Import wurde gestoppt. Sichere beide Kopien und kläre die Abweichung, bevor du es erneut versuchst."
+  },
+  "transferWriteFailed": {
+    "message": "Der Import konnte nicht gespeichert werden. Prüfe die lokalen Daten, bevor du es erneut versuchst."
+  },
+  "transferRollbackFailed": {
+    "message": "Der Import ist fehlgeschlagen und der vorherige Zustand konnte nicht vollständig wiederhergestellt werden. Prüfe die lokalen Daten und nutze, falls vorhanden, die Wiederherstellungskopie."
+  },
+  "transferPromptsOnly": {
+    "message": "Nur Prompts"
+  },
+  "transferSettingsArchive": {
+    "message": "Archiv mit Einstellungen"
+  },
+  "transferReviewTitle": {
+    "message": "Import prüfen"
+  },
+  "transferClose": {
+    "message": "Schließen"
   }
 }

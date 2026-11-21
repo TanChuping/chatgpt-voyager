@@ -1,4 +1,5 @@
-import { getTranslationSync, getCachedLanguage } from '@/utils/i18n';
+import { getCachedLanguage, getTranslationSync } from '@/utils/i18n';
+
 /**
  * Simplified HTML exporter.
  *
@@ -137,8 +138,11 @@ export function toHtml(linear: LinearConversation): string {
   const title = escapeHtml(filtered.title || getTranslationSync('conversation_untitled'));
   const created = formatTimestamp(filtered.createTime);
   const metaParts: string[] = [];
-  if (created) metaParts.push(`${getTranslationSync('exportCreatedLabel')}: ${escapeHtml(created)}`);
-  metaParts.push(`${getTranslationSync('exportExportedLabel')}: ${escapeHtml(new Date().toISOString())}`);
+  if (created)
+    metaParts.push(`${getTranslationSync('exportCreatedLabel')}: ${escapeHtml(created)}`);
+  metaParts.push(
+    `${getTranslationSync('exportExportedLabel')}: ${escapeHtml(new Date().toISOString())}`,
+  );
   const meta = metaParts.join(' &middot; ');
 
   const messages = filtered.messages.map(messageHtml).join('\n');
@@ -182,8 +186,12 @@ async function appendEscapedChunks(
   chunkCounter: { value: number },
 ): Promise<void> {
   if (!text) return;
-  for (let offset = 0; offset < text.length; offset += options.chunkSize) {
-    parts.push(escapeHtml(text.slice(offset, offset + options.chunkSize)));
+  for (let offset = 0; offset < text.length; ) {
+    let end = Math.min(offset + options.chunkSize, text.length);
+    // Blob encodes each string part separately. Keep surrogate pairs together.
+    if (end < text.length && /[\uD800-\uDBFF]/.test(text[end - 1])) end++;
+    parts.push(escapeHtml(text.slice(offset, end)));
+    offset = end;
     chunkCounter.value += 1;
     if (chunkCounter.value % options.yieldEveryChunks === 0) {
       await options.yieldToMain();
@@ -209,8 +217,11 @@ export async function toHtmlBlobParts(
   const title = escapeHtml(filtered.title || getTranslationSync('conversation_untitled'));
   const created = formatTimestamp(filtered.createTime);
   const metaParts: string[] = [];
-  if (created) metaParts.push(`${getTranslationSync('exportCreatedLabel')}: ${escapeHtml(created)}`);
-  metaParts.push(`${getTranslationSync('exportExportedLabel')}: ${escapeHtml(new Date().toISOString())}`);
+  if (created)
+    metaParts.push(`${getTranslationSync('exportCreatedLabel')}: ${escapeHtml(created)}`);
+  metaParts.push(
+    `${getTranslationSync('exportExportedLabel')}: ${escapeHtml(new Date().toISOString())}`,
+  );
   const meta = metaParts.join(' &middot; ');
   const parts: BlobPart[] = [
     `<!DOCTYPE html>\n<html lang="${getCachedLanguage()}">\n<head>\n<meta charset="UTF-8" />\n<meta name="viewport" content="width=device-width, initial-scale=1" />\n<title>${title}</title>\n<style>${STYLE}</style>\n</head>\n<body>\n<main>\n  <h1>${title}</h1>\n  <p class="meta">${meta}</p>\n`,
