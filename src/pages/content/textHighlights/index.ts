@@ -19,6 +19,17 @@ const USER_CONTENT = '[data-user-message-bubble]';
 const ASSISTANT_CONTENT = '[data-markdown-text-style]';
 const NATIVE_CONTENT = `${USER_CONTENT}, ${ASSISTANT_CONTENT}`;
 const CONTENT = '[data-message-content], .markdown, .whitespace-pre-wrap';
+const LAST_COLOR_KEY = 'gptTextHighlightLastColor';
+
+function lastSavedColor(): HighlightColor {
+  try {
+    const stored = localStorage.getItem(LAST_COLOR_KEY);
+    return HIGHLIGHT_COLORS.find((color) => color === stored) ?? 'yellow';
+  } catch {
+    return 'yellow';
+  }
+}
+
 const PALETTE = {
   yellow: { ink: '#edc65c', label: 'textHighlightYellow' },
   green: { ink: '#73cba0', label: 'textHighlightGreen' },
@@ -225,7 +236,7 @@ export function startTextHighlights(): () => void {
   function update(storageKey: string, record: TextHighlight, remove: boolean) {
     if (getKey() !== storageKey) {
       closePanel();
-      return;
+      return false;
     }
     const records = readHighlights(storageKey).filter(({ id }) => id !== record.id);
     if (!remove) {
@@ -244,12 +255,14 @@ export function startTextHighlights(): () => void {
       localStorage.setItem(storageKey, JSON.stringify(records));
       closePanel();
       reload();
+      return true;
     } catch {
       const error = document.createElement('div');
       error.setAttribute('role', 'alert');
       error.textContent = getTranslationSync('textHighlightStorageError');
       panel.querySelector('[role="alert"]')?.remove();
       panel.append(error);
+      return false;
     }
   }
 
@@ -338,7 +351,14 @@ export function startTextHighlights(): () => void {
       bar.append(del);
     }
     const save = iconButton('textHighlightSave', 'check', () => {
-      update(storageKey, { ...record, color: selected, note: note.value }, false);
+      const saved = update(storageKey, { ...record, color: selected, note: note.value }, false);
+      if (saved && (!existing || selected !== record.color)) {
+        try {
+          localStorage.setItem(LAST_COLOR_KEY, selected);
+        } catch {
+          // The highlight is already saved even if storage has no room for the preference.
+        }
+      }
     });
     save.className = 'gv-hl-save';
     bar.append(save);
@@ -389,7 +409,7 @@ export function startTextHighlights(): () => void {
               ?.getAttribute('data-turn-key') ??
             message.closest('[data-turn-id-container]')?.getAttribute('data-turn-id-container') ??
             undefined,
-          color: 'yellow',
+          color: lastSavedColor(),
           note: '',
           updatedAt: 0,
         },

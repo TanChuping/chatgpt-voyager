@@ -106,9 +106,31 @@ it.each([
     click('textHighlightDelete');
     expect(readHighlights(key)).toEqual([]);
     expect(registry.get('gv-text-blue')!.size).toBe(0);
+
+    stop();
+    history.replaceState(null, '', '/c/another-chat');
+    stop = start();
+    select();
+    click('textHighlightAdd');
+    const selectedColor = () => document.querySelector<HTMLInputElement>('input:checked')?.value;
+    expect(selectedColor()).toBe('blue');
+    document.querySelector<HTMLInputElement>('input[value="pink"]')!.click();
+    document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape' }));
+    select();
+    click('textHighlightAdd');
+    expect(selectedColor()).toBe('blue');
+    document.querySelector<HTMLInputElement>('input[value="green"]')!.click();
+    click('textHighlightSave');
+    expect(readHighlights(HIGHLIGHTS_PREFIX + 'another-chat')[0].color).toBe('green');
+    history.replaceState(null, '', '/c/test-highlight');
+    select();
+    click('textHighlightAdd');
+    expect(selectedColor()).toBe('green');
   } finally {
     stop();
     localStorage.removeItem(key);
+    localStorage.removeItem(HIGHLIGHTS_PREFIX + 'another-chat');
+    localStorage.removeItem('gptTextHighlightLastColor');
     document.body.replaceChildren();
     history.replaceState(null, '', '/');
     Range.prototype.getBoundingClientRect = originalRect;
